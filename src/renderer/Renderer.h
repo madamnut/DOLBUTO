@@ -127,7 +127,16 @@ namespace dolbuto
         {
             VkBuffer vertexBuffer = VK_NULL_HANDLE;
             VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
+            VkBuffer indexBuffer = VK_NULL_HANDLE;
+            VkDeviceMemory indexMemory = VK_NULL_HANDLE;
             uint32_t vertexCount = 0;
+            uint32_t indexCount = 0;
+        };
+
+        struct TerrainBuildData
+        {
+            std::vector<TerrainVertex> vertices;
+            std::vector<uint32_t> indices;
         };
 
         void createInstance();
@@ -151,7 +160,7 @@ namespace dolbuto
         void createTextVertexBuffer();
         void createPlayerMesh();
         void createTerrainMesh();
-        void createTerrainBuffer(const std::vector<TerrainVertex>& vertices, TerrainMesh& mesh);
+        void createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh);
         void createCommandBuffers();
         void createSyncObjects();
 
@@ -250,6 +259,7 @@ namespace dolbuto
         TerrainMesh grassTopTerrain_;
         TerrainMesh playerMesh_;
         std::vector<TerrainVertex> playerLocalVertices_;
+        std::vector<uint32_t> playerIndices_;
         uint32_t terrainDrawCount_ = 0;
         uint32_t terrainFaceCount_ = 0;
         uint32_t terrainVertexCount_ = 0;

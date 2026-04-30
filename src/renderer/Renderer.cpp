@@ -21,6 +21,7 @@
 #include <sstream>
 #include <set>
 #include <stdexcept>
+#include <utility>
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -1213,8 +1214,9 @@ namespace dolbuto
         std::vector<TerrainVertex> sourceVertices(vertexCount);
         std::memcpy(sourceVertices.data(), meshData.data() + verticesOffset, sourceVertices.size() * sizeof(TerrainVertex));
 
-        playerLocalVertices_.clear();
-        playerLocalVertices_.reserve(indexCount);
+        playerLocalVertices_ = std::move(sourceVertices);
+        playerIndices_.clear();
+        playerIndices_.reserve(indexCount);
         for (uint32_t i = 0; i < indexCount; ++i)
         {
             uint32_t index = 0;
@@ -1223,10 +1225,10 @@ namespace dolbuto
             {
                 throw std::runtime_error("Invalid player mesh index.");
             }
-            playerLocalVertices_.push_back(sourceVertices[index]);
+            playerIndices_.push_back(index);
         }
 
-        createTerrainBuffer(playerLocalVertices_, playerMesh_);
+        createTerrainBuffer({playerLocalVertices_, playerIndices_}, playerMesh_);
     }
 
     void Renderer::createTerrainMesh()
@@ -1272,7 +1274,7 @@ namespace dolbuto
             return chunks[chunkZ * TestChunkCountX + chunkX].at(localX, y, localZ);
         };
 
-        auto appendFace = [](std::vector<TerrainVertex>& vertices, int x, int y, int z, int face, int width, int height)
+        auto appendFace = [](TerrainBuildData& buildData, int x, int y, int z, int face, int width, int height)
         {
             const float x0 = static_cast<float>(x) - 0.5f;
             const float x1 = static_cast<float>(x + width) - 0.5f;
@@ -1328,12 +1330,17 @@ namespace dolbuto
                 }
             }
 
-            vertices.push_back(quad[0]);
-            vertices.push_back(quad[1]);
-            vertices.push_back(quad[2]);
-            vertices.push_back(quad[0]);
-            vertices.push_back(quad[2]);
-            vertices.push_back(quad[3]);
+            const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
+            buildData.vertices.push_back(quad[0]);
+            buildData.vertices.push_back(quad[1]);
+            buildData.vertices.push_back(quad[2]);
+            buildData.vertices.push_back(quad[3]);
+            buildData.indices.push_back(baseIndex);
+            buildData.indices.push_back(baseIndex + 1);
+            buildData.indices.push_back(baseIndex + 2);
+            buildData.indices.push_back(baseIndex);
+            buildData.indices.push_back(baseIndex + 2);
+            buildData.indices.push_back(baseIndex + 3);
         };
 
         auto emitGreedy = [](std::vector<uint8_t>& mask, int maskWidth, int maskHeight, auto emit)
@@ -1386,12 +1393,15 @@ namespace dolbuto
             }
         };
 
-        std::vector<TerrainVertex> rockVertices;
-        std::vector<TerrainVertex> grassSideVertices;
-        std::vector<TerrainVertex> grassTopVertices;
-        rockVertices.reserve(static_cast<size_t>(blockCountX) * blockCountZ * 6);
-        grassSideVertices.reserve(static_cast<size_t>(blockCountX + blockCountZ) * 24);
-        grassTopVertices.reserve(static_cast<size_t>(blockCountX) * blockCountZ * 6);
+        TerrainBuildData rockBuildData;
+        TerrainBuildData grassSideBuildData;
+        TerrainBuildData grassTopBuildData;
+        rockBuildData.vertices.reserve(static_cast<size_t>(blockCountX) * blockCountZ * 4);
+        rockBuildData.indices.reserve(static_cast<size_t>(blockCountX) * blockCountZ * 6);
+        grassSideBuildData.vertices.reserve(static_cast<size_t>(blockCountX + blockCountZ) * 16);
+        grassSideBuildData.indices.reserve(static_cast<size_t>(blockCountX + blockCountZ) * 24);
+        grassTopBuildData.vertices.reserve(static_cast<size_t>(blockCountX) * blockCountZ * 4);
+        grassTopBuildData.indices.reserve(static_cast<size_t>(blockCountX) * blockCountZ * 6);
 
         std::vector<uint8_t> mask(SubchunkSize * SubchunkSize);
         for (int chunkZ = 0; chunkZ < TestChunkCountZ; ++chunkZ)
@@ -1419,7 +1429,7 @@ namespace dolbuto
                         }
                         emitGreedy(mask, ChunkSizeX, ChunkSizeZ, [&](int localX, int localZ, int width, int height)
                         {
-                            appendFace(rockVertices, worldXStart + localX, y, worldZStart + localZ, 0, width, height);
+                            appendFace(rockBuildData, worldXStart + localX, y, worldZStart + localZ, 0, width, height);
                         });
 
                         std::fill(mask.begin(), mask.end(), 0);
@@ -1434,7 +1444,7 @@ namespace dolbuto
                         }
                         emitGreedy(mask, ChunkSizeX, ChunkSizeZ, [&](int localX, int localZ, int width, int height)
                         {
-                            appendFace(rockVertices, worldXStart + localX, y, worldZStart + localZ, 1, width, height);
+                            appendFace(rockBuildData, worldXStart + localX, y, worldZStart + localZ, 1, width, height);
                         });
                     }
 
@@ -1453,7 +1463,7 @@ namespace dolbuto
                         }
                         emitGreedy(mask, ChunkSizeZ, SubchunkSize, [&](int localZ, int localY, int width, int height)
                         {
-                            appendFace(rockVertices, x, worldYStart + localY, worldZStart + localZ, 2, width, height);
+                            appendFace(rockBuildData, x, worldYStart + localY, worldZStart + localZ, 2, width, height);
                         });
 
                         std::fill(mask.begin(), mask.end(), 0);
@@ -1468,7 +1478,7 @@ namespace dolbuto
                         }
                         emitGreedy(mask, ChunkSizeZ, SubchunkSize, [&](int localZ, int localY, int width, int height)
                         {
-                            appendFace(rockVertices, x, worldYStart + localY, worldZStart + localZ, 3, width, height);
+                            appendFace(rockBuildData, x, worldYStart + localY, worldZStart + localZ, 3, width, height);
                         });
                     }
 
@@ -1487,7 +1497,7 @@ namespace dolbuto
                         }
                         emitGreedy(mask, ChunkSizeX, SubchunkSize, [&](int localX, int localY, int width, int height)
                         {
-                            appendFace(rockVertices, worldXStart + localX, worldYStart + localY, z, 4, width, height);
+                            appendFace(rockBuildData, worldXStart + localX, worldYStart + localY, z, 4, width, height);
                         });
 
                         std::fill(mask.begin(), mask.end(), 0);
@@ -1502,29 +1512,29 @@ namespace dolbuto
                         }
                         emitGreedy(mask, ChunkSizeX, SubchunkSize, [&](int localX, int localY, int width, int height)
                         {
-                            appendFace(rockVertices, worldXStart + localX, worldYStart + localY, z, 5, width, height);
+                            appendFace(rockBuildData, worldXStart + localX, worldYStart + localY, z, 5, width, height);
                         });
                     }
                 }
             }
         }
 
-        createTerrainBuffer(rockVertices, rockTerrain_);
-        createTerrainBuffer(grassSideVertices, grassSideTerrain_);
-        createTerrainBuffer(grassTopVertices, grassTopTerrain_);
+        createTerrainBuffer(rockBuildData, rockTerrain_);
+        createTerrainBuffer(grassSideBuildData, grassSideTerrain_);
+        createTerrainBuffer(grassTopBuildData, grassTopTerrain_);
 
         terrainDrawCount_ = 0;
         terrainVertexCount_ = rockTerrain_.vertexCount + grassSideTerrain_.vertexCount + grassTopTerrain_.vertexCount;
-        terrainFaceCount_ = terrainVertexCount_ / 6;
-        if (rockTerrain_.vertexCount > 0)
+        terrainFaceCount_ = (rockTerrain_.indexCount + grassSideTerrain_.indexCount + grassTopTerrain_.indexCount) / 6;
+        if (rockTerrain_.indexCount > 0)
         {
             ++terrainDrawCount_;
         }
-        if (grassSideTerrain_.vertexCount > 0)
+        if (grassSideTerrain_.indexCount > 0)
         {
             ++terrainDrawCount_;
         }
-        if (grassTopTerrain_.vertexCount > 0)
+        if (grassTopTerrain_.indexCount > 0)
         {
             ++terrainDrawCount_;
         }
@@ -1535,26 +1545,40 @@ namespace dolbuto
         debugTextBatchDirty_ = true;
     }
 
-    void Renderer::createTerrainBuffer(const std::vector<TerrainVertex>& vertices, TerrainMesh& mesh)
+    void Renderer::createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh)
     {
-        if (vertices.empty())
+        if (buildData.vertices.empty() || buildData.indices.empty())
         {
             return;
         }
 
-        mesh.vertexCount = static_cast<uint32_t>(vertices.size());
-        const VkDeviceSize bufferSize = sizeof(TerrainVertex) * vertices.size();
+        mesh.vertexCount = static_cast<uint32_t>(buildData.vertices.size());
+        mesh.indexCount = static_cast<uint32_t>(buildData.indices.size());
+
+        const VkDeviceSize vertexBufferSize = sizeof(TerrainVertex) * buildData.vertices.size();
         createBuffer(
-            bufferSize,
+            vertexBufferSize,
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             mesh.vertexBuffer,
             mesh.vertexMemory);
 
         void* data = nullptr;
-        vkMapMemory(device_, mesh.vertexMemory, 0, bufferSize, 0, &data);
-        std::memcpy(data, vertices.data(), static_cast<size_t>(bufferSize));
+        vkMapMemory(device_, mesh.vertexMemory, 0, vertexBufferSize, 0, &data);
+        std::memcpy(data, buildData.vertices.data(), static_cast<size_t>(vertexBufferSize));
         vkUnmapMemory(device_, mesh.vertexMemory);
+
+        const VkDeviceSize indexBufferSize = sizeof(uint32_t) * buildData.indices.size();
+        createBuffer(
+            indexBufferSize,
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            mesh.indexBuffer,
+            mesh.indexMemory);
+
+        vkMapMemory(device_, mesh.indexMemory, 0, indexBufferSize, 0, &data);
+        std::memcpy(data, buildData.indices.data(), static_cast<size_t>(indexBufferSize));
+        vkUnmapMemory(device_, mesh.indexMemory);
     }
 
     void Renderer::createCommandBuffers()
@@ -1921,6 +1945,14 @@ namespace dolbuto
         {
             vkFreeMemory(device_, mesh.vertexMemory, nullptr);
         }
+        if (mesh.indexBuffer != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(device_, mesh.indexBuffer, nullptr);
+        }
+        if (mesh.indexMemory != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(device_, mesh.indexMemory, nullptr);
+        }
         mesh = {};
     }
 
@@ -2227,7 +2259,7 @@ namespace dolbuto
 
     void Renderer::drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe) const
     {
-        if (rockTerrain_.vertexCount == 0 && grassSideTerrain_.vertexCount == 0 && grassTopTerrain_.vertexCount == 0)
+        if (rockTerrain_.indexCount == 0 && grassSideTerrain_.indexCount == 0 && grassTopTerrain_.indexCount == 0)
         {
             return;
         }
@@ -2269,15 +2301,16 @@ namespace dolbuto
 
     void Renderer::drawTerrainMesh(VkCommandBuffer commandBuffer, const TerrainMesh& mesh, const Texture& texture) const
     {
-        if (mesh.vertexCount == 0)
+        if (mesh.indexCount == 0)
         {
             return;
         }
 
         const VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &mesh.vertexBuffer, &offset);
+        vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 0, 1, &texture.descriptorSet, 0, nullptr);
-        vkCmdDraw(commandBuffer, mesh.vertexCount, 1, 0, 0);
+        vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, 0, 0, 0);
     }
 
     void Renderer::drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv, Color color) const
