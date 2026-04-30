@@ -1,0 +1,100 @@
+[
+  {
+    "id": 0,
+    "name": "air",
+    "renderType": "none",
+    "textures": {}
+  },
+  {
+    "id": 1,
+    "name": "rock",
+    "renderType": "cube",
+    "textures": {
+      "all": "rock"
+    }
+  },
+  {
+    "id": 2,
+    "name": "grass",
+    "renderType": "cube",
+    "textures": {
+      "top": "grass_top",
+      "bottom": "grass_bottom",
+      "side": "grass_side"
+    }
+  },
+  {
+    "id": 3,
+    "name": "dirt",
+    "renderType": "cube",
+    "textures": {
+      "all": "dirt"
+    }
+  },
+  {
+    "id": 4,
+    "name": "sand",
+    "renderType": "cube",
+    "textures": {
+      "all": "sand"
+    }
+  },
+  {
+    "id": 5,
+    "name": "sandstone",
+    "renderType": "cube",
+    "textures": {
+      "topBottom": "sandstone_topbottom",
+      "side": "sandstone_side"
+    }
+  },
+  {
+    "id": 6,
+    "name": "mud",
+    "renderType": "cube",
+    "textures": {
+      "all": "mud"
+    }
+  },
+  {
+    "id": 7,
+    "name": "clay",
+    "renderType": "cube",
+    "textures": {
+      "all": "clay"
+    }
+  },
+  {
+    "id": 8,
+    "name": "trunk",
+    "renderType": "cube",
+    "textures": {
+      "topBottom": "trunk_topbottom",
+      "side": "trunk_side"
+    }
+  },
+  {
+    "id": 9,
+    "name": "leaves",
+    "renderType": "cube",
+    "textures": {
+      "all": "leaves"
+    }
+  },
+  {
+    "id": 10000,
+    "name": "plant",
+    "renderType": "cross",
+    "textures": {
+      "all": "plant"
+    }
+  },
+  {
+    "id": 65535,
+    "name": "bedrock",
+    "renderType": "cube",
+    "textures": {
+      "all": "bedrock"
+    }
+  }
+]
