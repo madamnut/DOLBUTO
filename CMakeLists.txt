@@ -1,0 +1,59 @@
+cmake_minimum_required(VERSION 3.24)
+
+project(DOLBUTO LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+find_package(Vulkan REQUIRED)
+
+set(GLFW_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/external/glfw/glfw-3.4.bin.WIN64")
+set(GLFW_INCLUDE_DIR "${GLFW_ROOT}/include")
+
+if(MSVC_VERSION GREATER_EQUAL 1930)
+    set(GLFW_LIB_DIR "${GLFW_ROOT}/lib-vc2022")
+elseif(MSVC_VERSION GREATER_EQUAL 1920)
+    set(GLFW_LIB_DIR "${GLFW_ROOT}/lib-vc2019")
+elseif(MSVC_VERSION GREATER_EQUAL 1910)
+    set(GLFW_LIB_DIR "${GLFW_ROOT}/lib-vc2017")
+elseif(MSVC_VERSION GREATER_EQUAL 1900)
+    set(GLFW_LIB_DIR "${GLFW_ROOT}/lib-vc2015")
+else()
+    message(FATAL_ERROR "Unsupported MSVC version for bundled GLFW binaries.")
+endif()
+
+set(GLFW_IMPORT_LIB "${GLFW_LIB_DIR}/glfw3dll.lib")
+set(GLFW_DLL "${GLFW_LIB_DIR}/glfw3.dll")
+
+if(NOT EXISTS "${GLFW_IMPORT_LIB}")
+    message(FATAL_ERROR "GLFW import library not found: ${GLFW_IMPORT_LIB}")
+endif()
+
+if(NOT EXISTS "${GLFW_DLL}")
+    message(FATAL_ERROR "GLFW DLL not found: ${GLFW_DLL}")
+endif()
+
+add_executable(DOLBUTO
+    src/main.cpp
+    src/app/Application.cpp
+    src/app/Application.h
+)
+
+target_include_directories(DOLBUTO
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${GLFW_INCLUDE_DIR}"
+)
+
+target_link_libraries(DOLBUTO
+    PRIVATE
+        Vulkan::Vulkan
+        "${GLFW_IMPORT_LIB}"
+)
+
+add_custom_command(TARGET DOLBUTO POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${GLFW_DLL}"
+        "$<TARGET_FILE_DIR:DOLBUTO>"
+)
