@@ -1,3 +1,5 @@
 {
-  "loadRadius": 31
+  "loadGridScale": 4,
+  "chunkWorkerCount": 4,
+  "maxCompletedChunksAppliedPerFrame": 8
 }

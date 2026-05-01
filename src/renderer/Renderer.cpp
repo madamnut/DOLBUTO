@@ -42,7 +42,17 @@ namespace dolbuto
         constexpr int ChunkSizeZ = 16;
         constexpr int SubchunkSize = 16;
         constexpr int SubchunksPerChunk = ChunkSizeY / SubchunkSize;
-        constexpr int DefaultLoadRadius = 5;
+        constexpr uint32_t CellBufferPageCount = 4;
+        constexpr uint32_t CellsPerSubchunk = ChunkSizeX * SubchunkSize * ChunkSizeZ;
+        constexpr uint32_t CellsPerChunk = ChunkSizeX * ChunkSizeY * ChunkSizeZ;
+        constexpr uint32_t InvalidPhysicalSlot = UINT32_MAX;
+        constexpr uint32_t BlockDefinitionCount = 65536;
+        constexpr uint32_t BlockFaceCount = 6;
+        constexpr int LoadGridUnitChunks = 16;
+        constexpr int CenterGroupChunks = 2;
+        constexpr int DefaultLoadGridScale = 1;
+        constexpr int DefaultChunkWorkerCount = 2;
+        constexpr int DefaultMaxCompletedChunksAppliedPerFrame = 4;
         constexpr int TerrainMinHeight = 120;
         constexpr int TerrainBaseHeight = 130;
         constexpr int TerrainMaxHeight = 140;
@@ -118,9 +128,9 @@ namespace dolbuto
             return directory / name.str();
         }
 
-        int parseLoadRadius(const std::string& text, int fallback)
+        int parseLoadGridScale(const std::string& text, int fallback)
         {
-            const std::string key = "\"loadRadius\"";
+            const std::string key = "\"loadGridScale\"";
             const size_t keyPos = text.find(key);
             if (keyPos == std::string::npos)
             {
@@ -163,15 +173,103 @@ namespace dolbuto
             }
         }
 
+        int parseConfigInt(const std::string& text, const char* name, int fallback)
+        {
+            const std::string key = "\"" + std::string(name) + "\"";
+            const size_t keyPos = text.find(key);
+            if (keyPos == std::string::npos)
+            {
+                return fallback;
+            }
+
+            const size_t colonPos = text.find(':', keyPos + key.size());
+            if (colonPos == std::string::npos)
+            {
+                return fallback;
+            }
+
+            const size_t valueStart = text.find_first_not_of(" \t\r\n", colonPos + 1);
+            if (valueStart == std::string::npos)
+            {
+                return fallback;
+            }
+
+            size_t valueEnd = valueStart;
+            if (text[valueEnd] == '-')
+            {
+                ++valueEnd;
+            }
+            while (valueEnd < text.size() && text[valueEnd] >= '0' && text[valueEnd] <= '9')
+            {
+                ++valueEnd;
+            }
+            if (valueEnd == valueStart || (valueEnd == valueStart + 1 && text[valueStart] == '-'))
+            {
+                return fallback;
+            }
+
+            try
+            {
+                return std::stoi(text.substr(valueStart, valueEnd - valueStart));
+            }
+            catch (...)
+            {
+                return fallback;
+            }
+        }
+
         int chunkCoordinate(float worldCoordinate)
         {
             const int blockCoordinate = static_cast<int>(std::floor(worldCoordinate + 0.5f));
             return static_cast<int>(std::floor(static_cast<float>(blockCoordinate) / static_cast<float>(ChunkSizeX)));
         }
 
+        int floorDiv(int value, int divisor)
+        {
+            int result = value / divisor;
+            const int remainder = value % divisor;
+            if (remainder != 0 && ((remainder < 0) != (divisor < 0)))
+            {
+                --result;
+            }
+            return result;
+        }
+
+        int centerGroupCoordinate(int chunkCoordinate)
+        {
+            return floorDiv(chunkCoordinate, CenterGroupChunks) * CenterGroupChunks;
+        }
+
+        int loadMinChunk(int centerGroupCoordinate, int loadSideChunks)
+        {
+            return centerGroupCoordinate - loadSideChunks / 2 + CenterGroupChunks / 2;
+        }
+
+        uint64_t raymarchChunkKey(int chunkX, int chunkZ)
+        {
+            return (static_cast<uint64_t>(static_cast<uint32_t>(chunkX)) << 32u) | static_cast<uint32_t>(chunkZ);
+        }
+
+        int raymarchChunkKeyX(uint64_t key)
+        {
+            return static_cast<int32_t>(static_cast<uint32_t>(key >> 32u));
+        }
+
+        int raymarchChunkKeyZ(uint64_t key)
+        {
+            return static_cast<int32_t>(static_cast<uint32_t>(key));
+        }
+
         uint32_t packCell(uint16_t blockId, uint16_t fluidId = 0)
         {
             return static_cast<uint32_t>(blockId) | (static_cast<uint32_t>(fluidId) << 16u);
+        }
+
+        std::string formatProfileMs(const char* label, double milliseconds)
+        {
+            std::ostringstream text;
+            text << label << ": " << std::fixed << std::setprecision(3) << milliseconds << "MS";
+            return text.str();
         }
 
         int terrainHeight(int worldX, int worldZ)
@@ -370,6 +468,7 @@ namespace dolbuto
         createTextVertexBuffer();
         createPlayerMesh();
         loadWorldConfig();
+        startChunkWorkers();
         createTerrainMesh();
         createCommandBuffers();
         createSyncObjects();
@@ -377,6 +476,7 @@ namespace dolbuto
 
     Renderer::~Renderer()
     {
+        stopChunkWorkers();
         vkDeviceWaitIdle(device_);
 
         cleanupSwapchain();
@@ -402,13 +502,35 @@ namespace dolbuto
         {
             vkFreeMemory(device_, raymarchSubchunkMemory_, nullptr);
         }
-        if (raymarchBlockBuffer_ != VK_NULL_HANDLE)
+        if (raymarchSlotMapBuffer_ != VK_NULL_HANDLE)
         {
-            vkDestroyBuffer(device_, raymarchBlockBuffer_, nullptr);
+            vkDestroyBuffer(device_, raymarchSlotMapBuffer_, nullptr);
         }
-        if (raymarchBlockMemory_ != VK_NULL_HANDLE)
+        if (raymarchSlotMapMemory_ != VK_NULL_HANDLE)
         {
-            vkFreeMemory(device_, raymarchBlockMemory_, nullptr);
+            vkFreeMemory(device_, raymarchSlotMapMemory_, nullptr);
+        }
+        if (blockDefinitionBuffer_ != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(device_, blockDefinitionBuffer_, nullptr);
+        }
+        if (blockDefinitionMemory_ != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(device_, blockDefinitionMemory_, nullptr);
+        }
+        for (VkBuffer buffer : raymarchCellPageBuffers_)
+        {
+            if (buffer != VK_NULL_HANDLE)
+            {
+                vkDestroyBuffer(device_, buffer, nullptr);
+            }
+        }
+        for (VkDeviceMemory memory : raymarchCellPageMemories_)
+        {
+            if (memory != VK_NULL_HANDLE)
+            {
+                vkFreeMemory(device_, memory, nullptr);
+            }
         }
         if (textVertexBuffer_ != VK_NULL_HANDLE)
         {
@@ -1184,7 +1306,7 @@ namespace dolbuto
 
     void Renderer::createRaymarchDescriptorSetLayout()
     {
-        std::array<VkDescriptorSetLayoutBinding, 3> bindings{};
+        std::array<VkDescriptorSetLayoutBinding, 8> bindings{};
         bindings[0].binding = 0;
         bindings[0].descriptorCount = 1;
         bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -1197,8 +1319,33 @@ namespace dolbuto
 
         bindings[2].binding = 2;
         bindings[2].descriptorCount = 1;
-        bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[3].binding = 3;
+        bindings[3].descriptorCount = 1;
+        bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[4].binding = 4;
+        bindings[4].descriptorCount = 1;
+        bindings[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        bindings[4].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[5].binding = 5;
+        bindings[5].descriptorCount = 1;
+        bindings[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        bindings[5].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[6].binding = 6;
+        bindings[6].descriptorCount = 1;
+        bindings[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        bindings[6].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[7].binding = 7;
+        bindings[7].descriptorCount = 1;
+        bindings[7].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[7].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
         VkDescriptorSetLayoutCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1713,7 +1860,7 @@ namespace dolbuto
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[0].descriptorCount = 11;
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        poolSizes[1].descriptorCount = 2;
+        poolSizes[1].descriptorCount = 7;
 
         VkDescriptorPoolCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1786,8 +1933,54 @@ namespace dolbuto
             blockTextureDir + "mud.png",
             blockTextureDir + "clay.png",
             blockTextureDir + "trunk_side.png",
-            blockTextureDir + "trunk_topbottom.png"
+            blockTextureDir + "trunk_topbottom.png",
+            blockTextureDir + "leaves.png",
+            blockTextureDir + "plant.png",
+            blockTextureDir + "bedrock.png"
         });
+        createBlockDefinitionBuffer();
+    }
+
+    void Renderer::createBlockDefinitionBuffer()
+    {
+        std::vector<uint32_t> faceLayers(static_cast<size_t>(BlockDefinitionCount) * BlockFaceCount, 0u);
+
+        auto setAll = [&](uint32_t id, uint32_t layer)
+        {
+            for (uint32_t face = 0; face < BlockFaceCount; ++face)
+            {
+                faceLayers[static_cast<size_t>(id) * BlockFaceCount + face] = layer;
+            }
+        };
+
+        auto setTopBottomSide = [&](uint32_t id, uint32_t top, uint32_t bottom, uint32_t side)
+        {
+            faceLayers[static_cast<size_t>(id) * BlockFaceCount + 0u] = side;
+            faceLayers[static_cast<size_t>(id) * BlockFaceCount + 1u] = side;
+            faceLayers[static_cast<size_t>(id) * BlockFaceCount + 2u] = top;
+            faceLayers[static_cast<size_t>(id) * BlockFaceCount + 3u] = bottom;
+            faceLayers[static_cast<size_t>(id) * BlockFaceCount + 4u] = side;
+            faceLayers[static_cast<size_t>(id) * BlockFaceCount + 5u] = side;
+        };
+
+        setAll(1u, 0u);
+        setTopBottomSide(2u, 1u, 2u, 3u);
+        setAll(3u, 4u);
+        setAll(4u, 5u);
+        setTopBottomSide(5u, 7u, 7u, 6u);
+        setAll(6u, 8u);
+        setAll(7u, 9u);
+        setTopBottomSide(8u, 11u, 11u, 10u);
+        setAll(9u, 12u);
+        setAll(10000u, 13u);
+        setAll(65535u, 14u);
+
+        createDeviceLocalBuffer(
+            faceLayers.data(),
+            static_cast<VkDeviceSize>(faceLayers.size()) * sizeof(uint32_t),
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            blockDefinitionBuffer_,
+            blockDefinitionMemory_);
     }
 
     void Renderer::createFont()
@@ -1878,7 +2071,9 @@ namespace dolbuto
 
     void Renderer::loadWorldConfig()
     {
-        loadRadius_ = DefaultLoadRadius;
+        loadGridScale_ = DefaultLoadGridScale;
+        chunkWorkerCount_ = DefaultChunkWorkerCount;
+        maxCompletedChunksAppliedPerFrame_ = DefaultMaxCompletedChunksAppliedPerFrame;
 
         const std::filesystem::path path = std::filesystem::path(DOLBUTO_CONFIG_DIR) / "world.json";
         std::ifstream file(path);
@@ -1889,97 +2084,144 @@ namespace dolbuto
 
         std::ostringstream contents;
         contents << file.rdbuf();
-        loadRadius_ = parseLoadRadius(contents.str(), DefaultLoadRadius);
+        const std::string text = contents.str();
+        loadGridScale_ = parseLoadGridScale(text, DefaultLoadGridScale);
+        chunkWorkerCount_ = std::clamp(parseConfigInt(text, "chunkWorkerCount", DefaultChunkWorkerCount), 1, 8);
+        maxCompletedChunksAppliedPerFrame_ = std::clamp(parseConfigInt(text, "maxCompletedChunksAppliedPerFrame", DefaultMaxCompletedChunksAppliedPerFrame), 1, 128);
     }
 
     void Renderer::updateLoadedChunks(Vec3 playerPosition)
     {
-        const int centerChunkX = chunkCoordinate(playerPosition.x);
-        const int centerChunkZ = chunkCoordinate(playerPosition.z);
-        if (centerChunkX == loadedCenterChunkX_ && centerChunkZ == loadedCenterChunkZ_)
+        const int centerGroupChunkX = centerGroupCoordinate(chunkCoordinate(playerPosition.x));
+        const int centerGroupChunkZ = centerGroupCoordinate(chunkCoordinate(playerPosition.z));
+        if (centerGroupChunkX == loadedCenterGroupChunkX_ && centerGroupChunkZ == loadedCenterGroupChunkZ_)
         {
+            double newChunksMs = 0.0;
+            double metadataBuildMs = 0.0;
+            const auto applyStart = std::chrono::steady_clock::now();
+            if (applyCompletedRaymarchChunks(newChunksMs, metadataBuildMs))
+            {
+                const auto applyEnd = std::chrono::steady_clock::now();
+                chunkUpdateProfileText_ = formatProfileMs("UPDATE TOTAL", std::chrono::duration<double, std::milli>(applyEnd - applyStart).count());
+                worldBuildProfileText_ = formatProfileMs("WORLD TOTAL", std::chrono::duration<double, std::milli>(applyEnd - applyStart).count());
+                slotPruneProfileText_ = formatProfileMs("SLOT PRUNE", 0.0);
+                gridScanProfileText_ = formatProfileMs("GRID SCAN", 0.0);
+                newChunksProfileText_ = formatProfileMs("NEW CHUNKS", newChunksMs);
+                metadataBuildProfileText_ = formatProfileMs("META BUILD", metadataBuildMs);
+                debugTextBatchDirty_ = true;
+                createRaymarchBlockBuffer();
+            }
             return;
         }
 
-        loadedCenterChunkX_ = centerChunkX;
-        loadedCenterChunkZ_ = centerChunkZ;
-        raymarchWorldMinX_ = (loadedCenterChunkX_ - loadRadius_) * ChunkSizeX;
-        raymarchWorldMinZ_ = (loadedCenterChunkZ_ - loadRadius_) * ChunkSizeZ;
+        loadedCenterGroupChunkX_ = centerGroupChunkX;
+        loadedCenterGroupChunkZ_ = centerGroupChunkZ;
+        raymarchWorldMinX_ = loadMinChunk(loadedCenterGroupChunkX_, loadedChunkDiameter_) * ChunkSizeX;
+        raymarchWorldMinZ_ = loadMinChunk(loadedCenterGroupChunkZ_, loadedChunkDiameter_) * ChunkSizeZ;
+
+        const auto chunkUpdateStart = std::chrono::steady_clock::now();
         createTerrainMesh();
+        const auto chunkUpdateEnd = std::chrono::steady_clock::now();
+        chunkUpdateProfileText_ = formatProfileMs("UPDATE TOTAL", std::chrono::duration<double, std::milli>(chunkUpdateEnd - chunkUpdateStart).count());
+        debugTextBatchDirty_ = true;
     }
 
     void Renderer::createTerrainMesh()
     {
-        loadedChunkDiameter_ = loadRadius_ * 2 + 1;
-        raymarchWorldMinX_ = (loadedCenterChunkX_ - loadRadius_) * ChunkSizeX;
-        raymarchWorldMinZ_ = (loadedCenterChunkZ_ - loadRadius_) * ChunkSizeZ;
+        const auto buildStart = std::chrono::steady_clock::now();
+        loadedChunkDiameter_ = std::max(1, loadGridScale_) * LoadGridUnitChunks;
+        raymarchWorldMinX_ = loadMinChunk(loadedCenterGroupChunkX_, loadedChunkDiameter_) * ChunkSizeX;
+        raymarchWorldMinZ_ = loadMinChunk(loadedCenterGroupChunkZ_, loadedChunkDiameter_) * ChunkSizeZ;
         raymarchWorldWidth_ = loadedChunkDiameter_ * ChunkSizeX;
         raymarchWorldDepth_ = loadedChunkDiameter_ * ChunkSizeZ;
 
-        const uint32_t airCell = packCell(BlockAir);
-        const uint32_t rockCell = packCell(BlockRock);
-        raymarchSubchunks_.clear();
-        raymarchCells_.clear();
-        raymarchSubchunks_.reserve(static_cast<size_t>(loadedChunkDiameter_) * loadedChunkDiameter_ * SubchunksPerChunk);
-        raymarchCells_.reserve(static_cast<size_t>(loadedChunkDiameter_) * loadedChunkDiameter_ * SubchunkSize * ChunkSizeX * ChunkSizeZ);
+        const int minChunkX = loadMinChunk(loadedCenterGroupChunkX_, loadedChunkDiameter_);
+        const int minChunkZ = loadMinChunk(loadedCenterGroupChunkZ_, loadedChunkDiameter_);
+        const int maxChunkX = minChunkX + loadedChunkDiameter_ - 1;
+        const int maxChunkZ = minChunkZ + loadedChunkDiameter_ - 1;
+        const uint32_t physicalSlotCount = static_cast<uint32_t>(loadedChunkDiameter_ * loadedChunkDiameter_);
+        if (raymarchPhysicalSlotCount_ != physicalSlotCount)
+        {
+            raymarchPhysicalSlotCount_ = physicalSlotCount;
+            raymarchSlotsPerCellPage_ = (raymarchPhysicalSlotCount_ + CellBufferPageCount - 1u) / CellBufferPageCount;
+            raymarchChunkSlots_.clear();
+            freeRaymarchSlots_.clear();
+            RaymarchSubchunk emptySubchunk{};
+            emptySubchunk.flags = SubchunkEmpty;
+            emptySubchunk.uniformCell = packCell(BlockAir);
+            raymarchSubchunks_.assign(static_cast<size_t>(raymarchPhysicalSlotCount_) * SubchunksPerChunk, emptySubchunk);
+            freeRaymarchSlots_.reserve(raymarchPhysicalSlotCount_);
+            for (uint32_t slot = raymarchPhysicalSlotCount_; slot > 0; --slot)
+            {
+                freeRaymarchSlots_.push_back(slot - 1u);
+            }
+        }
 
+        const auto pruneStart = std::chrono::steady_clock::now();
+        for (auto it = raymarchChunkSlots_.begin(); it != raymarchChunkSlots_.end();)
+        {
+            const int chunkX = raymarchChunkKeyX(it->first);
+            const int chunkZ = raymarchChunkKeyZ(it->first);
+            if (chunkX < minChunkX || chunkX > maxChunkX || chunkZ < minChunkZ || chunkZ > maxChunkZ)
+            {
+                freeRaymarchSlots_.push_back(it->second);
+                it = raymarchChunkSlots_.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+        const auto pruneEnd = std::chrono::steady_clock::now();
+
+        raymarchSlotMap_.assign(raymarchPhysicalSlotCount_, InvalidPhysicalSlot);
+        raymarchPendingUploads_.clear();
+        raymarchDirtySubchunkSlots_.clear();
+
+        double newChunksMs = 0.0;
+        double metadataBuildMs = 0.0;
+        const auto gridScanStart = std::chrono::steady_clock::now();
         for (int chunkZ = 0; chunkZ < loadedChunkDiameter_; ++chunkZ)
         {
             for (int chunkX = 0; chunkX < loadedChunkDiameter_; ++chunkX)
             {
-                std::array<int, ChunkSizeX * ChunkSizeZ> columnHeights{};
-                int chunkMinHeight = TerrainMaxHeight;
-                int chunkMaxHeight = TerrainMinHeight;
-                for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+                const int worldChunkX = minChunkX + chunkX;
+                const int worldChunkZ = minChunkZ + chunkZ;
+                const uint64_t key = raymarchChunkKey(worldChunkX, worldChunkZ);
+                auto slotFound = raymarchChunkSlots_.find(key);
+                if (slotFound == raymarchChunkSlots_.end())
                 {
-                    for (int localX = 0; localX < ChunkSizeX; ++localX)
+                    if (freeRaymarchSlots_.empty())
                     {
-                        const int worldX = raymarchWorldMinX_ + chunkX * ChunkSizeX + localX;
-                        const int worldZ = raymarchWorldMinZ_ + chunkZ * ChunkSizeZ + localZ;
-                        const int height = terrainHeight(worldX, worldZ);
-                        columnHeights[localZ * ChunkSizeX + localX] = height;
-                        chunkMinHeight = std::min(chunkMinHeight, height);
-                        chunkMaxHeight = std::max(chunkMaxHeight, height);
+                        throw std::runtime_error("No free raymarch physical slots.");
                     }
-                }
 
-                for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
-                {
-                    const int yStart = subchunkY * SubchunkSize;
-                    const int yEnd = yStart + SubchunkSize;
-                    RaymarchSubchunk subchunk{};
-                    if (yEnd <= chunkMinHeight)
+                    const uint32_t physicalSlot = freeRaymarchSlots_.back();
+                    freeRaymarchSlots_.pop_back();
+                    slotFound = raymarchChunkSlots_.emplace(key, physicalSlot).first;
+
+                    auto cachedChunk = raymarchChunkCache_.find(key);
+                    if (cachedChunk != raymarchChunkCache_.end())
                     {
-                        subchunk.flags = SubchunkUniform;
-                        subchunk.uniformCell = rockCell;
-                    }
-                    else if (yStart >= chunkMaxHeight)
-                    {
-                        subchunk.flags = SubchunkEmpty;
-                        subchunk.uniformCell = airCell;
+                        const auto metadataStart = std::chrono::steady_clock::now();
+                        writeRaymarchChunkMetadata(cachedChunk->second, physicalSlot);
+                        const auto metadataEnd = std::chrono::steady_clock::now();
+                        metadataBuildMs += std::chrono::duration<double, std::milli>(metadataEnd - metadataStart).count();
                     }
                     else
                     {
-                        subchunk.flags = SubchunkDense;
-                        subchunk.cellOffset = static_cast<uint32_t>(raymarchCells_.size());
-                        for (int localY = 0; localY < SubchunkSize; ++localY)
-                        {
-                            const int worldY = yStart + localY;
-                            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-                            {
-                                for (int localX = 0; localX < ChunkSizeX; ++localX)
-                                {
-                                    const int height = columnHeights[localZ * ChunkSizeX + localX];
-                                    raymarchCells_.push_back(worldY < height ? rockCell : airCell);
-                                }
-                            }
-                        }
+                        clearRaymarchSlotMetadata(physicalSlot);
+                        enqueueRaymarchChunkBuild(worldChunkX, worldChunkZ, key);
                     }
-
-                    raymarchSubchunks_.push_back(subchunk);
                 }
+
+                const uint32_t logicalSlot = static_cast<uint32_t>(chunkZ * loadedChunkDiameter_ + chunkX);
+                raymarchSlotMap_[logicalSlot] = slotFound->second;
             }
         }
+        const auto gridScanEnd = std::chrono::steady_clock::now();
+        applyCompletedRaymarchChunks(newChunksMs, metadataBuildMs);
+        pruneRaymarchChunkCache();
 
         terrainDrawCount_ = 0;
         terrainFaceCount_ = 0;
@@ -1987,6 +2229,12 @@ namespace dolbuto
         terrainDrawText_ = "DRAWS: 2";
         terrainFaceText_ = "FACES: 0";
         terrainVertexText_ = "VERTICES: 9";
+        const auto buildEnd = std::chrono::steady_clock::now();
+        worldBuildProfileText_ = formatProfileMs("WORLD TOTAL", std::chrono::duration<double, std::milli>(buildEnd - buildStart).count());
+        slotPruneProfileText_ = formatProfileMs("SLOT PRUNE", std::chrono::duration<double, std::milli>(pruneEnd - pruneStart).count());
+        gridScanProfileText_ = formatProfileMs("GRID SCAN", std::chrono::duration<double, std::milli>(gridScanEnd - gridScanStart).count());
+        newChunksProfileText_ = formatProfileMs("NEW CHUNKS", newChunksMs);
+        metadataBuildProfileText_ = formatProfileMs("META BUILD", metadataBuildMs);
         debugTextBatchDirty_ = true;
         createRaymarchBlockBuffer();
         return;
@@ -2349,6 +2597,257 @@ namespace dolbuto
 #endif
     }
 
+    Renderer::RaymarchChunkData Renderer::buildRaymarchChunk(int chunkX, int chunkZ) const
+    {
+        const uint32_t airCell = packCell(BlockAir);
+        const uint32_t rockCell = packCell(BlockRock);
+
+        RaymarchChunkData chunk{};
+        chunk.chunkX = chunkX;
+        chunk.chunkZ = chunkZ;
+        chunk.subchunks.reserve(SubchunksPerChunk);
+        chunk.cells.reserve(2u * SubchunkSize * ChunkSizeX * ChunkSizeZ);
+
+        std::array<int, ChunkSizeX * ChunkSizeZ> columnHeights{};
+        int chunkMinHeight = TerrainMaxHeight;
+        int chunkMaxHeight = TerrainMinHeight;
+        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+        {
+            for (int localX = 0; localX < ChunkSizeX; ++localX)
+            {
+                const int worldX = chunkX * ChunkSizeX + localX;
+                const int worldZ = chunkZ * ChunkSizeZ + localZ;
+                const int height = terrainHeight(worldX, worldZ);
+                columnHeights[localZ * ChunkSizeX + localX] = height;
+                chunkMinHeight = std::min(chunkMinHeight, height);
+                chunkMaxHeight = std::max(chunkMaxHeight, height);
+            }
+        }
+
+        for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
+        {
+            const int yStart = subchunkY * SubchunkSize;
+            const int yEnd = yStart + SubchunkSize;
+            RaymarchSubchunk subchunk{};
+            if (yEnd <= chunkMinHeight)
+            {
+                subchunk.flags = SubchunkUniform;
+                subchunk.uniformCell = rockCell;
+            }
+            else if (yStart >= chunkMaxHeight)
+            {
+                subchunk.flags = SubchunkEmpty;
+                subchunk.uniformCell = airCell;
+            }
+            else
+            {
+                subchunk.flags = SubchunkDense;
+                subchunk.cellOffset = static_cast<uint32_t>(chunk.cells.size());
+                for (int localY = 0; localY < SubchunkSize; ++localY)
+                {
+                    const int worldY = yStart + localY;
+                    for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+                    {
+                        for (int localX = 0; localX < ChunkSizeX; ++localX)
+                        {
+                            const int height = columnHeights[localZ * ChunkSizeX + localX];
+                            chunk.cells.push_back(worldY < height ? rockCell : airCell);
+                        }
+                    }
+                }
+            }
+
+            chunk.subchunks.push_back(subchunk);
+        }
+
+        return chunk;
+    }
+
+    const Renderer::RaymarchChunkData& Renderer::cachedRaymarchChunk(int chunkX, int chunkZ)
+    {
+        const uint64_t key = raymarchChunkKey(chunkX, chunkZ);
+        auto found = raymarchChunkCache_.find(key);
+        if (found != raymarchChunkCache_.end())
+        {
+            return found->second;
+        }
+
+        auto inserted = raymarchChunkCache_.emplace(key, buildRaymarchChunk(chunkX, chunkZ));
+        return inserted.first->second;
+    }
+
+    void Renderer::pruneRaymarchChunkCache()
+    {
+        const int minChunkX = loadMinChunk(loadedCenterGroupChunkX_, loadedChunkDiameter_);
+        const int maxChunkX = minChunkX + loadedChunkDiameter_ - 1;
+        const int minChunkZ = loadMinChunk(loadedCenterGroupChunkZ_, loadedChunkDiameter_);
+        const int maxChunkZ = minChunkZ + loadedChunkDiameter_ - 1;
+
+        for (auto it = raymarchChunkCache_.begin(); it != raymarchChunkCache_.end();)
+        {
+            const RaymarchChunkData& chunk = it->second;
+            if (chunk.chunkX < minChunkX || chunk.chunkX > maxChunkX || chunk.chunkZ < minChunkZ || chunk.chunkZ > maxChunkZ)
+            {
+                it = raymarchChunkCache_.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    void Renderer::startChunkWorkers()
+    {
+        stopChunkWorkers_ = false;
+        chunkWorkers_.reserve(static_cast<size_t>(chunkWorkerCount_));
+        for (int i = 0; i < chunkWorkerCount_; ++i)
+        {
+            chunkWorkers_.emplace_back(&Renderer::chunkWorkerLoop, this);
+        }
+    }
+
+    void Renderer::stopChunkWorkers()
+    {
+        {
+            std::lock_guard<std::mutex> lock(chunkWorkerMutex_);
+            stopChunkWorkers_ = true;
+            raymarchBuildRequests_.clear();
+            queuedRaymarchChunks_.clear();
+        }
+        chunkWorkerCondition_.notify_all();
+
+        for (std::thread& worker : chunkWorkers_)
+        {
+            if (worker.joinable())
+            {
+                worker.join();
+            }
+        }
+        chunkWorkers_.clear();
+
+        std::lock_guard<std::mutex> lock(chunkWorkerMutex_);
+        raymarchCompletedChunks_.clear();
+    }
+
+    void Renderer::chunkWorkerLoop()
+    {
+        for (;;)
+        {
+            RaymarchBuildRequest request{};
+            {
+                std::unique_lock<std::mutex> lock(chunkWorkerMutex_);
+                chunkWorkerCondition_.wait(lock, [this]
+                {
+                    return stopChunkWorkers_ || !raymarchBuildRequests_.empty();
+                });
+
+                if (stopChunkWorkers_)
+                {
+                    return;
+                }
+
+                request = raymarchBuildRequests_.front();
+                raymarchBuildRequests_.pop_front();
+            }
+
+            const auto buildStart = std::chrono::steady_clock::now();
+            RaymarchChunkData chunk = buildRaymarchChunk(request.chunkX, request.chunkZ);
+            const auto buildEnd = std::chrono::steady_clock::now();
+
+            RaymarchCompletedChunk completed{};
+            completed.chunkKey = request.chunkKey;
+            completed.chunk = std::move(chunk);
+            completed.buildMs = std::chrono::duration<double, std::milli>(buildEnd - buildStart).count();
+
+            std::lock_guard<std::mutex> lock(chunkWorkerMutex_);
+            raymarchCompletedChunks_.push_back(std::move(completed));
+        }
+    }
+
+    void Renderer::enqueueRaymarchChunkBuild(int chunkX, int chunkZ, uint64_t chunkKey)
+    {
+        std::lock_guard<std::mutex> lock(chunkWorkerMutex_);
+        if (queuedRaymarchChunks_.find(chunkKey) != queuedRaymarchChunks_.end())
+        {
+            return;
+        }
+
+        queuedRaymarchChunks_.insert(chunkKey);
+        raymarchBuildRequests_.push_back({chunkX, chunkZ, chunkKey});
+        chunkWorkerCondition_.notify_one();
+    }
+
+    bool Renderer::applyCompletedRaymarchChunks(double& newChunksMs, double& metadataBuildMs)
+    {
+        bool appliedAny = false;
+        int processedCount = 0;
+        while (processedCount < maxCompletedChunksAppliedPerFrame_)
+        {
+            RaymarchCompletedChunk completed{};
+            {
+                std::lock_guard<std::mutex> lock(chunkWorkerMutex_);
+                if (raymarchCompletedChunks_.empty())
+                {
+                    break;
+                }
+
+                completed = std::move(raymarchCompletedChunks_.front());
+                raymarchCompletedChunks_.pop_front();
+                queuedRaymarchChunks_.erase(completed.chunkKey);
+            }
+            ++processedCount;
+
+            auto slotFound = raymarchChunkSlots_.find(completed.chunkKey);
+            if (slotFound == raymarchChunkSlots_.end())
+            {
+                continue;
+            }
+
+            const auto inserted = raymarchChunkCache_.insert_or_assign(completed.chunkKey, std::move(completed.chunk));
+            const auto metadataStart = std::chrono::steady_clock::now();
+            writeRaymarchChunkMetadata(inserted.first->second, slotFound->second);
+            const auto metadataEnd = std::chrono::steady_clock::now();
+
+            newChunksMs += completed.buildMs;
+            metadataBuildMs += std::chrono::duration<double, std::milli>(metadataEnd - metadataStart).count();
+            appliedAny = true;
+        }
+
+        return appliedAny;
+    }
+
+    void Renderer::clearRaymarchSlotMetadata(uint32_t physicalSlot)
+    {
+        RaymarchSubchunk emptySubchunk{};
+        emptySubchunk.flags = SubchunkEmpty;
+        emptySubchunk.uniformCell = packCell(BlockAir);
+        const size_t base = static_cast<size_t>(physicalSlot) * SubchunksPerChunk;
+        for (uint32_t subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
+        {
+            raymarchSubchunks_[base + subchunkY] = emptySubchunk;
+        }
+        raymarchDirtySubchunkSlots_.push_back(physicalSlot);
+    }
+
+    void Renderer::writeRaymarchChunkMetadata(const RaymarchChunkData& chunk, uint32_t physicalSlot)
+    {
+        const uint32_t pageIndex = physicalSlot / raymarchSlotsPerCellPage_;
+        const uint32_t slotInPage = physicalSlot % raymarchSlotsPerCellPage_;
+        for (uint32_t subchunkY = 0; subchunkY < static_cast<uint32_t>(chunk.subchunks.size()); ++subchunkY)
+        {
+            RaymarchSubchunk subchunk = chunk.subchunks[subchunkY];
+            if ((subchunk.flags & SubchunkDense) != 0)
+            {
+                subchunk.cellOffset = slotInPage * CellsPerChunk + subchunkY * CellsPerSubchunk;
+                subchunk.reserved = pageIndex;
+            }
+            raymarchSubchunks_[static_cast<size_t>(physicalSlot) * SubchunksPerChunk + subchunkY] = subchunk;
+        }
+        raymarchPendingUploads_.push_back({raymarchChunkKey(chunk.chunkX, chunk.chunkZ), physicalSlot});
+        raymarchDirtySubchunkSlots_.push_back(physicalSlot);
+    }
+
     void Renderer::createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh)
     {
         if (buildData.vertices.empty() || buildData.indices.empty())
@@ -2387,61 +2886,158 @@ namespace dolbuto
 
     void Renderer::createRaymarchBlockBuffer()
     {
-        if (raymarchSubchunks_.empty())
+        if (raymarchSubchunks_.empty() || raymarchSlotMap_.empty())
         {
             return;
         }
 
-        if (raymarchSubchunkBuffer_ != VK_NULL_HANDLE || raymarchBlockBuffer_ != VK_NULL_HANDLE)
+        const bool hasCellPageBuffer = std::any_of(raymarchCellPageBuffers_.begin(), raymarchCellPageBuffers_.end(), [](VkBuffer buffer)
+        {
+            return buffer != VK_NULL_HANDLE;
+        });
+        const bool hasRaymarchBuffer =
+            raymarchSubchunkBuffer_ != VK_NULL_HANDLE ||
+            raymarchSlotMapBuffer_ != VK_NULL_HANDLE ||
+            hasCellPageBuffer;
+        const bool needsCreate =
+            raymarchBufferPhysicalSlotCount_ != raymarchPhysicalSlotCount_ ||
+            raymarchSubchunkBuffer_ == VK_NULL_HANDLE ||
+            raymarchSlotMapBuffer_ == VK_NULL_HANDLE ||
+            std::any_of(raymarchCellPageBuffers_.begin(), raymarchCellPageBuffers_.end(), [](VkBuffer buffer)
+            {
+                return buffer == VK_NULL_HANDLE;
+            });
+
+        if (hasRaymarchBuffer)
         {
             vkDeviceWaitIdle(device_);
         }
-        if (raymarchSubchunkBuffer_ != VK_NULL_HANDLE)
-        {
-            vkDestroyBuffer(device_, raymarchSubchunkBuffer_, nullptr);
-            raymarchSubchunkBuffer_ = VK_NULL_HANDLE;
-        }
-        if (raymarchSubchunkMemory_ != VK_NULL_HANDLE)
-        {
-            vkFreeMemory(device_, raymarchSubchunkMemory_, nullptr);
-            raymarchSubchunkMemory_ = VK_NULL_HANDLE;
-        }
-        if (raymarchBlockBuffer_ != VK_NULL_HANDLE)
-        {
-            vkDestroyBuffer(device_, raymarchBlockBuffer_, nullptr);
-            raymarchBlockBuffer_ = VK_NULL_HANDLE;
-        }
-        if (raymarchBlockMemory_ != VK_NULL_HANDLE)
-        {
-            vkFreeMemory(device_, raymarchBlockMemory_, nullptr);
-            raymarchBlockMemory_ = VK_NULL_HANDLE;
-        }
 
         const VkDeviceSize subchunkBufferSize = sizeof(RaymarchSubchunk) * raymarchSubchunks_.size();
-        const VkDeviceSize cellBufferSize = sizeof(uint32_t) * std::max<size_t>(raymarchCells_.size(), 1);
-        raymarchBlockBufferSize_ = subchunkBufferSize + cellBufferSize;
+        const VkDeviceSize slotMapBufferSize = sizeof(uint32_t) * raymarchSlotMap_.size();
+        const VkDeviceSize blockDefinitionBufferSize = static_cast<VkDeviceSize>(BlockDefinitionCount) * BlockFaceCount * sizeof(uint32_t);
+        const VkDeviceSize cellPageBufferSize = static_cast<VkDeviceSize>(std::max<uint32_t>(raymarchSlotsPerCellPage_, 1u)) * CellsPerChunk * sizeof(uint32_t);
+
+        if (needsCreate)
+        {
+            if (raymarchSubchunkBuffer_ != VK_NULL_HANDLE)
+            {
+                vkDestroyBuffer(device_, raymarchSubchunkBuffer_, nullptr);
+                raymarchSubchunkBuffer_ = VK_NULL_HANDLE;
+            }
+            if (raymarchSubchunkMemory_ != VK_NULL_HANDLE)
+            {
+                vkFreeMemory(device_, raymarchSubchunkMemory_, nullptr);
+                raymarchSubchunkMemory_ = VK_NULL_HANDLE;
+            }
+            if (raymarchSlotMapBuffer_ != VK_NULL_HANDLE)
+            {
+                vkDestroyBuffer(device_, raymarchSlotMapBuffer_, nullptr);
+                raymarchSlotMapBuffer_ = VK_NULL_HANDLE;
+            }
+            if (raymarchSlotMapMemory_ != VK_NULL_HANDLE)
+            {
+                vkFreeMemory(device_, raymarchSlotMapMemory_, nullptr);
+                raymarchSlotMapMemory_ = VK_NULL_HANDLE;
+            }
+            for (size_t i = 0; i < raymarchCellPageBuffers_.size(); ++i)
+            {
+                if (raymarchCellPageBuffers_[i] != VK_NULL_HANDLE)
+                {
+                    vkDestroyBuffer(device_, raymarchCellPageBuffers_[i], nullptr);
+                    raymarchCellPageBuffers_[i] = VK_NULL_HANDLE;
+                }
+                if (raymarchCellPageMemories_[i] != VK_NULL_HANDLE)
+                {
+                    vkFreeMemory(device_, raymarchCellPageMemories_[i], nullptr);
+                    raymarchCellPageMemories_[i] = VK_NULL_HANDLE;
+                }
+            }
+
+            createBuffer(
+                subchunkBufferSize,
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                raymarchSubchunkBuffer_,
+                raymarchSubchunkMemory_);
+            createBuffer(
+                slotMapBufferSize,
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                raymarchSlotMapBuffer_,
+                raymarchSlotMapMemory_);
+            for (size_t i = 0; i < raymarchCellPageBuffers_.size(); ++i)
+            {
+                createBuffer(
+                    cellPageBufferSize,
+                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    raymarchCellPageBuffers_[i],
+                    raymarchCellPageMemories_[i],
+                    i == 0 ? &raymarchBlockMemoryTypeIndex_ : nullptr);
+            }
+            raymarchBufferPhysicalSlotCount_ = raymarchPhysicalSlotCount_;
+        }
+
+        raymarchBlockBufferSize_ = subchunkBufferSize + slotMapBufferSize + blockDefinitionBufferSize + cellPageBufferSize * CellBufferPageCount;
         {
             std::ostringstream text;
             text << "BUFFER: " << std::fixed << std::setprecision(1) << (static_cast<double>(raymarchBlockBufferSize_) / (1024.0 * 1024.0)) << "MB";
             bufferText_ = text.str();
             debugTextBatchDirty_ = true;
         }
-        createDeviceLocalBuffer(
-            raymarchSubchunks_.data(),
-            subchunkBufferSize,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            raymarchSubchunkBuffer_,
-            raymarchSubchunkMemory_);
 
-        const uint32_t emptyCell = 0;
-        const void* cellSource = raymarchCells_.empty() ? static_cast<const void*>(&emptyCell) : static_cast<const void*>(raymarchCells_.data());
-        createDeviceLocalBuffer(
-            cellSource,
-            cellBufferSize,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            raymarchBlockBuffer_,
-            raymarchBlockMemory_,
-            &raymarchBlockMemoryTypeIndex_);
+        if (needsCreate)
+        {
+            uploadBufferData(raymarchSubchunkBuffer_, raymarchSubchunks_.data(), subchunkBufferSize);
+        }
+        else
+        {
+            std::vector<BufferUploadRegion> subchunkUploads;
+            subchunkUploads.reserve(raymarchDirtySubchunkSlots_.size());
+            for (uint32_t physicalSlot : raymarchDirtySubchunkSlots_)
+            {
+                subchunkUploads.push_back({
+                    raymarchSubchunks_.data() + static_cast<size_t>(physicalSlot) * SubchunksPerChunk,
+                    static_cast<VkDeviceSize>(SubchunksPerChunk) * sizeof(RaymarchSubchunk),
+                    static_cast<VkDeviceSize>(physicalSlot) * SubchunksPerChunk * sizeof(RaymarchSubchunk)});
+            }
+            uploadBufferRegions(raymarchSubchunkBuffer_, subchunkUploads);
+        }
+        uploadBufferData(raymarchSlotMapBuffer_, raymarchSlotMap_.data(), slotMapBufferSize);
+
+        std::array<std::vector<BufferUploadRegion>, CellBufferPageCount> pageUploads{};
+        for (const RaymarchPendingUpload& pending : raymarchPendingUploads_)
+        {
+            const auto chunkFound = raymarchChunkCache_.find(pending.chunkKey);
+            if (chunkFound == raymarchChunkCache_.end())
+            {
+                continue;
+            }
+
+            const RaymarchChunkData& chunk = chunkFound->second;
+            const uint32_t pageIndex = pending.physicalSlot / raymarchSlotsPerCellPage_;
+            const uint32_t slotInPage = pending.physicalSlot % raymarchSlotsPerCellPage_;
+            for (uint32_t subchunkY = 0; subchunkY < static_cast<uint32_t>(chunk.subchunks.size()); ++subchunkY)
+            {
+                const RaymarchSubchunk& subchunk = chunk.subchunks[subchunkY];
+                if ((subchunk.flags & SubchunkDense) == 0)
+                {
+                    continue;
+                }
+
+                pageUploads[pageIndex].push_back({
+                    chunk.cells.data() + subchunk.cellOffset,
+                    static_cast<VkDeviceSize>(CellsPerSubchunk) * sizeof(uint32_t),
+                    (static_cast<VkDeviceSize>(slotInPage) * CellsPerChunk + static_cast<VkDeviceSize>(subchunkY) * CellsPerSubchunk) * sizeof(uint32_t)});
+            }
+        }
+        for (uint32_t pageIndex = 0; pageIndex < CellBufferPageCount; ++pageIndex)
+        {
+            uploadBufferRegions(raymarchCellPageBuffers_[pageIndex], pageUploads[pageIndex]);
+        }
+        raymarchPendingUploads_.clear();
+
         {
             VkPhysicalDeviceMemoryProperties memoryProperties{};
             vkGetPhysicalDeviceMemoryProperties(physicalDevice_, &memoryProperties);
@@ -2479,17 +3075,30 @@ namespace dolbuto
         subchunkBufferInfo.offset = 0;
         subchunkBufferInfo.range = subchunkBufferSize;
 
-        VkDescriptorBufferInfo cellBufferInfo{};
-        cellBufferInfo.buffer = raymarchBlockBuffer_;
-        cellBufferInfo.offset = 0;
-        cellBufferInfo.range = cellBufferSize;
+        VkDescriptorBufferInfo slotMapBufferInfo{};
+        slotMapBufferInfo.buffer = raymarchSlotMapBuffer_;
+        slotMapBufferInfo.offset = 0;
+        slotMapBufferInfo.range = slotMapBufferSize;
+
+        std::array<VkDescriptorBufferInfo, CellBufferPageCount> cellPageInfos{};
+        for (size_t i = 0; i < cellPageInfos.size(); ++i)
+        {
+            cellPageInfos[i].buffer = raymarchCellPageBuffers_[i];
+            cellPageInfos[i].offset = 0;
+            cellPageInfos[i].range = cellPageBufferSize;
+        }
 
         VkDescriptorImageInfo imageInfo{};
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageInfo.imageView = blockTextureArray_.view;
         imageInfo.sampler = sampler_;
 
-        std::array<VkWriteDescriptorSet, 3> writes{};
+        VkDescriptorBufferInfo blockDefinitionBufferInfo{};
+        blockDefinitionBufferInfo.buffer = blockDefinitionBuffer_;
+        blockDefinitionBufferInfo.offset = 0;
+        blockDefinitionBufferInfo.range = blockDefinitionBufferSize;
+
+        std::array<VkWriteDescriptorSet, 8> writes{};
         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writes[0].dstSet = raymarchDescriptorSet_;
         writes[0].dstBinding = 0;
@@ -2502,16 +3111,52 @@ namespace dolbuto
         writes[1].dstBinding = 1;
         writes[1].descriptorCount = 1;
         writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        writes[1].pBufferInfo = &cellBufferInfo;
+        writes[1].pBufferInfo = &slotMapBufferInfo;
 
         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writes[2].dstSet = raymarchDescriptorSet_;
         writes[2].dstBinding = 2;
         writes[2].descriptorCount = 1;
-        writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        writes[2].pImageInfo = &imageInfo;
+        writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[2].pBufferInfo = &cellPageInfos[0];
+
+        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[3].dstSet = raymarchDescriptorSet_;
+        writes[3].dstBinding = 3;
+        writes[3].descriptorCount = 1;
+        writes[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[3].pBufferInfo = &cellPageInfos[1];
+
+        writes[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[4].dstSet = raymarchDescriptorSet_;
+        writes[4].dstBinding = 4;
+        writes[4].descriptorCount = 1;
+        writes[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[4].pBufferInfo = &cellPageInfos[2];
+
+        writes[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[5].dstSet = raymarchDescriptorSet_;
+        writes[5].dstBinding = 5;
+        writes[5].descriptorCount = 1;
+        writes[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[5].pBufferInfo = &cellPageInfos[3];
+
+        writes[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[6].dstSet = raymarchDescriptorSet_;
+        writes[6].dstBinding = 6;
+        writes[6].descriptorCount = 1;
+        writes[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[6].pBufferInfo = &blockDefinitionBufferInfo;
+
+        writes[7].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[7].dstSet = raymarchDescriptorSet_;
+        writes[7].dstBinding = 7;
+        writes[7].descriptorCount = 1;
+        writes[7].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[7].pImageInfo = &imageInfo;
 
         vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+        debugTextBatchDirty_ = true;
     }
 
     void Renderer::createCommandBuffers()
@@ -3158,6 +3803,82 @@ namespace dolbuto
         endSingleTimeCommands(commandBuffer);
     }
 
+    void Renderer::uploadBufferRegions(VkBuffer destination, const std::vector<BufferUploadRegion>& regions) const
+    {
+        if (regions.empty())
+        {
+            return;
+        }
+
+        VkDeviceSize stagingSize = 0;
+        for (const BufferUploadRegion& region : regions)
+        {
+            stagingSize += region.size;
+        }
+
+        VkBuffer stagingBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
+        createBuffer(
+            stagingSize,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            stagingBuffer,
+            stagingMemory);
+
+        std::vector<VkBufferCopy> copies;
+        copies.reserve(regions.size());
+
+        void* data = nullptr;
+        vkMapMemory(device_, stagingMemory, 0, stagingSize, 0, &data);
+        VkDeviceSize sourceOffset = 0;
+        for (const BufferUploadRegion& region : regions)
+        {
+            std::memcpy(static_cast<char*>(data) + sourceOffset, region.source, static_cast<size_t>(region.size));
+
+            VkBufferCopy copy{};
+            copy.srcOffset = sourceOffset;
+            copy.dstOffset = region.destinationOffset;
+            copy.size = region.size;
+            copies.push_back(copy);
+
+            sourceOffset += region.size;
+        }
+        vkUnmapMemory(device_, stagingMemory);
+
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+        vkCmdCopyBuffer(commandBuffer, stagingBuffer, destination, static_cast<uint32_t>(copies.size()), copies.data());
+
+        VkBufferMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.buffer = destination;
+        barrier.size = VK_WHOLE_SIZE;
+        vkCmdPipelineBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0,
+            0,
+            nullptr,
+            1,
+            &barrier,
+            0,
+            nullptr);
+
+        endSingleTimeCommands(commandBuffer);
+        vkDestroyBuffer(device_, stagingBuffer, nullptr);
+        vkFreeMemory(device_, stagingMemory, nullptr);
+    }
+
+    void Renderer::uploadBufferData(VkBuffer destination, const void* source, VkDeviceSize size, VkDeviceSize destinationOffset) const
+    {
+        const BufferUploadRegion region{source, size, destinationOffset};
+        uploadBufferRegions(destination, std::vector<BufferUploadRegion>{region});
+    }
+
     void Renderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const
     {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
@@ -3790,6 +4511,12 @@ namespace dolbuto
         addText(debugTextBatch_, blockHeapText_, rightX, 266.0f, true);
         addText(debugTextBatch_, bufferText_, rightX, 288.0f, true);
         addText(debugTextBatch_, vramText_, rightX, 310.0f, true);
+        addText(debugTextBatch_, chunkUpdateProfileText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 132.0f, false);
+        addText(debugTextBatch_, worldBuildProfileText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 110.0f, false);
+        addText(debugTextBatch_, slotPruneProfileText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 88.0f, false);
+        addText(debugTextBatch_, gridScanProfileText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 66.0f, false);
+        addText(debugTextBatch_, newChunksProfileText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 44.0f, false);
+        addText(debugTextBatch_, metadataBuildProfileText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 22.0f, false);
 
         debugTextBatchDirty_ = false;
         debugTextBufferDirty_ = true;

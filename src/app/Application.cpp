@@ -276,7 +276,7 @@ namespace dolbuto
 
     void Application::updatePlayer(double deltaSeconds)
     {
-        constexpr float MoveSpeed = 16.0f;
+        constexpr float MoveSpeed = 64.0f;
 
         const float yaw = camera_.yaw();
         const Vec3 forward{std::cos(yaw), 0.0f, std::sin(yaw)};

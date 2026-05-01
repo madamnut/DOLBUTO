@@ -6,6 +6,7 @@ const uint SUBCHUNK_DENSE = 4u;
 const int CHUNK_SIZE = 16;
 const int SUBCHUNK_SIZE = 16;
 const int SUBCHUNKS_PER_CHUNK = 32;
+const uint INVALID_PHYSICAL_SLOT = 0xFFFFFFFFu;
 const float TRACE_EPSILON = 0.001;
 const float TRACE_TIE_EPSILON = 0.00001;
 
@@ -22,12 +23,37 @@ layout(std430, binding = 0) readonly buffer SubchunkBuffer
     Subchunk items[];
 } subchunkData;
 
-layout(std430, binding = 1) readonly buffer CellBuffer
+layout(std430, binding = 1) readonly buffer SlotMapBuffer
+{
+    uint slots[];
+} slotMapData;
+
+layout(std430, binding = 2) readonly buffer CellPage0
 {
     uint cells[];
-} cellData;
+} cellPage0;
 
-layout(binding = 2) uniform sampler2DArray blockTextures;
+layout(std430, binding = 3) readonly buffer CellPage1
+{
+    uint cells[];
+} cellPage1;
+
+layout(std430, binding = 4) readonly buffer CellPage2
+{
+    uint cells[];
+} cellPage2;
+
+layout(std430, binding = 5) readonly buffer CellPage3
+{
+    uint cells[];
+} cellPage3;
+
+layout(std430, binding = 6) readonly buffer BlockDefinitionBuffer
+{
+    uint faceLayers[];
+} blockDefinitions;
+
+layout(binding = 7) uniform sampler2DArray blockTextures;
 
 layout(push_constant) uniform RaymarchPush
 {
@@ -70,15 +96,43 @@ int positiveModulo(int value, int divisor)
     return result < 0 ? result + divisor : result;
 }
 
-uint subchunkIndex(ivec3 cell, int worldWidth, int worldMinX, int worldMinZ)
+uint physicalSlotForCell(ivec3 cell, int worldWidth, int worldMinX, int worldMinZ)
 {
     int localX = cell.x - worldMinX;
     int localZ = cell.z - worldMinZ;
     int chunkDiameter = worldWidth / CHUNK_SIZE;
     int chunkX = localX / CHUNK_SIZE;
     int chunkZ = localZ / CHUNK_SIZE;
+    return slotMapData.slots[uint(chunkZ * chunkDiameter + chunkX)];
+}
+
+uint subchunkIndex(ivec3 cell, int worldWidth, int worldMinX, int worldMinZ)
+{
+    uint physicalSlot = physicalSlotForCell(cell, worldWidth, worldMinX, worldMinZ);
+    if (physicalSlot == INVALID_PHYSICAL_SLOT)
+    {
+        return INVALID_PHYSICAL_SLOT;
+    }
+
     int subchunkY = cell.y / SUBCHUNK_SIZE;
-    return uint(((chunkZ * chunkDiameter + chunkX) * SUBCHUNKS_PER_CHUNK) + subchunkY);
+    return physicalSlot * SUBCHUNKS_PER_CHUNK + uint(subchunkY);
+}
+
+uint cellFromPage(uint pageIndex, uint index)
+{
+    if (pageIndex == 0u)
+    {
+        return cellPage0.cells[index];
+    }
+    if (pageIndex == 1u)
+    {
+        return cellPage1.cells[index];
+    }
+    if (pageIndex == 2u)
+    {
+        return cellPage2.cells[index];
+    }
+    return cellPage3.cells[index];
 }
 
 uint denseBlockId(Subchunk subchunk, ivec3 cell, int worldMinX, int worldMinZ)
@@ -87,7 +141,125 @@ uint denseBlockId(Subchunk subchunk, ivec3 cell, int worldMinX, int worldMinZ)
     int localY = positiveModulo(cell.y, SUBCHUNK_SIZE);
     int localZ = positiveModulo(cell.z - worldMinZ, CHUNK_SIZE);
     uint index = subchunk.cellOffset + uint((localY * CHUNK_SIZE + localZ) * CHUNK_SIZE + localX);
-    return blockFromCell(cellData.cells[index]);
+    return blockFromCell(cellFromPage(subchunk.reserved, index));
+}
+
+uint blockIdAt(ivec3 cell, int worldWidth, int worldDepth, int worldMinX, int worldMinZ, int worldHeight)
+{
+    if (cell.x < worldMinX || cell.x >= worldMinX + worldWidth || cell.y < 0 || cell.y >= worldHeight || cell.z < worldMinZ || cell.z >= worldMinZ + worldDepth)
+    {
+        return 0u;
+    }
+
+    uint index = subchunkIndex(cell, worldWidth, worldMinX, worldMinZ);
+    if (index == INVALID_PHYSICAL_SLOT)
+    {
+        return 0u;
+    }
+
+    Subchunk subchunk = subchunkData.items[index];
+    if ((subchunk.flags & SUBCHUNK_EMPTY) != 0u)
+    {
+        return 0u;
+    }
+    if ((subchunk.flags & SUBCHUNK_UNIFORM) != 0u)
+    {
+        return blockFromCell(subchunk.uniformCell);
+    }
+    if ((subchunk.flags & SUBCHUNK_DENSE) != 0u)
+    {
+        return denseBlockId(subchunk, cell, worldMinX, worldMinZ);
+    }
+    return 0u;
+}
+
+bool solidAt(ivec3 cell, int worldWidth, int worldDepth, int worldMinX, int worldMinZ, int worldHeight)
+{
+    return blockIdAt(cell, worldWidth, worldDepth, worldMinX, worldMinZ, worldHeight) != 0u;
+}
+
+float cornerOcclusion(bool sideA, bool sideB, bool corner)
+{
+    if (sideA && sideB)
+    {
+        return 0.55;
+    }
+
+    float openAmount = 3.0 - float((sideA ? 1 : 0) + (sideB ? 1 : 0) + (corner ? 1 : 0));
+    return 0.55 + (openAmount / 3.0) * 0.45;
+}
+
+ivec3 normalCell(vec3 normal)
+{
+    return ivec3(
+        normal.x > 0.5 ? 1 : (normal.x < -0.5 ? -1 : 0),
+        normal.y > 0.5 ? 1 : (normal.y < -0.5 ? -1 : 0),
+        normal.z > 0.5 ? 1 : (normal.z < -0.5 ? -1 : 0)
+    );
+}
+
+void faceAxes(vec3 normal, out ivec3 uAxis, out ivec3 vAxis)
+{
+    if (normal.y > 0.5)
+    {
+        uAxis = ivec3(-1, 0, 0);
+        vAxis = ivec3(0, 0, 1);
+    }
+    else if (normal.y < -0.5)
+    {
+        uAxis = ivec3(1, 0, 0);
+        vAxis = ivec3(0, 0, 1);
+    }
+    else if (abs(normal.x) > 0.5)
+    {
+        uAxis = ivec3(0, 0, -1);
+        vAxis = ivec3(0, -1, 0);
+    }
+    else
+    {
+        uAxis = ivec3(-1, 0, 0);
+        vAxis = ivec3(0, -1, 0);
+    }
+}
+
+float vertexOcclusion(
+    ivec3 baseCell,
+    ivec3 uAxis,
+    ivec3 vAxis,
+    int uSign,
+    int vSign,
+    int worldWidth,
+    int worldDepth,
+    int worldMinX,
+    int worldMinZ,
+    int worldHeight)
+{
+    bool sideU = solidAt(baseCell + uAxis * uSign, worldWidth, worldDepth, worldMinX, worldMinZ, worldHeight);
+    bool sideV = solidAt(baseCell + vAxis * vSign, worldWidth, worldDepth, worldMinX, worldMinZ, worldHeight);
+    bool corner = solidAt(baseCell + uAxis * uSign + vAxis * vSign, worldWidth, worldDepth, worldMinX, worldMinZ, worldHeight);
+    return cornerOcclusion(sideU, sideV, corner);
+}
+
+float ambientOcclusion(
+    ivec3 cell,
+    vec3 normal,
+    vec2 uv,
+    int worldWidth,
+    int worldDepth,
+    int worldMinX,
+    int worldMinZ,
+    int worldHeight)
+{
+    ivec3 uAxis;
+    ivec3 vAxis;
+    faceAxes(normal, uAxis, vAxis);
+
+    ivec3 baseCell = cell + normalCell(normal);
+    float ao00 = vertexOcclusion(baseCell, uAxis, vAxis, -1, -1, worldWidth, worldDepth, worldMinX, worldMinZ, worldHeight);
+    float ao10 = vertexOcclusion(baseCell, uAxis, vAxis, 1, -1, worldWidth, worldDepth, worldMinX, worldMinZ, worldHeight);
+    float ao01 = vertexOcclusion(baseCell, uAxis, vAxis, -1, 1, worldWidth, worldDepth, worldMinX, worldMinZ, worldHeight);
+    float ao11 = vertexOcclusion(baseCell, uAxis, vAxis, 1, 1, worldWidth, worldDepth, worldMinX, worldMinZ, worldHeight);
+    return mix(mix(ao00, ao10, uv.x), mix(ao01, ao11, uv.x), uv.y);
 }
 
 float traceNudge(float t)
@@ -137,45 +309,34 @@ vec2 surfaceUv(vec3 hitPosition, vec3 normal)
     return vec2(-hitPosition.x + 0.5, -hitPosition.y);
 }
 
+uint faceIndex(vec3 normal)
+{
+    if (normal.x > 0.5)
+    {
+        return 0u;
+    }
+    if (normal.x < -0.5)
+    {
+        return 1u;
+    }
+    if (normal.y > 0.5)
+    {
+        return 2u;
+    }
+    if (normal.y < -0.5)
+    {
+        return 3u;
+    }
+    if (normal.z > 0.5)
+    {
+        return 4u;
+    }
+    return 5u;
+}
+
 float textureLayer(uint id, vec3 normal)
 {
-    if (id == 2)
-    {
-        if (normal.y > 0.5)
-        {
-            return 1.0;
-        }
-        if (normal.y < -0.5)
-        {
-            return 2.0;
-        }
-        return 3.0;
-    }
-    if (id == 3)
-    {
-        return 4.0;
-    }
-    if (id == 4)
-    {
-        return 5.0;
-    }
-    if (id == 5)
-    {
-        return abs(normal.y) > 0.5 ? 7.0 : 6.0;
-    }
-    if (id == 6)
-    {
-        return 8.0;
-    }
-    if (id == 7)
-    {
-        return 9.0;
-    }
-    if (id == 8)
-    {
-        return abs(normal.y) > 0.5 ? 11.0 : 10.0;
-    }
-    return 0.0;
+    return float(blockDefinitions.faceLayers[id * 6u + faceIndex(normal)]);
 }
 
 void stepVoxel(inout float t, inout ivec3 cell, inout vec3 tMax, vec3 tDelta, ivec3 stepDirection, inout vec3 normal)
@@ -309,6 +470,7 @@ void main()
     bool hit = false;
     float hitT = t;
     uint hitBlockId = 0;
+    ivec3 hitCell = cell;
 
     for (int i = 0; i < 2048; ++i)
     {
@@ -319,7 +481,13 @@ void main()
 
         if (cell.x >= worldMinX && cell.x < worldMinX + worldWidth && cell.y >= 0 && cell.y < worldHeight && cell.z >= worldMinZ && cell.z < worldMinZ + worldDepth)
         {
-            Subchunk subchunk = subchunkData.items[subchunkIndex(cell, worldWidth, worldMinX, worldMinZ)];
+            uint index = subchunkIndex(cell, worldWidth, worldMinX, worldMinZ);
+            if (index == INVALID_PHYSICAL_SLOT)
+            {
+                break;
+            }
+
+            Subchunk subchunk = subchunkData.items[index];
             if ((subchunk.flags & SUBCHUNK_EMPTY) != 0u)
             {
                 skipSubchunk(origin, direction, stepDirection, worldMinX, worldMinZ, t, cell, tMax, tDelta, normal);
@@ -341,6 +509,7 @@ void main()
                 hit = true;
                 hitT = t;
                 hitBlockId = id;
+                hitCell = cell;
                 break;
             }
         }
@@ -354,8 +523,10 @@ void main()
     }
 
     vec3 hitPosition = origin + direction * hitT;
+    vec2 uv = surfaceUv(hitPosition, normal);
+    float ao = ambientOcclusion(hitCell, normal, fract(uv), worldWidth, worldDepth, worldMinX, worldMinZ, worldHeight);
     float lod = clamp(floor(log2(max(hitT, 1.0) / 64.0)), 0.0, 5.0);
-    vec3 color = textureLod(blockTextures, vec3(surfaceUv(hitPosition, normal), textureLayer(hitBlockId, normal)), lod).rgb;
+    vec3 color = textureLod(blockTextures, vec3(uv, textureLayer(hitBlockId, normal)), lod).rgb * ao;
 
     float viewZ = max(dot(hitPosition - origin, forward), nearPlane);
     gl_FragDepth = clamp(farPlane / (farPlane - nearPlane) - (nearPlane * farPlane) / ((farPlane - nearPlane) * viewZ), 0.0, 1.0);
