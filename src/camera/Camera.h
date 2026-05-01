@@ -15,6 +15,13 @@ namespace dolbuto
         float z = 0.0f;
     };
 
+    struct DVec3
+    {
+        double x = 0.0;
+        double y = 0.0;
+        double z = 0.0;
+    };
+
     class Camera
     {
     public:

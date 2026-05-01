@@ -32,12 +32,12 @@ namespace dolbuto
 
         void drawFrame(
             const Camera& camera,
-            Vec3 cameraPosition,
+            DVec3 cameraPosition,
             std::string_view fpsText,
             bool debugTextVisible,
             bool screenshotRequested,
             bool showPlayer,
-            Vec3 playerPosition,
+            DVec3 playerPosition,
             float playerYaw);
         void setFramebufferResized();
 
@@ -223,7 +223,7 @@ namespace dolbuto
         void createPlayerMesh();
         void createTerrainMesh();
         void loadWorldConfig();
-        void updateLoadedChunks(Vec3 playerPosition);
+        void updateLoadedChunks(DVec3 playerPosition);
         RaymarchChunkData buildRaymarchChunk(int chunkX, int chunkZ) const;
         const RaymarchChunkData& cachedRaymarchChunk(int chunkX, int chunkZ);
         void pruneRaymarchChunkCache();

@@ -401,19 +401,32 @@ void skipSubchunk(
         safeDivide(boundaryZ - origin.z, direction.z)
     );
 
-    if (subT.x <= subT.y && subT.x <= subT.z)
+    const float invalidT = 100000000.0;
+    float currentT = t;
+    float nextX = subT.x > currentT + TRACE_EPSILON ? subT.x : invalidT;
+    float nextY = subT.y > currentT + TRACE_EPSILON ? subT.y : invalidT;
+    float nextZ = subT.z > currentT + TRACE_EPSILON ? subT.z : invalidT;
+    float nextT = min(min(nextX, nextY), nextZ);
+
+    if (nextT >= invalidT)
     {
-        t = subT.x;
+        stepVoxel(t, cell, tMax, tDelta, stepDirection, normal);
+        return;
+    }
+
+    if (nextX <= nextY && nextX <= nextZ)
+    {
+        t = nextX;
         normal = vec3(-float(stepDirection.x), 0.0, 0.0);
     }
-    else if (subT.y <= subT.z)
+    else if (nextY <= nextZ)
     {
-        t = subT.y;
+        t = nextY;
         normal = vec3(0.0, -float(stepDirection.y), 0.0);
     }
     else
     {
-        t = subT.z;
+        t = nextZ;
         normal = vec3(0.0, 0.0, -float(stepDirection.z));
     }
 

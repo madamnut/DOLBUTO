@@ -19,8 +19,8 @@ namespace dolbuto
         constexpr const char* WindowTitle = "DOLBUTO";
         constexpr float RadiansToDegrees = 57.2957795131f;
         constexpr float Pi = 3.14159265359f;
-        constexpr float EyeHeight = 1.5625f;
-        constexpr float ThirdPersonDistance = 5.5f;
+        constexpr double EyeHeight = 1.5625;
+        constexpr double ThirdPersonDistance = 5.5;
 
         const char* facingName(float yaw)
         {
@@ -73,9 +73,9 @@ namespace dolbuto
             updatePlayer(delta.count());
             updateDebugText();
 
-            const Vec3 eyePosition{playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z};
+            const DVec3 eyePosition{playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z};
             Camera renderCamera = camera_;
-            Vec3 renderCameraPosition = eyePosition;
+            DVec3 renderCameraPosition = eyePosition;
             bool showPlayer = false;
             if (viewMode_ == ViewMode::ThirdPersonRear)
             {
@@ -276,7 +276,7 @@ namespace dolbuto
 
     void Application::updatePlayer(double deltaSeconds)
     {
-        constexpr float MoveSpeed = 64.0f;
+        constexpr double MoveSpeed = 64.0;
 
         const float yaw = camera_.yaw();
         const Vec3 forward{std::cos(yaw), 0.0f, std::sin(yaw)};
@@ -313,7 +313,7 @@ namespace dolbuto
         }
 
         movement = normalize(movement);
-        const float distance = MoveSpeed * static_cast<float>(deltaSeconds);
+        const double distance = MoveSpeed * deltaSeconds;
         playerPosition_.x += movement.x * distance;
         playerPosition_.y += movement.y * distance;
         playerPosition_.z += movement.z * distance;

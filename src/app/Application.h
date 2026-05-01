@@ -49,7 +49,7 @@ namespace dolbuto
         bool screenshotRequested_ = false;
         bool mouseCaptured_ = true;
         ViewMode viewMode_ = ViewMode::FirstPerson;
-        Vec3 playerPosition_{0.0f, 150.0f, 0.0f};
+        DVec3 playerPosition_{0.0, 150.0, 0.0};
         std::chrono::steady_clock::time_point lastFrameTime_{};
         int windowedX_ = 0;
         int windowedY_ = 0;

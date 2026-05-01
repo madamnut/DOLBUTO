@@ -56,7 +56,7 @@ namespace dolbuto
         constexpr int TerrainMinHeight = 120;
         constexpr int TerrainBaseHeight = 130;
         constexpr int TerrainMaxHeight = 140;
-        constexpr float TerrainRenderScale = 0.75f;
+        constexpr float TerrainRenderScale = 1.0f;
         constexpr double PerformanceSampleSeconds = 0.5;
         constexpr uint32_t SubchunkEmpty = 1u;
         constexpr uint32_t SubchunkUniform = 2u;
@@ -218,10 +218,19 @@ namespace dolbuto
             }
         }
 
-        int chunkCoordinate(float worldCoordinate)
+        Vec3 toVec3(DVec3 value)
         {
-            const int blockCoordinate = static_cast<int>(std::floor(worldCoordinate + 0.5f));
-            return static_cast<int>(std::floor(static_cast<float>(blockCoordinate) / static_cast<float>(ChunkSizeX)));
+            return {
+                static_cast<float>(value.x),
+                static_cast<float>(value.y),
+                static_cast<float>(value.z)
+            };
+        }
+
+        int chunkCoordinate(double worldCoordinate)
+        {
+            const int blockCoordinate = static_cast<int>(std::floor(worldCoordinate + 0.5));
+            return static_cast<int>(std::floor(static_cast<double>(blockCoordinate) / static_cast<double>(ChunkSizeX)));
         }
 
         int floorDiv(int value, int divisor)
@@ -633,14 +642,17 @@ namespace dolbuto
 
     void Renderer::drawFrame(
         const Camera& camera,
-        Vec3 cameraPosition,
+        DVec3 cameraPosition,
         std::string_view fpsText,
         bool debugTextVisible,
         bool screenshotRequested,
         bool showPlayer,
-        Vec3 playerPosition,
+        DVec3 playerPosition,
         float playerYaw)
     {
+        const Vec3 cameraPositionFloat = toVec3(cameraPosition);
+        const Vec3 playerPositionFloat = toVec3(playerPosition);
+
         updateTerrainDebugText();
 
         vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
@@ -694,10 +706,10 @@ namespace dolbuto
 
         if (showPlayer)
         {
-            updatePlayerMesh(playerPosition, playerYaw);
+            updatePlayerMesh(playerPositionFloat, playerYaw);
         }
 
-        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPosition, fpsText, debugTextVisible, screenshotBuffer, showPlayer);
+        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPositionFloat, fpsText, debugTextVisible, screenshotBuffer, showPlayer);
 
         VkSemaphore waitSemaphores[] = {imageAvailableSemaphores_[currentFrame_]};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -2090,7 +2102,7 @@ namespace dolbuto
         maxCompletedChunksAppliedPerFrame_ = std::clamp(parseConfigInt(text, "maxCompletedChunksAppliedPerFrame", DefaultMaxCompletedChunksAppliedPerFrame), 1, 128);
     }
 
-    void Renderer::updateLoadedChunks(Vec3 playerPosition)
+    void Renderer::updateLoadedChunks(DVec3 playerPosition)
     {
         const int centerGroupChunkX = centerGroupCoordinate(chunkCoordinate(playerPosition.x));
         const int centerGroupChunkZ = centerGroupCoordinate(chunkCoordinate(playerPosition.z));
