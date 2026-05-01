@@ -88,6 +88,7 @@ target_include_directories(DOLBUTO
 target_compile_definitions(DOLBUTO
     PRIVATE
         DOLBUTO_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        DOLBUTO_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config"
         DOLBUTO_SHADER_DIR="${SHADER_OUTPUT_DIR}"
 )
 

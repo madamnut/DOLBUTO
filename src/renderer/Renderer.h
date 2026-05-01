@@ -7,6 +7,7 @@
 #include <stb_truetype.h>
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -51,6 +52,7 @@ namespace dolbuto
             VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
             int width = 0;
             int height = 0;
+            uint32_t mipLevels = 1;
         };
 
         struct SpriteRect
@@ -124,7 +126,15 @@ namespace dolbuto
 
         struct RaymarchPush
         {
-            float data[20]{};
+            float data[24]{};
+        };
+
+        struct RaymarchSubchunk
+        {
+            uint32_t flags = 0;
+            uint32_t cellOffset = 0;
+            uint32_t uniformCell = 0;
+            uint32_t reserved = 0;
         };
 
         struct TerrainMesh
@@ -161,11 +171,14 @@ namespace dolbuto
         void createCommandPool();
         void createSampler();
         void createDescriptorPool();
+        void createPerformanceQueries();
         void createTextures();
         void createFont();
         void createTextVertexBuffer();
         void createPlayerMesh();
         void createTerrainMesh();
+        void loadWorldConfig();
+        void updateLoadedChunks(Vec3 playerPosition);
         void createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh);
         void createRaymarchBlockBuffer();
         void createCommandBuffers();
@@ -187,7 +200,9 @@ namespace dolbuto
         void destroyTerrainMesh(TerrainMesh& mesh);
 
         uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
-        void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& memory) const;
+        void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& memory, uint32_t* memoryTypeIndex = nullptr) const;
+        void createDeviceLocalBuffer(const void* source, VkDeviceSize size, VkBufferUsageFlags usage, VkBuffer& buffer, VkDeviceMemory& memory, uint32_t* memoryTypeIndex = nullptr) const;
+        void copyBuffer(VkBuffer source, VkBuffer destination, VkDeviceSize size) const;
         void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const;
         void transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) const;
         VkCommandBuffer beginSingleTimeCommands() const;
@@ -195,6 +210,7 @@ namespace dolbuto
         Texture createTextureArray(const std::vector<std::string>& paths);
         void copyBufferToImageArray(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layers) const;
         void transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layers) const;
+        void generateTextureArrayMipmaps(VkImage image, VkFormat format, uint32_t width, uint32_t height, uint32_t layers, uint32_t mipLevels) const;
 
         void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer);
         void copySwapchainImageToBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VkBuffer buffer) const;
@@ -207,6 +223,7 @@ namespace dolbuto
         void drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
         std::string_view resolutionText();
         void updateDebugTextBatch(std::string_view fpsText);
+        void updatePerformanceText(double cpuFrameMs);
         void addText(TextBatch& batch, std::string_view text, float x, float y, bool alignRight) const;
         void addTextPass(std::vector<TextVertex>& vertices, std::string_view text, float x, float y, bool alignRight, float offsetX, float offsetY) const;
         void appendGlyphQuad(std::vector<TextVertex>& vertices, const Glyph& glyph) const;
@@ -218,6 +235,7 @@ namespace dolbuto
         std::string readCpuName() const;
         std::string formatVersion(uint32_t version) const;
         void updateTerrainDebugText();
+        void updateVramText();
 
         GLFWwindow* window_ = nullptr;
 
@@ -232,6 +250,11 @@ namespace dolbuto
         std::string terrainDrawText_;
         std::string terrainFaceText_;
         std::string terrainVertexText_;
+        std::string cpuFrameText_ = "CPU: ---.---MS";
+        std::string gpuFrameText_ = "GPU: ---.---MS";
+        std::string blockHeapText_ = "BLOCK HEAP: N/A";
+        std::string bufferText_ = "BUFFER: 0.0MB";
+        std::string vramText_ = "VRAM: 0MB";
         std::string cachedFpsText_;
         VkExtent2D lastResolutionExtent_{};
         TextBatch debugTextBatch_;
@@ -264,6 +287,11 @@ namespace dolbuto
         VkPipeline raymarchPipeline_ = VK_NULL_HANDLE;
         VkCommandPool commandPool_ = VK_NULL_HANDLE;
         std::vector<VkCommandBuffer> commandBuffers_;
+        VkQueryPool timestampQueryPool_ = VK_NULL_HANDLE;
+        std::array<bool, 2> timestampQueryReady_{};
+        bool timestampSupported_ = false;
+        float timestampPeriod_ = 0.0f;
+        double lastGpuFrameMs_ = 0.0;
 
         VkSampler sampler_ = VK_NULL_HANDLE;
         VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
@@ -275,7 +303,23 @@ namespace dolbuto
         TerrainMesh playerMesh_;
         std::vector<TerrainVertex> playerLocalVertices_;
         std::vector<uint32_t> playerIndices_;
-        std::vector<uint32_t> raymarchBlocks_;
+        std::vector<RaymarchSubchunk> raymarchSubchunks_;
+        std::vector<uint32_t> raymarchCells_;
+        int loadRadius_ = 0;
+        int loadedChunkDiameter_ = 0;
+        int loadedCenterChunkX_ = 0;
+        int loadedCenterChunkZ_ = 0;
+        int raymarchWorldMinX_ = 0;
+        int raymarchWorldMinZ_ = 0;
+        int raymarchWorldWidth_ = 0;
+        int raymarchWorldDepth_ = 0;
+        VkDeviceSize raymarchBlockBufferSize_ = 0;
+        VkDeviceSize localMemoryHeapSize_ = 0;
+        uint32_t localMemoryHeapIndex_ = UINT32_MAX;
+        uint32_t raymarchBlockMemoryTypeIndex_ = UINT32_MAX;
+        bool memoryBudgetSupported_ = false;
+        VkBuffer raymarchSubchunkBuffer_ = VK_NULL_HANDLE;
+        VkDeviceMemory raymarchSubchunkMemory_ = VK_NULL_HANDLE;
         VkBuffer raymarchBlockBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory raymarchBlockMemory_ = VK_NULL_HANDLE;
         VkDescriptorSet raymarchDescriptorSet_ = VK_NULL_HANDLE;
@@ -299,5 +343,9 @@ namespace dolbuto
         std::vector<VkFence> inFlightFences_;
         uint32_t currentFrame_ = 0;
         bool framebufferResized_ = false;
+        std::chrono::steady_clock::time_point performanceSampleStart_{};
+        double accumulatedCpuFrameMs_ = 0.0;
+        double accumulatedGpuFrameMs_ = 0.0;
+        uint32_t performanceSampleCount_ = 0;
     };
 }

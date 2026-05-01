@@ -37,22 +37,24 @@ namespace dolbuto
         constexpr int FontAtlasSize = 512;
         constexpr float FontPixelHeight = 18.0f;
         constexpr size_t MaxTextVertices = 16384;
-        constexpr int TestChunkCountX = 10;
-        constexpr int TestChunkCountZ = 10;
         constexpr int ChunkSizeX = 16;
         constexpr int ChunkSizeY = 512;
         constexpr int ChunkSizeZ = 16;
         constexpr int SubchunkSize = 16;
         constexpr int SubchunksPerChunk = ChunkSizeY / SubchunkSize;
-        constexpr bool TestRandomVoxelStress = true;
-        constexpr int TestChunkMinHeight = 130;
-        constexpr int TestChunkMaxHeight = 140;
+        constexpr int DefaultLoadRadius = 5;
+        constexpr int FlatTerrainHeight = 130;
+        constexpr double PerformanceSampleSeconds = 0.5;
+        constexpr uint32_t SubchunkEmpty = 1u;
+        constexpr uint32_t SubchunkUniform = 2u;
+        constexpr uint32_t SubchunkDense = 4u;
         constexpr uint16_t BlockAir = 0;
-        constexpr uint16_t RandomBlockMin = 1;
-        constexpr uint16_t RandomBlockMax = 8;
+        constexpr uint16_t BlockRock = 1;
         constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
         constexpr const char* VersionText = "DOLBUTO 0.0.0.0";
         constexpr std::array<const char*, 1> DeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+        constexpr const char* MemoryBudgetExtension = "VK_EXT_memory_budget";
+        constexpr const char* PhysicalDeviceProperties2Extension = "VK_KHR_get_physical_device_properties2";
 
         struct Mat4
         {
@@ -111,6 +113,88 @@ namespace dolbuto
                 << "_" << std::setw(3) << std::setfill('0') << milliseconds
                 << ".bmp";
             return directory / name.str();
+        }
+
+        int parseLoadRadius(const std::string& text, int fallback)
+        {
+            const std::string key = "\"loadRadius\"";
+            const size_t keyPos = text.find(key);
+            if (keyPos == std::string::npos)
+            {
+                return fallback;
+            }
+
+            const size_t colonPos = text.find(':', keyPos + key.size());
+            if (colonPos == std::string::npos)
+            {
+                return fallback;
+            }
+
+            const size_t valueStart = text.find_first_not_of(" \t\r\n", colonPos + 1);
+            if (valueStart == std::string::npos)
+            {
+                return fallback;
+            }
+
+            size_t valueEnd = valueStart;
+            if (text[valueEnd] == '-')
+            {
+                ++valueEnd;
+            }
+            while (valueEnd < text.size() && text[valueEnd] >= '0' && text[valueEnd] <= '9')
+            {
+                ++valueEnd;
+            }
+            if (valueEnd == valueStart || (valueEnd == valueStart + 1 && text[valueStart] == '-'))
+            {
+                return fallback;
+            }
+
+            try
+            {
+                return std::max(0, std::stoi(text.substr(valueStart, valueEnd - valueStart)));
+            }
+            catch (...)
+            {
+                return fallback;
+            }
+        }
+
+        int chunkCoordinate(float worldCoordinate)
+        {
+            const int blockCoordinate = static_cast<int>(std::floor(worldCoordinate + 0.5f));
+            return static_cast<int>(std::floor(static_cast<float>(blockCoordinate) / static_cast<float>(ChunkSizeX)));
+        }
+
+        uint32_t packCell(uint16_t blockId, uint16_t fluidId = 0)
+        {
+            return static_cast<uint32_t>(blockId) | (static_cast<uint32_t>(fluidId) << 16u);
+        }
+
+        bool deviceExtensionAvailable(VkPhysicalDevice device, const char* extensionName)
+        {
+            uint32_t extensionCount = 0;
+            vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+            std::vector<VkExtensionProperties> extensions(extensionCount);
+            vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data());
+
+            return std::any_of(extensions.begin(), extensions.end(), [extensionName](const VkExtensionProperties& extension)
+            {
+                return std::strcmp(extension.extensionName, extensionName) == 0;
+            });
+        }
+
+        bool instanceExtensionAvailable(const char* extensionName)
+        {
+            uint32_t extensionCount = 0;
+            vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+            std::vector<VkExtensionProperties> extensions(extensionCount);
+            vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+
+            return std::any_of(extensions.begin(), extensions.end(), [extensionName](const VkExtensionProperties& extension)
+            {
+                return std::strcmp(extension.extensionName, extensionName) == 0;
+            });
         }
 
         void writeBmp(const std::filesystem::path& path, const unsigned char* pixels, uint32_t width, uint32_t height, VkFormat format)
@@ -231,6 +315,11 @@ namespace dolbuto
             matrix.m[14] = -dot(terrainForward, position);
             return matrix;
         }
+
+        uint32_t mipLevelCount(int width, int height)
+        {
+            return static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1u;
+        }
     }
 
     bool Renderer::QueueFamilyIndices::complete() const
@@ -257,12 +346,14 @@ namespace dolbuto
         createRaymarchPipeline();
         createFramebuffers();
         createCommandPool();
+        createPerformanceQueries();
         createSampler();
         createDescriptorPool();
         createTextures();
         createFont();
         createTextVertexBuffer();
         createPlayerMesh();
+        loadWorldConfig();
         createTerrainMesh();
         createCommandBuffers();
         createSyncObjects();
@@ -287,6 +378,14 @@ namespace dolbuto
         destroyTerrainMesh(grassSideTerrain_);
         destroyTerrainMesh(rockTerrain_);
         destroyTerrainMesh(playerMesh_);
+        if (raymarchSubchunkBuffer_ != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(device_, raymarchSubchunkBuffer_, nullptr);
+        }
+        if (raymarchSubchunkMemory_ != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(device_, raymarchSubchunkMemory_, nullptr);
+        }
         if (raymarchBlockBuffer_ != VK_NULL_HANDLE)
         {
             vkDestroyBuffer(device_, raymarchBlockBuffer_, nullptr);
@@ -323,6 +422,10 @@ namespace dolbuto
         if (commandPool_ != VK_NULL_HANDLE)
         {
             vkDestroyCommandPool(device_, commandPool_, nullptr);
+        }
+        if (timestampQueryPool_ != VK_NULL_HANDLE)
+        {
+            vkDestroyQueryPool(device_, timestampQueryPool_, nullptr);
         }
         if (terrainWireframePipeline_ != VK_NULL_HANDLE)
         {
@@ -393,8 +496,27 @@ namespace dolbuto
         float playerYaw)
     {
         updateTerrainDebugText();
+        updateLoadedChunks(playerPosition);
 
         vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
+        if (timestampSupported_ && timestampQueryPool_ != VK_NULL_HANDLE && timestampQueryReady_[currentFrame_])
+        {
+            std::array<uint64_t, 2> timestamps{};
+            const VkResult queryResult = vkGetQueryPoolResults(
+                device_,
+                timestampQueryPool_,
+                currentFrame_ * 2,
+                2,
+                sizeof(uint64_t) * timestamps.size(),
+                timestamps.data(),
+                sizeof(uint64_t),
+                VK_QUERY_RESULT_64_BIT);
+            if (queryResult == VK_SUCCESS && timestamps[1] >= timestamps[0])
+            {
+                lastGpuFrameMs_ = static_cast<double>(timestamps[1] - timestamps[0]) * static_cast<double>(timestampPeriod_) / 1000000.0;
+            }
+        }
+        const auto cpuStart = std::chrono::steady_clock::now();
 
         uint32_t imageIndex = 0;
         VkResult result = vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX, imageAvailableSemaphores_[currentFrame_], VK_NULL_HANDLE, &imageIndex);
@@ -454,6 +576,10 @@ namespace dolbuto
             }
             throw std::runtime_error("Failed to submit draw command buffer.");
         }
+        if (timestampSupported_ && timestampQueryPool_ != VK_NULL_HANDLE)
+        {
+            timestampQueryReady_[currentFrame_] = true;
+        }
 
         if (screenshotBuffer != VK_NULL_HANDLE)
         {
@@ -482,6 +608,8 @@ namespace dolbuto
             throw std::runtime_error("Failed to present swapchain image.");
         }
 
+        const auto cpuEnd = std::chrono::steady_clock::now();
+        updatePerformanceText(std::chrono::duration<double, std::milli>(cpuEnd - cpuStart).count());
         currentFrame_ = (currentFrame_ + 1) % MaxFramesInFlight;
     }
 
@@ -499,10 +627,16 @@ namespace dolbuto
             throw std::runtime_error("Failed to get required Vulkan instance extensions.");
         }
 
+        std::vector<const char*> extensions(glfwExtensions, glfwExtensions + extensionCount);
+        if (instanceExtensionAvailable(PhysicalDeviceProperties2Extension))
+        {
+            extensions.push_back(PhysicalDeviceProperties2Extension);
+        }
+
         VkInstanceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        createInfo.enabledExtensionCount = extensionCount;
-        createInfo.ppEnabledExtensionNames = glfwExtensions;
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+        createInfo.ppEnabledExtensionNames = extensions.data();
 
         if (vkCreateInstance(&createInfo, nullptr, &instance_) != VK_SUCCESS)
         {
@@ -551,6 +685,24 @@ namespace dolbuto
         gpuText_ = properties.deviceName;
         vulkanText_ = "VULKAN: " + formatVersion(properties.apiVersion);
         driverText_ = "DRIVER: " + formatVersion(properties.driverVersion);
+        timestampPeriod_ = properties.limits.timestampPeriod;
+        const bool memoryProperties2Supported =
+            vkGetInstanceProcAddr(instance_, "vkGetPhysicalDeviceMemoryProperties2") != nullptr ||
+            vkGetInstanceProcAddr(instance_, "vkGetPhysicalDeviceMemoryProperties2KHR") != nullptr;
+        memoryBudgetSupported_ = memoryProperties2Supported && deviceExtensionAvailable(physicalDevice_, MemoryBudgetExtension);
+
+        VkPhysicalDeviceMemoryProperties memoryProperties{};
+        vkGetPhysicalDeviceMemoryProperties(physicalDevice_, &memoryProperties);
+        for (uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i)
+        {
+            const VkMemoryHeap& heap = memoryProperties.memoryHeaps[i];
+            if ((heap.flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0 && heap.size > localMemoryHeapSize_)
+            {
+                localMemoryHeapIndex_ = i;
+                localMemoryHeapSize_ = heap.size;
+            }
+        }
+        updateVramText();
     }
 
     void Renderer::createDevice()
@@ -570,6 +722,12 @@ namespace dolbuto
             queueInfos.push_back(queueInfo);
         }
 
+        std::vector<const char*> enabledExtensions(DeviceExtensions.begin(), DeviceExtensions.end());
+        if (memoryBudgetSupported_)
+        {
+            enabledExtensions.push_back(MemoryBudgetExtension);
+        }
+
         VkPhysicalDeviceFeatures features{};
         features.fillModeNonSolid = VK_TRUE;
         VkDeviceCreateInfo createInfo{};
@@ -577,8 +735,8 @@ namespace dolbuto
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueInfos.size());
         createInfo.pQueueCreateInfos = queueInfos.data();
         createInfo.pEnabledFeatures = &features;
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(DeviceExtensions.size());
-        createInfo.ppEnabledExtensionNames = DeviceExtensions.data();
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(enabledExtensions.size());
+        createInfo.ppEnabledExtensionNames = enabledExtensions.data();
 
         if (vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_) != VK_SUCCESS)
         {
@@ -812,7 +970,7 @@ namespace dolbuto
 
     void Renderer::createRaymarchDescriptorSetLayout()
     {
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
+        std::array<VkDescriptorSetLayoutBinding, 3> bindings{};
         bindings[0].binding = 0;
         bindings[0].descriptorCount = 1;
         bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -820,8 +978,13 @@ namespace dolbuto
 
         bindings[1].binding = 1;
         bindings[1].descriptorCount = 1;
-        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[2].binding = 2;
+        bindings[2].descriptorCount = 1;
+        bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
         VkDescriptorSetLayoutCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1181,7 +1344,7 @@ namespace dolbuto
         pushRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         pushRange.offset = 0;
         pushRange.size = sizeof(RaymarchPush);
-        static_assert(sizeof(RaymarchPush) == sizeof(float) * 20);
+        static_assert(sizeof(RaymarchPush) == sizeof(float) * 24);
 
         VkPipelineLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1258,16 +1421,51 @@ namespace dolbuto
         }
     }
 
+    void Renderer::createPerformanceQueries()
+    {
+        performanceSampleStart_ = std::chrono::steady_clock::now();
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice_);
+
+        uint32_t familyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice_, &familyCount, nullptr);
+        std::vector<VkQueueFamilyProperties> families(familyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice_, &familyCount, families.data());
+
+        if (indices.graphics >= families.size() || families[indices.graphics].timestampValidBits == 0)
+        {
+            timestampSupported_ = false;
+            gpuFrameText_ = "GPU: N/A";
+            return;
+        }
+
+        timestampSupported_ = true;
+        VkQueryPoolCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        createInfo.queryCount = MaxFramesInFlight * 2;
+
+        if (vkCreateQueryPool(device_, &createInfo, nullptr, &timestampQueryPool_) != VK_SUCCESS)
+        {
+            timestampSupported_ = false;
+            gpuFrameText_ = "GPU: N/A";
+            timestampQueryPool_ = VK_NULL_HANDLE;
+            return;
+        }
+    }
+
     void Renderer::createSampler()
     {
         VkSamplerCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
         createInfo.magFilter = VK_FILTER_NEAREST;
         createInfo.minFilter = VK_FILTER_NEAREST;
+        createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         createInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        createInfo.minLod = 0.0f;
+        createInfo.maxLod = VK_LOD_CLAMP_NONE;
 
         if (vkCreateSampler(device_, &createInfo, nullptr, &sampler_) != VK_SUCCESS)
         {
@@ -1281,7 +1479,7 @@ namespace dolbuto
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[0].descriptorCount = 9;
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        poolSizes[1].descriptorCount = 1;
+        poolSizes[1].descriptorCount = 2;
 
         VkDescriptorPoolCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1407,8 +1605,106 @@ namespace dolbuto
         createTerrainBuffer({playerLocalVertices_, playerIndices_}, playerMesh_);
     }
 
+    void Renderer::loadWorldConfig()
+    {
+        loadRadius_ = DefaultLoadRadius;
+
+        const std::filesystem::path path = std::filesystem::path(DOLBUTO_CONFIG_DIR) / "world.json";
+        std::ifstream file(path);
+        if (!file.is_open())
+        {
+            return;
+        }
+
+        std::ostringstream contents;
+        contents << file.rdbuf();
+        loadRadius_ = parseLoadRadius(contents.str(), DefaultLoadRadius);
+    }
+
+    void Renderer::updateLoadedChunks(Vec3 playerPosition)
+    {
+        const int centerChunkX = chunkCoordinate(playerPosition.x);
+        const int centerChunkZ = chunkCoordinate(playerPosition.z);
+        if (centerChunkX == loadedCenterChunkX_ && centerChunkZ == loadedCenterChunkZ_)
+        {
+            return;
+        }
+
+        loadedCenterChunkX_ = centerChunkX;
+        loadedCenterChunkZ_ = centerChunkZ;
+        raymarchWorldMinX_ = (loadedCenterChunkX_ - loadRadius_) * ChunkSizeX;
+        raymarchWorldMinZ_ = (loadedCenterChunkZ_ - loadRadius_) * ChunkSizeZ;
+    }
+
     void Renderer::createTerrainMesh()
     {
+        loadedChunkDiameter_ = loadRadius_ * 2 + 1;
+        loadedCenterChunkX_ = 0;
+        loadedCenterChunkZ_ = 0;
+        raymarchWorldMinX_ = (loadedCenterChunkX_ - loadRadius_) * ChunkSizeX;
+        raymarchWorldMinZ_ = (loadedCenterChunkZ_ - loadRadius_) * ChunkSizeZ;
+        raymarchWorldWidth_ = loadedChunkDiameter_ * ChunkSizeX;
+        raymarchWorldDepth_ = loadedChunkDiameter_ * ChunkSizeZ;
+
+        const uint32_t airCell = packCell(BlockAir);
+        const uint32_t rockCell = packCell(BlockRock);
+        raymarchSubchunks_.clear();
+        raymarchCells_.clear();
+        raymarchSubchunks_.reserve(static_cast<size_t>(loadedChunkDiameter_) * loadedChunkDiameter_ * SubchunksPerChunk);
+        raymarchCells_.reserve(static_cast<size_t>(loadedChunkDiameter_) * loadedChunkDiameter_ * SubchunkSize * ChunkSizeX * ChunkSizeZ);
+
+        for (int chunkZ = 0; chunkZ < loadedChunkDiameter_; ++chunkZ)
+        {
+            for (int chunkX = 0; chunkX < loadedChunkDiameter_; ++chunkX)
+            {
+                for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
+                {
+                    const int yStart = subchunkY * SubchunkSize;
+                    const int yEnd = yStart + SubchunkSize;
+                    RaymarchSubchunk subchunk{};
+                    if (yEnd <= FlatTerrainHeight)
+                    {
+                        subchunk.flags = SubchunkUniform;
+                        subchunk.uniformCell = rockCell;
+                    }
+                    else if (yStart >= FlatTerrainHeight)
+                    {
+                        subchunk.flags = SubchunkEmpty;
+                        subchunk.uniformCell = airCell;
+                    }
+                    else
+                    {
+                        subchunk.flags = SubchunkDense;
+                        subchunk.cellOffset = static_cast<uint32_t>(raymarchCells_.size());
+                        for (int localY = 0; localY < SubchunkSize; ++localY)
+                        {
+                            const int worldY = yStart + localY;
+                            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+                            {
+                                for (int localX = 0; localX < ChunkSizeX; ++localX)
+                                {
+                                    raymarchCells_.push_back(worldY < FlatTerrainHeight ? rockCell : airCell);
+                                }
+                            }
+                        }
+                    }
+
+                    raymarchSubchunks_.push_back(subchunk);
+                }
+            }
+        }
+
+        terrainDrawCount_ = 0;
+        terrainFaceCount_ = 0;
+        terrainVertexCount_ = 0;
+        terrainDrawText_ = "DRAWS: 0";
+        terrainFaceText_ = "FACES: 0";
+        terrainVertexText_ = "VERTICES: 0";
+        debugTextBatchDirty_ = true;
+        createRaymarchBlockBuffer();
+        return;
+
+#if 0
         const int blockCountX = TestChunkCountX * ChunkSizeX;
         const int blockCountZ = TestChunkCountZ * ChunkSizeZ;
         const size_t blockCount = static_cast<size_t>(blockCountX) * ChunkSizeY * blockCountZ;
@@ -1763,6 +2059,7 @@ namespace dolbuto
         debugTextBatchDirty_ = true;
 
         createRaymarchBlockBuffer();
+#endif
     }
 
     void Renderer::createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh)
@@ -1803,23 +2100,53 @@ namespace dolbuto
 
     void Renderer::createRaymarchBlockBuffer()
     {
-        if (raymarchBlocks_.empty())
+        if (raymarchSubchunks_.empty())
         {
             return;
         }
 
-        const VkDeviceSize bufferSize = sizeof(uint32_t) * raymarchBlocks_.size();
-        createBuffer(
-            bufferSize,
+        const VkDeviceSize subchunkBufferSize = sizeof(RaymarchSubchunk) * raymarchSubchunks_.size();
+        const VkDeviceSize cellBufferSize = sizeof(uint32_t) * std::max<size_t>(raymarchCells_.size(), 1);
+        raymarchBlockBufferSize_ = subchunkBufferSize + cellBufferSize;
+        {
+            std::ostringstream text;
+            text << "BUFFER: " << std::fixed << std::setprecision(1) << (static_cast<double>(raymarchBlockBufferSize_) / (1024.0 * 1024.0)) << "MB";
+            bufferText_ = text.str();
+            debugTextBatchDirty_ = true;
+        }
+        createDeviceLocalBuffer(
+            raymarchSubchunks_.data(),
+            subchunkBufferSize,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            raymarchBlockBuffer_,
-            raymarchBlockMemory_);
+            raymarchSubchunkBuffer_,
+            raymarchSubchunkMemory_);
 
-        void* data = nullptr;
-        vkMapMemory(device_, raymarchBlockMemory_, 0, bufferSize, 0, &data);
-        std::memcpy(data, raymarchBlocks_.data(), static_cast<size_t>(bufferSize));
-        vkUnmapMemory(device_, raymarchBlockMemory_);
+        const uint32_t emptyCell = 0;
+        const void* cellSource = raymarchCells_.empty() ? static_cast<const void*>(&emptyCell) : static_cast<const void*>(raymarchCells_.data());
+        createDeviceLocalBuffer(
+            cellSource,
+            cellBufferSize,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            raymarchBlockBuffer_,
+            raymarchBlockMemory_,
+            &raymarchBlockMemoryTypeIndex_);
+        {
+            VkPhysicalDeviceMemoryProperties memoryProperties{};
+            vkGetPhysicalDeviceMemoryProperties(physicalDevice_, &memoryProperties);
+            const VkMemoryPropertyFlags flags = raymarchBlockMemoryTypeIndex_ < memoryProperties.memoryTypeCount
+                ? memoryProperties.memoryTypes[raymarchBlockMemoryTypeIndex_].propertyFlags
+                : 0;
+
+            blockHeapText_ = "BLOCK HEAP:";
+            blockHeapText_ += (flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0 ? " LOCAL" : "";
+            blockHeapText_ += (flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0 ? " HOST" : "";
+            blockHeapText_ += (flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0 ? " COHERENT" : "";
+            if (blockHeapText_ == "BLOCK HEAP:")
+            {
+                blockHeapText_ += " UNKNOWN";
+            }
+            debugTextBatchDirty_ = true;
+        }
 
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -1832,30 +2159,42 @@ namespace dolbuto
             throw std::runtime_error("Failed to allocate raymarch descriptor set.");
         }
 
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = raymarchBlockBuffer_;
-        bufferInfo.offset = 0;
-        bufferInfo.range = bufferSize;
+        VkDescriptorBufferInfo subchunkBufferInfo{};
+        subchunkBufferInfo.buffer = raymarchSubchunkBuffer_;
+        subchunkBufferInfo.offset = 0;
+        subchunkBufferInfo.range = subchunkBufferSize;
+
+        VkDescriptorBufferInfo cellBufferInfo{};
+        cellBufferInfo.buffer = raymarchBlockBuffer_;
+        cellBufferInfo.offset = 0;
+        cellBufferInfo.range = cellBufferSize;
 
         VkDescriptorImageInfo imageInfo{};
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageInfo.imageView = blockTextureArray_.view;
         imageInfo.sampler = sampler_;
 
-        std::array<VkWriteDescriptorSet, 2> writes{};
+        std::array<VkWriteDescriptorSet, 3> writes{};
         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writes[0].dstSet = raymarchDescriptorSet_;
         writes[0].dstBinding = 0;
         writes[0].descriptorCount = 1;
         writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        writes[0].pBufferInfo = &bufferInfo;
+        writes[0].pBufferInfo = &subchunkBufferInfo;
 
         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writes[1].dstSet = raymarchDescriptorSet_;
         writes[1].dstBinding = 1;
         writes[1].descriptorCount = 1;
-        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        writes[1].pImageInfo = &imageInfo;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[1].pBufferInfo = &cellBufferInfo;
+
+        writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[2].dstSet = raymarchDescriptorSet_;
+        writes[2].dstBinding = 2;
+        writes[2].descriptorCount = 1;
+        writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[2].pImageInfo = &imageInfo;
 
         vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
     }
@@ -2239,6 +2578,7 @@ namespace dolbuto
 
         texture.width = expectedWidth;
         texture.height = expectedHeight;
+        texture.mipLevels = mipLevelCount(texture.width, texture.height);
         const uint32_t layerCount = static_cast<uint32_t>(paths.size());
         const VkDeviceSize imageSize = static_cast<VkDeviceSize>(texture.width) * static_cast<VkDeviceSize>(texture.height) * 4u * layerCount;
 
@@ -2255,12 +2595,12 @@ namespace dolbuto
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
         imageInfo.extent = {static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height), 1};
-        imageInfo.mipLevels = 1;
+        imageInfo.mipLevels = texture.mipLevels;
         imageInfo.arrayLayers = layerCount;
         imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
         imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
         imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -2285,7 +2625,7 @@ namespace dolbuto
         vkBindImageMemory(device_, texture.image, texture.memory, 0);
         transitionImageLayout(texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, layerCount);
         copyBufferToImageArray(stagingBuffer, texture.image, static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height), layerCount);
-        transitionImageLayout(texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, layerCount);
+        generateTextureArrayMipmaps(texture.image, VK_FORMAT_R8G8B8A8_SRGB, static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height), layerCount, texture.mipLevels);
 
         vkDestroyBuffer(device_, stagingBuffer, nullptr);
         vkFreeMemory(device_, stagingMemory, nullptr);
@@ -2296,7 +2636,7 @@ namespace dolbuto
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
         viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.levelCount = texture.mipLevels;
         viewInfo.subresourceRange.layerCount = layerCount;
 
         if (vkCreateImageView(device_, &viewInfo, nullptr, &texture.view) != VK_SUCCESS)
@@ -2361,7 +2701,7 @@ namespace dolbuto
         throw std::runtime_error("Failed to find suitable memory type.");
     }
 
-    void Renderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& memory) const
+    void Renderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& memory, uint32_t* memoryTypeIndex) const
     {
         VkBufferCreateInfo bufferInfo{};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -2381,6 +2721,10 @@ namespace dolbuto
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = requirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(requirements.memoryTypeBits, properties);
+        if (memoryTypeIndex != nullptr)
+        {
+            *memoryTypeIndex = allocInfo.memoryTypeIndex;
+        }
 
         if (vkAllocateMemory(device_, &allocInfo, nullptr, &memory) != VK_SUCCESS)
         {
@@ -2388,6 +2732,66 @@ namespace dolbuto
         }
 
         vkBindBufferMemory(device_, buffer, memory, 0);
+    }
+
+    void Renderer::createDeviceLocalBuffer(const void* source, VkDeviceSize size, VkBufferUsageFlags usage, VkBuffer& buffer, VkDeviceMemory& memory, uint32_t* memoryTypeIndex) const
+    {
+        VkBuffer stagingBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
+        createBuffer(
+            size,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            stagingBuffer,
+            stagingMemory);
+
+        void* data = nullptr;
+        vkMapMemory(device_, stagingMemory, 0, size, 0, &data);
+        std::memcpy(data, source, static_cast<size_t>(size));
+        vkUnmapMemory(device_, stagingMemory);
+
+        createBuffer(
+            size,
+            usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            buffer,
+            memory,
+            memoryTypeIndex);
+
+        copyBuffer(stagingBuffer, buffer, size);
+        vkDestroyBuffer(device_, stagingBuffer, nullptr);
+        vkFreeMemory(device_, stagingMemory, nullptr);
+    }
+
+    void Renderer::copyBuffer(VkBuffer source, VkBuffer destination, VkDeviceSize size) const
+    {
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+        VkBufferCopy region{};
+        region.size = size;
+        vkCmdCopyBuffer(commandBuffer, source, destination, 1, &region);
+
+        VkBufferMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.buffer = destination;
+        barrier.size = size;
+        vkCmdPipelineBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0,
+            0,
+            nullptr,
+            1,
+            &barrier,
+            0,
+            nullptr);
+
+        endSingleTimeCommands(commandBuffer);
     }
 
     void Renderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const
@@ -2422,6 +2826,113 @@ namespace dolbuto
         }
 
         vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<uint32_t>(regions.size()), regions.data());
+        endSingleTimeCommands(commandBuffer);
+    }
+
+    void Renderer::generateTextureArrayMipmaps(VkImage image, VkFormat format, uint32_t width, uint32_t height, uint32_t layers, uint32_t mipLevels) const
+    {
+        VkFormatProperties formatProperties{};
+        vkGetPhysicalDeviceFormatProperties(physicalDevice_, format, &formatProperties);
+        if ((formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) == 0)
+        {
+            throw std::runtime_error("Texture array format does not support linear blit mipmaps.");
+        }
+
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.image = image;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = layers;
+        barrier.subresourceRange.levelCount = 1;
+
+        int32_t mipWidth = static_cast<int32_t>(width);
+        int32_t mipHeight = static_cast<int32_t>(height);
+        for (uint32_t level = 1; level < mipLevels; ++level)
+        {
+            barrier.subresourceRange.baseMipLevel = level - 1;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                0,
+                nullptr,
+                0,
+                nullptr,
+                1,
+                &barrier);
+
+            VkImageBlit blit{};
+            blit.srcOffsets[0] = {0, 0, 0};
+            blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
+            blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.srcSubresource.mipLevel = level - 1;
+            blit.srcSubresource.baseArrayLayer = 0;
+            blit.srcSubresource.layerCount = layers;
+
+            blit.dstOffsets[0] = {0, 0, 0};
+            blit.dstOffsets[1] = {mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1};
+            blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.dstSubresource.mipLevel = level;
+            blit.dstSubresource.baseArrayLayer = 0;
+            blit.dstSubresource.layerCount = layers;
+
+            vkCmdBlitImage(
+                commandBuffer,
+                image,
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                image,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1,
+                &blit,
+                VK_FILTER_LINEAR);
+
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                0,
+                0,
+                nullptr,
+                0,
+                nullptr,
+                1,
+                &barrier);
+
+            mipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
+            mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
+        }
+
+        barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            1,
+            &barrier);
+
         endSingleTimeCommands(commandBuffer);
     }
 
@@ -2506,6 +3017,12 @@ namespace dolbuto
         {
             throw std::runtime_error("Failed to begin command buffer.");
         }
+        if (timestampSupported_ && timestampQueryPool_ != VK_NULL_HANDLE)
+        {
+            const uint32_t firstQuery = currentFrame_ * 2;
+            vkCmdResetQueryPool(commandBuffer, timestampQueryPool_, firstQuery, 2);
+            vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, timestampQueryPool_, firstQuery);
+        }
 
         VkClearValue clearColor{};
         clearColor.color = {{0.45f, 0.68f, 0.95f, 1.0f}};
@@ -2574,6 +3091,10 @@ namespace dolbuto
         if (screenshotBuffer != VK_NULL_HANDLE)
         {
             copySwapchainImageToBuffer(commandBuffer, imageIndex, screenshotBuffer);
+        }
+        if (timestampSupported_ && timestampQueryPool_ != VK_NULL_HANDLE)
+        {
+            vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, timestampQueryPool_, currentFrame_ * 2 + 1);
         }
 
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
@@ -2721,8 +3242,12 @@ namespace dolbuto
         push.data[15] = 1000.0f;
         push.data[16] = static_cast<float>(swapchainExtent_.width);
         push.data[17] = static_cast<float>(swapchainExtent_.height);
-        push.data[18] = static_cast<float>(TestChunkCountX * ChunkSizeX);
-        push.data[19] = static_cast<float>(TestChunkCountZ * ChunkSizeZ);
+        push.data[18] = static_cast<float>(raymarchWorldWidth_);
+        push.data[19] = static_cast<float>(raymarchWorldDepth_);
+        push.data[20] = static_cast<float>(raymarchWorldMinX_);
+        push.data[21] = static_cast<float>(raymarchWorldMinZ_);
+        push.data[22] = static_cast<float>(ChunkSizeY);
+        push.data[23] = 0.0f;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, raymarchPipeline_);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, raymarchPipelineLayout_, 0, 1, &raymarchDescriptorSet_, 0, nullptr);
@@ -2852,9 +3377,53 @@ namespace dolbuto
         addText(debugTextBatch_, terrainDrawText_, rightX, 156.0f, true);
         addText(debugTextBatch_, terrainFaceText_, rightX, 178.0f, true);
         addText(debugTextBatch_, terrainVertexText_, rightX, 200.0f, true);
+        addText(debugTextBatch_, cpuFrameText_, rightX, 222.0f, true);
+        addText(debugTextBatch_, gpuFrameText_, rightX, 244.0f, true);
+        addText(debugTextBatch_, blockHeapText_, rightX, 266.0f, true);
+        addText(debugTextBatch_, bufferText_, rightX, 288.0f, true);
+        addText(debugTextBatch_, vramText_, rightX, 310.0f, true);
 
         debugTextBatchDirty_ = false;
         debugTextBufferDirty_ = true;
+    }
+
+    void Renderer::updatePerformanceText(double cpuFrameMs)
+    {
+        const auto now = std::chrono::steady_clock::now();
+        if (performanceSampleStart_ == std::chrono::steady_clock::time_point{})
+        {
+            performanceSampleStart_ = now;
+        }
+
+        accumulatedCpuFrameMs_ += cpuFrameMs;
+        accumulatedGpuFrameMs_ += lastGpuFrameMs_;
+        ++performanceSampleCount_;
+
+        const std::chrono::duration<double> elapsed = now - performanceSampleStart_;
+        if (elapsed.count() < PerformanceSampleSeconds)
+        {
+            return;
+        }
+
+        const double sampleCount = static_cast<double>(std::max<uint32_t>(performanceSampleCount_, 1));
+        {
+            std::ostringstream text;
+            text << "CPU: " << std::fixed << std::setprecision(3) << (accumulatedCpuFrameMs_ / sampleCount) << "MS";
+            cpuFrameText_ = text.str();
+        }
+        if (timestampSupported_)
+        {
+            std::ostringstream text;
+            text << "GPU: " << std::fixed << std::setprecision(3) << (accumulatedGpuFrameMs_ / sampleCount) << "MS";
+            gpuFrameText_ = text.str();
+        }
+        updateVramText();
+
+        accumulatedCpuFrameMs_ = 0.0;
+        accumulatedGpuFrameMs_ = 0.0;
+        performanceSampleCount_ = 0;
+        performanceSampleStart_ = now;
+        debugTextBatchDirty_ = true;
     }
 
     void Renderer::addText(TextBatch& batch, std::string_view text, float x, float y, bool alignRight) const
@@ -3083,6 +3652,54 @@ namespace dolbuto
         terrainDrawText_ = "DRAWS: 1";
         terrainFaceText_ = "FACES: 0";
         terrainVertexText_ = "VERTICES: 3";
+        debugTextBatchDirty_ = true;
+    }
+
+    void Renderer::updateVramText()
+    {
+        if (localMemoryHeapIndex_ == UINT32_MAX)
+        {
+            vramText_ = "VRAM: N/A";
+            debugTextBatchDirty_ = true;
+            return;
+        }
+
+        if (memoryBudgetSupported_)
+        {
+            VkPhysicalDeviceMemoryBudgetPropertiesEXT budget{};
+            budget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+
+            VkPhysicalDeviceMemoryProperties2 properties{};
+            properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+            properties.pNext = &budget;
+
+            const auto getMemoryProperties2 = reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties2>(
+                vkGetInstanceProcAddr(instance_, "vkGetPhysicalDeviceMemoryProperties2"));
+            if (getMemoryProperties2 != nullptr)
+            {
+                getMemoryProperties2(physicalDevice_, &properties);
+            }
+            else
+            {
+                const auto getMemoryProperties2Khr = reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties2KHR>(
+                    vkGetInstanceProcAddr(instance_, "vkGetPhysicalDeviceMemoryProperties2KHR"));
+                if (getMemoryProperties2Khr == nullptr)
+                {
+                    vramText_ = "VRAM: " + std::to_string(static_cast<uint64_t>(localMemoryHeapSize_ / (1024u * 1024u))) + "MB";
+                    debugTextBatchDirty_ = true;
+                    return;
+                }
+                getMemoryProperties2Khr(physicalDevice_, reinterpret_cast<VkPhysicalDeviceMemoryProperties2KHR*>(&properties));
+            }
+
+            const uint64_t usedMb = static_cast<uint64_t>(budget.heapUsage[localMemoryHeapIndex_] / (1024u * 1024u));
+            const uint64_t budgetMb = static_cast<uint64_t>(budget.heapBudget[localMemoryHeapIndex_] / (1024u * 1024u));
+            vramText_ = "VRAM: " + std::to_string(usedMb) + " / " + std::to_string(budgetMb) + "MB";
+            debugTextBatchDirty_ = true;
+            return;
+        }
+
+        vramText_ = "VRAM: " + std::to_string(static_cast<uint64_t>(localMemoryHeapSize_ / (1024u * 1024u))) + "MB";
         debugTextBatchDirty_ = true;
     }
 }
