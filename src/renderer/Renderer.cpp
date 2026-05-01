@@ -44,10 +44,12 @@ namespace dolbuto
         constexpr int ChunkSizeZ = 16;
         constexpr int SubchunkSize = 16;
         constexpr int SubchunksPerChunk = ChunkSizeY / SubchunkSize;
+        constexpr bool TestRandomVoxelStress = true;
         constexpr int TestChunkMinHeight = 130;
         constexpr int TestChunkMaxHeight = 140;
         constexpr uint16_t BlockAir = 0;
-        constexpr uint16_t BlockRock = 1;
+        constexpr uint16_t RandomBlockMin = 1;
+        constexpr uint16_t RandomBlockMax = 8;
         constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
         constexpr const char* VersionText = "DOLBUTO 0.0.0.0";
         constexpr std::array<const char*, 1> DeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -249,8 +251,10 @@ namespace dolbuto
         createRenderPass();
         createDepthResources();
         createDescriptorSetLayout();
+        createRaymarchDescriptorSetLayout();
         createPipeline();
         createTerrainPipeline();
+        createRaymarchPipeline();
         createFramebuffers();
         createCommandPool();
         createSampler();
@@ -272,6 +276,7 @@ namespace dolbuto
         destroyTexture(grassTop_);
         destroyTexture(grassSide_);
         destroyTexture(rock_);
+        destroyTexture(blockTextureArray_);
         destroyTexture(playerTexture_);
         destroyTexture(font_);
         destroyTexture(crosshair_);
@@ -282,6 +287,14 @@ namespace dolbuto
         destroyTerrainMesh(grassSideTerrain_);
         destroyTerrainMesh(rockTerrain_);
         destroyTerrainMesh(playerMesh_);
+        if (raymarchBlockBuffer_ != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(device_, raymarchBlockBuffer_, nullptr);
+        }
+        if (raymarchBlockMemory_ != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(device_, raymarchBlockMemory_, nullptr);
+        }
         if (textVertexBuffer_ != VK_NULL_HANDLE)
         {
             vkDestroyBuffer(device_, textVertexBuffer_, nullptr);
@@ -319,9 +332,17 @@ namespace dolbuto
         {
             vkDestroyPipeline(device_, playerPipeline_, nullptr);
         }
+        if (raymarchPipeline_ != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(device_, raymarchPipeline_, nullptr);
+        }
         if (terrainPipeline_ != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(device_, terrainPipeline_, nullptr);
+        }
+        if (raymarchPipelineLayout_ != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(device_, raymarchPipelineLayout_, nullptr);
         }
         if (terrainPipelineLayout_ != VK_NULL_HANDLE)
         {
@@ -338,6 +359,10 @@ namespace dolbuto
         if (descriptorSetLayout_ != VK_NULL_HANDLE)
         {
             vkDestroyDescriptorSetLayout(device_, descriptorSetLayout_, nullptr);
+        }
+        if (raymarchDescriptorSetLayout_ != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorSetLayout(device_, raymarchDescriptorSetLayout_, nullptr);
         }
         if (renderPass_ != VK_NULL_HANDLE)
         {
@@ -362,12 +387,13 @@ namespace dolbuto
         Vec3 cameraPosition,
         std::string_view fpsText,
         bool debugTextVisible,
-        bool terrainWireframe,
         bool screenshotRequested,
         bool showPlayer,
         Vec3 playerPosition,
         float playerYaw)
     {
+        updateTerrainDebugText();
+
         vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex = 0;
@@ -403,7 +429,7 @@ namespace dolbuto
             updatePlayerMesh(playerPosition, playerYaw);
         }
 
-        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPosition, fpsText, debugTextVisible, terrainWireframe, screenshotBuffer, showPlayer);
+        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPosition, fpsText, debugTextVisible, screenshotBuffer, showPlayer);
 
         VkSemaphore waitSemaphores[] = {imageAvailableSemaphores_[currentFrame_]};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -784,6 +810,30 @@ namespace dolbuto
         }
     }
 
+    void Renderer::createRaymarchDescriptorSetLayout()
+    {
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
+        bindings[0].binding = 0;
+        bindings[0].descriptorCount = 1;
+        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[1].binding = 1;
+        bindings[1].descriptorCount = 1;
+        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        VkDescriptorSetLayoutCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        createInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        createInfo.pBindings = bindings.data();
+
+        if (vkCreateDescriptorSetLayout(device_, &createInfo, nullptr, &raymarchDescriptorSetLayout_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create raymarch descriptor set layout.");
+        }
+    }
+
     void Renderer::createPipeline()
     {
         VkShaderModule vertShader = createShaderModule(std::string(DOLBUTO_SHADER_DIR) + "/sprite.vert.spv");
@@ -1061,6 +1111,115 @@ namespace dolbuto
         vkDestroyShaderModule(device_, vertShader, nullptr);
     }
 
+    void Renderer::createRaymarchPipeline()
+    {
+        VkShaderModule vertShader = createShaderModule(std::string(DOLBUTO_SHADER_DIR) + "/raymarch.vert.spv");
+        VkShaderModule fragShader = createShaderModule(std::string(DOLBUTO_SHADER_DIR) + "/raymarch.frag.spv");
+
+        VkPipelineShaderStageCreateInfo vertStage{};
+        vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertStage.module = vertShader;
+        vertStage.pName = "main";
+
+        VkPipelineShaderStageCreateInfo fragStage{};
+        fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragStage.module = fragShader;
+        fragStage.pName = "main";
+
+        VkPipelineShaderStageCreateInfo stages[] = {vertStage, fragStage};
+
+        VkPipelineVertexInputStateCreateInfo vertexInput{};
+        vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.scissorCount = 1;
+
+        std::array<VkDynamicState, 2> dynamicStates = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+
+        VkPipelineDynamicStateCreateInfo dynamicState{};
+        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+        dynamicState.pDynamicStates = dynamicStates.data();
+
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer.cullMode = VK_CULL_MODE_NONE;
+        rasterizer.lineWidth = 1.0f;
+
+        VkPipelineMultisampleStateCreateInfo multisampling{};
+        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        VkPipelineColorBlendAttachmentState colorBlend{};
+        colorBlend.blendEnable = VK_FALSE;
+        colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+        VkPipelineColorBlendStateCreateInfo colorBlending{};
+        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlending.attachmentCount = 1;
+        colorBlending.pAttachments = &colorBlend;
+
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+
+        VkPushConstantRange pushRange{};
+        pushRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        pushRange.offset = 0;
+        pushRange.size = sizeof(RaymarchPush);
+        static_assert(sizeof(RaymarchPush) == sizeof(float) * 20);
+
+        VkPipelineLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layoutInfo.setLayoutCount = 1;
+        layoutInfo.pSetLayouts = &raymarchDescriptorSetLayout_;
+        layoutInfo.pushConstantRangeCount = 1;
+        layoutInfo.pPushConstantRanges = &pushRange;
+
+        if (vkCreatePipelineLayout(device_, &layoutInfo, nullptr, &raymarchPipelineLayout_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create raymarch pipeline layout.");
+        }
+
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount = 2;
+        pipelineInfo.pStages = stages;
+        pipelineInfo.pVertexInputState = &vertexInput;
+        pipelineInfo.pInputAssemblyState = &inputAssembly;
+        pipelineInfo.pViewportState = &viewportState;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState = &multisampling;
+        pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.pDepthStencilState = &depthStencil;
+        pipelineInfo.pDynamicState = &dynamicState;
+        pipelineInfo.layout = raymarchPipelineLayout_;
+        pipelineInfo.renderPass = renderPass_;
+        pipelineInfo.subpass = 0;
+
+        if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &raymarchPipeline_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create raymarch pipeline.");
+        }
+
+        vkDestroyShaderModule(device_, fragShader, nullptr);
+        vkDestroyShaderModule(device_, vertShader, nullptr);
+    }
+
     void Renderer::createFramebuffers()
     {
         framebuffers_.resize(swapchainImageViews_.size());
@@ -1118,15 +1277,17 @@ namespace dolbuto
 
     void Renderer::createDescriptorPool()
     {
-        VkDescriptorPoolSize poolSize{};
-        poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSize.descriptorCount = 8;
+        std::array<VkDescriptorPoolSize, 2> poolSizes{};
+        poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        poolSizes[0].descriptorCount = 9;
+        poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        poolSizes[1].descriptorCount = 1;
 
         VkDescriptorPoolCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        createInfo.poolSizeCount = 1;
-        createInfo.pPoolSizes = &poolSize;
-        createInfo.maxSets = 8;
+        createInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        createInfo.pPoolSizes = poolSizes.data();
+        createInfo.maxSets = 9;
 
         if (vkCreateDescriptorPool(device_, &createInfo, nullptr, &descriptorPool_) != VK_SUCCESS)
         {
@@ -1136,13 +1297,28 @@ namespace dolbuto
 
     void Renderer::createTextures()
     {
+        const std::string blockTextureDir = std::string(DOLBUTO_ASSET_DIR) + "/textures/block/";
         sun_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/sky/Sun.png");
         moon_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/sky/Moon.png");
         crosshair_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/ui/Crosshair.png");
         playerTexture_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/character/Character.png");
-        rock_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/block/rock.png");
-        grassSide_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/block/grass_side.png");
-        grassTop_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/block/grass_top.png");
+        rock_ = createTexture(blockTextureDir + "rock.png");
+        grassSide_ = createTexture(blockTextureDir + "grass_side.png");
+        grassTop_ = createTexture(blockTextureDir + "grass_top.png");
+        blockTextureArray_ = createTextureArray({
+            blockTextureDir + "rock.png",
+            blockTextureDir + "grass_top.png",
+            blockTextureDir + "grass_bottom.png",
+            blockTextureDir + "grass_side.png",
+            blockTextureDir + "dirt.png",
+            blockTextureDir + "sand.png",
+            blockTextureDir + "sandstone_side.png",
+            blockTextureDir + "sandstone_topbottom.png",
+            blockTextureDir + "mud.png",
+            blockTextureDir + "clay.png",
+            blockTextureDir + "trunk_side.png",
+            blockTextureDir + "trunk_topbottom.png"
+        });
     }
 
     void Renderer::createFont()
@@ -1235,11 +1411,50 @@ namespace dolbuto
     {
         const int blockCountX = TestChunkCountX * ChunkSizeX;
         const int blockCountZ = TestChunkCountZ * ChunkSizeZ;
+        const size_t blockCount = static_cast<size_t>(blockCountX) * ChunkSizeY * blockCountZ;
 
         std::random_device randomDevice;
         std::mt19937 random(randomDevice());
-        std::uniform_int_distribution<int> heightDistribution(TestChunkMinHeight, TestChunkMaxHeight);
+        std::uniform_int_distribution<int> airDistribution(0, 1);
+        std::uniform_int_distribution<int> blockIdDistribution(RandomBlockMin, RandomBlockMax);
 
+        raymarchBlocks_.assign(blockCount, BlockAir);
+        if (TestRandomVoxelStress)
+        {
+            for (int chunkZ = 0; chunkZ < TestChunkCountZ; ++chunkZ)
+            {
+                for (int chunkX = 0; chunkX < TestChunkCountX; ++chunkX)
+                {
+                    for (int z = 0; z < ChunkSizeZ; ++z)
+                    {
+                        for (int y = 0; y < ChunkSizeY; ++y)
+                        {
+                            for (int x = 0; x < ChunkSizeX; ++x)
+                            {
+                                const int worldX = chunkX * ChunkSizeX + x;
+                                const int worldZ = chunkZ * ChunkSizeZ + z;
+                                const uint32_t blockId = airDistribution(random) == 0
+                                    ? BlockAir
+                                    : static_cast<uint32_t>(blockIdDistribution(random));
+                                raymarchBlocks_[(static_cast<size_t>(y) * blockCountZ + worldZ) * blockCountX + worldX] = blockId;
+                            }
+                        }
+                    }
+                }
+            }
+
+            terrainDrawCount_ = 0;
+            terrainFaceCount_ = 0;
+            terrainVertexCount_ = 0;
+            terrainDrawText_ = "DRAWS: 0";
+            terrainFaceText_ = "FACES: 0";
+            terrainVertexText_ = "VERTICES: 0";
+            debugTextBatchDirty_ = true;
+            createRaymarchBlockBuffer();
+            return;
+        }
+
+        std::uniform_int_distribution<int> heightDistribution(TestChunkMinHeight, TestChunkMaxHeight);
         std::vector<TestChunk> chunks(TestChunkCountX * TestChunkCountZ);
         for (int chunkZ = 0; chunkZ < TestChunkCountZ; ++chunkZ)
         {
@@ -1251,9 +1466,12 @@ namespace dolbuto
                     for (int x = 0; x < ChunkSizeX; ++x)
                     {
                         const int height = heightDistribution(random);
+                        const int worldX = chunkX * ChunkSizeX + x;
+                        const int worldZ = chunkZ * ChunkSizeZ + z;
                         for (int y = 0; y < height; ++y)
                         {
-                            chunk.at(x, y, z) = BlockRock;
+                            chunk.at(x, y, z) = RandomBlockMin;
+                            raymarchBlocks_[(static_cast<size_t>(y) * blockCountZ + worldZ) * blockCountX + worldX] = RandomBlockMin;
                         }
                     }
                 }
@@ -1543,6 +1761,8 @@ namespace dolbuto
         terrainFaceText_ = "FACES: " + std::to_string(terrainFaceCount_);
         terrainVertexText_ = "VERTICES: " + std::to_string(terrainVertexCount_);
         debugTextBatchDirty_ = true;
+
+        createRaymarchBlockBuffer();
     }
 
     void Renderer::createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh)
@@ -1579,6 +1799,65 @@ namespace dolbuto
         vkMapMemory(device_, mesh.indexMemory, 0, indexBufferSize, 0, &data);
         std::memcpy(data, buildData.indices.data(), static_cast<size_t>(indexBufferSize));
         vkUnmapMemory(device_, mesh.indexMemory);
+    }
+
+    void Renderer::createRaymarchBlockBuffer()
+    {
+        if (raymarchBlocks_.empty())
+        {
+            return;
+        }
+
+        const VkDeviceSize bufferSize = sizeof(uint32_t) * raymarchBlocks_.size();
+        createBuffer(
+            bufferSize,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            raymarchBlockBuffer_,
+            raymarchBlockMemory_);
+
+        void* data = nullptr;
+        vkMapMemory(device_, raymarchBlockMemory_, 0, bufferSize, 0, &data);
+        std::memcpy(data, raymarchBlocks_.data(), static_cast<size_t>(bufferSize));
+        vkUnmapMemory(device_, raymarchBlockMemory_);
+
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool_;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &raymarchDescriptorSetLayout_;
+
+        if (vkAllocateDescriptorSets(device_, &allocInfo, &raymarchDescriptorSet_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to allocate raymarch descriptor set.");
+        }
+
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = raymarchBlockBuffer_;
+        bufferInfo.offset = 0;
+        bufferInfo.range = bufferSize;
+
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = blockTextureArray_.view;
+        imageInfo.sampler = sampler_;
+
+        std::array<VkWriteDescriptorSet, 2> writes{};
+        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[0].dstSet = raymarchDescriptorSet_;
+        writes[0].dstBinding = 0;
+        writes[0].descriptorCount = 1;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[0].pBufferInfo = &bufferInfo;
+
+        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[1].dstSet = raymarchDescriptorSet_;
+        writes[1].dstBinding = 1;
+        writes[1].descriptorCount = 1;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[1].pImageInfo = &imageInfo;
+
+        vkUpdateDescriptorSets(device_, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
     }
 
     void Renderer::createCommandBuffers()
@@ -1918,6 +2197,116 @@ namespace dolbuto
         return texture;
     }
 
+    Renderer::Texture Renderer::createTextureArray(const std::vector<std::string>& paths)
+    {
+        if (paths.empty())
+        {
+            throw std::runtime_error("Texture array must contain at least one layer.");
+        }
+
+        Texture texture;
+        std::vector<unsigned char> pixels;
+        int expectedWidth = 0;
+        int expectedHeight = 0;
+        for (const std::string& path : paths)
+        {
+            int width = 0;
+            int height = 0;
+            int channels = 0;
+            stbi_uc* layerPixels = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+            if (layerPixels == nullptr)
+            {
+                throw std::runtime_error("Failed to load texture array layer: " + path);
+            }
+
+            if (expectedWidth == 0)
+            {
+                expectedWidth = width;
+                expectedHeight = height;
+            }
+            else if (width != expectedWidth || height != expectedHeight)
+            {
+                stbi_image_free(layerPixels);
+                throw std::runtime_error("Texture array layers must have matching dimensions.");
+            }
+
+            const size_t layerSize = static_cast<size_t>(width) * static_cast<size_t>(height) * 4u;
+            const size_t oldSize = pixels.size();
+            pixels.resize(oldSize + layerSize);
+            std::memcpy(pixels.data() + oldSize, layerPixels, layerSize);
+            stbi_image_free(layerPixels);
+        }
+
+        texture.width = expectedWidth;
+        texture.height = expectedHeight;
+        const uint32_t layerCount = static_cast<uint32_t>(paths.size());
+        const VkDeviceSize imageSize = static_cast<VkDeviceSize>(texture.width) * static_cast<VkDeviceSize>(texture.height) * 4u * layerCount;
+
+        VkBuffer stagingBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
+        createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory);
+
+        void* data = nullptr;
+        vkMapMemory(device_, stagingMemory, 0, imageSize, 0, &data);
+        std::memcpy(data, pixels.data(), static_cast<size_t>(imageSize));
+        vkUnmapMemory(device_, stagingMemory);
+
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent = {static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height), 1};
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = layerCount;
+        imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateImage(device_, &imageInfo, nullptr, &texture.image) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create texture array image.");
+        }
+
+        VkMemoryRequirements requirements{};
+        vkGetImageMemoryRequirements(device_, texture.image, &requirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = requirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        if (vkAllocateMemory(device_, &allocInfo, nullptr, &texture.memory) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to allocate texture array memory.");
+        }
+
+        vkBindImageMemory(device_, texture.image, texture.memory, 0);
+        transitionImageLayout(texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, layerCount);
+        copyBufferToImageArray(stagingBuffer, texture.image, static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height), layerCount);
+        transitionImageLayout(texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, layerCount);
+
+        vkDestroyBuffer(device_, stagingBuffer, nullptr);
+        vkFreeMemory(device_, stagingMemory, nullptr);
+
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = texture.image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.layerCount = layerCount;
+
+        if (vkCreateImageView(device_, &viewInfo, nullptr, &texture.view) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create texture array image view.");
+        }
+
+        return texture;
+    }
+
     void Renderer::destroyTexture(Texture& texture)
     {
         if (texture.view != VK_NULL_HANDLE)
@@ -2014,7 +2403,34 @@ namespace dolbuto
         endSingleTimeCommands(commandBuffer);
     }
 
+    void Renderer::copyBufferToImageArray(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layers) const
+    {
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+        std::vector<VkBufferImageCopy> regions;
+        regions.reserve(layers);
+        const VkDeviceSize layerSize = static_cast<VkDeviceSize>(width) * static_cast<VkDeviceSize>(height) * 4u;
+        for (uint32_t layer = 0; layer < layers; ++layer)
+        {
+            VkBufferImageCopy region{};
+            region.bufferOffset = layerSize * layer;
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.baseArrayLayer = layer;
+            region.imageSubresource.layerCount = 1;
+            region.imageExtent = {width, height, 1};
+            regions.push_back(region);
+        }
+
+        vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<uint32_t>(regions.size()), regions.data());
+        endSingleTimeCommands(commandBuffer);
+    }
+
     void Renderer::transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) const
+    {
+        transitionImageLayout(image, oldLayout, newLayout, 1);
+    }
+
+    void Renderer::transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layers) const
     {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
@@ -2027,7 +2443,7 @@ namespace dolbuto
         barrier.image = image;
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         barrier.subresourceRange.levelCount = 1;
-        barrier.subresourceRange.layerCount = 1;
+        barrier.subresourceRange.layerCount = layers;
 
         VkPipelineStageFlags sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         VkPipelineStageFlags destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -2081,7 +2497,7 @@ namespace dolbuto
         vkFreeCommandBuffers(device_, commandPool_, 1, &commandBuffer);
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, bool terrainWireframe, VkBuffer screenshotBuffer, bool showPlayer)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -2134,7 +2550,7 @@ namespace dolbuto
             drawSprite(commandBuffer, moon_, rect);
         }
 
-        drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe);
+        drawRaymarchTerrain(commandBuffer, camera, cameraPosition);
         if (showPlayer)
         {
             drawPlayer(commandBuffer);
@@ -2255,6 +2671,63 @@ namespace dolbuto
             vertices[i] = vertex;
         }
         vkUnmapMemory(device_, playerMesh_.vertexMemory);
+    }
+
+    void Renderer::drawRaymarchTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const
+    {
+        if (raymarchDescriptorSet_ == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = static_cast<float>(swapchainExtent_.width);
+        viewport.height = static_cast<float>(swapchainExtent_.height);
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = swapchainExtent_;
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+        const Vec3 cameraRight = camera.right();
+        const Vec3 right{-cameraRight.x, -cameraRight.y, -cameraRight.z};
+        const Vec3 cameraForward = camera.forward();
+        const Vec3 forward{cameraForward.x, -cameraForward.y, cameraForward.z};
+        const Vec3 up = normalize(cross(forward, right));
+        const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
+        const float tanHalfFov = std::tan(FieldOfViewRadians * 0.5f);
+
+        RaymarchPush push{};
+        push.data[0] = cameraPosition.x;
+        push.data[1] = cameraPosition.y;
+        push.data[2] = cameraPosition.z;
+        push.data[3] = tanHalfFov;
+        push.data[4] = right.x;
+        push.data[5] = right.y;
+        push.data[6] = right.z;
+        push.data[7] = aspect;
+        push.data[8] = up.x;
+        push.data[9] = up.y;
+        push.data[10] = up.z;
+        push.data[11] = 0.1f;
+        push.data[12] = forward.x;
+        push.data[13] = forward.y;
+        push.data[14] = forward.z;
+        push.data[15] = 1000.0f;
+        push.data[16] = static_cast<float>(swapchainExtent_.width);
+        push.data[17] = static_cast<float>(swapchainExtent_.height);
+        push.data[18] = static_cast<float>(TestChunkCountX * ChunkSizeX);
+        push.data[19] = static_cast<float>(TestChunkCountZ * ChunkSizeZ);
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, raymarchPipeline_);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, raymarchPipelineLayout_, 0, 1, &raymarchDescriptorSet_, 0, nullptr);
+        vkCmdPushConstants(commandBuffer, raymarchPipelineLayout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(RaymarchPush), &push);
+        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
     }
 
     void Renderer::drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe) const
@@ -2597,5 +3070,19 @@ namespace dolbuto
         return std::to_string(VK_VERSION_MAJOR(version)) + "." +
             std::to_string(VK_VERSION_MINOR(version)) + "." +
             std::to_string(VK_VERSION_PATCH(version));
+    }
+
+    void Renderer::updateTerrainDebugText()
+    {
+        if (terrainDebugInitialized_)
+        {
+            return;
+        }
+
+        terrainDebugInitialized_ = true;
+        terrainDrawText_ = "DRAWS: 1";
+        terrainFaceText_ = "FACES: 0";
+        terrainVertexText_ = "VERTICES: 3";
+        debugTextBatchDirty_ = true;
     }
 }

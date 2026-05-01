@@ -28,7 +28,6 @@ namespace dolbuto
             Vec3 cameraPosition,
             std::string_view fpsText,
             bool debugTextVisible,
-            bool terrainWireframe,
             bool screenshotRequested,
             bool showPlayer,
             Vec3 playerPosition,
@@ -123,6 +122,11 @@ namespace dolbuto
             float mvp[16]{};
         };
 
+        struct RaymarchPush
+        {
+            float data[20]{};
+        };
+
         struct TerrainMesh
         {
             VkBuffer vertexBuffer = VK_NULL_HANDLE;
@@ -149,8 +153,10 @@ namespace dolbuto
         void createRenderPass();
         void createDepthResources();
         void createDescriptorSetLayout();
+        void createRaymarchDescriptorSetLayout();
         void createPipeline();
         void createTerrainPipeline();
+        void createRaymarchPipeline();
         void createFramebuffers();
         void createCommandPool();
         void createSampler();
@@ -161,6 +167,7 @@ namespace dolbuto
         void createPlayerMesh();
         void createTerrainMesh();
         void createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh);
+        void createRaymarchBlockBuffer();
         void createCommandBuffers();
         void createSyncObjects();
 
@@ -185,12 +192,16 @@ namespace dolbuto
         void transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) const;
         VkCommandBuffer beginSingleTimeCommands() const;
         void endSingleTimeCommands(VkCommandBuffer commandBuffer) const;
+        Texture createTextureArray(const std::vector<std::string>& paths);
+        void copyBufferToImageArray(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layers) const;
+        void transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layers) const;
 
-        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, bool terrainWireframe, VkBuffer screenshotBuffer, bool showPlayer);
+        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer);
         void copySwapchainImageToBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VkBuffer buffer) const;
         void saveScreenshot(VkDeviceMemory memory, VkDeviceSize size) const;
         void updatePlayerMesh(Vec3 playerPosition, float playerYaw);
         void drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe) const;
+        void drawRaymarchTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const;
         void drawTerrainMesh(VkCommandBuffer commandBuffer, const TerrainMesh& mesh, const Texture& texture) const;
         void drawPlayer(VkCommandBuffer commandBuffer) const;
         void drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
@@ -206,6 +217,7 @@ namespace dolbuto
         bool projectSkyDirection(const Camera& camera, float aspect, const std::array<float, 3>& direction, SpriteRect& rect) const;
         std::string readCpuName() const;
         std::string formatVersion(uint32_t version) const;
+        void updateTerrainDebugText();
 
         GLFWwindow* window_ = nullptr;
 
@@ -241,12 +253,15 @@ namespace dolbuto
 
         VkRenderPass renderPass_ = VK_NULL_HANDLE;
         VkDescriptorSetLayout descriptorSetLayout_ = VK_NULL_HANDLE;
+        VkDescriptorSetLayout raymarchDescriptorSetLayout_ = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
         VkPipeline pipeline_ = VK_NULL_HANDLE;
         VkPipelineLayout terrainPipelineLayout_ = VK_NULL_HANDLE;
         VkPipeline terrainPipeline_ = VK_NULL_HANDLE;
         VkPipeline terrainWireframePipeline_ = VK_NULL_HANDLE;
         VkPipeline playerPipeline_ = VK_NULL_HANDLE;
+        VkPipelineLayout raymarchPipelineLayout_ = VK_NULL_HANDLE;
+        VkPipeline raymarchPipeline_ = VK_NULL_HANDLE;
         VkCommandPool commandPool_ = VK_NULL_HANDLE;
         std::vector<VkCommandBuffer> commandBuffers_;
 
@@ -260,9 +275,14 @@ namespace dolbuto
         TerrainMesh playerMesh_;
         std::vector<TerrainVertex> playerLocalVertices_;
         std::vector<uint32_t> playerIndices_;
+        std::vector<uint32_t> raymarchBlocks_;
+        VkBuffer raymarchBlockBuffer_ = VK_NULL_HANDLE;
+        VkDeviceMemory raymarchBlockMemory_ = VK_NULL_HANDLE;
+        VkDescriptorSet raymarchDescriptorSet_ = VK_NULL_HANDLE;
         uint32_t terrainDrawCount_ = 0;
         uint32_t terrainFaceCount_ = 0;
         uint32_t terrainVertexCount_ = 0;
+        bool terrainDebugInitialized_ = false;
         Texture sun_;
         Texture moon_;
         Texture crosshair_;
@@ -271,6 +291,7 @@ namespace dolbuto
         Texture rock_;
         Texture grassSide_;
         Texture grassTop_;
+        Texture blockTextureArray_;
         std::array<stbtt_bakedchar, 95> bakedChars_{};
 
         std::vector<VkSemaphore> imageAvailableSemaphores_;

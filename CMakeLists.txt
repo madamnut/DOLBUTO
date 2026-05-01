@@ -44,6 +44,8 @@ set(SHADER_SOURCES
     shaders/sprite.frag
     shaders/terrain.vert
     shaders/terrain.frag
+    shaders/raymarch.vert
+    shaders/raymarch.frag
 )
 
 set(SHADER_OUTPUTS)
