@@ -43,7 +43,10 @@ namespace dolbuto
         constexpr int SubchunkSize = 16;
         constexpr int SubchunksPerChunk = ChunkSizeY / SubchunkSize;
         constexpr int DefaultLoadRadius = 5;
-        constexpr int FlatTerrainHeight = 130;
+        constexpr int TerrainMinHeight = 120;
+        constexpr int TerrainBaseHeight = 130;
+        constexpr int TerrainMaxHeight = 140;
+        constexpr float TerrainRenderScale = 0.75f;
         constexpr double PerformanceSampleSeconds = 0.5;
         constexpr uint32_t SubchunkEmpty = 1u;
         constexpr uint32_t SubchunkUniform = 2u;
@@ -169,6 +172,16 @@ namespace dolbuto
         uint32_t packCell(uint16_t blockId, uint16_t fluidId = 0)
         {
             return static_cast<uint32_t>(blockId) | (static_cast<uint32_t>(fluidId) << 16u);
+        }
+
+        int terrainHeight(int worldX, int worldZ)
+        {
+            const double waveX = std::sin(static_cast<double>(worldX) * 0.05) * 5.0;
+            const double waveZ = std::cos(static_cast<double>(worldZ) * 0.05) * 5.0;
+            return std::clamp(
+                static_cast<int>(std::lround(static_cast<double>(TerrainBaseHeight) + waveX + waveZ)),
+                TerrainMinHeight,
+                TerrainMaxHeight);
         }
 
         bool deviceExtensionAvailable(VkPhysicalDevice device, const char* extensionName)
@@ -339,6 +352,7 @@ namespace dolbuto
         createImageViews();
         createRenderPass();
         createDepthResources();
+        createTerrainRenderResources();
         createDescriptorSetLayout();
         createRaymarchDescriptorSetLayout();
         createPipeline();
@@ -348,7 +362,9 @@ namespace dolbuto
         createCommandPool();
         createPerformanceQueries();
         createSampler();
+        createTerrainUpscaleSampler();
         createDescriptorPool();
+        createTerrainUpscaleDescriptors();
         createTextures();
         createFont();
         createTextVertexBuffer();
@@ -406,6 +422,10 @@ namespace dolbuto
         if (descriptorPool_ != VK_NULL_HANDLE)
         {
             vkDestroyDescriptorPool(device_, descriptorPool_, nullptr);
+        }
+        if (terrainUpscaleSampler_ != VK_NULL_HANDLE)
+        {
+            vkDestroySampler(device_, terrainUpscaleSampler_, nullptr);
         }
         if (sampler_ != VK_NULL_HANDLE)
         {
@@ -471,6 +491,10 @@ namespace dolbuto
         {
             vkDestroyRenderPass(device_, renderPass_, nullptr);
         }
+        if (terrainRenderPass_ != VK_NULL_HANDLE)
+        {
+            vkDestroyRenderPass(device_, terrainRenderPass_, nullptr);
+        }
         if (device_ != VK_NULL_HANDLE)
         {
             vkDestroyDevice(device_, nullptr);
@@ -496,7 +520,6 @@ namespace dolbuto
         float playerYaw)
     {
         updateTerrainDebugText();
-        updateLoadedChunks(playerPosition);
 
         vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
         if (timestampSupported_ && timestampQueryPool_ != VK_NULL_HANDLE && timestampQueryReady_[currentFrame_])
@@ -516,6 +539,7 @@ namespace dolbuto
                 lastGpuFrameMs_ = static_cast<double>(timestamps[1] - timestamps[0]) * static_cast<double>(timestampPeriod_) / 1000000.0;
             }
         }
+        updateLoadedChunks(playerPosition);
         const auto cpuStart = std::chrono::steady_clock::now();
 
         uint32_t imageIndex = 0;
@@ -897,6 +921,69 @@ namespace dolbuto
         {
             throw std::runtime_error("Failed to create render pass.");
         }
+
+        VkAttachmentDescription terrainColorAttachment{};
+        terrainColorAttachment.format = swapchainImageFormat_;
+        terrainColorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        terrainColorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        terrainColorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        terrainColorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        terrainColorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkAttachmentReference terrainColorRef{};
+        terrainColorRef.attachment = 0;
+        terrainColorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentDescription terrainDepthAttachment{};
+        terrainDepthAttachment.format = DepthFormat;
+        terrainDepthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        terrainDepthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        terrainDepthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        terrainDepthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        terrainDepthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        terrainDepthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        terrainDepthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference terrainDepthRef{};
+        terrainDepthRef.attachment = 1;
+        terrainDepthRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription terrainSubpass{};
+        terrainSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        terrainSubpass.colorAttachmentCount = 1;
+        terrainSubpass.pColorAttachments = &terrainColorRef;
+        terrainSubpass.pDepthStencilAttachment = &terrainDepthRef;
+
+        std::array<VkSubpassDependency, 2> terrainDependencies{};
+        terrainDependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+        terrainDependencies[0].dstSubpass = 0;
+        terrainDependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        terrainDependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        terrainDependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        terrainDependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        terrainDependencies[1].srcSubpass = 0;
+        terrainDependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+        terrainDependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        terrainDependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        terrainDependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        terrainDependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        std::array<VkAttachmentDescription, 2> terrainAttachments = {terrainColorAttachment, terrainDepthAttachment};
+
+        VkRenderPassCreateInfo terrainCreateInfo{};
+        terrainCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        terrainCreateInfo.attachmentCount = static_cast<uint32_t>(terrainAttachments.size());
+        terrainCreateInfo.pAttachments = terrainAttachments.data();
+        terrainCreateInfo.subpassCount = 1;
+        terrainCreateInfo.pSubpasses = &terrainSubpass;
+        terrainCreateInfo.dependencyCount = static_cast<uint32_t>(terrainDependencies.size());
+        terrainCreateInfo.pDependencies = terrainDependencies.data();
+
+        if (vkCreateRenderPass(device_, &terrainCreateInfo, nullptr, &terrainRenderPass_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create terrain render pass.");
+        }
     }
 
     void Renderer::createDepthResources()
@@ -946,6 +1033,133 @@ namespace dolbuto
         if (vkCreateImageView(device_, &viewInfo, nullptr, &depthImageView_) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create depth image view.");
+        }
+    }
+
+    void Renderer::createTerrainRenderResources()
+    {
+        terrainRenderExtent_.width = std::max(1u, static_cast<uint32_t>(static_cast<float>(swapchainExtent_.width) * TerrainRenderScale));
+        terrainRenderExtent_.height = std::max(1u, static_cast<uint32_t>(static_cast<float>(swapchainExtent_.height) * TerrainRenderScale));
+
+        terrainColorImages_.resize(MaxFramesInFlight);
+        terrainColorMemories_.resize(MaxFramesInFlight);
+        terrainColorImageViews_.resize(MaxFramesInFlight);
+        terrainDepthImages_.resize(MaxFramesInFlight);
+        terrainDepthMemories_.resize(MaxFramesInFlight);
+        terrainDepthImageViews_.resize(MaxFramesInFlight);
+        terrainFramebuffers_.resize(MaxFramesInFlight);
+
+        for (size_t i = 0; i < terrainColorImages_.size(); ++i)
+        {
+            VkImageCreateInfo colorInfo{};
+            colorInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            colorInfo.imageType = VK_IMAGE_TYPE_2D;
+            colorInfo.extent = {terrainRenderExtent_.width, terrainRenderExtent_.height, 1};
+            colorInfo.mipLevels = 1;
+            colorInfo.arrayLayers = 1;
+            colorInfo.format = swapchainImageFormat_;
+            colorInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+            colorInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            colorInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+            colorInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            colorInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+            if (vkCreateImage(device_, &colorInfo, nullptr, &terrainColorImages_[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create terrain color image.");
+            }
+
+            VkMemoryRequirements colorRequirements{};
+            vkGetImageMemoryRequirements(device_, terrainColorImages_[i], &colorRequirements);
+
+            VkMemoryAllocateInfo colorAlloc{};
+            colorAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            colorAlloc.allocationSize = colorRequirements.size;
+            colorAlloc.memoryTypeIndex = findMemoryType(colorRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+            if (vkAllocateMemory(device_, &colorAlloc, nullptr, &terrainColorMemories_[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to allocate terrain color image memory.");
+            }
+
+            vkBindImageMemory(device_, terrainColorImages_[i], terrainColorMemories_[i], 0);
+
+            VkImageViewCreateInfo colorView{};
+            colorView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            colorView.image = terrainColorImages_[i];
+            colorView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            colorView.format = swapchainImageFormat_;
+            colorView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            colorView.subresourceRange.levelCount = 1;
+            colorView.subresourceRange.layerCount = 1;
+
+            if (vkCreateImageView(device_, &colorView, nullptr, &terrainColorImageViews_[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create terrain color image view.");
+            }
+
+            VkImageCreateInfo depthInfo{};
+            depthInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            depthInfo.imageType = VK_IMAGE_TYPE_2D;
+            depthInfo.extent = {terrainRenderExtent_.width, terrainRenderExtent_.height, 1};
+            depthInfo.mipLevels = 1;
+            depthInfo.arrayLayers = 1;
+            depthInfo.format = DepthFormat;
+            depthInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+            depthInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            depthInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+            depthInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            depthInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+            if (vkCreateImage(device_, &depthInfo, nullptr, &terrainDepthImages_[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create terrain depth image.");
+            }
+
+            VkMemoryRequirements depthRequirements{};
+            vkGetImageMemoryRequirements(device_, terrainDepthImages_[i], &depthRequirements);
+
+            VkMemoryAllocateInfo depthAlloc{};
+            depthAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            depthAlloc.allocationSize = depthRequirements.size;
+            depthAlloc.memoryTypeIndex = findMemoryType(depthRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+            if (vkAllocateMemory(device_, &depthAlloc, nullptr, &terrainDepthMemories_[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to allocate terrain depth image memory.");
+            }
+
+            vkBindImageMemory(device_, terrainDepthImages_[i], terrainDepthMemories_[i], 0);
+
+            VkImageViewCreateInfo depthView{};
+            depthView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            depthView.image = terrainDepthImages_[i];
+            depthView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            depthView.format = DepthFormat;
+            depthView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            depthView.subresourceRange.levelCount = 1;
+            depthView.subresourceRange.layerCount = 1;
+
+            if (vkCreateImageView(device_, &depthView, nullptr, &terrainDepthImageViews_[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create terrain depth image view.");
+            }
+
+            std::array<VkImageView, 2> attachments = {terrainColorImageViews_[i], terrainDepthImageViews_[i]};
+
+            VkFramebufferCreateInfo framebufferInfo{};
+            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            framebufferInfo.renderPass = terrainRenderPass_;
+            framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+            framebufferInfo.pAttachments = attachments.data();
+            framebufferInfo.width = terrainRenderExtent_.width;
+            framebufferInfo.height = terrainRenderExtent_.height;
+            framebufferInfo.layers = 1;
+
+            if (vkCreateFramebuffer(device_, &framebufferInfo, nullptr, &terrainFramebuffers_[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create terrain framebuffer.");
+            }
         }
     }
 
@@ -1371,7 +1585,7 @@ namespace dolbuto
         pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = raymarchPipelineLayout_;
-        pipelineInfo.renderPass = renderPass_;
+        pipelineInfo.renderPass = terrainRenderPass_;
         pipelineInfo.subpass = 0;
 
         if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &raymarchPipeline_) != VK_SUCCESS)
@@ -1473,11 +1687,31 @@ namespace dolbuto
         }
     }
 
+    void Renderer::createTerrainUpscaleSampler()
+    {
+        VkSamplerCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        createInfo.magFilter = VK_FILTER_LINEAR;
+        createInfo.minFilter = VK_FILTER_LINEAR;
+        createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        createInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        createInfo.minLod = 0.0f;
+        createInfo.maxLod = 0.0f;
+
+        if (vkCreateSampler(device_, &createInfo, nullptr, &terrainUpscaleSampler_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create terrain upscale sampler.");
+        }
+    }
+
     void Renderer::createDescriptorPool()
     {
         std::array<VkDescriptorPoolSize, 2> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[0].descriptorCount = 9;
+        poolSizes[0].descriptorCount = 11;
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         poolSizes[1].descriptorCount = 2;
 
@@ -1485,11 +1719,48 @@ namespace dolbuto
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         createInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         createInfo.pPoolSizes = poolSizes.data();
-        createInfo.maxSets = 9;
+        createInfo.maxSets = 11;
 
         if (vkCreateDescriptorPool(device_, &createInfo, nullptr, &descriptorPool_) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create descriptor pool.");
+        }
+    }
+
+    void Renderer::createTerrainUpscaleDescriptors()
+    {
+        if (terrainUpscaleDescriptorSets_.empty())
+        {
+            terrainUpscaleDescriptorSets_.resize(MaxFramesInFlight);
+            std::vector<VkDescriptorSetLayout> layouts(MaxFramesInFlight, descriptorSetLayout_);
+
+            VkDescriptorSetAllocateInfo setInfo{};
+            setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+            setInfo.descriptorPool = descriptorPool_;
+            setInfo.descriptorSetCount = static_cast<uint32_t>(terrainUpscaleDescriptorSets_.size());
+            setInfo.pSetLayouts = layouts.data();
+
+            if (vkAllocateDescriptorSets(device_, &setInfo, terrainUpscaleDescriptorSets_.data()) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to allocate terrain upscale descriptor sets.");
+            }
+        }
+
+        for (size_t i = 0; i < terrainUpscaleDescriptorSets_.size(); ++i)
+        {
+            VkDescriptorImageInfo imageDescriptor{};
+            imageDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageDescriptor.imageView = terrainColorImageViews_[i];
+            imageDescriptor.sampler = terrainUpscaleSampler_;
+
+            VkWriteDescriptorSet write{};
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = terrainUpscaleDescriptorSets_[i];
+            write.dstBinding = 0;
+            write.descriptorCount = 1;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            write.pImageInfo = &imageDescriptor;
+            vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
         }
     }
 
@@ -1634,13 +1905,12 @@ namespace dolbuto
         loadedCenterChunkZ_ = centerChunkZ;
         raymarchWorldMinX_ = (loadedCenterChunkX_ - loadRadius_) * ChunkSizeX;
         raymarchWorldMinZ_ = (loadedCenterChunkZ_ - loadRadius_) * ChunkSizeZ;
+        createTerrainMesh();
     }
 
     void Renderer::createTerrainMesh()
     {
         loadedChunkDiameter_ = loadRadius_ * 2 + 1;
-        loadedCenterChunkX_ = 0;
-        loadedCenterChunkZ_ = 0;
         raymarchWorldMinX_ = (loadedCenterChunkX_ - loadRadius_) * ChunkSizeX;
         raymarchWorldMinZ_ = (loadedCenterChunkZ_ - loadRadius_) * ChunkSizeZ;
         raymarchWorldWidth_ = loadedChunkDiameter_ * ChunkSizeX;
@@ -1657,17 +1927,33 @@ namespace dolbuto
         {
             for (int chunkX = 0; chunkX < loadedChunkDiameter_; ++chunkX)
             {
+                std::array<int, ChunkSizeX * ChunkSizeZ> columnHeights{};
+                int chunkMinHeight = TerrainMaxHeight;
+                int chunkMaxHeight = TerrainMinHeight;
+                for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+                {
+                    for (int localX = 0; localX < ChunkSizeX; ++localX)
+                    {
+                        const int worldX = raymarchWorldMinX_ + chunkX * ChunkSizeX + localX;
+                        const int worldZ = raymarchWorldMinZ_ + chunkZ * ChunkSizeZ + localZ;
+                        const int height = terrainHeight(worldX, worldZ);
+                        columnHeights[localZ * ChunkSizeX + localX] = height;
+                        chunkMinHeight = std::min(chunkMinHeight, height);
+                        chunkMaxHeight = std::max(chunkMaxHeight, height);
+                    }
+                }
+
                 for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
                 {
                     const int yStart = subchunkY * SubchunkSize;
                     const int yEnd = yStart + SubchunkSize;
                     RaymarchSubchunk subchunk{};
-                    if (yEnd <= FlatTerrainHeight)
+                    if (yEnd <= chunkMinHeight)
                     {
                         subchunk.flags = SubchunkUniform;
                         subchunk.uniformCell = rockCell;
                     }
-                    else if (yStart >= FlatTerrainHeight)
+                    else if (yStart >= chunkMaxHeight)
                     {
                         subchunk.flags = SubchunkEmpty;
                         subchunk.uniformCell = airCell;
@@ -1683,7 +1969,8 @@ namespace dolbuto
                             {
                                 for (int localX = 0; localX < ChunkSizeX; ++localX)
                                 {
-                                    raymarchCells_.push_back(worldY < FlatTerrainHeight ? rockCell : airCell);
+                                    const int height = columnHeights[localZ * ChunkSizeX + localX];
+                                    raymarchCells_.push_back(worldY < height ? rockCell : airCell);
                                 }
                             }
                         }
@@ -1697,9 +1984,9 @@ namespace dolbuto
         terrainDrawCount_ = 0;
         terrainFaceCount_ = 0;
         terrainVertexCount_ = 0;
-        terrainDrawText_ = "DRAWS: 0";
+        terrainDrawText_ = "DRAWS: 2";
         terrainFaceText_ = "FACES: 0";
-        terrainVertexText_ = "VERTICES: 0";
+        terrainVertexText_ = "VERTICES: 9";
         debugTextBatchDirty_ = true;
         createRaymarchBlockBuffer();
         return;
@@ -2105,6 +2392,31 @@ namespace dolbuto
             return;
         }
 
+        if (raymarchSubchunkBuffer_ != VK_NULL_HANDLE || raymarchBlockBuffer_ != VK_NULL_HANDLE)
+        {
+            vkDeviceWaitIdle(device_);
+        }
+        if (raymarchSubchunkBuffer_ != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(device_, raymarchSubchunkBuffer_, nullptr);
+            raymarchSubchunkBuffer_ = VK_NULL_HANDLE;
+        }
+        if (raymarchSubchunkMemory_ != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(device_, raymarchSubchunkMemory_, nullptr);
+            raymarchSubchunkMemory_ = VK_NULL_HANDLE;
+        }
+        if (raymarchBlockBuffer_ != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(device_, raymarchBlockBuffer_, nullptr);
+            raymarchBlockBuffer_ = VK_NULL_HANDLE;
+        }
+        if (raymarchBlockMemory_ != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(device_, raymarchBlockMemory_, nullptr);
+            raymarchBlockMemory_ = VK_NULL_HANDLE;
+        }
+
         const VkDeviceSize subchunkBufferSize = sizeof(RaymarchSubchunk) * raymarchSubchunks_.size();
         const VkDeviceSize cellBufferSize = sizeof(uint32_t) * std::max<size_t>(raymarchCells_.size(), 1);
         raymarchBlockBufferSize_ = subchunkBufferSize + cellBufferSize;
@@ -2148,15 +2460,18 @@ namespace dolbuto
             debugTextBatchDirty_ = true;
         }
 
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = descriptorPool_;
-        allocInfo.descriptorSetCount = 1;
-        allocInfo.pSetLayouts = &raymarchDescriptorSetLayout_;
-
-        if (vkAllocateDescriptorSets(device_, &allocInfo, &raymarchDescriptorSet_) != VK_SUCCESS)
+        if (raymarchDescriptorSet_ == VK_NULL_HANDLE)
         {
-            throw std::runtime_error("Failed to allocate raymarch descriptor set.");
+            VkDescriptorSetAllocateInfo allocInfo{};
+            allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+            allocInfo.descriptorPool = descriptorPool_;
+            allocInfo.descriptorSetCount = 1;
+            allocInfo.pSetLayouts = &raymarchDescriptorSetLayout_;
+
+            if (vkAllocateDescriptorSets(device_, &allocInfo, &raymarchDescriptorSet_) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to allocate raymarch descriptor set.");
+            }
         }
 
         VkDescriptorBufferInfo subchunkBufferInfo{};
@@ -2241,6 +2556,8 @@ namespace dolbuto
 
     void Renderer::cleanupSwapchain()
     {
+        cleanupTerrainRenderResources();
+
         for (VkFramebuffer framebuffer : framebuffers_)
         {
             vkDestroyFramebuffer(device_, framebuffer, nullptr);
@@ -2292,7 +2609,54 @@ namespace dolbuto
         createSwapchain();
         createImageViews();
         createDepthResources();
+        createTerrainRenderResources();
         createFramebuffers();
+        createTerrainUpscaleDescriptors();
+    }
+
+    void Renderer::cleanupTerrainRenderResources()
+    {
+        for (VkFramebuffer framebuffer : terrainFramebuffers_)
+        {
+            vkDestroyFramebuffer(device_, framebuffer, nullptr);
+        }
+        terrainFramebuffers_.clear();
+
+        for (VkImageView view : terrainDepthImageViews_)
+        {
+            vkDestroyImageView(device_, view, nullptr);
+        }
+        terrainDepthImageViews_.clear();
+
+        for (VkImage image : terrainDepthImages_)
+        {
+            vkDestroyImage(device_, image, nullptr);
+        }
+        terrainDepthImages_.clear();
+
+        for (VkDeviceMemory memory : terrainDepthMemories_)
+        {
+            vkFreeMemory(device_, memory, nullptr);
+        }
+        terrainDepthMemories_.clear();
+
+        for (VkImageView view : terrainColorImageViews_)
+        {
+            vkDestroyImageView(device_, view, nullptr);
+        }
+        terrainColorImageViews_.clear();
+
+        for (VkImage image : terrainColorImages_)
+        {
+            vkDestroyImage(device_, image, nullptr);
+        }
+        terrainColorImages_.clear();
+
+        for (VkDeviceMemory memory : terrainColorMemories_)
+        {
+            vkFreeMemory(device_, memory, nullptr);
+        }
+        terrainColorMemories_.clear();
     }
 
     Renderer::QueueFamilyIndices Renderer::findQueueFamilies(VkPhysicalDevice device) const
@@ -3028,6 +3392,23 @@ namespace dolbuto
         clearColor.color = {{0.45f, 0.68f, 0.95f, 1.0f}};
         VkClearValue clearDepth{};
         clearDepth.depthStencil = {1.0f, 0};
+        VkClearValue transparentColor{};
+        transparentColor.color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+        std::array<VkClearValue, 2> terrainClearValues = {transparentColor, clearDepth};
+
+        VkRenderPassBeginInfo terrainPassInfo{};
+        terrainPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        terrainPassInfo.renderPass = terrainRenderPass_;
+        terrainPassInfo.framebuffer = terrainFramebuffers_[currentFrame_];
+        terrainPassInfo.renderArea.offset = {0, 0};
+        terrainPassInfo.renderArea.extent = terrainRenderExtent_;
+        terrainPassInfo.clearValueCount = static_cast<uint32_t>(terrainClearValues.size());
+        terrainPassInfo.pClearValues = terrainClearValues.data();
+
+        vkCmdBeginRenderPass(commandBuffer, &terrainPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        drawRaymarchTerrain(commandBuffer, camera, cameraPosition, terrainRenderExtent_);
+        vkCmdEndRenderPass(commandBuffer);
+
         std::array<VkClearValue, 2> clearValues = {clearColor, clearDepth};
 
         VkRenderPassBeginInfo renderPassInfo{};
@@ -3067,10 +3448,10 @@ namespace dolbuto
             drawSprite(commandBuffer, moon_, rect);
         }
 
-        drawRaymarchTerrain(commandBuffer, camera, cameraPosition);
+        drawTerrainUpscale(commandBuffer);
         if (showPlayer)
         {
-            drawPlayer(commandBuffer);
+            drawPlayer(commandBuffer, camera, cameraPosition);
         }
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
 
@@ -3194,7 +3575,7 @@ namespace dolbuto
         vkUnmapMemory(device_, playerMesh_.vertexMemory);
     }
 
-    void Renderer::drawRaymarchTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const
+    void Renderer::drawRaymarchTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, VkExtent2D renderExtent) const
     {
         if (raymarchDescriptorSet_ == VK_NULL_HANDLE)
         {
@@ -3204,15 +3585,15 @@ namespace dolbuto
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = static_cast<float>(swapchainExtent_.width);
-        viewport.height = static_cast<float>(swapchainExtent_.height);
+        viewport.width = static_cast<float>(renderExtent.width);
+        viewport.height = static_cast<float>(renderExtent.height);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = swapchainExtent_;
+        scissor.extent = renderExtent;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
         const Vec3 cameraRight = camera.right();
@@ -3220,7 +3601,7 @@ namespace dolbuto
         const Vec3 cameraForward = camera.forward();
         const Vec3 forward{cameraForward.x, -cameraForward.y, cameraForward.z};
         const Vec3 up = normalize(cross(forward, right));
-        const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
+        const float aspect = static_cast<float>(renderExtent.width) / static_cast<float>(renderExtent.height);
         const float tanHalfFov = std::tan(FieldOfViewRadians * 0.5f);
 
         RaymarchPush push{};
@@ -3240,8 +3621,8 @@ namespace dolbuto
         push.data[13] = forward.y;
         push.data[14] = forward.z;
         push.data[15] = 1000.0f;
-        push.data[16] = static_cast<float>(swapchainExtent_.width);
-        push.data[17] = static_cast<float>(swapchainExtent_.height);
+        push.data[16] = static_cast<float>(renderExtent.width);
+        push.data[17] = static_cast<float>(renderExtent.height);
         push.data[18] = static_cast<float>(raymarchWorldWidth_);
         push.data[19] = static_cast<float>(raymarchWorldDepth_);
         push.data[20] = static_cast<float>(raymarchWorldMinX_);
@@ -3291,9 +3672,18 @@ namespace dolbuto
         drawTerrainMesh(commandBuffer, grassTopTerrain_, grassTop_);
     }
 
-    void Renderer::drawPlayer(VkCommandBuffer commandBuffer) const
+    void Renderer::drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const
     {
+        const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
+        const Mat4 projection = perspective(FieldOfViewRadians, aspect, 0.1f, 1000.0f);
+        const Mat4 view = viewMatrix(camera, cameraPosition);
+        const Mat4 mvp = multiply(projection, view);
+
+        TerrainPush push{};
+        std::memcpy(push.mvp, mvp.m, sizeof(push.mvp));
+
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, playerPipeline_);
+        vkCmdPushConstants(commandBuffer, terrainPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(TerrainPush), &push);
         drawTerrainMesh(commandBuffer, playerMesh_, playerTexture_);
     }
 
@@ -3313,6 +3703,11 @@ namespace dolbuto
 
     void Renderer::drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv, Color color) const
     {
+        drawSpriteDescriptor(commandBuffer, texture.descriptorSet, rect, uv, color);
+    }
+
+    void Renderer::drawSpriteDescriptor(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, SpriteRect rect, UvRect uv, Color color) const
+    {
         SpritePush push{};
         push.data[0] = rect.centerX;
         push.data[1] = rect.centerY;
@@ -3329,9 +3724,22 @@ namespace dolbuto
 
         const VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &textVertexBuffer_, &offset);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 1, &texture.descriptorSet, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 1, &descriptorSet, 0, nullptr);
         vkCmdPushConstants(commandBuffer, pipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(SpritePush), &push);
         vkCmdDraw(commandBuffer, 6, 1, 0, 0);
+    }
+
+    void Renderer::drawTerrainUpscale(VkCommandBuffer commandBuffer) const
+    {
+        if (terrainUpscaleDescriptorSets_.empty())
+        {
+            return;
+        }
+
+        SpriteRect rect{};
+        rect.halfWidth = 1.0f;
+        rect.halfHeight = 1.0f;
+        drawSpriteDescriptor(commandBuffer, terrainUpscaleDescriptorSets_[currentFrame_], rect, {0.0f, 1.0f, 1.0f, -1.0f});
     }
 
     std::string_view Renderer::resolutionText()
@@ -3649,9 +4057,9 @@ namespace dolbuto
         }
 
         terrainDebugInitialized_ = true;
-        terrainDrawText_ = "DRAWS: 1";
+        terrainDrawText_ = "DRAWS: 2";
         terrainFaceText_ = "FACES: 0";
-        terrainVertexText_ = "VERTICES: 3";
+        terrainVertexText_ = "VERTICES: 9";
         debugTextBatchDirty_ = true;
     }
 

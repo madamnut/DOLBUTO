@@ -354,10 +354,8 @@ void main()
     }
 
     vec3 hitPosition = origin + direction * hitT;
-    vec3 lightDirection = normalize(vec3(0.4, 0.9, 0.2));
-    float light = 0.45 + max(dot(normal, lightDirection), 0.0) * 0.55;
     float lod = clamp(floor(log2(max(hitT, 1.0) / 64.0)), 0.0, 5.0);
-    vec3 color = textureLod(blockTextures, vec3(surfaceUv(hitPosition, normal), textureLayer(hitBlockId, normal)), lod).rgb * light;
+    vec3 color = textureLod(blockTextures, vec3(surfaceUv(hitPosition, normal), textureLayer(hitBlockId, normal)), lod).rgb;
 
     float viewZ = max(dot(hitPosition - origin, forward), nearPlane);
     gl_FragDepth = clamp(farPlane / (farPlane - nearPlane) - (nearPlane * farPlane) / ((farPlane - nearPlane) * viewZ), 0.0, 1.0);

@@ -162,6 +162,7 @@ namespace dolbuto
         void createImageViews();
         void createRenderPass();
         void createDepthResources();
+        void createTerrainRenderResources();
         void createDescriptorSetLayout();
         void createRaymarchDescriptorSetLayout();
         void createPipeline();
@@ -170,7 +171,9 @@ namespace dolbuto
         void createFramebuffers();
         void createCommandPool();
         void createSampler();
+        void createTerrainUpscaleSampler();
         void createDescriptorPool();
+        void createTerrainUpscaleDescriptors();
         void createPerformanceQueries();
         void createTextures();
         void createFont();
@@ -186,6 +189,7 @@ namespace dolbuto
 
         void cleanupSwapchain();
         void recreateSwapchain();
+        void cleanupTerrainRenderResources();
 
         QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
         bool isDeviceSuitable(VkPhysicalDevice device) const;
@@ -217,10 +221,12 @@ namespace dolbuto
         void saveScreenshot(VkDeviceMemory memory, VkDeviceSize size) const;
         void updatePlayerMesh(Vec3 playerPosition, float playerYaw);
         void drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe) const;
-        void drawRaymarchTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const;
+        void drawRaymarchTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, VkExtent2D renderExtent) const;
         void drawTerrainMesh(VkCommandBuffer commandBuffer, const TerrainMesh& mesh, const Texture& texture) const;
-        void drawPlayer(VkCommandBuffer commandBuffer) const;
+        void drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const;
         void drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
+        void drawSpriteDescriptor(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
+        void drawTerrainUpscale(VkCommandBuffer commandBuffer) const;
         std::string_view resolutionText();
         void updateDebugTextBatch(std::string_view fpsText);
         void updatePerformanceText(double cpuFrameMs);
@@ -273,8 +279,18 @@ namespace dolbuto
         VkImage depthImage_ = VK_NULL_HANDLE;
         VkDeviceMemory depthMemory_ = VK_NULL_HANDLE;
         VkImageView depthImageView_ = VK_NULL_HANDLE;
+        VkExtent2D terrainRenderExtent_{};
+        std::vector<VkImage> terrainColorImages_;
+        std::vector<VkDeviceMemory> terrainColorMemories_;
+        std::vector<VkImageView> terrainColorImageViews_;
+        std::vector<VkImage> terrainDepthImages_;
+        std::vector<VkDeviceMemory> terrainDepthMemories_;
+        std::vector<VkImageView> terrainDepthImageViews_;
+        std::vector<VkFramebuffer> terrainFramebuffers_;
+        std::vector<VkDescriptorSet> terrainUpscaleDescriptorSets_;
 
         VkRenderPass renderPass_ = VK_NULL_HANDLE;
+        VkRenderPass terrainRenderPass_ = VK_NULL_HANDLE;
         VkDescriptorSetLayout descriptorSetLayout_ = VK_NULL_HANDLE;
         VkDescriptorSetLayout raymarchDescriptorSetLayout_ = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
@@ -294,6 +310,7 @@ namespace dolbuto
         double lastGpuFrameMs_ = 0.0;
 
         VkSampler sampler_ = VK_NULL_HANDLE;
+        VkSampler terrainUpscaleSampler_ = VK_NULL_HANDLE;
         VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
         VkBuffer textVertexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory textVertexMemory_ = VK_NULL_HANDLE;
