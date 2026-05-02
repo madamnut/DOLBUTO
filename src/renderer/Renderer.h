@@ -7,10 +7,13 @@
 #include <stb_truetype.h>
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -38,10 +41,15 @@ namespace dolbuto
             bool screenshotRequested,
             bool showPlayer,
             DVec3 playerPosition,
-            float playerYaw);
+            float playerYaw,
+            bool terrainWireframe);
         void setFramebufferResized();
 
     private:
+        static constexpr std::size_t ChunkColumnCount = 16u * 16u;
+        static constexpr std::size_t ChunkBlockCount = 16u * 512u * 16u;
+        static constexpr std::size_t SubchunkCount = 512u / 16u;
+
         struct QueueFamilyIndices
         {
             uint32_t graphics = UINT32_MAX;
@@ -130,47 +138,6 @@ namespace dolbuto
             float mvp[16]{};
         };
 
-        struct RaymarchPush
-        {
-            float data[24]{};
-        };
-
-        struct RaymarchSubchunk
-        {
-            uint32_t flags = 0;
-            uint32_t cellOffset = 0;
-            uint32_t uniformCell = 0;
-            uint32_t reserved = 0;
-        };
-
-        struct RaymarchChunkData
-        {
-            int chunkX = 0;
-            int chunkZ = 0;
-            std::vector<RaymarchSubchunk> subchunks;
-            std::vector<uint32_t> cells;
-        };
-
-        struct RaymarchPendingUpload
-        {
-            uint64_t chunkKey = 0;
-            uint32_t physicalSlot = 0;
-        };
-
-        struct RaymarchBuildRequest
-        {
-            int chunkX = 0;
-            int chunkZ = 0;
-            uint64_t chunkKey = 0;
-        };
-
-        struct RaymarchCompletedChunk
-        {
-            uint64_t chunkKey = 0;
-            RaymarchChunkData chunk;
-            double buildMs = 0.0;
-        };
-
         struct BufferUploadRegion
         {
             const void* source = nullptr;
@@ -194,6 +161,57 @@ namespace dolbuto
             std::vector<uint32_t> indices;
         };
 
+        struct ChunkOffset
+        {
+            int x = 0;
+            int z = 0;
+        };
+
+        struct ChunkData
+        {
+            uint64_t generation = 0;
+            int chunkX = 0;
+            int chunkZ = 0;
+            std::vector<uint16_t> blocks;
+            std::array<bool, SubchunkCount> emptySubchunks{};
+        };
+
+        struct TerrainJob
+        {
+            enum class Type
+            {
+                BuildChunkData,
+                BuildChunkMesh
+            };
+
+            Type type = Type::BuildChunkData;
+            uint64_t generation = 0;
+            int chunkX = 0;
+            int chunkZ = 0;
+            std::shared_ptr<ChunkData> chunk;
+        };
+
+        struct CompletedChunkMesh
+        {
+            uint64_t generation = 0;
+            int chunkX = 0;
+            int chunkZ = 0;
+            std::array<TerrainBuildData, SubchunkCount> rockSubchunks;
+        };
+
+        struct ChunkRenderData
+        {
+            int chunkX = 0;
+            int chunkZ = 0;
+            std::array<TerrainMesh, SubchunkCount> rockSubchunks;
+        };
+
+        struct RetiredChunkRenderData
+        {
+            uint32_t framesLeft = 0;
+            ChunkRenderData chunk;
+        };
+
         void createInstance();
         void createSurface();
         void pickPhysicalDevice();
@@ -203,46 +221,44 @@ namespace dolbuto
         void createImageViews();
         void createRenderPass();
         void createDepthResources();
-        void createTerrainRenderResources();
         void createDescriptorSetLayout();
-        void createRaymarchDescriptorSetLayout();
         void createPipeline();
         void createTerrainPipeline();
-        void createRaymarchPipeline();
         void createFramebuffers();
         void createCommandPool();
         void createSampler();
-        void createTerrainUpscaleSampler();
         void createDescriptorPool();
-        void createTerrainUpscaleDescriptors();
         void createPerformanceQueries();
         void createTextures();
-        void createBlockDefinitionBuffer();
         void createFont();
         void createTextVertexBuffer();
         void createPlayerMesh();
-        void createTerrainMesh();
         void loadWorldConfig();
+        void loadHeightLut();
         void updateLoadedChunks(DVec3 playerPosition);
-        RaymarchChunkData buildRaymarchChunk(int chunkX, int chunkZ) const;
-        const RaymarchChunkData& cachedRaymarchChunk(int chunkX, int chunkZ);
-        void pruneRaymarchChunkCache();
-        void startChunkWorkers();
-        void stopChunkWorkers();
-        void chunkWorkerLoop();
-        void enqueueRaymarchChunkBuild(int chunkX, int chunkZ, uint64_t chunkKey);
-        bool applyCompletedRaymarchChunks(double& newChunksMs, double& metadataBuildMs);
-        void clearRaymarchSlotMetadata(uint32_t physicalSlot);
-        void writeRaymarchChunkMetadata(const RaymarchChunkData& chunk, uint32_t physicalSlot);
+        void requestTerrainLoad(int centerGroupChunkX, int centerGroupChunkZ);
+        void rebuildLoadOrderIfNeeded();
+        void startTerrainWorkers();
+        void stopTerrainWorkers();
+        void terrainWorkerLoop();
+        void enqueueTerrainJob(TerrainJob job);
+        void processCompletedTerrainJobs();
+        uint32_t processPendingTerrainUnloads();
+        void processRetiredTerrainChunks();
+        std::shared_ptr<ChunkData> buildChunkData(int chunkX, int chunkZ) const;
+        TerrainBuildData buildSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, int subchunkY) const;
+        CompletedChunkMesh buildChunkMesh(const std::shared_ptr<ChunkData>& chunk, uint64_t generation) const;
+        bool chunkMeshReady(uint64_t key) const;
+        void destroyChunkRenderData(ChunkRenderData& chunk);
+        void destroyAllTerrainChunks();
+        void updateTerrainStats();
+        std::array<int, ChunkColumnCount> buildChunkHeightmap(int chunkX, int chunkZ) const;
         void createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh);
-        void createRaymarchBlockBuffer();
         void createCommandBuffers();
         void createSyncObjects();
 
         void cleanupSwapchain();
         void recreateSwapchain();
-        void cleanupTerrainRenderResources();
-
         QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
         bool isDeviceSuitable(VkPhysicalDevice device) const;
         VkSurfaceFormatKHR chooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats) const;
@@ -265,22 +281,16 @@ namespace dolbuto
         void transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) const;
         VkCommandBuffer beginSingleTimeCommands() const;
         void endSingleTimeCommands(VkCommandBuffer commandBuffer) const;
-        Texture createTextureArray(const std::vector<std::string>& paths);
-        void copyBufferToImageArray(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layers) const;
-        void transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layers) const;
-        void generateTextureArrayMipmaps(VkImage image, VkFormat format, uint32_t width, uint32_t height, uint32_t layers, uint32_t mipLevels) const;
 
-        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer);
+        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe);
         void copySwapchainImageToBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VkBuffer buffer) const;
         void saveScreenshot(VkDeviceMemory memory, VkDeviceSize size) const;
         void updatePlayerMesh(Vec3 playerPosition, float playerYaw);
-        void drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe) const;
-        void drawRaymarchTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, VkExtent2D renderExtent) const;
+        void drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe);
         void drawTerrainMesh(VkCommandBuffer commandBuffer, const TerrainMesh& mesh, const Texture& texture) const;
         void drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const;
         void drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
         void drawSpriteDescriptor(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
-        void drawTerrainUpscale(VkCommandBuffer commandBuffer) const;
         std::string_view resolutionText();
         void updateDebugTextBatch(std::string_view fpsText);
         void updatePerformanceText(double cpuFrameMs);
@@ -312,12 +322,18 @@ namespace dolbuto
         std::string terrainVertexText_;
         std::string cpuFrameText_ = "CPU: ---.---MS";
         std::string gpuFrameText_ = "GPU: ---.---MS";
-        std::string blockHeapText_ = "BLOCK HEAP: N/A";
-        std::string bufferText_ = "BUFFER: 0.0MB";
         std::string vramText_ = "VRAM: 0MB";
+        std::string dataQueueText_ = "DATA QUEUE: 0000";
+        std::string meshQueueText_ = "MESH QUEUE: 0000";
+        std::string dataDoneText_ = "DATA DONE: 0000";
+        std::string meshDoneText_ = "MESH DONE: 0000";
+        std::string uploadText_ = "UPLOAD: 0000 / 8";
+        std::string unloadText_ = "UNLOAD: 0000 / 16";
+        std::string retiredText_ = "RETIRED: 0000";
+        std::string jobMainText_ = "JOB MAIN: 000.000MS";
+        std::chrono::steady_clock::time_point terrainDebugSampleTime_{};
         std::string chunkUpdateProfileText_ = "UPDATE TOTAL: ---.---MS";
         std::string worldBuildProfileText_ = "WORLD TOTAL: ---.---MS";
-        std::string slotPruneProfileText_ = "SLOT PRUNE: ---.---MS";
         std::string gridScanProfileText_ = "GRID SCAN: ---.---MS";
         std::string newChunksProfileText_ = "NEW CHUNKS: ---.---MS";
         std::string metadataBuildProfileText_ = "META BUILD: ---.---MS";
@@ -339,28 +355,14 @@ namespace dolbuto
         VkImage depthImage_ = VK_NULL_HANDLE;
         VkDeviceMemory depthMemory_ = VK_NULL_HANDLE;
         VkImageView depthImageView_ = VK_NULL_HANDLE;
-        VkExtent2D terrainRenderExtent_{};
-        std::vector<VkImage> terrainColorImages_;
-        std::vector<VkDeviceMemory> terrainColorMemories_;
-        std::vector<VkImageView> terrainColorImageViews_;
-        std::vector<VkImage> terrainDepthImages_;
-        std::vector<VkDeviceMemory> terrainDepthMemories_;
-        std::vector<VkImageView> terrainDepthImageViews_;
-        std::vector<VkFramebuffer> terrainFramebuffers_;
-        std::vector<VkDescriptorSet> terrainUpscaleDescriptorSets_;
-
         VkRenderPass renderPass_ = VK_NULL_HANDLE;
-        VkRenderPass terrainRenderPass_ = VK_NULL_HANDLE;
         VkDescriptorSetLayout descriptorSetLayout_ = VK_NULL_HANDLE;
-        VkDescriptorSetLayout raymarchDescriptorSetLayout_ = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
         VkPipeline pipeline_ = VK_NULL_HANDLE;
         VkPipelineLayout terrainPipelineLayout_ = VK_NULL_HANDLE;
         VkPipeline terrainPipeline_ = VK_NULL_HANDLE;
         VkPipeline terrainWireframePipeline_ = VK_NULL_HANDLE;
         VkPipeline playerPipeline_ = VK_NULL_HANDLE;
-        VkPipelineLayout raymarchPipelineLayout_ = VK_NULL_HANDLE;
-        VkPipeline raymarchPipeline_ = VK_NULL_HANDLE;
         VkCommandPool commandPool_ = VK_NULL_HANDLE;
         std::vector<VkCommandBuffer> commandBuffers_;
         VkQueryPool timestampQueryPool_ = VK_NULL_HANDLE;
@@ -370,61 +372,43 @@ namespace dolbuto
         double lastGpuFrameMs_ = 0.0;
 
         VkSampler sampler_ = VK_NULL_HANDLE;
-        VkSampler terrainUpscaleSampler_ = VK_NULL_HANDLE;
         VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
         VkBuffer textVertexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory textVertexMemory_ = VK_NULL_HANDLE;
-        TerrainMesh rockTerrain_;
-        TerrainMesh grassSideTerrain_;
-        TerrainMesh grassTopTerrain_;
         TerrainMesh playerMesh_;
         std::vector<TerrainVertex> playerLocalVertices_;
         std::vector<uint32_t> playerIndices_;
-        std::vector<RaymarchSubchunk> raymarchSubchunks_;
-        std::unordered_map<uint64_t, RaymarchChunkData> raymarchChunkCache_;
-        std::unordered_map<uint64_t, uint32_t> raymarchChunkSlots_;
-        std::vector<uint32_t> freeRaymarchSlots_;
-        std::vector<uint32_t> raymarchSlotMap_;
-        std::vector<RaymarchPendingUpload> raymarchPendingUploads_;
-        std::vector<uint32_t> raymarchDirtySubchunkSlots_;
         int loadGridScale_ = 0;
-        int chunkWorkerCount_ = 2;
-        int maxCompletedChunksAppliedPerFrame_ = 4;
         int loadedChunkDiameter_ = 0;
-        uint32_t raymarchPhysicalSlotCount_ = 0;
-        uint32_t raymarchBufferPhysicalSlotCount_ = 0;
-        uint32_t raymarchSlotsPerCellPage_ = 0;
         int loadedCenterGroupChunkX_ = 0;
         int loadedCenterGroupChunkZ_ = 0;
-        int raymarchWorldMinX_ = 0;
-        int raymarchWorldMinZ_ = 0;
-        int raymarchWorldWidth_ = 0;
-        int raymarchWorldDepth_ = 0;
-        VkDeviceSize raymarchBlockBufferSize_ = 0;
+        std::atomic<uint64_t> terrainGeneration_{0};
+        int loadOrderDiameter_ = 0;
+        std::vector<ChunkOffset> loadOrder_;
+        std::unordered_set<uint64_t> desiredTerrainChunks_;
+        std::unordered_set<uint64_t> requestedChunkJobs_;
+        std::unordered_set<uint64_t> requestedMeshJobs_;
+        std::unordered_set<uint64_t> pendingUnloadSet_;
+        std::unordered_map<uint64_t, std::shared_ptr<ChunkData>> chunkData_;
+        std::unordered_map<uint64_t, ChunkRenderData> terrainChunks_;
+        std::deque<uint64_t> pendingUnloadChunks_;
+        std::deque<RetiredChunkRenderData> retiredTerrainChunks_;
+        std::vector<std::thread> terrainWorkers_;
+        std::mutex terrainJobMutex_;
+        std::condition_variable terrainJobCondition_;
+        std::deque<TerrainJob> terrainDataJobs_;
+        std::deque<TerrainJob> terrainMeshJobs_;
+        std::deque<std::shared_ptr<ChunkData>> completedChunkData_;
+        std::deque<CompletedChunkMesh> completedChunkMeshes_;
+        bool stopTerrainWorkers_ = false;
+        std::array<uint16_t, 1024> heightLut_{};
         VkDeviceSize localMemoryHeapSize_ = 0;
         uint32_t localMemoryHeapIndex_ = UINT32_MAX;
-        uint32_t raymarchBlockMemoryTypeIndex_ = UINT32_MAX;
         bool memoryBudgetSupported_ = false;
-        VkBuffer raymarchSubchunkBuffer_ = VK_NULL_HANDLE;
-        VkDeviceMemory raymarchSubchunkMemory_ = VK_NULL_HANDLE;
-        VkBuffer raymarchSlotMapBuffer_ = VK_NULL_HANDLE;
-        VkDeviceMemory raymarchSlotMapMemory_ = VK_NULL_HANDLE;
-        VkBuffer blockDefinitionBuffer_ = VK_NULL_HANDLE;
-        VkDeviceMemory blockDefinitionMemory_ = VK_NULL_HANDLE;
-        std::array<VkBuffer, 4> raymarchCellPageBuffers_{};
-        std::array<VkDeviceMemory, 4> raymarchCellPageMemories_{};
-        VkDescriptorSet raymarchDescriptorSet_ = VK_NULL_HANDLE;
         uint32_t terrainDrawCount_ = 0;
         uint32_t terrainFaceCount_ = 0;
         uint32_t terrainVertexCount_ = 0;
         bool terrainDebugInitialized_ = false;
-        std::vector<std::thread> chunkWorkers_;
-        std::deque<RaymarchBuildRequest> raymarchBuildRequests_;
-        std::deque<RaymarchCompletedChunk> raymarchCompletedChunks_;
-        std::unordered_set<uint64_t> queuedRaymarchChunks_;
-        std::mutex chunkWorkerMutex_;
-        std::condition_variable chunkWorkerCondition_;
-        bool stopChunkWorkers_ = false;
         Texture sun_;
         Texture moon_;
         Texture crosshair_;
@@ -433,7 +417,6 @@ namespace dolbuto
         Texture rock_;
         Texture grassSide_;
         Texture grassTop_;
-        Texture blockTextureArray_;
         std::array<stbtt_bakedchar, 95> bakedChars_{};
 
         std::vector<VkSemaphore> imageAvailableSemaphores_;

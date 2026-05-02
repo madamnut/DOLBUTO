@@ -49,7 +49,7 @@ namespace dolbuto
         bool screenshotRequested_ = false;
         bool mouseCaptured_ = true;
         ViewMode viewMode_ = ViewMode::FirstPerson;
-        DVec3 playerPosition_{0.0, 150.0, 0.0};
+        DVec3 playerPosition_{0.0, 300.0, 0.0};
         std::chrono::steady_clock::time_point lastFrameTime_{};
         int windowedX_ = 0;
         int windowedY_ = 0;
@@ -57,7 +57,7 @@ namespace dolbuto
         int windowedHeight_ = 720;
         std::chrono::steady_clock::time_point fpsSampleStart_{};
         int fpsSampleFrames_ = 0;
-        std::array<char, 192> debugText_{"FPS: 0000 [000.000MS]\nPOS: X 0.000 / Y 150.000 / Z 0.000\nLOOK: YAW 0.0 / PITCH 0.0 [EAST]"};
+        std::array<char, 192> debugText_{"FPS: 0000 [000.000MS]\nPOS: X 0.000 / Y 300.000 / Z 0.000\nLOOK: YAW 0.0 / PITCH 0.0 [EAST]"};
         bool firstMouse_ = true;
         double lastMouseX_ = 0.0;
         double lastMouseY_ = 0.0;

@@ -8,6 +8,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Vulkan REQUIRED)
 
+set(FASTNOISE2_TOOLS OFF CACHE BOOL "" FORCE)
+set(FASTNOISE2_TESTS OFF CACHE BOOL "" FORCE)
+set(FASTNOISE2_UTILITY OFF CACHE BOOL "" FORCE)
+set(FASTSIMD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(FASTSIMD_TESTS OFF CACHE BOOL "" FORCE)
+get_filename_component(DOLBUTO_FASTSIMD_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/FastSIMD" REALPATH)
+set(FastSIMD_SOURCE_DIR "${DOLBUTO_FASTSIMD_SOURCE_DIR}" CACHE PATH "" FORCE)
+add_subdirectory(external/FastNoise2)
+
 if(NOT Vulkan_GLSLC_EXECUTABLE)
     find_program(Vulkan_GLSLC_EXECUTABLE glslc REQUIRED)
 endif()
@@ -44,8 +53,6 @@ set(SHADER_SOURCES
     shaders/sprite.frag
     shaders/terrain.vert
     shaders/terrain.frag
-    shaders/raymarch.vert
-    shaders/raymarch.frag
 )
 
 set(SHADER_OUTPUTS)
@@ -95,6 +102,7 @@ target_compile_definitions(DOLBUTO
 target_link_libraries(DOLBUTO
     PRIVATE
         Vulkan::Vulkan
+        FastNoise
         "${GLFW_IMPORT_LIB}"
 )
 

@@ -99,7 +99,7 @@ namespace dolbuto
                 showPlayer = true;
             }
 
-            renderer_->drawFrame(renderCamera, renderCameraPosition, debugText_.data(), debugTextVisible_, screenshotRequested_, showPlayer, playerPosition_, camera_.yaw());
+            renderer_->drawFrame(renderCamera, renderCameraPosition, debugText_.data(), debugTextVisible_, screenshotRequested_, showPlayer, playerPosition_, camera_.yaw(), terrainWireframe_);
             screenshotRequested_ = false;
         }
     }

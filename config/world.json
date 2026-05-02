@@ -1,5 +1,5 @@
 {
-  "loadGridScale": 4,
+  "loadGridScale": 2,
   "chunkWorkerCount": 4,
-  "maxCompletedChunksAppliedPerFrame": 8
+  "maxCompletedChunksAppliedPerFrame": 4
 }
