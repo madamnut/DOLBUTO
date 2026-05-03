@@ -31,13 +31,21 @@ namespace dolbuto
             ThirdPersonFront
         };
 
+        enum class MoveMode
+        {
+            Fly,
+            Ground
+        };
+
         void initWindow();
         void shutdownWindow();
         void handleMouse(double x, double y);
         void toggleFullscreen();
         void setMouseCaptured(bool captured);
         void cycleViewMode();
-        void updatePlayer(double deltaSeconds);
+        void loadMovementConfig();
+        DVec3 interpolatedPlayerPosition(double alpha) const;
+        void updatePlayer(double fixedDeltaSeconds);
         void updateDebugText();
 
         GLFWwindow* window_ = nullptr;
@@ -49,7 +57,18 @@ namespace dolbuto
         bool screenshotRequested_ = false;
         bool mouseCaptured_ = true;
         ViewMode viewMode_ = ViewMode::FirstPerson;
+        MoveMode moveMode_ = MoveMode::Fly;
         DVec3 playerPosition_{0.0, 300.0, 0.0};
+        DVec3 previousPlayerPosition_{0.0, 300.0, 0.0};
+        double flyMoveSpeed_ = 64.0;
+        double groundMoveSpeed_ = 4.317;
+        double jumpSpeed_ = 8.4;
+        double gravity_ = 32.0;
+        double verticalVelocity_ = 0.0;
+        bool grounded_ = false;
+        bool jumpHeld_ = false;
+        bool jumpPressed_ = false;
+        double physicsAccumulator_ = 0.0;
         std::chrono::steady_clock::time_point lastFrameTime_{};
         int windowedX_ = 0;
         int windowedY_ = 0;

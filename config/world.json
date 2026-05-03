@@ -1,5 +1,30 @@
 {
-  "loadGridScale": 2,
-  "chunkWorkerCount": 4,
-  "maxCompletedChunksAppliedPerFrame": 4
+  "chunkLoad": {
+    "loadGridScale": 4,
+    "workerCount": 4,
+    "maxCompletedChunksAppliedPerFrame": 8,
+    "maxUnloadedChunksPerFrame": 16
+  },
+  "player": {
+    "flyMoveSpeed": 64.0,
+    "groundMoveSpeed": 4.317,
+    "jumpSpeed": 8.4,
+    "gravity": 32.0
+  },
+  "terrain": {
+    "domainWarp": {
+      "enabled": true,
+      "amplitude": 0.5,
+      "frequency": 1.0,
+      "octaveCount": 2,
+      "gain": 0.5
+    },
+    "baseNoise": {
+      "featureScale": 2000.0,
+      "octaveCount": 4,
+      "lacunarity": 3.0,
+      "gain": 0.3,
+      "simplexScale": 1.0
+    }
+  }
 }

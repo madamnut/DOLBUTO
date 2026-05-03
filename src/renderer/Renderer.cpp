@@ -4,16 +4,19 @@
 
 #include <FastNoise/FastNoise.h>
 #include <stb_image.h>
+#include <stb_image_write.h>
 #include <stb_truetype.h>
 
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cctype>
 #include <cstring>
 #include <cstddef>
 #include <ctime>
 #include <filesystem>
+#include <functional>
 #include <fstream>
 #include <iomanip>
 #include <limits>
@@ -43,19 +46,32 @@ namespace dolbuto
         constexpr int ChunkSizeZ = 16;
         constexpr int SubchunkSize = 16;
         constexpr int SubchunksPerChunk = ChunkSizeY / SubchunkSize;
+        constexpr int MeshingBorder = 1;
+        constexpr int MeshingSizeX = ChunkSizeX + MeshingBorder * 2;
+        constexpr int MeshingSizeZ = ChunkSizeZ + MeshingBorder * 2;
+        constexpr size_t MeshingBlockCount = MeshingSizeX * ChunkSizeY * MeshingSizeZ;
         constexpr int LoadGridUnitChunks = 16;
         constexpr int CenterGroupChunks = 2;
         constexpr int DefaultLoadGridScale = 1;
         constexpr int DefaultTerrainWorkerCount = 4;
-        constexpr int MaxTerrainUploadChunksPerFrame = 8;
-        constexpr int MaxTerrainUnloadChunksPerFrame = 16;
+        constexpr int DefaultMaxTerrainUploadChunksPerFrame = 8;
+        constexpr int DefaultMaxTerrainUnloadChunksPerFrame = 16;
         constexpr int TerrainMinHeight = 120;
         constexpr int TerrainMaxHeight = 140;
         constexpr int TerrainTilePeriod = 65536;
         constexpr int TerrainNoiseSeed = 1337;
-        constexpr float TerrainNoiseFeatureScale = 220.0f;
+        constexpr float DefaultTerrainNoiseFeatureScale = 220.0f;
+        constexpr int DefaultTerrainNoiseOctaveCount = 4;
+        constexpr float DefaultTerrainNoiseLacunarity = 2.0f;
+        constexpr float DefaultTerrainNoiseGain = 0.5f;
+        constexpr float DefaultTerrainNoiseSimplexScale = 1.0f;
+        constexpr bool DefaultTerrainDomainWarpEnabled = false;
+        constexpr float DefaultTerrainDomainWarpAmplitude = 0.0f;
+        constexpr float DefaultTerrainDomainWarpFrequency = 1.0f;
+        constexpr int DefaultTerrainDomainWarpOctaveCount = 2;
+        constexpr float DefaultTerrainDomainWarpGain = 0.5f;
         constexpr float TerrainNearPlane = 0.1f;
-        constexpr float TerrainFarPlane = 1000.0f;
+        constexpr float TerrainFarPlane = 4000.0f;
         constexpr float HeightLutNoiseMin = -2.0f;
         constexpr float HeightLutNoiseMax = 2.0f;
         constexpr uint32_t HeightLutVersion = 1;
@@ -63,6 +79,14 @@ namespace dolbuto
         constexpr double PerformanceSampleSeconds = 0.5;
         constexpr uint16_t BlockAir = 0;
         constexpr uint16_t BlockRock = 1;
+        constexpr uint16_t BlockGrass = 2;
+        constexpr uint16_t BlockDirt = 3;
+        constexpr uint16_t BlockPlant = 10000;
+        constexpr uint16_t BlockBedrock = 65535;
+        constexpr uint32_t BedrockHeightSalt = 0xBEEFBEDu;
+        constexpr uint32_t TopFaceRotationSalt = 0x51A7E001u;
+        constexpr uint32_t PlantPlacementSalt = 0x9A7D3E21u;
+        constexpr uint8_t PlantPlacementThreshold = 178;
         constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
         constexpr const char* VersionText = "DOLBUTO 0.0.0.0";
         constexpr std::array<const char*, 1> DeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -114,6 +138,476 @@ namespace dolbuto
             return buffer;
         }
 
+        struct ParsedBlockDefinition
+        {
+            uint16_t id = BlockAir;
+            std::string renderType = "none";
+            bool directional = false;
+            bool collision = false;
+            bool ao = false;
+            std::string faceOcclusion = "none";
+            bool sameBlockFaceCulling = false;
+            std::string alphaMode = "opaque";
+            float alphaCutoff = 0.5f;
+            float mipDistanceScale = 1.0f;
+            std::unordered_map<std::string, std::string> textures;
+        };
+
+        std::optional<std::string> jsonStringField(const std::string& object, const std::string& key)
+        {
+            const std::string token = "\"" + key + "\"";
+            const size_t keyPos = object.find(token);
+            if (keyPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t colonPos = object.find(':', keyPos + token.size());
+            if (colonPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t quoteStart = object.find('"', colonPos + 1);
+            if (quoteStart == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            std::string value;
+            bool escaped = false;
+            for (size_t i = quoteStart + 1; i < object.size(); ++i)
+            {
+                const char c = object[i];
+                if (escaped)
+                {
+                    value.push_back(c);
+                    escaped = false;
+                    continue;
+                }
+                if (c == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                if (c == '"')
+                {
+                    return value;
+                }
+                value.push_back(c);
+            }
+
+            return std::nullopt;
+        }
+
+        std::optional<int> jsonIntField(const std::string& object, const std::string& key)
+        {
+            const std::string token = "\"" + key + "\"";
+            const size_t keyPos = object.find(token);
+            if (keyPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t colonPos = object.find(':', keyPos + token.size());
+            if (colonPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            size_t valueStart = object.find_first_not_of(" \t\r\n", colonPos + 1);
+            if (valueStart == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            size_t valueEnd = valueStart;
+            if (object[valueEnd] == '-')
+            {
+                ++valueEnd;
+            }
+            while (valueEnd < object.size() && std::isdigit(static_cast<unsigned char>(object[valueEnd])) != 0)
+            {
+                ++valueEnd;
+            }
+
+            if (valueEnd == valueStart || (valueEnd == valueStart + 1 && object[valueStart] == '-'))
+            {
+                return std::nullopt;
+            }
+
+            try
+            {
+                return std::stoi(object.substr(valueStart, valueEnd - valueStart));
+            }
+            catch (...)
+            {
+                return std::nullopt;
+            }
+        }
+
+        std::optional<float> jsonFloatField(const std::string& object, const std::string& key)
+        {
+            const std::string token = "\"" + key + "\"";
+            const size_t keyPos = object.find(token);
+            if (keyPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t colonPos = object.find(':', keyPos + token.size());
+            if (colonPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            size_t valueStart = object.find_first_not_of(" \t\r\n", colonPos + 1);
+            if (valueStart == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            size_t valueEnd = valueStart;
+            while (valueEnd < object.size())
+            {
+                const char c = object[valueEnd];
+                if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E')
+                {
+                    ++valueEnd;
+                    continue;
+                }
+                break;
+            }
+
+            if (valueEnd == valueStart)
+            {
+                return std::nullopt;
+            }
+
+            try
+            {
+                return std::stof(object.substr(valueStart, valueEnd - valueStart));
+            }
+            catch (...)
+            {
+                return std::nullopt;
+            }
+        }
+
+        std::optional<bool> jsonBoolField(const std::string& object, const std::string& key)
+        {
+            const std::string token = "\"" + key + "\"";
+            const size_t keyPos = object.find(token);
+            if (keyPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t colonPos = object.find(':', keyPos + token.size());
+            if (colonPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t valueStart = object.find_first_not_of(" \t\r\n", colonPos + 1);
+            if (valueStart == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            if (object.compare(valueStart, 4, "true") == 0)
+            {
+                return true;
+            }
+            if (object.compare(valueStart, 5, "false") == 0)
+            {
+                return false;
+            }
+
+            return std::nullopt;
+        }
+
+        std::optional<std::string> jsonObjectField(const std::string& object, const std::string& key)
+        {
+            const std::string token = "\"" + key + "\"";
+            const size_t keyPos = object.find(token);
+            if (keyPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t openPos = object.find('{', keyPos + token.size());
+            if (openPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            int depth = 0;
+            bool inString = false;
+            bool escaped = false;
+            for (size_t i = openPos; i < object.size(); ++i)
+            {
+                const char c = object[i];
+                if (inString)
+                {
+                    if (escaped)
+                    {
+                        escaped = false;
+                    }
+                    else if (c == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (c == '"')
+                    {
+                        inString = false;
+                    }
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inString = true;
+                }
+                else if (c == '{')
+                {
+                    ++depth;
+                }
+                else if (c == '}')
+                {
+                    --depth;
+                    if (depth == 0)
+                    {
+                        return object.substr(openPos, i - openPos + 1);
+                    }
+                }
+            }
+
+            return std::nullopt;
+        }
+
+        std::vector<std::string> jsonTopLevelObjects(const std::string& text)
+        {
+            std::vector<std::string> objects;
+            int depth = 0;
+            size_t objectStart = std::string::npos;
+            bool inString = false;
+            bool escaped = false;
+
+            for (size_t i = 0; i < text.size(); ++i)
+            {
+                const char c = text[i];
+                if (inString)
+                {
+                    if (escaped)
+                    {
+                        escaped = false;
+                    }
+                    else if (c == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (c == '"')
+                    {
+                        inString = false;
+                    }
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inString = true;
+                }
+                else if (c == '{')
+                {
+                    if (depth == 0)
+                    {
+                        objectStart = i;
+                    }
+                    ++depth;
+                }
+                else if (c == '}')
+                {
+                    --depth;
+                    if (depth == 0 && objectStart != std::string::npos)
+                    {
+                        objects.push_back(text.substr(objectStart, i - objectStart + 1));
+                        objectStart = std::string::npos;
+                    }
+                }
+            }
+
+            return objects;
+        }
+
+        std::vector<ParsedBlockDefinition> parseBlockDefinitions(const std::string& text)
+        {
+            std::vector<ParsedBlockDefinition> definitions;
+            constexpr std::array<const char*, 5> TextureKeys = {"all", "top", "bottom", "side", "topBottom"};
+
+            for (const std::string& object : jsonTopLevelObjects(text))
+            {
+                const std::optional<int> id = jsonIntField(object, "id");
+                if (!id.has_value() || *id < 0 || *id > std::numeric_limits<uint16_t>::max())
+                {
+                    continue;
+                }
+
+                ParsedBlockDefinition definition{};
+                definition.id = static_cast<uint16_t>(*id);
+                if (const std::optional<std::string> renderType = jsonStringField(object, "renderType"); renderType.has_value())
+                {
+                    definition.renderType = *renderType;
+                }
+                if (const std::optional<bool> directional = jsonBoolField(object, "directional"); directional.has_value())
+                {
+                    definition.directional = *directional;
+                }
+                if (const std::optional<bool> collision = jsonBoolField(object, "collision"); collision.has_value())
+                {
+                    definition.collision = *collision;
+                }
+                if (const std::optional<bool> ao = jsonBoolField(object, "ao"); ao.has_value())
+                {
+                    definition.ao = *ao;
+                }
+                if (const std::optional<std::string> faceOcclusion = jsonStringField(object, "faceOcclusion"); faceOcclusion.has_value())
+                {
+                    definition.faceOcclusion = *faceOcclusion;
+                }
+                if (const std::optional<bool> sameBlockFaceCulling = jsonBoolField(object, "sameBlockFaceCulling"); sameBlockFaceCulling.has_value())
+                {
+                    definition.sameBlockFaceCulling = *sameBlockFaceCulling;
+                }
+                if (const std::optional<std::string> alphaMode = jsonStringField(object, "alphaMode"); alphaMode.has_value())
+                {
+                    definition.alphaMode = *alphaMode;
+                }
+                if (const std::optional<float> alphaCutoff = jsonFloatField(object, "alphaCutoff"); alphaCutoff.has_value())
+                {
+                    definition.alphaCutoff = std::clamp(*alphaCutoff, 0.0f, 1.0f);
+                }
+                if (const std::optional<float> mipDistanceScale = jsonFloatField(object, "mipDistanceScale"); mipDistanceScale.has_value())
+                {
+                    definition.mipDistanceScale = std::max(0.0f, *mipDistanceScale);
+                }
+                if (const std::optional<std::string> textures = jsonObjectField(object, "textures"); textures.has_value())
+                {
+                    for (const char* key : TextureKeys)
+                    {
+                        if (const std::optional<std::string> texture = jsonStringField(*textures, key); texture.has_value())
+                        {
+                            definition.textures[key] = *texture;
+                        }
+                    }
+                }
+                definitions.push_back(std::move(definition));
+            }
+
+            return definitions;
+        }
+
+        uint32_t worldRandomHash(int x, int y, int z, uint32_t salt)
+        {
+            uint32_t hash = static_cast<uint32_t>(x) * 0x8da6b343u;
+            hash ^= static_cast<uint32_t>(y) * 0xd8163841u;
+            hash ^= static_cast<uint32_t>(z) * 0xcb1ab31fu;
+            hash ^= salt;
+            hash ^= hash >> 16u;
+            hash *= 0x7feb352du;
+            hash ^= hash >> 15u;
+            hash *= 0x846ca68bu;
+            hash ^= hash >> 16u;
+            return hash;
+        }
+
+        uint8_t worldRandom8(int x, int y, int z, uint32_t salt)
+        {
+            return static_cast<uint8_t>(worldRandomHash(x, y, z, salt) & 255u);
+        }
+
+        void writePngRgba(const std::filesystem::path& path, const std::vector<unsigned char>& rgba, uint32_t width, uint32_t height)
+        {
+            std::filesystem::create_directories(path.parent_path());
+            const int strideBytes = static_cast<int>(width * 4u);
+            if (stbi_write_png(path.string().c_str(), static_cast<int>(width), static_cast<int>(height), 4, rgba.data(), strideBytes) == 0)
+            {
+                throw std::runtime_error("Failed to write generated mip texture: " + path.string());
+            }
+        }
+
+        std::vector<unsigned char> downsampleRgba2x(const std::vector<unsigned char>& source, uint32_t sourceWidth, uint32_t sourceHeight, uint32_t targetWidth, uint32_t targetHeight)
+        {
+            std::vector<unsigned char> result(static_cast<size_t>(targetWidth) * targetHeight * 4u);
+            for (uint32_t y = 0; y < targetHeight; ++y)
+            {
+                for (uint32_t x = 0; x < targetWidth; ++x)
+                {
+                    uint32_t sum[4] = {};
+                    uint32_t count = 0;
+                    for (uint32_t oy = 0; oy < 2; ++oy)
+                    {
+                        const uint32_t sourceY = std::min(sourceHeight - 1u, y * 2u + oy);
+                        for (uint32_t ox = 0; ox < 2; ++ox)
+                        {
+                            const uint32_t sourceX = std::min(sourceWidth - 1u, x * 2u + ox);
+                            const unsigned char* pixel = source.data() + (static_cast<size_t>(sourceY) * sourceWidth + sourceX) * 4u;
+                            for (int channel = 0; channel < 4; ++channel)
+                            {
+                                sum[channel] += pixel[channel];
+                            }
+                            ++count;
+                        }
+                    }
+
+                    unsigned char* target = result.data() + (static_cast<size_t>(y) * targetWidth + x) * 4u;
+                    for (int channel = 0; channel < 4; ++channel)
+                    {
+                        target[channel] = static_cast<unsigned char>((sum[channel] + count / 2u) / count);
+                    }
+                }
+            }
+            return result;
+        }
+
+        bool isBlockTexturePath(const std::string& basePath)
+        {
+            std::filesystem::path path(basePath);
+            return path.parent_path().filename() == "block";
+        }
+
+        std::filesystem::path manualMipPath(const std::string& basePath, uint32_t mipLevel)
+        {
+            std::filesystem::path path(basePath);
+            return path.parent_path() / "mip" / (path.stem().string() + "_mip" + std::to_string(mipLevel) + ".png");
+        }
+
+        int bedrockHeightAt(int worldX, int worldZ)
+        {
+            return 1 + static_cast<int>(worldRandom8(worldX, 0, worldZ, BedrockHeightSalt) & 3u);
+        }
+
+        uint16_t terrainBlockForColumn(int worldX, int y, int worldZ, int height)
+        {
+            if (y < 0 || y >= height)
+            {
+                return BlockAir;
+            }
+            if (y < bedrockHeightAt(worldX, worldZ))
+            {
+                return BlockBedrock;
+            }
+            if (y == height - 1)
+            {
+                return BlockGrass;
+            }
+            if (y >= height - 5)
+            {
+                return BlockDirt;
+            }
+            return BlockRock;
+        }
+
         std::filesystem::path screenshotPath()
         {
             const std::filesystem::path directory = std::filesystem::path(DOLBUTO_ASSET_DIR).parent_path() / "screenshots";
@@ -136,51 +630,6 @@ namespace dolbuto
                 << "_" << std::setw(3) << std::setfill('0') << milliseconds
                 << ".bmp";
             return directory / name.str();
-        }
-
-        int parseLoadGridScale(const std::string& text, int fallback)
-        {
-            const std::string key = "\"loadGridScale\"";
-            const size_t keyPos = text.find(key);
-            if (keyPos == std::string::npos)
-            {
-                return fallback;
-            }
-
-            const size_t colonPos = text.find(':', keyPos + key.size());
-            if (colonPos == std::string::npos)
-            {
-                return fallback;
-            }
-
-            const size_t valueStart = text.find_first_not_of(" \t\r\n", colonPos + 1);
-            if (valueStart == std::string::npos)
-            {
-                return fallback;
-            }
-
-            size_t valueEnd = valueStart;
-            if (text[valueEnd] == '-')
-            {
-                ++valueEnd;
-            }
-            while (valueEnd < text.size() && text[valueEnd] >= '0' && text[valueEnd] <= '9')
-            {
-                ++valueEnd;
-            }
-            if (valueEnd == valueStart || (valueEnd == valueStart + 1 && text[valueStart] == '-'))
-            {
-                return fallback;
-            }
-
-            try
-            {
-                return std::max(0, std::stoi(text.substr(valueStart, valueEnd - valueStart)));
-            }
-            catch (...)
-            {
-                return fallback;
-            }
         }
 
         Vec3 toVec3(DVec3 value)
@@ -220,15 +669,44 @@ namespace dolbuto
             return result < 0 ? result + divisor : result;
         }
 
+        int blockCoordinateXz(double worldCoordinate)
+        {
+            return static_cast<int>(std::floor(worldCoordinate + 0.5));
+        }
+
+        int blockCoordinateY(double worldCoordinate)
+        {
+            return static_cast<int>(std::floor(worldCoordinate));
+        }
+
         uint64_t chunkKey(int chunkX, int chunkZ)
         {
             return (static_cast<uint64_t>(static_cast<uint32_t>(chunkX)) << 32u) |
                 static_cast<uint64_t>(static_cast<uint32_t>(chunkZ));
         }
 
-        FastNoise::SmartNode<> terrainNoiseGenerator()
+        FastNoise::SmartNode<> terrainNoiseGenerator(float simplexScale, int octaveCount, float lacunarity, float gain)
         {
-            thread_local FastNoise::SmartNode<> generator = []
+            struct CachedGenerator
+            {
+                float simplexScale = 0.0f;
+                int octaveCount = 0;
+                float lacunarity = 0.0f;
+                float gain = 0.0f;
+                FastNoise::SmartNode<> generator;
+            };
+
+            thread_local CachedGenerator cache{};
+            if (cache.generator &&
+                cache.simplexScale == simplexScale &&
+                cache.octaveCount == octaveCount &&
+                cache.lacunarity == lacunarity &&
+                cache.gain == gain)
+            {
+                return cache.generator;
+            }
+
+            auto createGenerator = [&]() -> FastNoise::SmartNode<>
             {
                 auto simplex = FastNoise::New<FastNoise::Simplex>();
                 auto fbm = FastNoise::New<FastNoise::FractalFBm>();
@@ -237,14 +715,20 @@ namespace dolbuto
                     return FastNoise::SmartNode<>{};
                 }
 
-                simplex->SetScale(1.0f);
+                simplex->SetScale(simplexScale);
                 fbm->SetSource(simplex);
-                fbm->SetOctaveCount(4);
-                fbm->SetLacunarity(2.0f);
-                fbm->SetGain(0.5f);
+                fbm->SetOctaveCount(octaveCount);
+                fbm->SetLacunarity(lacunarity);
+                fbm->SetGain(gain);
                 return FastNoise::SmartNode<>(fbm);
-            }();
-            return generator;
+            };
+
+            cache.simplexScale = simplexScale;
+            cache.octaveCount = octaveCount;
+            cache.lacunarity = lacunarity;
+            cache.gain = gain;
+            cache.generator = createGenerator();
+            return cache.generator;
         }
 
         int heightFromLut(const std::array<uint16_t, HeightLutCount>& heightLut, float noise)
@@ -516,6 +1000,7 @@ namespace dolbuto
         createDescriptorSetLayout();
         createPipeline();
         createTerrainPipeline();
+        createSelectionPipeline();
         createFramebuffers();
         createCommandPool();
         createPerformanceQueries();
@@ -524,6 +1009,7 @@ namespace dolbuto
         createTextures();
         createFont();
         createTextVertexBuffer();
+        createSelectionLineBuffer();
         createPlayerMesh();
         loadWorldConfig();
         loadHeightLut();
@@ -539,9 +1025,7 @@ namespace dolbuto
         vkDeviceWaitIdle(device_);
 
         cleanupSwapchain();
-        destroyTexture(grassTop_);
-        destroyTexture(grassSide_);
-        destroyTexture(rock_);
+        destroyTexture(terrainTextureArray_);
         destroyTexture(playerTexture_);
         destroyTexture(font_);
         destroyTexture(crosshair_);
@@ -557,6 +1041,14 @@ namespace dolbuto
         if (textVertexMemory_ != VK_NULL_HANDLE)
         {
             vkFreeMemory(device_, textVertexMemory_, nullptr);
+        }
+        if (selectionLineVertexBuffer_ != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(device_, selectionLineVertexBuffer_, nullptr);
+        }
+        if (selectionLineVertexMemory_ != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(device_, selectionLineVertexMemory_, nullptr);
         }
 
         if (descriptorPool_ != VK_NULL_HANDLE)
@@ -590,6 +1082,14 @@ namespace dolbuto
         if (playerPipeline_ != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(device_, playerPipeline_, nullptr);
+        }
+        if (selectionPipeline_ != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(device_, selectionPipeline_, nullptr);
+        }
+        if (selectionPipelineLayout_ != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(device_, selectionPipelineLayout_, nullptr);
         }
         if (terrainPipeline_ != VK_NULL_HANDLE)
         {
@@ -765,6 +1265,78 @@ namespace dolbuto
     void Renderer::setFramebufferResized()
     {
         framebufferResized_ = true;
+    }
+
+    bool Renderer::playerColliderIntersectsTerrain(DVec3 playerPosition) const
+    {
+        constexpr double HalfWidth = 0.3;
+        constexpr double Height = 1.75;
+        constexpr double Epsilon = 0.000001;
+
+        const double minX = playerPosition.x - HalfWidth;
+        const double maxX = playerPosition.x + HalfWidth;
+        const double minY = playerPosition.y;
+        const double maxY = playerPosition.y + Height;
+        const double minZ = playerPosition.z - HalfWidth;
+        const double maxZ = playerPosition.z + HalfWidth;
+
+        const int blockMinX = blockCoordinateXz(minX);
+        const int blockMaxX = blockCoordinateXz(maxX - Epsilon);
+        const int blockMinY = blockCoordinateY(minY);
+        const int blockMaxY = blockCoordinateY(maxY - Epsilon);
+        const int blockMinZ = blockCoordinateXz(minZ);
+        const int blockMaxZ = blockCoordinateXz(maxZ - Epsilon);
+
+        for (int y = blockMinY; y <= blockMaxY; ++y)
+        {
+            for (int z = blockMinZ; z <= blockMaxZ; ++z)
+            {
+                for (int x = blockMinX; x <= blockMaxX; ++x)
+                {
+                    if (terrainCellBlocksPlayer(x, y, z))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    bool Renderer::editBlockInView(DVec3 origin, Vec3 direction, bool placeRock)
+    {
+        BlockRaycastHit hit{};
+        if (!raycastBlock(origin, direction, hit))
+        {
+            return false;
+        }
+
+        const bool changed = placeRock
+            ? setBlockAtWorld(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ, BlockRock)
+            : setBlockAtWorld(hit.blockX, hit.blockY, hit.blockZ, BlockAir);
+        if (changed)
+        {
+            const int changedX = placeRock ? hit.previousBlockX : hit.blockX;
+            const int changedY = placeRock ? hit.previousBlockY : hit.blockY;
+            const int changedZ = placeRock ? hit.previousBlockZ : hit.blockZ;
+            rebuildEditedChunkMeshes(changedX, changedY, changedZ);
+        }
+        return changed;
+    }
+
+    void Renderer::updateBlockSelection(DVec3 origin, Vec3 direction)
+    {
+        BlockRaycastHit hit{};
+        hasSelectedBlock_ = raycastBlock(origin, direction, hit);
+        if (!hasSelectedBlock_)
+        {
+            return;
+        }
+
+        selectedBlockX_ = hit.blockX;
+        selectedBlockY_ = hit.blockY;
+        selectedBlockZ_ = hit.blockZ;
     }
 
     void Renderer::createInstance()
@@ -1277,7 +1849,7 @@ namespace dolbuto
         bindingDescription.stride = sizeof(TerrainVertex);
         bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-        std::array<VkVertexInputAttributeDescription, 2> attributes{};
+        std::array<VkVertexInputAttributeDescription, 5> attributes{};
         attributes[0].binding = 0;
         attributes[0].location = 0;
         attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -1286,6 +1858,18 @@ namespace dolbuto
         attributes[1].location = 1;
         attributes[1].format = VK_FORMAT_R32G32_SFLOAT;
         attributes[1].offset = offsetof(TerrainVertex, u);
+        attributes[2].binding = 0;
+        attributes[2].location = 2;
+        attributes[2].format = VK_FORMAT_R32_SFLOAT;
+        attributes[2].offset = offsetof(TerrainVertex, ao);
+        attributes[3].binding = 0;
+        attributes[3].location = 3;
+        attributes[3].format = VK_FORMAT_R32_SFLOAT;
+        attributes[3].offset = offsetof(TerrainVertex, textureLayer);
+        attributes[4].binding = 0;
+        attributes[4].location = 4;
+        attributes[4].format = VK_FORMAT_R32_SFLOAT;
+        attributes[4].offset = offsetof(TerrainVertex, mipDistanceScale);
 
         VkPipelineVertexInputStateCreateInfo vertexInput{};
         vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1340,10 +1924,10 @@ namespace dolbuto
         depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
 
         VkPushConstantRange pushRange{};
-        pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         pushRange.offset = 0;
         pushRange.size = sizeof(TerrainPush);
-        static_assert(sizeof(TerrainPush) == sizeof(float) * 16);
+        static_assert(sizeof(TerrainPush) == sizeof(float) * 20);
 
         VkPipelineLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1389,6 +1973,128 @@ namespace dolbuto
         if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &playerPipeline_) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create player pipeline.");
+        }
+
+        vkDestroyShaderModule(device_, fragShader, nullptr);
+        vkDestroyShaderModule(device_, vertShader, nullptr);
+    }
+
+    void Renderer::createSelectionPipeline()
+    {
+        VkShaderModule vertShader = createShaderModule(std::string(DOLBUTO_SHADER_DIR) + "/selection.vert.spv");
+        VkShaderModule fragShader = createShaderModule(std::string(DOLBUTO_SHADER_DIR) + "/selection.frag.spv");
+
+        VkPipelineShaderStageCreateInfo vertStage{};
+        vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertStage.module = vertShader;
+        vertStage.pName = "main";
+
+        VkPipelineShaderStageCreateInfo fragStage{};
+        fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragStage.module = fragShader;
+        fragStage.pName = "main";
+
+        VkPipelineShaderStageCreateInfo stages[] = {vertStage, fragStage};
+
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(LineVertex);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        VkVertexInputAttributeDescription attribute{};
+        attribute.binding = 0;
+        attribute.location = 0;
+        attribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+        attribute.offset = offsetof(LineVertex, x);
+
+        VkPipelineVertexInputStateCreateInfo vertexInput{};
+        vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertexInput.vertexBindingDescriptionCount = 1;
+        vertexInput.pVertexBindingDescriptions = &bindingDescription;
+        vertexInput.vertexAttributeDescriptionCount = 1;
+        vertexInput.pVertexAttributeDescriptions = &attribute;
+
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.scissorCount = 1;
+
+        std::array<VkDynamicState, 2> dynamicStates = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+
+        VkPipelineDynamicStateCreateInfo dynamicState{};
+        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+        dynamicState.pDynamicStates = dynamicStates.data();
+
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer.cullMode = VK_CULL_MODE_NONE;
+        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer.lineWidth = 1.0f;
+
+        VkPipelineMultisampleStateCreateInfo multisampling{};
+        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        VkPipelineColorBlendAttachmentState colorBlend{};
+        colorBlend.blendEnable = VK_FALSE;
+        colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+        VkPipelineColorBlendStateCreateInfo colorBlending{};
+        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlending.attachmentCount = 1;
+        colorBlending.pAttachments = &colorBlend;
+
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_FALSE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+
+        VkPushConstantRange pushRange{};
+        pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        pushRange.offset = 0;
+        pushRange.size = sizeof(TerrainPush);
+
+        VkPipelineLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layoutInfo.pushConstantRangeCount = 1;
+        layoutInfo.pPushConstantRanges = &pushRange;
+
+        if (vkCreatePipelineLayout(device_, &layoutInfo, nullptr, &selectionPipelineLayout_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create selection pipeline layout.");
+        }
+
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount = 2;
+        pipelineInfo.pStages = stages;
+        pipelineInfo.pVertexInputState = &vertexInput;
+        pipelineInfo.pInputAssemblyState = &inputAssembly;
+        pipelineInfo.pViewportState = &viewportState;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState = &multisampling;
+        pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.pDepthStencilState = &depthStencil;
+        pipelineInfo.pDynamicState = &dynamicState;
+        pipelineInfo.layout = selectionPipelineLayout_;
+        pipelineInfo.renderPass = renderPass_;
+        pipelineInfo.subpass = 0;
+
+        if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &selectionPipeline_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create selection pipeline.");
         }
 
         vkDestroyShaderModule(device_, fragShader, nullptr);
@@ -1509,10 +2215,123 @@ namespace dolbuto
         sun_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/sky/Sun.png");
         moon_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/sky/Moon.png");
         crosshair_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/ui/Crosshair.png");
-        playerTexture_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/character/Character.png");
-        rock_ = createTexture(blockTextureDir + "rock.png");
-        grassSide_ = createTexture(blockTextureDir + "grass_side.png");
-        grassTop_ = createTexture(blockTextureDir + "grass_top.png");
+        playerTexture_ = createTextureArray({std::string(DOLBUTO_ASSET_DIR) + "/textures/character/Character.png"});
+
+        const std::vector<char> blockDefinitionData = readFile(std::string(DOLBUTO_ASSET_DIR) + "/data/blocks.json");
+        const std::string blockDefinitionText(blockDefinitionData.begin(), blockDefinitionData.end());
+        const std::vector<ParsedBlockDefinition> blockDefinitions = parseBlockDefinitions(blockDefinitionText);
+
+        std::vector<std::string> textureNames;
+        std::unordered_map<std::string, uint32_t> textureLayerByName;
+        auto layerForTexture = [&](const std::string& textureName) -> uint32_t
+        {
+            auto it = textureLayerByName.find(textureName);
+            if (it != textureLayerByName.end())
+            {
+                return it->second;
+            }
+
+            const uint32_t layer = static_cast<uint32_t>(textureNames.size());
+            textureLayerByName.emplace(textureName, layer);
+            textureNames.push_back(textureName);
+            return layer;
+        };
+
+        auto parseRenderType = [](const std::string& value)
+        {
+            if (value == "cube")
+            {
+                return BlockRenderType::Cube;
+            }
+            if (value == "cross")
+            {
+                return BlockRenderType::Cross;
+            }
+            return BlockRenderType::None;
+        };
+        auto parseFaceOcclusion = [](const std::string& value)
+        {
+            if (value == "opaque")
+            {
+                return BlockFaceOcclusion::Opaque;
+            }
+            if (value == "cutout")
+            {
+                return BlockFaceOcclusion::Cutout;
+            }
+            return BlockFaceOcclusion::None;
+        };
+        auto parseAlphaMode = [](const std::string& value)
+        {
+            if (value == "cutout")
+            {
+                return BlockAlphaMode::Cutout;
+            }
+            if (value == "blend")
+            {
+                return BlockAlphaMode::Blend;
+            }
+            return BlockAlphaMode::Opaque;
+        };
+
+        blockDefinitions_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
+        blockTextureLayers_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
+        for (const ParsedBlockDefinition& definition : blockDefinitions)
+        {
+            BlockDefinition blockDefinition{};
+            blockDefinition.renderType = parseRenderType(definition.renderType);
+            blockDefinition.directional = definition.directional;
+            blockDefinition.collision = definition.collision;
+            blockDefinition.ao = definition.ao;
+            blockDefinition.faceOcclusion = parseFaceOcclusion(definition.faceOcclusion);
+            blockDefinition.sameBlockFaceCulling = definition.sameBlockFaceCulling;
+            blockDefinition.alphaMode = parseAlphaMode(definition.alphaMode);
+            blockDefinition.alphaCutoff = definition.alphaCutoff;
+            blockDefinition.mipDistanceScale = definition.mipDistanceScale;
+            blockDefinitions_[definition.id] = blockDefinition;
+
+            BlockTextureLayers layers{};
+            if (const auto it = definition.textures.find("all"); it != definition.textures.end())
+            {
+                layers.faces.fill(layerForTexture(it->second));
+            }
+            if (const auto it = definition.textures.find("topBottom"); it != definition.textures.end())
+            {
+                const uint32_t layer = layerForTexture(it->second);
+                layers.faces[0] = layer;
+                layers.faces[1] = layer;
+            }
+            if (const auto it = definition.textures.find("side"); it != definition.textures.end())
+            {
+                const uint32_t layer = layerForTexture(it->second);
+                layers.faces[2] = layer;
+                layers.faces[3] = layer;
+                layers.faces[4] = layer;
+                layers.faces[5] = layer;
+            }
+            if (const auto it = definition.textures.find("top"); it != definition.textures.end())
+            {
+                layers.faces[0] = layerForTexture(it->second);
+            }
+            if (const auto it = definition.textures.find("bottom"); it != definition.textures.end())
+            {
+                layers.faces[1] = layerForTexture(it->second);
+            }
+            blockTextureLayers_[definition.id] = layers;
+        }
+
+        if (textureNames.empty())
+        {
+            throw std::runtime_error("No block textures were found in blocks.json.");
+        }
+
+        std::vector<std::string> texturePaths;
+        texturePaths.reserve(textureNames.size());
+        for (const std::string& textureName : textureNames)
+        {
+            texturePaths.push_back(blockTextureDir + textureName + ".png");
+        }
+        terrainTextureArray_ = createTextureArray(texturePaths);
     }
 
     void Renderer::createFont()
@@ -1559,6 +2378,17 @@ namespace dolbuto
             textVertexMemory_);
     }
 
+    void Renderer::createSelectionLineBuffer()
+    {
+        constexpr VkDeviceSize BufferSize = sizeof(LineVertex) * 24u;
+        createBuffer(
+            BufferSize,
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            selectionLineVertexBuffer_,
+            selectionLineVertexMemory_);
+    }
+
     void Renderer::createPlayerMesh()
     {
         const std::vector<char> meshData = readFile(std::string(DOLBUTO_ASSET_DIR) + "/textures/character/Character.mesh");
@@ -1573,16 +2403,54 @@ namespace dolbuto
         std::memcpy(&indexCount, meshData.data() + 8, sizeof(indexCount));
 
         const size_t verticesOffset = 12;
-        const size_t indicesOffset = verticesOffset + static_cast<size_t>(vertexCount) * sizeof(TerrainVertex);
+        constexpr size_t LegacyPlayerVertexSize = sizeof(float) * 5;
+        constexpr size_t AoPlayerVertexSize = sizeof(float) * 6;
+        constexpr size_t LayerPlayerVertexSize = sizeof(float) * 7;
+        const size_t currentIndicesOffset = verticesOffset + static_cast<size_t>(vertexCount) * sizeof(TerrainVertex);
+        const size_t currentExpectedSize = currentIndicesOffset + static_cast<size_t>(indexCount) * sizeof(uint32_t);
+        const size_t layerIndicesOffset = verticesOffset + static_cast<size_t>(vertexCount) * LayerPlayerVertexSize;
+        const size_t layerExpectedSize = layerIndicesOffset + static_cast<size_t>(indexCount) * sizeof(uint32_t);
+        const size_t aoIndicesOffset = verticesOffset + static_cast<size_t>(vertexCount) * AoPlayerVertexSize;
+        const size_t aoExpectedSize = aoIndicesOffset + static_cast<size_t>(indexCount) * sizeof(uint32_t);
+        const bool hasCurrentVertexData = meshData.size() >= currentExpectedSize;
+        const bool hasLayerVertexData = !hasCurrentVertexData && meshData.size() >= layerExpectedSize;
+        const bool hasAoVertexData = !hasCurrentVertexData && !hasLayerVertexData && meshData.size() >= aoExpectedSize;
+        const size_t vertexStride = hasCurrentVertexData ? sizeof(TerrainVertex) : (hasLayerVertexData ? LayerPlayerVertexSize : (hasAoVertexData ? AoPlayerVertexSize : LegacyPlayerVertexSize));
+        const size_t indicesOffset = verticesOffset + static_cast<size_t>(vertexCount) * vertexStride;
         const size_t expectedSize = indicesOffset + static_cast<size_t>(indexCount) * sizeof(uint32_t);
         if (meshData.size() < expectedSize)
         {
             throw std::runtime_error("Incomplete player mesh file.");
         }
 
-        static_assert(sizeof(TerrainVertex) == sizeof(float) * 5);
+        static_assert(sizeof(TerrainVertex) == sizeof(float) * 8);
         std::vector<TerrainVertex> sourceVertices(vertexCount);
-        std::memcpy(sourceVertices.data(), meshData.data() + verticesOffset, sourceVertices.size() * sizeof(TerrainVertex));
+        for (uint32_t i = 0; i < vertexCount; ++i)
+        {
+            const char* source = meshData.data() + verticesOffset + static_cast<size_t>(i) * vertexStride;
+            if (hasCurrentVertexData)
+            {
+                std::memcpy(&sourceVertices[i], source, sizeof(TerrainVertex));
+            }
+            else if (hasLayerVertexData)
+            {
+                std::memcpy(&sourceVertices[i].x, source, LayerPlayerVertexSize);
+                sourceVertices[i].mipDistanceScale = 1.0f;
+            }
+            else if (hasAoVertexData)
+            {
+                std::memcpy(&sourceVertices[i].x, source, AoPlayerVertexSize);
+                sourceVertices[i].textureLayer = 0.0f;
+                sourceVertices[i].mipDistanceScale = 1.0f;
+            }
+            else
+            {
+                std::memcpy(&sourceVertices[i].x, source, LegacyPlayerVertexSize);
+                sourceVertices[i].ao = 1.0f;
+                sourceVertices[i].textureLayer = 0.0f;
+                sourceVertices[i].mipDistanceScale = 1.0f;
+            }
+        }
 
         playerLocalVertices_ = std::move(sourceVertices);
         playerIndices_.clear();
@@ -1604,6 +2472,19 @@ namespace dolbuto
     void Renderer::loadWorldConfig()
     {
         loadGridScale_ = DefaultLoadGridScale;
+        terrainWorkerCount_ = DefaultTerrainWorkerCount;
+        maxTerrainUploadChunksPerFrame_ = DefaultMaxTerrainUploadChunksPerFrame;
+        maxTerrainUnloadChunksPerFrame_ = DefaultMaxTerrainUnloadChunksPerFrame;
+        terrainNoiseFeatureScale_ = DefaultTerrainNoiseFeatureScale;
+        terrainNoiseOctaveCount_ = DefaultTerrainNoiseOctaveCount;
+        terrainNoiseLacunarity_ = DefaultTerrainNoiseLacunarity;
+        terrainNoiseGain_ = DefaultTerrainNoiseGain;
+        terrainNoiseSimplexScale_ = DefaultTerrainNoiseSimplexScale;
+        terrainDomainWarpEnabled_ = DefaultTerrainDomainWarpEnabled;
+        terrainDomainWarpAmplitude_ = DefaultTerrainDomainWarpAmplitude;
+        terrainDomainWarpFrequency_ = DefaultTerrainDomainWarpFrequency;
+        terrainDomainWarpOctaveCount_ = DefaultTerrainDomainWarpOctaveCount;
+        terrainDomainWarpGain_ = DefaultTerrainDomainWarpGain;
 
         const std::filesystem::path path = std::filesystem::path(DOLBUTO_CONFIG_DIR) / "world.json";
         std::ifstream file(path);
@@ -1615,7 +2496,67 @@ namespace dolbuto
         std::ostringstream contents;
         contents << file.rdbuf();
         const std::string text = contents.str();
-        loadGridScale_ = parseLoadGridScale(text, DefaultLoadGridScale);
+        const std::string chunkLoad = jsonObjectField(text, "chunkLoad").value_or("{}");
+        const std::string terrain = jsonObjectField(text, "terrain").value_or("{}");
+        const std::string terrainDomainWarp = jsonObjectField(terrain, "domainWarp").value_or("{}");
+        const std::string terrainBaseNoise = jsonObjectField(terrain, "baseNoise").value_or("{}");
+
+        if (const std::optional<int> value = jsonIntField(chunkLoad, "loadGridScale"); value.has_value())
+        {
+            loadGridScale_ = std::max(0, *value);
+        }
+        if (const std::optional<int> value = jsonIntField(chunkLoad, "workerCount"); value.has_value())
+        {
+            terrainWorkerCount_ = std::clamp(*value, 1, 16);
+        }
+        if (const std::optional<int> value = jsonIntField(chunkLoad, "maxCompletedChunksAppliedPerFrame"); value.has_value())
+        {
+            maxTerrainUploadChunksPerFrame_ = std::clamp(*value, 1, 64);
+        }
+        if (const std::optional<int> value = jsonIntField(chunkLoad, "maxUnloadedChunksPerFrame"); value.has_value())
+        {
+            maxTerrainUnloadChunksPerFrame_ = std::clamp(*value, 1, 64);
+        }
+        if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "featureScale"); value.has_value() && *value > 0.0f)
+        {
+            terrainNoiseFeatureScale_ = *value;
+        }
+        if (const std::optional<int> value = jsonIntField(terrainBaseNoise, "octaveCount"); value.has_value())
+        {
+            terrainNoiseOctaveCount_ = std::clamp(*value, 1, 16);
+        }
+        if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "lacunarity"); value.has_value() && *value > 0.0f)
+        {
+            terrainNoiseLacunarity_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "gain"); value.has_value() && *value >= 0.0f)
+        {
+            terrainNoiseGain_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "simplexScale"); value.has_value() && *value > 0.0f)
+        {
+            terrainNoiseSimplexScale_ = *value;
+        }
+        if (const std::optional<bool> value = jsonBoolField(terrainDomainWarp, "enabled"); value.has_value())
+        {
+            terrainDomainWarpEnabled_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(terrainDomainWarp, "amplitude"); value.has_value() && *value >= 0.0f)
+        {
+            terrainDomainWarpAmplitude_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(terrainDomainWarp, "frequency"); value.has_value() && *value > 0.0f)
+        {
+            terrainDomainWarpFrequency_ = *value;
+        }
+        if (const std::optional<int> value = jsonIntField(terrainDomainWarp, "octaveCount"); value.has_value())
+        {
+            terrainDomainWarpOctaveCount_ = std::clamp(*value, 1, 16);
+        }
+        if (const std::optional<float> value = jsonFloatField(terrainDomainWarp, "gain"); value.has_value() && *value >= 0.0f)
+        {
+            terrainDomainWarpGain_ = *value;
+        }
     }
 
     void Renderer::loadHeightLut()
@@ -1742,6 +2683,7 @@ namespace dolbuto
                     TerrainJob job{};
                     job.type = TerrainJob::Type::BuildChunkMesh;
                     job.generation = generation;
+                    job.revision = dataIt->second->revision;
                     job.chunkX = chunkX;
                     job.chunkZ = chunkZ;
                     job.chunk = dataIt->second;
@@ -1780,41 +2722,34 @@ namespace dolbuto
         loadOrder_.clear();
         loadOrder_.reserve(static_cast<size_t>(loadedChunkDiameter_) * loadedChunkDiameter_);
 
-        loadOrder_.push_back({0, 0});
-        loadOrder_.push_back({1, 0});
-        loadOrder_.push_back({0, 1});
-        loadOrder_.push_back({1, 1});
-
-        const int maxRing = loadedChunkDiameter_ / 2 - 1;
-        for (int ring = 1; ring <= maxRing; ++ring)
+        const int min = -(loadedChunkDiameter_ / 2 - 1);
+        const int max = loadedChunkDiameter_ / 2;
+        for (int z = min; z <= max; ++z)
         {
-            const int min = -ring;
-            const int max = 1 + ring;
-
             for (int x = min; x <= max; ++x)
             {
-                loadOrder_.push_back({x, min});
-            }
-            for (int z = min + 1; z <= max; ++z)
-            {
-                loadOrder_.push_back({max, z});
-            }
-            for (int x = max - 1; x >= min; --x)
-            {
-                loadOrder_.push_back({x, max});
-            }
-            for (int z = max - 1; z >= min + 1; --z)
-            {
-                loadOrder_.push_back({min, z});
+                loadOrder_.push_back({x, z});
             }
         }
+
+        auto distanceToCenterGroupSquared = [](const ChunkOffset& offset)
+        {
+            const int dx = offset.x < 0 ? -offset.x : (offset.x > 1 ? offset.x - 1 : 0);
+            const int dz = offset.z < 0 ? -offset.z : (offset.z > 1 ? offset.z - 1 : 0);
+            return dx * dx + dz * dz;
+        };
+
+        std::stable_sort(loadOrder_.begin(), loadOrder_.end(), [&](const ChunkOffset& left, const ChunkOffset& right)
+        {
+            return distanceToCenterGroupSquared(left) < distanceToCenterGroupSquared(right);
+        });
     }
 
     void Renderer::startTerrainWorkers()
     {
         stopTerrainWorkers_ = false;
-        terrainWorkers_.reserve(DefaultTerrainWorkerCount);
-        for (int i = 0; i < DefaultTerrainWorkerCount; ++i)
+        terrainWorkers_.reserve(static_cast<size_t>(terrainWorkerCount_));
+        for (int i = 0; i < terrainWorkerCount_; ++i)
         {
             terrainWorkers_.emplace_back(&Renderer::terrainWorkerLoop, this);
         }
@@ -1880,11 +2815,16 @@ namespace dolbuto
             {
                 std::shared_ptr<ChunkData> chunk = buildChunkData(job.chunkX, job.chunkZ);
                 chunk->generation = job.generation;
+                chunk->revision = 0;
                 std::lock_guard<std::mutex> lock(terrainJobMutex_);
                 completedChunkData_.push_back(std::move(chunk));
             }
             else if (job.chunk)
             {
+                if (job.revision != job.chunk->revision)
+                {
+                    continue;
+                }
                 CompletedChunkMesh mesh = buildChunkMesh(job.chunk, job.generation);
                 std::lock_guard<std::mutex> lock(terrainJobMutex_);
                 completedChunkMeshes_.push_back(std::move(mesh));
@@ -1931,24 +2871,26 @@ namespace dolbuto
                 completedChunkData_.pop_front();
             }
 
-            std::array<uint64_t, MaxTerrainUploadChunksPerFrame> uploadChunkKeys{};
+            std::vector<uint64_t> uploadChunkKeys;
+            uploadChunkKeys.reserve(static_cast<size_t>(maxTerrainUploadChunksPerFrame_));
             uint32_t uploadChunkCount = 0;
             auto canUploadChunk = [&](uint64_t key) -> bool
             {
-                for (uint32_t i = 0; i < uploadChunkCount; ++i)
+                for (uint64_t uploadKey : uploadChunkKeys)
                 {
-                    if (uploadChunkKeys[i] == key)
+                    if (uploadKey == key)
                     {
                         return true;
                     }
                 }
 
-                if (uploadChunkCount >= MaxTerrainUploadChunksPerFrame)
+                if (uploadChunkCount >= static_cast<uint32_t>(maxTerrainUploadChunksPerFrame_))
                 {
                     return false;
                 }
 
-                uploadChunkKeys[uploadChunkCount++] = key;
+                uploadChunkKeys.push_back(key);
+                ++uploadChunkCount;
                 return true;
             };
 
@@ -1990,6 +2932,7 @@ namespace dolbuto
                 TerrainJob job{};
                 job.type = TerrainJob::Type::BuildChunkMesh;
                 job.generation = generation;
+                job.revision = chunk->revision;
                 job.chunkX = chunk->chunkX;
                 job.chunkZ = chunk->chunkZ;
                 job.chunk = chunk;
@@ -2003,6 +2946,11 @@ namespace dolbuto
             requestedMeshJobs_.erase(key);
 
             if (mesh.generation != generation || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
+            {
+                continue;
+            }
+            const auto chunkIt = chunkData_.find(key);
+            if (chunkIt == chunkData_.end() || !chunkIt->second || mesh.revision != chunkIt->second->revision)
             {
                 continue;
             }
@@ -2035,8 +2983,8 @@ namespace dolbuto
             meshQueueText_ = "MESH QUEUE: " + std::to_string(queuedMeshJobCount);
             dataDoneText_ = "DATA DONE: " + std::to_string(queuedDataDoneCount);
             meshDoneText_ = "MESH DONE: " + std::to_string(queuedMeshDoneCount);
-            uploadText_ = "UPLOAD: " + std::to_string(uploadedChunkCount) + " / " + std::to_string(MaxTerrainUploadChunksPerFrame);
-            unloadText_ = "UNLOAD: " + std::to_string(unloadedChunkCount) + " / " + std::to_string(MaxTerrainUnloadChunksPerFrame);
+            uploadText_ = "UPLOAD: " + std::to_string(uploadedChunkCount) + " / " + std::to_string(maxTerrainUploadChunksPerFrame_);
+            unloadText_ = "UNLOAD: " + std::to_string(unloadedChunkCount) + " / " + std::to_string(maxTerrainUnloadChunksPerFrame_);
             retiredText_ = "RETIRED: " + std::to_string(retiredChunkCount);
             jobMainText_ = formatProfileMs("JOB MAIN", std::chrono::duration<double, std::milli>(buildEnd - buildStart).count());
             debugTextBatchDirty_ = true;
@@ -2046,7 +2994,7 @@ namespace dolbuto
     uint32_t Renderer::processPendingTerrainUnloads()
     {
         uint32_t unloadedCount = 0;
-        while (!pendingUnloadChunks_.empty() && unloadedCount < MaxTerrainUnloadChunksPerFrame)
+        while (!pendingUnloadChunks_.empty() && unloadedCount < static_cast<uint32_t>(maxTerrainUnloadChunksPerFrame_))
         {
             const uint64_t key = pendingUnloadChunks_.front();
             pendingUnloadChunks_.pop_front();
@@ -2120,19 +3068,371 @@ namespace dolbuto
         }
 
         constexpr size_t BlocksPerLayer = ChunkSizeX * ChunkSizeZ;
+        const int worldXStart = chunkX * ChunkSizeX;
+        const int worldZStart = chunkZ * ChunkSizeZ;
         for (int y = 0; y < maxHeight; ++y)
         {
             uint16_t* layer = chunk->blocks.data() + static_cast<size_t>(y) * BlocksPerLayer;
-            for (size_t column = 0; column < heights.size(); ++column)
+            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
             {
-                layer[column] = y < heights[column] ? BlockRock : BlockAir;
+                for (int localX = 0; localX < ChunkSizeX; ++localX)
+                {
+                    const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
+                    layer[column] = terrainBlockForColumn(worldXStart + localX, y, worldZStart + localZ, heights[column]);
+                }
+            }
+        }
+
+        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+        {
+            for (int localX = 0; localX < ChunkSizeX; ++localX)
+            {
+                const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
+                const int height = heights[column];
+                if (height <= 0 || height >= ChunkSizeY)
+                {
+                    continue;
+                }
+
+                const size_t topIndex = static_cast<size_t>(((height - 1) * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+                const size_t plantIndex = static_cast<size_t>((height * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+                if (topIndex < chunk->blocks.size() &&
+                    plantIndex < chunk->blocks.size() &&
+                    chunk->blocks[topIndex] == BlockGrass &&
+                    worldRandom8(worldXStart + localX, height, worldZStart + localZ, PlantPlacementSalt) < PlantPlacementThreshold)
+                {
+                    chunk->blocks[plantIndex] = BlockPlant;
+                    chunk->emptySubchunks[static_cast<size_t>(height / SubchunkSize)] = false;
+                }
             }
         }
 
         return chunk;
     }
 
-    Renderer::TerrainBuildData Renderer::buildSubchunkMesh(const std::shared_ptr<Renderer::ChunkData>& chunk, int subchunkY) const
+    bool Renderer::setBlockAtWorld(int x, int y, int z, uint16_t block)
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return false;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        const uint64_t key = chunkKey(chunkX, chunkZ);
+        const auto chunkIt = chunkData_.find(key);
+        if (chunkIt == chunkData_.end() || !chunkIt->second)
+        {
+            return false;
+        }
+
+        const int localX = positiveModulo(x, ChunkSizeX);
+        const int localZ = positiveModulo(z, ChunkSizeZ);
+        const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+        if (index >= chunkIt->second->blocks.size() || chunkIt->second->blocks[index] == block)
+        {
+            return false;
+        }
+
+        chunkIt->second->blocks[index] = block;
+        ++chunkIt->second->revision;
+        updateChunkEmptySubchunk(chunkIt->second, y / SubchunkSize);
+        return true;
+    }
+
+    void Renderer::updateChunkEmptySubchunk(const std::shared_ptr<ChunkData>& chunk, int subchunkY)
+    {
+        if (!chunk || subchunkY < 0 || subchunkY >= SubchunksPerChunk)
+        {
+            return;
+        }
+
+        const int yStart = subchunkY * SubchunkSize;
+        const int yEnd = yStart + SubchunkSize;
+        bool empty = true;
+        for (int y = yStart; y < yEnd && empty; ++y)
+        {
+            for (int z = 0; z < ChunkSizeZ && empty; ++z)
+            {
+                for (int x = 0; x < ChunkSizeX; ++x)
+                {
+                    const size_t index = static_cast<size_t>((y * ChunkSizeZ + z) * ChunkSizeX + x);
+                    if (index < chunk->blocks.size() && chunk->blocks[index] != BlockAir)
+                    {
+                        empty = false;
+                        break;
+                    }
+                }
+            }
+        }
+
+        chunk->emptySubchunks[static_cast<size_t>(subchunkY)] = empty;
+    }
+
+    void Renderer::rebuildSubchunkMeshNow(int chunkX, int chunkZ, int subchunkY)
+    {
+        if (subchunkY < 0 || subchunkY >= SubchunksPerChunk)
+        {
+            return;
+        }
+
+        const uint64_t key = chunkKey(chunkX, chunkZ);
+        const auto chunkIt = chunkData_.find(key);
+        if (chunkIt == chunkData_.end() || !chunkIt->second || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
+        {
+            return;
+        }
+
+        const uint64_t generation = terrainGeneration_.load();
+        chunkIt->second->generation = generation;
+        const uint64_t revision = chunkIt->second->revision;
+        TerrainBuildData mesh = buildEditedSubchunkMesh(chunkIt->second, subchunkY);
+
+        requestedMeshJobs_.erase(key);
+        ChunkRenderData& renderData = terrainChunks_[key];
+        renderData.chunkX = chunkX;
+        renderData.chunkZ = chunkZ;
+        if (chunkIt->second->revision != revision || chunkIt->second->generation != generation)
+        {
+            return;
+        }
+
+        TerrainMesh& targetMesh = renderData.rockSubchunks[static_cast<size_t>(subchunkY)];
+        destroyTerrainMesh(targetMesh);
+        createTerrainBuffer(mesh, targetMesh);
+    }
+
+    void Renderer::rebuildEditedChunkMeshes(int blockX, int blockY, int blockZ)
+    {
+        if (blockY < 0 || blockY >= ChunkSizeY)
+        {
+            return;
+        }
+
+        const int chunkX = floorDiv(blockX, ChunkSizeX);
+        const int chunkZ = floorDiv(blockZ, ChunkSizeZ);
+        const int subchunkY = blockY / SubchunkSize;
+        std::vector<int> chunkOffsetsX = {0};
+        std::vector<int> chunkOffsetsZ = {0};
+        std::vector<int> subchunkYs = {subchunkY};
+        if (positiveModulo(blockX, ChunkSizeX) == 0)
+        {
+            chunkOffsetsX.push_back(-1);
+        }
+        if (positiveModulo(blockX, ChunkSizeX) == ChunkSizeX - 1)
+        {
+            chunkOffsetsX.push_back(1);
+        }
+        if (positiveModulo(blockZ, ChunkSizeZ) == 0)
+        {
+            chunkOffsetsZ.push_back(-1);
+        }
+        if (positiveModulo(blockZ, ChunkSizeZ) == ChunkSizeZ - 1)
+        {
+            chunkOffsetsZ.push_back(1);
+        }
+        if (positiveModulo(blockY, SubchunkSize) == 0)
+        {
+            subchunkYs.push_back(subchunkY - 1);
+        }
+        if (positiveModulo(blockY, SubchunkSize) == SubchunkSize - 1)
+        {
+            subchunkYs.push_back(subchunkY + 1);
+        }
+
+        struct AffectedSubchunk
+        {
+            int chunkX = 0;
+            int chunkZ = 0;
+            int subchunkY = 0;
+        };
+        std::vector<AffectedSubchunk> affectedSubchunks;
+        auto addAffectedSubchunk = [&](int affectedChunkX, int affectedChunkZ, int affectedSubchunkY)
+        {
+            if (affectedSubchunkY < 0 || affectedSubchunkY >= SubchunksPerChunk)
+            {
+                return;
+            }
+            for (const AffectedSubchunk& existing : affectedSubchunks)
+            {
+                if (existing.chunkX == affectedChunkX && existing.chunkZ == affectedChunkZ && existing.subchunkY == affectedSubchunkY)
+                {
+                    return;
+                }
+            }
+            affectedSubchunks.push_back({affectedChunkX, affectedChunkZ, affectedSubchunkY});
+        };
+
+        for (int offsetZ : chunkOffsetsZ)
+        {
+            for (int offsetX : chunkOffsetsX)
+            {
+                for (int affectedSubchunkY : subchunkYs)
+                {
+                    addAffectedSubchunk(chunkX + offsetX, chunkZ + offsetZ, affectedSubchunkY);
+                }
+            }
+        }
+
+        for (const AffectedSubchunk& affected : affectedSubchunks)
+        {
+            rebuildSubchunkMeshNow(affected.chunkX, affected.chunkZ, affected.subchunkY);
+        }
+
+        updateTerrainStats();
+        debugTextBatchDirty_ = true;
+    }
+
+    std::vector<uint16_t> Renderer::buildMeshingBlocks(const std::shared_ptr<Renderer::ChunkData>& chunk) const
+    {
+        std::vector<uint16_t> meshingBlocks(MeshingBlockCount, BlockAir);
+
+        auto meshingIndex = [](int x, int y, int z) -> size_t
+        {
+            return static_cast<size_t>((y * MeshingSizeZ + z) * MeshingSizeX + x);
+        };
+
+        for (int y = 0; y < ChunkSizeY; ++y)
+        {
+            for (int z = 0; z < ChunkSizeZ; ++z)
+            {
+                for (int x = 0; x < ChunkSizeX; ++x)
+                {
+                    const size_t sourceIndex = static_cast<size_t>((y * ChunkSizeZ + z) * ChunkSizeX + x);
+                    meshingBlocks[meshingIndex(x + MeshingBorder, y, z + MeshingBorder)] = chunk->blocks[sourceIndex];
+                }
+            }
+        }
+
+        std::unordered_map<uint64_t, std::array<int, Renderer::ChunkColumnCount>> heightCache;
+        auto heightAtWorldColumn = [&](int worldX, int worldZ) -> int
+        {
+            const int neighborChunkX = floorDiv(worldX, ChunkSizeX);
+            const int neighborChunkZ = floorDiv(worldZ, ChunkSizeZ);
+            const uint64_t key = chunkKey(neighborChunkX, neighborChunkZ);
+            auto it = heightCache.find(key);
+            if (it == heightCache.end())
+            {
+                it = heightCache.emplace(key, buildChunkHeightmap(neighborChunkX, neighborChunkZ)).first;
+            }
+
+            const int localX = positiveModulo(worldX, ChunkSizeX);
+            const int localZ = positiveModulo(worldZ, ChunkSizeZ);
+            return std::clamp(it->second[localZ * ChunkSizeX + localX], 0, ChunkSizeY);
+        };
+
+        const int worldXStart = chunk->chunkX * ChunkSizeX;
+        const int worldZStart = chunk->chunkZ * ChunkSizeZ;
+        for (int meshZ = 0; meshZ < MeshingSizeZ; ++meshZ)
+        {
+            for (int meshX = 0; meshX < MeshingSizeX; ++meshX)
+            {
+                const bool insideCenter =
+                    meshX >= MeshingBorder &&
+                    meshX < MeshingBorder + ChunkSizeX &&
+                    meshZ >= MeshingBorder &&
+                    meshZ < MeshingBorder + ChunkSizeZ;
+                if (insideCenter)
+                {
+                    continue;
+                }
+
+                const int worldX = worldXStart + meshX - MeshingBorder;
+                const int worldZ = worldZStart + meshZ - MeshingBorder;
+                const int height = heightAtWorldColumn(worldX, worldZ);
+                for (int y = 0; y < height; ++y)
+                {
+                    meshingBlocks[meshingIndex(meshX, y, meshZ)] = terrainBlockForColumn(worldX, y, worldZ, height);
+                }
+            }
+        }
+
+        return meshingBlocks;
+    }
+
+    Renderer::TerrainBuildData Renderer::buildSubchunkMesh(const std::shared_ptr<Renderer::ChunkData>& chunk, const std::vector<uint16_t>& meshingBlocks, int subchunkY) const
+    {
+        auto blockAt = [&](int localX, int y, int localZ) -> uint16_t
+        {
+            if (y < 0 || y >= ChunkSizeY)
+            {
+                return BlockAir;
+            }
+
+            const int meshX = localX + MeshingBorder;
+            const int meshZ = localZ + MeshingBorder;
+            if (meshX < 0 || meshX >= MeshingSizeX || meshZ < 0 || meshZ >= MeshingSizeZ)
+            {
+                return BlockAir;
+            }
+            return meshingBlocks[static_cast<size_t>((y * MeshingSizeZ + meshZ) * MeshingSizeX + meshX)];
+        };
+
+        return buildSubchunkMesh(chunk, subchunkY, blockAt);
+    }
+
+    Renderer::TerrainBuildData Renderer::buildEditedSubchunkMesh(const std::shared_ptr<Renderer::ChunkData>& chunk, int subchunkY) const
+    {
+        constexpr int EditMeshingSizeY = SubchunkSize + MeshingBorder * 2;
+        std::vector<uint16_t> meshingBlocks(static_cast<size_t>(MeshingSizeX * EditMeshingSizeY * MeshingSizeZ), BlockAir);
+        const int worldXStart = chunk->chunkX * ChunkSizeX;
+        const int worldYStart = subchunkY * SubchunkSize;
+        const int worldZStart = chunk->chunkZ * ChunkSizeZ;
+        const int yBase = worldYStart - MeshingBorder;
+
+        auto meshingIndex = [](int x, int y, int z) -> size_t
+        {
+            return static_cast<size_t>((y * MeshingSizeZ + z) * MeshingSizeX + x);
+        };
+
+        for (int meshY = 0; meshY < EditMeshingSizeY; ++meshY)
+        {
+            const int worldY = yBase + meshY;
+            if (worldY < 0 || worldY >= ChunkSizeY)
+            {
+                continue;
+            }
+
+            for (int meshZ = 0; meshZ < MeshingSizeZ; ++meshZ)
+            {
+                const int worldZ = worldZStart + meshZ - MeshingBorder;
+                for (int meshX = 0; meshX < MeshingSizeX; ++meshX)
+                {
+                    const int worldX = worldXStart + meshX - MeshingBorder;
+                    meshingBlocks[meshingIndex(meshX, meshY, meshZ)] = blockAtWorld(worldX, worldY, worldZ);
+                }
+            }
+        }
+
+        auto blockAt = [&](int localX, int y, int localZ) -> uint16_t
+        {
+            if (y < 0 || y >= ChunkSizeY)
+            {
+                return BlockAir;
+            }
+
+            const int meshY = y - yBase;
+            if (meshY < 0 || meshY >= EditMeshingSizeY)
+            {
+                return BlockAir;
+            }
+
+            const int meshX = localX + MeshingBorder;
+            const int meshZ = localZ + MeshingBorder;
+            if (meshX < 0 || meshX >= MeshingSizeX || meshZ < 0 || meshZ >= MeshingSizeZ)
+            {
+                return BlockAir;
+            }
+            return meshingBlocks[meshingIndex(meshX, meshY, meshZ)];
+        };
+
+        return buildSubchunkMesh(chunk, subchunkY, blockAt);
+    }
+
+    Renderer::TerrainBuildData Renderer::buildSubchunkMesh(
+        const std::shared_ptr<Renderer::ChunkData>& chunk,
+        int subchunkY,
+        const std::function<uint16_t(int, int, int)>& blockAt) const
     {
         TerrainBuildData result{};
 
@@ -2141,7 +3441,113 @@ namespace dolbuto
             return result;
         }
 
-        auto appendFace = [](TerrainBuildData& buildData, int x, int y, int z, int face, int width, int height)
+        auto vertexAoIndex = [&](int worldX, int worldY, int worldZ, int nx, int ny, int nz, int ax, int ay, int az, int bx, int by, int bz) -> int
+        {
+            const int localX = worldX - chunk->chunkX * ChunkSizeX;
+            const int localZ = worldZ - chunk->chunkZ * ChunkSizeZ;
+            const bool sideA = blockContributesAo(blockAt(localX + nx + ax, worldY + ny + ay, localZ + nz + az));
+            const bool sideB = blockContributesAo(blockAt(localX + nx + bx, worldY + ny + by, localZ + nz + bz));
+            const bool corner = blockContributesAo(blockAt(localX + nx + ax + bx, worldY + ny + ay + by, localZ + nz + az + bz));
+            return std::clamp(sideA && sideB ? 0 : 3 - static_cast<int>(sideA) - static_cast<int>(sideB) - static_cast<int>(corner), 0, 3);
+        };
+
+        auto vertexAoStrength = [&](int worldX, int worldY, int worldZ, int nx, int ny, int nz, int ax, int ay, int az, int bx, int by, int bz) -> float
+        {
+            constexpr std::array<float, 4> AoStrength = {0.55f, 0.68f, 0.82f, 1.0f};
+            return AoStrength[static_cast<size_t>(vertexAoIndex(worldX, worldY, worldZ, nx, ny, nz, ax, ay, az, bx, by, bz))];
+        };
+
+        auto packAo = [](int a0, int a1, int a2, int a3) -> uint32_t
+        {
+            return 1u |
+                (static_cast<uint32_t>(a0) << 1u) |
+                (static_cast<uint32_t>(a1) << 3u) |
+                (static_cast<uint32_t>(a2) << 5u) |
+                (static_cast<uint32_t>(a3) << 7u);
+        };
+
+        auto faceAoMergeSignature = [&](int a0, int a1, int a2, int a3, int x, int y, int z, int face) -> uint32_t
+        {
+            const uint32_t signature = packAo(a0, a1, a2, a3);
+            if (a0 == a1 && a0 == a2 && a0 == a3)
+            {
+                return signature;
+            }
+
+            return signature |
+                (1u << 9u) |
+                ((static_cast<uint32_t>(x) & 0x0fu) << 10u) |
+                ((static_cast<uint32_t>(y) & 0x0fu) << 14u) |
+                ((static_cast<uint32_t>(z) & 0x0fu) << 18u) |
+                (static_cast<uint32_t>(face) << 22u);
+        };
+
+        auto faceAoSignature = [&](int x, int y, int z, int face) -> uint32_t
+        {
+            if (face == 0)
+            {
+                return faceAoMergeSignature(
+                    vertexAoIndex(x, y, z, 0, 1, 0, -1, 0, 0, 0, 0, -1),
+                    vertexAoIndex(x, y, z, 0, 1, 0, -1, 0, 0, 0, 0, 1),
+                    vertexAoIndex(x, y, z, 0, 1, 0, 1, 0, 0, 0, 0, 1),
+                    vertexAoIndex(x, y, z, 0, 1, 0, 1, 0, 0, 0, 0, -1),
+                    x, y, z, face);
+            }
+            if (face == 1)
+            {
+                return faceAoMergeSignature(
+                    vertexAoIndex(x, y, z, 0, -1, 0, -1, 0, 0, 0, 0, 1),
+                    vertexAoIndex(x, y, z, 0, -1, 0, -1, 0, 0, 0, 0, -1),
+                    vertexAoIndex(x, y, z, 0, -1, 0, 1, 0, 0, 0, 0, -1),
+                    vertexAoIndex(x, y, z, 0, -1, 0, 1, 0, 0, 0, 0, 1),
+                    x, y, z, face);
+            }
+            if (face == 2)
+            {
+                return faceAoMergeSignature(
+                    vertexAoIndex(x, y, z, 1, 0, 0, 0, -1, 0, 0, 0, -1),
+                    vertexAoIndex(x, y, z, 1, 0, 0, 0, 1, 0, 0, 0, -1),
+                    vertexAoIndex(x, y, z, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+                    vertexAoIndex(x, y, z, 1, 0, 0, 0, -1, 0, 0, 0, 1),
+                    x, y, z, face);
+            }
+            if (face == 3)
+            {
+                return faceAoMergeSignature(
+                    vertexAoIndex(x, y, z, -1, 0, 0, 0, -1, 0, 0, 0, 1),
+                    vertexAoIndex(x, y, z, -1, 0, 0, 0, 1, 0, 0, 0, 1),
+                    vertexAoIndex(x, y, z, -1, 0, 0, 0, 1, 0, 0, 0, -1),
+                    vertexAoIndex(x, y, z, -1, 0, 0, 0, -1, 0, 0, 0, -1),
+                    x, y, z, face);
+            }
+            if (face == 4)
+            {
+                return faceAoMergeSignature(
+                    vertexAoIndex(x, y, z, 0, 0, 1, 1, 0, 0, 0, -1, 0),
+                    vertexAoIndex(x, y, z, 0, 0, 1, 1, 0, 0, 0, 1, 0),
+                    vertexAoIndex(x, y, z, 0, 0, 1, -1, 0, 0, 0, 1, 0),
+                    vertexAoIndex(x, y, z, 0, 0, 1, -1, 0, 0, 0, -1, 0),
+                    x, y, z, face);
+            }
+
+            return faceAoMergeSignature(
+                vertexAoIndex(x, y, z, 0, 0, -1, -1, 0, 0, 0, -1, 0),
+                vertexAoIndex(x, y, z, 0, 0, -1, -1, 0, 0, 0, 1, 0),
+                vertexAoIndex(x, y, z, 0, 0, -1, 1, 0, 0, 0, 1, 0),
+                vertexAoIndex(x, y, z, 0, 0, -1, 1, 0, 0, 0, -1, 0),
+                x, y, z, face);
+        };
+
+        auto topFaceRotation = [&](uint16_t block, int x, int y, int z) -> uint8_t
+        {
+            if (block == BlockAir || blockDefinition(block).directional)
+            {
+                return 0;
+            }
+            return static_cast<uint8_t>(worldRandom8(x, y, z, TopFaceRotationSalt) & 3u);
+        };
+
+        auto appendFace = [&](TerrainBuildData& buildData, int x, int y, int z, int face, int width, int height, uint32_t textureLayer, uint8_t rotation, float mipDistanceScale)
         {
             const float x0 = static_cast<float>(x) - 0.5f;
             const float x1 = static_cast<float>(x + width) - 0.5f;
@@ -2196,6 +3602,78 @@ namespace dolbuto
                     vertex.v = vMax - u;
                 }
             }
+            else if (face == 0 && rotation != 0)
+            {
+                for (TerrainVertex& vertex : quad)
+                {
+                    const float u = vertex.u;
+                    const float v = vertex.v;
+                    if (rotation == 1)
+                    {
+                        vertex.u = v;
+                        vertex.v = uMax - u;
+                    }
+                    else if (rotation == 2)
+                    {
+                        vertex.u = uMax - u;
+                        vertex.v = vMax - v;
+                    }
+                    else
+                    {
+                        vertex.u = vMax - v;
+                        vertex.v = u;
+                    }
+                }
+            }
+
+            if (face == 0)
+            {
+                quad[0].ao = vertexAoStrength(x, y, z, 0, 1, 0, -1, 0, 0, 0, 0, -1);
+                quad[1].ao = vertexAoStrength(x, y, z + height - 1, 0, 1, 0, -1, 0, 0, 0, 0, 1);
+                quad[2].ao = vertexAoStrength(x + width - 1, y, z + height - 1, 0, 1, 0, 1, 0, 0, 0, 0, 1);
+                quad[3].ao = vertexAoStrength(x + width - 1, y, z, 0, 1, 0, 1, 0, 0, 0, 0, -1);
+            }
+            else if (face == 1)
+            {
+                quad[0].ao = vertexAoStrength(x, y, z + height - 1, 0, -1, 0, -1, 0, 0, 0, 0, 1);
+                quad[1].ao = vertexAoStrength(x, y, z, 0, -1, 0, -1, 0, 0, 0, 0, -1);
+                quad[2].ao = vertexAoStrength(x + width - 1, y, z, 0, -1, 0, 1, 0, 0, 0, 0, -1);
+                quad[3].ao = vertexAoStrength(x + width - 1, y, z + height - 1, 0, -1, 0, 1, 0, 0, 0, 0, 1);
+            }
+            else if (face == 2)
+            {
+                quad[0].ao = vertexAoStrength(x, y, z, 1, 0, 0, 0, -1, 0, 0, 0, -1);
+                quad[1].ao = vertexAoStrength(x, y + height - 1, z, 1, 0, 0, 0, 1, 0, 0, 0, -1);
+                quad[2].ao = vertexAoStrength(x, y + height - 1, z + width - 1, 1, 0, 0, 0, 1, 0, 0, 0, 1);
+                quad[3].ao = vertexAoStrength(x, y, z + width - 1, 1, 0, 0, 0, -1, 0, 0, 0, 1);
+            }
+            else if (face == 3)
+            {
+                quad[0].ao = vertexAoStrength(x, y, z + width - 1, -1, 0, 0, 0, -1, 0, 0, 0, 1);
+                quad[1].ao = vertexAoStrength(x, y + height - 1, z + width - 1, -1, 0, 0, 0, 1, 0, 0, 0, 1);
+                quad[2].ao = vertexAoStrength(x, y + height - 1, z, -1, 0, 0, 0, 1, 0, 0, 0, -1);
+                quad[3].ao = vertexAoStrength(x, y, z, -1, 0, 0, 0, -1, 0, 0, 0, -1);
+            }
+            else if (face == 4)
+            {
+                quad[0].ao = vertexAoStrength(x + width - 1, y, z, 0, 0, 1, 1, 0, 0, 0, -1, 0);
+                quad[1].ao = vertexAoStrength(x + width - 1, y + height - 1, z, 0, 0, 1, 1, 0, 0, 0, 1, 0);
+                quad[2].ao = vertexAoStrength(x, y + height - 1, z, 0, 0, 1, -1, 0, 0, 0, 1, 0);
+                quad[3].ao = vertexAoStrength(x, y, z, 0, 0, 1, -1, 0, 0, 0, -1, 0);
+            }
+            else
+            {
+                quad[0].ao = vertexAoStrength(x, y, z, 0, 0, -1, -1, 0, 0, 0, -1, 0);
+                quad[1].ao = vertexAoStrength(x, y + height - 1, z, 0, 0, -1, -1, 0, 0, 0, 1, 0);
+                quad[2].ao = vertexAoStrength(x + width - 1, y + height - 1, z, 0, 0, -1, 1, 0, 0, 0, 1, 0);
+                quad[3].ao = vertexAoStrength(x + width - 1, y, z, 0, 0, -1, 1, 0, 0, 0, -1, 0);
+            }
+
+            for (TerrainVertex& vertex : quad)
+            {
+                vertex.textureLayer = static_cast<float>(textureLayer);
+                vertex.mipDistanceScale = mipDistanceScale;
+            }
 
             const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
             buildData.vertices.push_back(quad[0]);
@@ -2210,7 +3688,74 @@ namespace dolbuto
             buildData.indices.push_back(baseIndex + 3);
         };
 
-        auto emitGreedy = [](std::vector<uint8_t>& mask, int maskWidth, int maskHeight, auto emit)
+        auto appendCrossBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint32_t textureLayer, float mipDistanceScale)
+        {
+            const float x0 = static_cast<float>(x) - 0.5f;
+            const float x1 = static_cast<float>(x) + 0.5f;
+            const float y0 = static_cast<float>(y);
+            const float y1 = static_cast<float>(y + 1);
+            const float z0 = static_cast<float>(z) - 0.5f;
+            const float z1 = static_cast<float>(z) + 0.5f;
+
+            auto appendDoubleSidedQuad = [&](TerrainVertex a, TerrainVertex b, TerrainVertex c, TerrainVertex d)
+            {
+                a.textureLayer = static_cast<float>(textureLayer);
+                b.textureLayer = static_cast<float>(textureLayer);
+                c.textureLayer = static_cast<float>(textureLayer);
+                d.textureLayer = static_cast<float>(textureLayer);
+                a.mipDistanceScale = mipDistanceScale;
+                b.mipDistanceScale = mipDistanceScale;
+                c.mipDistanceScale = mipDistanceScale;
+                d.mipDistanceScale = mipDistanceScale;
+
+                const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
+                buildData.vertices.push_back(a);
+                buildData.vertices.push_back(b);
+                buildData.vertices.push_back(c);
+                buildData.vertices.push_back(d);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 1);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex + 3);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex + 1);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 3);
+                buildData.indices.push_back(baseIndex + 2);
+            };
+
+            appendDoubleSidedQuad(
+                {x0, y0, z0, 0.0f, 1.0f, 1.0f},
+                {x0, y1, z0, 0.0f, 0.0f, 1.0f},
+                {x1, y1, z1, 1.0f, 0.0f, 1.0f},
+                {x1, y0, z1, 1.0f, 1.0f, 1.0f});
+            appendDoubleSidedQuad(
+                {x1, y0, z0, 0.0f, 1.0f, 1.0f},
+                {x1, y1, z0, 0.0f, 0.0f, 1.0f},
+                {x0, y1, z1, 1.0f, 0.0f, 1.0f},
+                {x0, y0, z1, 1.0f, 1.0f, 1.0f});
+        };
+
+        auto faceSignature = [&](uint16_t block, int x, int y, int z, int face) -> uint64_t
+        {
+            const uint32_t mipSignature = static_cast<uint32_t>(std::clamp(
+                static_cast<int>(std::lround(blockDefinition(block).mipDistanceScale * 16.0f)),
+                0,
+                127));
+            uint64_t signature = static_cast<uint64_t>(faceAoSignature(x, y, z, face)) |
+                (static_cast<uint64_t>(mipSignature) << 25u) |
+                (static_cast<uint64_t>(blockFaceTextureLayer(block, face)) << 32u);
+            if (face == 0)
+            {
+                signature |= static_cast<uint64_t>(topFaceRotation(block, x, y, z)) << 56u;
+            }
+            return signature;
+        };
+
+        auto emitGreedy = [](std::vector<uint64_t>& mask, int maskWidth, int maskHeight, auto emit)
         {
             for (int y = 0; y < maskHeight; ++y)
             {
@@ -2223,7 +3768,8 @@ namespace dolbuto
                     }
 
                     int width = 1;
-                    while (x + width < maskWidth && mask[y * maskWidth + x + width] != 0)
+                    const uint64_t signature = mask[y * maskWidth + x];
+                    while (x + width < maskWidth && mask[y * maskWidth + x + width] == signature)
                     {
                         ++width;
                     }
@@ -2234,7 +3780,7 @@ namespace dolbuto
                     {
                         for (int offset = 0; offset < width; ++offset)
                         {
-                            if (mask[(y + height) * maskWidth + x + offset] == 0)
+                            if (mask[(y + height) * maskWidth + x + offset] != signature)
                             {
                                 canGrow = false;
                                 break;
@@ -2260,44 +3806,10 @@ namespace dolbuto
             }
         };
 
-        std::unordered_map<uint64_t, std::array<int, Renderer::ChunkColumnCount>> heightCache;
-        auto heightAtWorldColumn = [&](int worldX, int worldZ) -> int
-        {
-            const int neighborChunkX = floorDiv(worldX, ChunkSizeX);
-            const int neighborChunkZ = floorDiv(worldZ, ChunkSizeZ);
-            const uint64_t key = chunkKey(neighborChunkX, neighborChunkZ);
-            auto it = heightCache.find(key);
-            if (it == heightCache.end())
-            {
-                it = heightCache.emplace(key, buildChunkHeightmap(neighborChunkX, neighborChunkZ)).first;
-            }
-
-            const int localX = positiveModulo(worldX, ChunkSizeX);
-            const int localZ = positiveModulo(worldZ, ChunkSizeZ);
-            return std::clamp(it->second[localZ * ChunkSizeX + localX], 0, ChunkSizeY);
-        };
-
-        auto blockAt = [&](int localX, int y, int localZ) -> uint16_t
-        {
-            if (y < 0 || y >= ChunkSizeY)
-            {
-                return BlockAir;
-            }
-
-            if (localX >= 0 && localX < ChunkSizeX && localZ >= 0 && localZ < ChunkSizeZ)
-            {
-                return chunk->blocks[static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX)];
-            }
-
-            const int worldX = chunk->chunkX * ChunkSizeX + localX;
-            const int worldZ = chunk->chunkZ * ChunkSizeZ + localZ;
-            return y < heightAtWorldColumn(worldX, worldZ) ? BlockRock : BlockAir;
-        };
-
         result.vertices.reserve(256);
         result.indices.reserve(384);
 
-        std::vector<uint8_t> mask(SubchunkSize * SubchunkSize);
+        std::vector<uint64_t> mask(SubchunkSize * SubchunkSize);
         const int worldXStart = chunk->chunkX * ChunkSizeX;
         const int worldYStart = subchunkY * SubchunkSize;
         const int worldZStart = chunk->chunkZ * ChunkSizeZ;
@@ -2310,12 +3822,16 @@ namespace dolbuto
             {
                 for (int localX = 0; localX < ChunkSizeX; ++localX)
                 {
-                    mask[localZ * ChunkSizeX + localX] = blockAt(localX, y, localZ) != BlockAir && blockAt(localX, y + 1, localZ) == BlockAir ? 1 : 0;
+                    const uint16_t block = blockAt(localX, y, localZ);
+                    mask[localZ * ChunkSizeX + localX] = blockUsesCubeMesh(block) && !neighborCullsFace(block, blockAt(localX, y + 1, localZ))
+                        ? faceSignature(block, worldXStart + localX, y, worldZStart + localZ, 0)
+                        : 0;
                 }
             }
             emitGreedy(mask, ChunkSizeX, ChunkSizeZ, [&](int localX, int localZ, int width, int height)
             {
-                appendFace(result, worldXStart + localX, y, worldZStart + localZ, 0, width, height);
+                const uint16_t block = blockAt(localX, y, localZ);
+                appendFace(result, worldXStart + localX, y, worldZStart + localZ, 0, width, height, blockFaceTextureLayer(block, 0), topFaceRotation(block, worldXStart + localX, y, worldZStart + localZ), blockDefinition(block).mipDistanceScale);
             });
 
             std::fill(mask.begin(), mask.end(), 0);
@@ -2323,12 +3839,16 @@ namespace dolbuto
             {
                 for (int localX = 0; localX < ChunkSizeX; ++localX)
                 {
-                    mask[localZ * ChunkSizeX + localX] = blockAt(localX, y, localZ) != BlockAir && blockAt(localX, y - 1, localZ) == BlockAir ? 1 : 0;
+                    const uint16_t block = blockAt(localX, y, localZ);
+                    mask[localZ * ChunkSizeX + localX] = blockUsesCubeMesh(block) && !neighborCullsFace(block, blockAt(localX, y - 1, localZ))
+                        ? faceSignature(block, worldXStart + localX, y, worldZStart + localZ, 1)
+                        : 0;
                 }
             }
             emitGreedy(mask, ChunkSizeX, ChunkSizeZ, [&](int localX, int localZ, int width, int height)
             {
-                appendFace(result, worldXStart + localX, y, worldZStart + localZ, 1, width, height);
+                const uint16_t block = blockAt(localX, y, localZ);
+                appendFace(result, worldXStart + localX, y, worldZStart + localZ, 1, width, height, blockFaceTextureLayer(block, 1), 0, blockDefinition(block).mipDistanceScale);
             });
         }
 
@@ -2341,12 +3861,16 @@ namespace dolbuto
                 const int y = worldYStart + localY;
                 for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
                 {
-                    mask[localY * ChunkSizeZ + localZ] = blockAt(localX, y, localZ) != BlockAir && blockAt(localX + 1, y, localZ) == BlockAir ? 1 : 0;
+                    const uint16_t block = blockAt(localX, y, localZ);
+                    mask[localY * ChunkSizeZ + localZ] = blockUsesCubeMesh(block) && !neighborCullsFace(block, blockAt(localX + 1, y, localZ))
+                        ? faceSignature(block, worldX, y, worldZStart + localZ, 2)
+                        : 0;
                 }
             }
             emitGreedy(mask, ChunkSizeZ, SubchunkSize, [&](int localZ, int localY, int width, int height)
             {
-                appendFace(result, worldX, worldYStart + localY, worldZStart + localZ, 2, width, height);
+                const uint16_t block = blockAt(localX, worldYStart + localY, localZ);
+                appendFace(result, worldX, worldYStart + localY, worldZStart + localZ, 2, width, height, blockFaceTextureLayer(block, 2), 0, blockDefinition(block).mipDistanceScale);
             });
 
             std::fill(mask.begin(), mask.end(), 0);
@@ -2355,12 +3879,16 @@ namespace dolbuto
                 const int y = worldYStart + localY;
                 for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
                 {
-                    mask[localY * ChunkSizeZ + localZ] = blockAt(localX, y, localZ) != BlockAir && blockAt(localX - 1, y, localZ) == BlockAir ? 1 : 0;
+                    const uint16_t block = blockAt(localX, y, localZ);
+                    mask[localY * ChunkSizeZ + localZ] = blockUsesCubeMesh(block) && !neighborCullsFace(block, blockAt(localX - 1, y, localZ))
+                        ? faceSignature(block, worldX, y, worldZStart + localZ, 3)
+                        : 0;
                 }
             }
             emitGreedy(mask, ChunkSizeZ, SubchunkSize, [&](int localZ, int localY, int width, int height)
             {
-                appendFace(result, worldX, worldYStart + localY, worldZStart + localZ, 3, width, height);
+                const uint16_t block = blockAt(localX, worldYStart + localY, localZ);
+                appendFace(result, worldX, worldYStart + localY, worldZStart + localZ, 3, width, height, blockFaceTextureLayer(block, 3), 0, blockDefinition(block).mipDistanceScale);
             });
         }
 
@@ -2373,12 +3901,16 @@ namespace dolbuto
                 const int y = worldYStart + localY;
                 for (int localX = 0; localX < ChunkSizeX; ++localX)
                 {
-                    mask[localY * ChunkSizeX + localX] = blockAt(localX, y, localZ) != BlockAir && blockAt(localX, y, localZ + 1) == BlockAir ? 1 : 0;
+                    const uint16_t block = blockAt(localX, y, localZ);
+                    mask[localY * ChunkSizeX + localX] = blockUsesCubeMesh(block) && !neighborCullsFace(block, blockAt(localX, y, localZ + 1))
+                        ? faceSignature(block, worldXStart + localX, y, worldZ, 4)
+                        : 0;
                 }
             }
             emitGreedy(mask, ChunkSizeX, SubchunkSize, [&](int localX, int localY, int width, int height)
             {
-                appendFace(result, worldXStart + localX, worldYStart + localY, worldZ, 4, width, height);
+                const uint16_t block = blockAt(localX, worldYStart + localY, localZ);
+                appendFace(result, worldXStart + localX, worldYStart + localY, worldZ, 4, width, height, blockFaceTextureLayer(block, 4), 0, blockDefinition(block).mipDistanceScale);
             });
 
             std::fill(mask.begin(), mask.end(), 0);
@@ -2387,13 +3919,33 @@ namespace dolbuto
                 const int y = worldYStart + localY;
                 for (int localX = 0; localX < ChunkSizeX; ++localX)
                 {
-                    mask[localY * ChunkSizeX + localX] = blockAt(localX, y, localZ) != BlockAir && blockAt(localX, y, localZ - 1) == BlockAir ? 1 : 0;
+                    const uint16_t block = blockAt(localX, y, localZ);
+                    mask[localY * ChunkSizeX + localX] = blockUsesCubeMesh(block) && !neighborCullsFace(block, blockAt(localX, y, localZ - 1))
+                        ? faceSignature(block, worldXStart + localX, y, worldZ, 5)
+                        : 0;
                 }
             }
             emitGreedy(mask, ChunkSizeX, SubchunkSize, [&](int localX, int localY, int width, int height)
             {
-                appendFace(result, worldXStart + localX, worldYStart + localY, worldZ, 5, width, height);
+                const uint16_t block = blockAt(localX, worldYStart + localY, localZ);
+                appendFace(result, worldXStart + localX, worldYStart + localY, worldZ, 5, width, height, blockFaceTextureLayer(block, 5), 0, blockDefinition(block).mipDistanceScale);
             });
+        }
+
+        for (int localY = 0; localY < SubchunkSize; ++localY)
+        {
+            const int y = worldYStart + localY;
+            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+            {
+                for (int localX = 0; localX < ChunkSizeX; ++localX)
+                {
+                    const uint16_t block = blockAt(localX, y, localZ);
+                    if (blockDefinition(block).renderType == BlockRenderType::Cross)
+                    {
+                        appendCrossBlock(result, worldXStart + localX, y, worldZStart + localZ, blockFaceTextureLayer(block, 0), blockDefinition(block).mipDistanceScale);
+                    }
+                }
+            }
         }
 
         return result;
@@ -2403,11 +3955,13 @@ namespace dolbuto
     {
         CompletedChunkMesh result{};
         result.generation = generation;
+        result.revision = chunk->revision;
         result.chunkX = chunk->chunkX;
         result.chunkZ = chunk->chunkZ;
+        const std::vector<uint16_t> meshingBlocks = buildMeshingBlocks(chunk);
         for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
         {
-            result.rockSubchunks[static_cast<size_t>(subchunkY)] = buildSubchunkMesh(chunk, subchunkY);
+            result.rockSubchunks[static_cast<size_t>(subchunkY)] = buildSubchunkMesh(chunk, meshingBlocks, subchunkY);
         }
         return result;
     }
@@ -2483,7 +4037,11 @@ namespace dolbuto
     std::array<int, Renderer::ChunkColumnCount> Renderer::buildChunkHeightmap(int chunkX, int chunkZ) const
     {
         std::array<int, Renderer::ChunkColumnCount> heights{};
-        auto generator = terrainNoiseGenerator();
+        auto generator = terrainNoiseGenerator(
+            terrainNoiseSimplexScale_,
+            terrainNoiseOctaveCount_,
+            terrainNoiseLacunarity_,
+            terrainNoiseGain_);
         if (!generator)
         {
             heights.fill(heightFromLut(heightLut_, 0.0f));
@@ -2492,7 +4050,7 @@ namespace dolbuto
 
         constexpr float TwoPi = 6.28318530718f;
         const float angleScale = TwoPi / static_cast<float>(TerrainTilePeriod);
-        const float radius = static_cast<float>(TerrainTilePeriod) / (TwoPi * TerrainNoiseFeatureScale);
+        const float radius = static_cast<float>(TerrainTilePeriod) / (TwoPi * terrainNoiseFeatureScale_);
 
         std::array<float, ChunkSizeX> xCos{};
         std::array<float, ChunkSizeX> xSin{};
@@ -2527,6 +4085,79 @@ namespace dolbuto
                 yPositions[index] = zCos[localZ];
                 zPositions[index] = xSin[localX];
                 wPositions[index] = zSin[localZ];
+            }
+        }
+
+        if (terrainDomainWarpEnabled_ && terrainDomainWarpAmplitude_ > 0.0f)
+        {
+            auto warpGenerator = terrainNoiseGenerator(
+                terrainDomainWarpFrequency_,
+                terrainDomainWarpOctaveCount_,
+                DefaultTerrainNoiseLacunarity,
+                terrainDomainWarpGain_);
+            if (warpGenerator)
+            {
+                std::array<float, ChunkSizeX * ChunkSizeZ> xWarp{};
+                std::array<float, ChunkSizeX * ChunkSizeZ> yWarp{};
+                std::array<float, ChunkSizeX * ChunkSizeZ> zWarp{};
+                std::array<float, ChunkSizeX * ChunkSizeZ> wWarp{};
+
+                warpGenerator->GenPositionArray4D(
+                    xWarp.data(),
+                    static_cast<int>(xWarp.size()),
+                    xPositions.data(),
+                    yPositions.data(),
+                    zPositions.data(),
+                    wPositions.data(),
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    TerrainNoiseSeed + 101);
+                warpGenerator->GenPositionArray4D(
+                    yWarp.data(),
+                    static_cast<int>(yWarp.size()),
+                    xPositions.data(),
+                    yPositions.data(),
+                    zPositions.data(),
+                    wPositions.data(),
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    TerrainNoiseSeed + 202);
+                warpGenerator->GenPositionArray4D(
+                    zWarp.data(),
+                    static_cast<int>(zWarp.size()),
+                    xPositions.data(),
+                    yPositions.data(),
+                    zPositions.data(),
+                    wPositions.data(),
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    TerrainNoiseSeed + 303);
+                warpGenerator->GenPositionArray4D(
+                    wWarp.data(),
+                    static_cast<int>(wWarp.size()),
+                    xPositions.data(),
+                    yPositions.data(),
+                    zPositions.data(),
+                    wPositions.data(),
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    TerrainNoiseSeed + 404);
+
+                for (size_t i = 0; i < xPositions.size(); ++i)
+                {
+                    xPositions[i] += xWarp[i] * terrainDomainWarpAmplitude_;
+                    yPositions[i] += yWarp[i] * terrainDomainWarpAmplitude_;
+                    zPositions[i] += zWarp[i] * terrainDomainWarpAmplitude_;
+                    wPositions[i] += wWarp[i] * terrainDomainWarpAmplitude_;
+                }
             }
         }
 
@@ -2828,6 +4459,7 @@ namespace dolbuto
         Texture texture;
         texture.width = width;
         texture.height = height;
+        texture.mipLevels = calculateMipLevels(width, height);
 
         VkDeviceSize imageSize = static_cast<VkDeviceSize>(texture.width) * static_cast<VkDeviceSize>(texture.height) * 4;
         VkBuffer stagingBuffer = VK_NULL_HANDLE;
@@ -2843,12 +4475,12 @@ namespace dolbuto
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
         imageInfo.extent = {static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height), 1};
-        imageInfo.mipLevels = 1;
+        imageInfo.mipLevels = texture.mipLevels;
         imageInfo.arrayLayers = 1;
         imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
         imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
         imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -2871,9 +4503,9 @@ namespace dolbuto
         }
 
         vkBindImageMemory(device_, texture.image, texture.memory, 0);
-        transitionImageLayout(texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        transitionImageLayout(texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, texture.mipLevels);
         copyBufferToImage(stagingBuffer, texture.image, static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height));
-        transitionImageLayout(texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        generateMipmaps(texture.image, texture.width, texture.height, texture.mipLevels);
 
         vkDestroyBuffer(device_, stagingBuffer, nullptr);
         vkFreeMemory(device_, stagingMemory, nullptr);
@@ -2884,7 +4516,7 @@ namespace dolbuto
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.levelCount = texture.mipLevels;
         viewInfo.subresourceRange.layerCount = 1;
 
         if (vkCreateImageView(device_, &viewInfo, nullptr, &texture.view) != VK_SUCCESS)
@@ -2918,6 +4550,490 @@ namespace dolbuto
         vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
 
         return texture;
+    }
+
+    Renderer::Texture Renderer::createTextureArray(const std::vector<std::string>& paths)
+    {
+        if (paths.empty())
+        {
+            throw std::runtime_error("Cannot create an empty texture array.");
+        }
+
+        Texture texture;
+        texture.layers = static_cast<uint32_t>(paths.size());
+
+        std::vector<unsigned char> pixels;
+        std::vector<unsigned char> mipOverridePixels;
+        std::vector<TextureMipOverride> mipOverrides;
+        for (size_t layer = 0; layer < paths.size(); ++layer)
+        {
+            int width = 0;
+            int height = 0;
+            int channels = 0;
+            stbi_uc* loadedPixels = stbi_load(paths[layer].c_str(), &width, &height, &channels, STBI_rgb_alpha);
+            if (loadedPixels == nullptr)
+            {
+                throw std::runtime_error("Failed to load texture: " + paths[layer]);
+            }
+
+            if (layer == 0)
+            {
+                texture.width = width;
+                texture.height = height;
+                texture.mipLevels = calculateMipLevels(width, height);
+                pixels.resize(static_cast<size_t>(texture.width) * static_cast<size_t>(texture.height) * 4u * paths.size());
+            }
+            else if (width != texture.width || height != texture.height)
+            {
+                stbi_image_free(loadedPixels);
+                throw std::runtime_error("Texture array images must have the same size: " + paths[layer]);
+            }
+
+            const size_t layerSize = static_cast<size_t>(texture.width) * static_cast<size_t>(texture.height) * 4u;
+            std::memcpy(pixels.data() + layer * layerSize, loadedPixels, layerSize);
+            stbi_image_free(loadedPixels);
+        }
+
+        for (size_t layer = 0; layer < paths.size(); ++layer)
+        {
+            if (!isBlockTexturePath(paths[layer]))
+            {
+                continue;
+            }
+
+            const size_t layerSize = static_cast<size_t>(texture.width) * static_cast<size_t>(texture.height) * 4u;
+            std::vector<unsigned char> previousMip(layerSize);
+            std::memcpy(previousMip.data(), pixels.data() + layer * layerSize, layerSize);
+            uint32_t previousWidth = static_cast<uint32_t>(texture.width);
+            uint32_t previousHeight = static_cast<uint32_t>(texture.height);
+
+            for (uint32_t mip = 1; mip < texture.mipLevels; ++mip)
+            {
+                const std::filesystem::path path = manualMipPath(paths[layer], mip);
+                const uint32_t expectedWidth = std::max(1u, static_cast<uint32_t>(texture.width) >> mip);
+                const uint32_t expectedHeight = std::max(1u, static_cast<uint32_t>(texture.height) >> mip);
+                std::vector<unsigned char> mipPixels;
+
+                if (std::filesystem::exists(path))
+                {
+                    int width = 0;
+                    int height = 0;
+                    int channels = 0;
+                    stbi_uc* loadedPixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
+                    if (loadedPixels == nullptr)
+                    {
+                        throw std::runtime_error("Failed to load manual mip texture: " + path.string());
+                    }
+                    if (static_cast<uint32_t>(width) != expectedWidth || static_cast<uint32_t>(height) != expectedHeight)
+                    {
+                        stbi_image_free(loadedPixels);
+                        throw std::runtime_error("Manual mip texture has wrong size: " + path.string());
+                    }
+
+                    const size_t mipSize = static_cast<size_t>(expectedWidth) * static_cast<size_t>(expectedHeight) * 4u;
+                    mipPixels.resize(mipSize);
+                    std::memcpy(mipPixels.data(), loadedPixels, mipSize);
+                    stbi_image_free(loadedPixels);
+                }
+                else
+                {
+                    mipPixels = downsampleRgba2x(previousMip, previousWidth, previousHeight, expectedWidth, expectedHeight);
+                    writePngRgba(path, mipPixels, expectedWidth, expectedHeight);
+                }
+
+                const VkDeviceSize offset = static_cast<VkDeviceSize>(mipOverridePixels.size());
+                const size_t mipSize = static_cast<size_t>(expectedWidth) * static_cast<size_t>(expectedHeight) * 4u;
+                mipOverridePixels.resize(mipOverridePixels.size() + mipSize);
+                std::memcpy(mipOverridePixels.data() + static_cast<size_t>(offset), mipPixels.data(), mipSize);
+
+                mipOverrides.push_back({
+                    static_cast<uint32_t>(layer),
+                    mip,
+                    expectedWidth,
+                    expectedHeight,
+                    offset
+                });
+
+                previousMip = std::move(mipPixels);
+                previousWidth = expectedWidth;
+                previousHeight = expectedHeight;
+            }
+        }
+
+        const VkDeviceSize imageSize = static_cast<VkDeviceSize>(pixels.size());
+        VkBuffer stagingBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
+        createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory);
+
+        void* data = nullptr;
+        vkMapMemory(device_, stagingMemory, 0, imageSize, 0, &data);
+        std::memcpy(data, pixels.data(), pixels.size());
+        vkUnmapMemory(device_, stagingMemory);
+
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent = {static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height), 1};
+        imageInfo.mipLevels = texture.mipLevels;
+        imageInfo.arrayLayers = texture.layers;
+        imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateImage(device_, &imageInfo, nullptr, &texture.image) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create texture array image.");
+        }
+
+        VkMemoryRequirements requirements{};
+        vkGetImageMemoryRequirements(device_, texture.image, &requirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = requirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        if (vkAllocateMemory(device_, &allocInfo, nullptr, &texture.memory) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to allocate texture array memory.");
+        }
+
+        vkBindImageMemory(device_, texture.image, texture.memory, 0);
+        transitionImageLayout(texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, texture.mipLevels, texture.layers);
+        copyBufferToImage(stagingBuffer, texture.image, static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height), texture.layers);
+
+        if (mipOverrides.empty())
+        {
+            generateMipmaps(texture.image, texture.width, texture.height, texture.mipLevels, texture.layers);
+        }
+        else
+        {
+            VkBuffer mipOverrideBuffer = VK_NULL_HANDLE;
+            VkDeviceMemory mipOverrideMemory = VK_NULL_HANDLE;
+            const VkDeviceSize mipOverrideSize = static_cast<VkDeviceSize>(mipOverridePixels.size());
+            createBuffer(mipOverrideSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mipOverrideBuffer, mipOverrideMemory);
+
+            void* mipData = nullptr;
+            vkMapMemory(device_, mipOverrideMemory, 0, mipOverrideSize, 0, &mipData);
+            std::memcpy(mipData, mipOverridePixels.data(), mipOverridePixels.size());
+            vkUnmapMemory(device_, mipOverrideMemory);
+
+            generateTextureArrayMipmaps(texture.image, texture.width, texture.height, texture.mipLevels, texture.layers, mipOverrides, mipOverrideBuffer);
+
+            vkDestroyBuffer(device_, mipOverrideBuffer, nullptr);
+            vkFreeMemory(device_, mipOverrideMemory, nullptr);
+        }
+
+        vkDestroyBuffer(device_, stagingBuffer, nullptr);
+        vkFreeMemory(device_, stagingMemory, nullptr);
+
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = texture.image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.levelCount = texture.mipLevels;
+        viewInfo.subresourceRange.layerCount = texture.layers;
+
+        if (vkCreateImageView(device_, &viewInfo, nullptr, &texture.view) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create texture array image view.");
+        }
+
+        VkDescriptorSetAllocateInfo setInfo{};
+        setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        setInfo.descriptorPool = descriptorPool_;
+        setInfo.descriptorSetCount = 1;
+        setInfo.pSetLayouts = &descriptorSetLayout_;
+
+        if (vkAllocateDescriptorSets(device_, &setInfo, &texture.descriptorSet) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to allocate texture array descriptor set.");
+        }
+
+        VkDescriptorImageInfo imageDescriptor{};
+        imageDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageDescriptor.imageView = texture.view;
+        imageDescriptor.sampler = sampler_;
+
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = texture.descriptorSet;
+        write.dstBinding = 0;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.pImageInfo = &imageDescriptor;
+        vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
+
+        return texture;
+    }
+
+    uint32_t Renderer::calculateMipLevels(int width, int height) const
+    {
+        const int maxDimension = std::max(width, height);
+        return static_cast<uint32_t>(std::floor(std::log2(static_cast<float>(maxDimension)))) + 1;
+    }
+
+    void Renderer::generateMipmaps(VkImage image, int32_t width, int32_t height, uint32_t mipLevels, uint32_t layerCount) const
+    {
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.image = image;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = layerCount;
+        barrier.subresourceRange.levelCount = 1;
+
+        int32_t mipWidth = width;
+        int32_t mipHeight = height;
+        for (uint32_t mip = 1; mip < mipLevels; ++mip)
+        {
+            barrier.subresourceRange.baseMipLevel = mip - 1;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+            vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                0,
+                nullptr,
+                0,
+                nullptr,
+                1,
+                &barrier);
+
+            VkImageBlit blit{};
+            blit.srcOffsets[0] = {0, 0, 0};
+            blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
+            blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.srcSubresource.mipLevel = mip - 1;
+            blit.srcSubresource.baseArrayLayer = 0;
+            blit.srcSubresource.layerCount = layerCount;
+            blit.dstOffsets[0] = {0, 0, 0};
+            blit.dstOffsets[1] = {mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1};
+            blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.dstSubresource.mipLevel = mip;
+            blit.dstSubresource.baseArrayLayer = 0;
+            blit.dstSubresource.layerCount = layerCount;
+
+            vkCmdBlitImage(
+                commandBuffer,
+                image,
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                image,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1,
+                &blit,
+                VK_FILTER_LINEAR);
+
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                0,
+                0,
+                nullptr,
+                0,
+                nullptr,
+                1,
+                &barrier);
+
+            mipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
+            mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
+        }
+
+        barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        vkCmdPipelineBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            1,
+            &barrier);
+
+        endSingleTimeCommands(commandBuffer);
+    }
+
+    void Renderer::generateTextureArrayMipmaps(
+        VkImage image,
+        int32_t width,
+        int32_t height,
+        uint32_t mipLevels,
+        uint32_t layerCount,
+        const std::vector<TextureMipOverride>& mipOverrides,
+        VkBuffer mipOverrideBuffer) const
+    {
+        std::vector<const TextureMipOverride*> overrideBySubresource(static_cast<size_t>(layerCount) * mipLevels, nullptr);
+        for (const TextureMipOverride& mipOverride : mipOverrides)
+        {
+            if (mipOverride.layer >= layerCount || mipOverride.mipLevel == 0 || mipOverride.mipLevel >= mipLevels)
+            {
+                continue;
+            }
+            overrideBySubresource[static_cast<size_t>(mipOverride.layer) * mipLevels + mipOverride.mipLevel] = &mipOverride;
+        }
+
+        std::vector<VkImageLayout> layouts(static_cast<size_t>(layerCount) * mipLevels, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        auto subresourceIndex = [mipLevels](uint32_t layer, uint32_t mip)
+        {
+            return static_cast<size_t>(layer) * mipLevels + mip;
+        };
+
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+        auto transitionSubresource = [&](uint32_t layer, uint32_t mip, VkImageLayout newLayout)
+        {
+            VkImageLayout& oldLayout = layouts[subresourceIndex(layer, mip)];
+            if (oldLayout == newLayout)
+            {
+                return;
+            }
+
+            VkAccessFlags srcAccess = 0;
+            VkPipelineStageFlags srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+            {
+                srcAccess = VK_ACCESS_TRANSFER_WRITE_BIT;
+            }
+            else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+            {
+                srcAccess = VK_ACCESS_TRANSFER_READ_BIT;
+            }
+
+            VkAccessFlags dstAccess = 0;
+            VkPipelineStageFlags dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            if (newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+            {
+                dstAccess = VK_ACCESS_TRANSFER_READ_BIT;
+            }
+            else if (newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+            {
+                dstAccess = VK_ACCESS_SHADER_READ_BIT;
+                dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            }
+            else if (newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+            {
+                dstAccess = VK_ACCESS_TRANSFER_WRITE_BIT;
+            }
+
+            VkImageMemoryBarrier barrier{};
+            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barrier.oldLayout = oldLayout;
+            barrier.newLayout = newLayout;
+            barrier.srcAccessMask = srcAccess;
+            barrier.dstAccessMask = dstAccess;
+            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.image = image;
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier.subresourceRange.baseMipLevel = mip;
+            barrier.subresourceRange.levelCount = 1;
+            barrier.subresourceRange.baseArrayLayer = layer;
+            barrier.subresourceRange.layerCount = 1;
+
+            vkCmdPipelineBarrier(
+                commandBuffer,
+                srcStage,
+                dstStage,
+                0,
+                0,
+                nullptr,
+                0,
+                nullptr,
+                1,
+                &barrier);
+
+            oldLayout = newLayout;
+        };
+
+        for (uint32_t layer = 0; layer < layerCount; ++layer)
+        {
+            for (uint32_t mip = 1; mip < mipLevels; ++mip)
+            {
+                if (const TextureMipOverride* mipOverride = overrideBySubresource[subresourceIndex(layer, mip)])
+                {
+                    VkBufferImageCopy region{};
+                    region.bufferOffset = mipOverride->bufferOffset;
+                    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    region.imageSubresource.mipLevel = mip;
+                    region.imageSubresource.baseArrayLayer = layer;
+                    region.imageSubresource.layerCount = 1;
+                    region.imageExtent = {mipOverride->width, mipOverride->height, 1};
+
+                    vkCmdCopyBufferToImage(commandBuffer, mipOverrideBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+                    continue;
+                }
+
+                transitionSubresource(layer, mip - 1, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+                const int32_t sourceWidth = std::max(1, width >> (mip - 1));
+                const int32_t sourceHeight = std::max(1, height >> (mip - 1));
+                const int32_t destinationWidth = std::max(1, width >> mip);
+                const int32_t destinationHeight = std::max(1, height >> mip);
+
+                VkImageBlit blit{};
+                blit.srcOffsets[0] = {0, 0, 0};
+                blit.srcOffsets[1] = {sourceWidth, sourceHeight, 1};
+                blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                blit.srcSubresource.mipLevel = mip - 1;
+                blit.srcSubresource.baseArrayLayer = layer;
+                blit.srcSubresource.layerCount = 1;
+                blit.dstOffsets[0] = {0, 0, 0};
+                blit.dstOffsets[1] = {destinationWidth, destinationHeight, 1};
+                blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                blit.dstSubresource.mipLevel = mip;
+                blit.dstSubresource.baseArrayLayer = layer;
+                blit.dstSubresource.layerCount = 1;
+
+                vkCmdBlitImage(
+                    commandBuffer,
+                    image,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    image,
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    1,
+                    &blit,
+                    VK_FILTER_LINEAR);
+
+                transitionSubresource(layer, mip - 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            }
+        }
+
+        for (uint32_t layer = 0; layer < layerCount; ++layer)
+        {
+            for (uint32_t mip = 0; mip < mipLevels; ++mip)
+            {
+                transitionSubresource(layer, mip, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            }
+        }
+
+        endSingleTimeCommands(commandBuffer);
     }
 
     void Renderer::destroyTexture(Texture& texture)
@@ -3143,20 +5259,27 @@ namespace dolbuto
         uploadBufferRegions(destination, std::vector<BufferUploadRegion>{region});
     }
 
-    void Renderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const
+    void Renderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layerCount) const
     {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
-        VkBufferImageCopy region{};
-        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        region.imageSubresource.layerCount = 1;
-        region.imageExtent = {width, height, 1};
+        std::vector<VkBufferImageCopy> regions(layerCount);
+        const VkDeviceSize layerSize = static_cast<VkDeviceSize>(width) * static_cast<VkDeviceSize>(height) * 4u;
+        for (uint32_t layer = 0; layer < layerCount; ++layer)
+        {
+            VkBufferImageCopy& region = regions[layer];
+            region.bufferOffset = layerSize * layer;
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.baseArrayLayer = layer;
+            region.imageSubresource.layerCount = 1;
+            region.imageExtent = {width, height, 1};
+        }
 
-        vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+        vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<uint32_t>(regions.size()), regions.data());
         endSingleTimeCommands(commandBuffer);
     }
 
-    void Renderer::transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) const
+    void Renderer::transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount) const
     {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
@@ -3168,8 +5291,8 @@ namespace dolbuto
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.image = image;
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.levelCount = 1;
-        barrier.subresourceRange.layerCount = 1;
+        barrier.subresourceRange.levelCount = mipLevels;
+        barrier.subresourceRange.layerCount = layerCount;
 
         VkPipelineStageFlags sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         VkPipelineStageFlags destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -3283,6 +5406,7 @@ namespace dolbuto
         }
 
         drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe);
+        drawBlockSelection(commandBuffer, camera, cameraPosition);
         if (showPlayer)
         {
             drawPlayer(commandBuffer, camera, cameraPosition);
@@ -3438,9 +5562,13 @@ namespace dolbuto
 
         TerrainPush push{};
         std::memcpy(push.mvp, mvp.m, sizeof(push.mvp));
+        push.cameraPosition[0] = cameraPosition.x;
+        push.cameraPosition[1] = cameraPosition.y;
+        push.cameraPosition[2] = cameraPosition.z;
+        push.cameraPosition[3] = 0.0f;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, wireframe ? terrainWireframePipeline_ : terrainPipeline_);
-        vkCmdPushConstants(commandBuffer, terrainPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(TerrainPush), &push);
+        vkCmdPushConstants(commandBuffer, terrainPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
 
         uint32_t visibleDrawCount = 0;
         uint32_t visibleFaceCount = 0;
@@ -3467,7 +5595,7 @@ namespace dolbuto
                     continue;
                 }
 
-                drawTerrainMesh(commandBuffer, mesh, rock_);
+                drawTerrainMesh(commandBuffer, mesh, terrainTextureArray_);
                 ++visibleDrawCount;
                 visibleFaceCount += mesh.indexCount / 6;
                 visibleVertexCount += mesh.vertexCount;
@@ -3488,6 +5616,190 @@ namespace dolbuto
         }
     }
 
+    const Renderer::BlockDefinition& Renderer::blockDefinition(uint16_t block) const
+    {
+        static const BlockDefinition fallback{};
+        if (static_cast<size_t>(block) >= blockDefinitions_.size())
+        {
+            return fallback;
+        }
+        return blockDefinitions_[block];
+    }
+
+    bool Renderer::raycastBlock(DVec3 origin, Vec3 direction, BlockRaycastHit& hit) const
+    {
+        constexpr double MaxInteractionDistance = 5.0;
+        constexpr double Epsilon = 0.000001;
+
+        Vec3 normalizedDirection = normalize(direction);
+        if (normalizedDirection.x == 0.0f && normalizedDirection.y == 0.0f && normalizedDirection.z == 0.0f)
+        {
+            return false;
+        }
+
+        int blockX = blockCoordinateXz(origin.x);
+        int blockY = blockCoordinateY(origin.y);
+        int blockZ = blockCoordinateXz(origin.z);
+        int previousBlockX = blockX;
+        int previousBlockY = blockY;
+        int previousBlockZ = blockZ;
+
+        auto axisTMax = [](double originValue, double directionValue, int block, bool vertical) -> double
+        {
+            if (std::abs(directionValue) <= 0.0)
+            {
+                return std::numeric_limits<double>::infinity();
+            }
+
+            const double boundary = vertical
+                ? (directionValue > 0.0 ? static_cast<double>(block + 1) : static_cast<double>(block))
+                : (directionValue > 0.0 ? static_cast<double>(block) + 0.5 : static_cast<double>(block) - 0.5);
+            return (boundary - originValue) / directionValue;
+        };
+
+        const int stepX = normalizedDirection.x > 0.0f ? 1 : (normalizedDirection.x < 0.0f ? -1 : 0);
+        const int stepY = normalizedDirection.y > 0.0f ? 1 : (normalizedDirection.y < 0.0f ? -1 : 0);
+        const int stepZ = normalizedDirection.z > 0.0f ? 1 : (normalizedDirection.z < 0.0f ? -1 : 0);
+        double tMaxX = axisTMax(origin.x, normalizedDirection.x, blockX, false);
+        double tMaxY = axisTMax(origin.y, normalizedDirection.y, blockY, true);
+        double tMaxZ = axisTMax(origin.z, normalizedDirection.z, blockZ, false);
+        const double tDeltaX = stepX == 0 ? std::numeric_limits<double>::infinity() : 1.0 / std::abs(static_cast<double>(normalizedDirection.x));
+        const double tDeltaY = stepY == 0 ? std::numeric_limits<double>::infinity() : 1.0 / std::abs(static_cast<double>(normalizedDirection.y));
+        const double tDeltaZ = stepZ == 0 ? std::numeric_limits<double>::infinity() : 1.0 / std::abs(static_cast<double>(normalizedDirection.z));
+
+        double traveled = 0.0;
+        while (traveled <= MaxInteractionDistance + Epsilon)
+        {
+            const uint16_t block = blockAtWorld(blockX, blockY, blockZ);
+            if (block != BlockAir && blockDefinition(block).renderType != BlockRenderType::None)
+            {
+                hit.blockX = blockX;
+                hit.blockY = blockY;
+                hit.blockZ = blockZ;
+                hit.previousBlockX = previousBlockX;
+                hit.previousBlockY = previousBlockY;
+                hit.previousBlockZ = previousBlockZ;
+                return true;
+            }
+
+            previousBlockX = blockX;
+            previousBlockY = blockY;
+            previousBlockZ = blockZ;
+            if (tMaxX <= tMaxY && tMaxX <= tMaxZ)
+            {
+                blockX += stepX;
+                traveled = tMaxX;
+                tMaxX += tDeltaX;
+            }
+            else if (tMaxY <= tMaxZ)
+            {
+                blockY += stepY;
+                traveled = tMaxY;
+                tMaxY += tDeltaY;
+            }
+            else
+            {
+                blockZ += stepZ;
+                traveled = tMaxZ;
+                tMaxZ += tDeltaZ;
+            }
+        }
+
+        return false;
+    }
+
+    uint16_t Renderer::blockAtWorld(int x, int y, int z) const
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return BlockAir;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        const auto chunkIt = chunkData_.find(chunkKey(chunkX, chunkZ));
+        if (chunkIt == chunkData_.end() || !chunkIt->second)
+        {
+            return BlockAir;
+        }
+
+        const int localX = positiveModulo(x, ChunkSizeX);
+        const int localZ = positiveModulo(z, ChunkSizeZ);
+        const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+        if (index >= chunkIt->second->blocks.size())
+        {
+            return BlockAir;
+        }
+
+        return chunkIt->second->blocks[index];
+    }
+
+    bool Renderer::terrainCellBlocksPlayer(int x, int y, int z) const
+    {
+        if (y < 0)
+        {
+            return true;
+        }
+        if (y >= ChunkSizeY)
+        {
+            return false;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        const auto chunkIt = chunkData_.find(chunkKey(chunkX, chunkZ));
+        if (chunkIt == chunkData_.end() || !chunkIt->second)
+        {
+            return true;
+        }
+
+        const int localX = positiveModulo(x, ChunkSizeX);
+        const int localZ = positiveModulo(z, ChunkSizeZ);
+        const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+        if (index >= chunkIt->second->blocks.size())
+        {
+            return true;
+        }
+
+        return blockDefinition(chunkIt->second->blocks[index]).collision;
+    }
+
+    uint32_t Renderer::blockFaceTextureLayer(uint16_t block, int face) const
+    {
+        if (face < 0 || face >= 6 || static_cast<size_t>(block) >= blockTextureLayers_.size())
+        {
+            return 0;
+        }
+
+        return blockTextureLayers_[block].faces[static_cast<size_t>(face)];
+    }
+
+    bool Renderer::blockUsesCubeMesh(uint16_t block) const
+    {
+        return blockDefinition(block).renderType == BlockRenderType::Cube;
+    }
+
+    bool Renderer::blockContributesAo(uint16_t block) const
+    {
+        return blockDefinition(block).ao;
+    }
+
+    bool Renderer::neighborCullsFace(uint16_t block, uint16_t neighbor) const
+    {
+        if (neighbor == BlockAir)
+        {
+            return false;
+        }
+
+        const BlockDefinition& neighborDefinition = blockDefinition(neighbor);
+        if (block == neighbor && neighborDefinition.sameBlockFaceCulling)
+        {
+            return true;
+        }
+
+        return neighborDefinition.faceOcclusion == BlockFaceOcclusion::Opaque;
+    }
+
     void Renderer::drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const
     {
         const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
@@ -3497,9 +5809,13 @@ namespace dolbuto
 
         TerrainPush push{};
         std::memcpy(push.mvp, mvp.m, sizeof(push.mvp));
+        push.cameraPosition[0] = cameraPosition.x;
+        push.cameraPosition[1] = cameraPosition.y;
+        push.cameraPosition[2] = cameraPosition.z;
+        push.cameraPosition[3] = 0.0f;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, playerPipeline_);
-        vkCmdPushConstants(commandBuffer, terrainPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(TerrainPush), &push);
+        vkCmdPushConstants(commandBuffer, terrainPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
         drawTerrainMesh(commandBuffer, playerMesh_, playerTexture_);
     }
 
@@ -3515,6 +5831,76 @@ namespace dolbuto
         vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 0, 1, &texture.descriptorSet, 0, nullptr);
         vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, 0, 0, 0);
+    }
+
+    void Renderer::drawBlockSelection(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition)
+    {
+        if (!hasSelectedBlock_ || selectionPipeline_ == VK_NULL_HANDLE || selectionLineVertexBuffer_ == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
+        constexpr float Expand = 0.003f;
+        const float minX = static_cast<float>(selectedBlockX_) - 0.5f - Expand;
+        const float maxX = static_cast<float>(selectedBlockX_) + 0.5f + Expand;
+        const float minY = static_cast<float>(selectedBlockY_) - Expand;
+        const float maxY = static_cast<float>(selectedBlockY_ + 1) + Expand;
+        const float minZ = static_cast<float>(selectedBlockZ_) - 0.5f - Expand;
+        const float maxZ = static_cast<float>(selectedBlockZ_) + 0.5f + Expand;
+
+        const std::array<LineVertex, 24> vertices = {
+            LineVertex{minX, minY, minZ}, LineVertex{maxX, minY, minZ},
+            LineVertex{maxX, minY, minZ}, LineVertex{maxX, minY, maxZ},
+            LineVertex{maxX, minY, maxZ}, LineVertex{minX, minY, maxZ},
+            LineVertex{minX, minY, maxZ}, LineVertex{minX, minY, minZ},
+
+            LineVertex{minX, maxY, minZ}, LineVertex{maxX, maxY, minZ},
+            LineVertex{maxX, maxY, minZ}, LineVertex{maxX, maxY, maxZ},
+            LineVertex{maxX, maxY, maxZ}, LineVertex{minX, maxY, maxZ},
+            LineVertex{minX, maxY, maxZ}, LineVertex{minX, maxY, minZ},
+
+            LineVertex{minX, minY, minZ}, LineVertex{minX, maxY, minZ},
+            LineVertex{maxX, minY, minZ}, LineVertex{maxX, maxY, minZ},
+            LineVertex{maxX, minY, maxZ}, LineVertex{maxX, maxY, maxZ},
+            LineVertex{minX, minY, maxZ}, LineVertex{minX, maxY, maxZ}
+        };
+
+        void* data = nullptr;
+        vkMapMemory(device_, selectionLineVertexMemory_, 0, sizeof(LineVertex) * vertices.size(), 0, &data);
+        std::memcpy(data, vertices.data(), sizeof(LineVertex) * vertices.size());
+        vkUnmapMemory(device_, selectionLineVertexMemory_);
+
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = static_cast<float>(swapchainExtent_.width);
+        viewport.height = static_cast<float>(swapchainExtent_.height);
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = swapchainExtent_;
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+        const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
+        const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
+        const Mat4 view = viewMatrix(camera, cameraPosition);
+        const Mat4 mvp = multiply(projection, view);
+
+        TerrainPush push{};
+        std::memcpy(push.mvp, mvp.m, sizeof(push.mvp));
+        push.cameraPosition[0] = cameraPosition.x;
+        push.cameraPosition[1] = cameraPosition.y;
+        push.cameraPosition[2] = cameraPosition.z;
+        push.cameraPosition[3] = 0.0f;
+
+        const VkDeviceSize offset = 0;
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, selectionPipeline_);
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &selectionLineVertexBuffer_, &offset);
+        vkCmdPushConstants(commandBuffer, selectionPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
+        vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
     }
 
     void Renderer::drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv, Color color) const

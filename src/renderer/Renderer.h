@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -44,6 +45,9 @@ namespace dolbuto
             float playerYaw,
             bool terrainWireframe);
         void setFramebufferResized();
+        bool playerColliderIntersectsTerrain(DVec3 playerPosition) const;
+        void updateBlockSelection(DVec3 origin, Vec3 direction);
+        bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock);
 
     private:
         static constexpr std::size_t ChunkColumnCount = 16u * 16u;
@@ -67,6 +71,7 @@ namespace dolbuto
             int width = 0;
             int height = 0;
             uint32_t mipLevels = 1;
+            uint32_t layers = 1;
         };
 
         struct SpriteRect
@@ -118,6 +123,13 @@ namespace dolbuto
             float v = 0.0f;
         };
 
+        struct LineVertex
+        {
+            float x = 0.0f;
+            float y = 0.0f;
+            float z = 0.0f;
+        };
+
         struct TextBatch
         {
             std::vector<TextVertex> outline;
@@ -131,11 +143,15 @@ namespace dolbuto
             float z = 0.0f;
             float u = 0.0f;
             float v = 0.0f;
+            float ao = 1.0f;
+            float textureLayer = 0.0f;
+            float mipDistanceScale = 1.0f;
         };
 
         struct TerrainPush
         {
             float mvp[16]{};
+            float cameraPosition[4]{};
         };
 
         struct BufferUploadRegion
@@ -143,6 +159,15 @@ namespace dolbuto
             const void* source = nullptr;
             VkDeviceSize size = 0;
             VkDeviceSize destinationOffset = 0;
+        };
+
+        struct TextureMipOverride
+        {
+            uint32_t layer = 0;
+            uint32_t mipLevel = 0;
+            uint32_t width = 0;
+            uint32_t height = 0;
+            VkDeviceSize bufferOffset = 0;
         };
 
         struct TerrainMesh
@@ -161,6 +186,45 @@ namespace dolbuto
             std::vector<uint32_t> indices;
         };
 
+        struct BlockTextureLayers
+        {
+            std::array<uint32_t, 6> faces{};
+        };
+
+        enum class BlockRenderType : uint8_t
+        {
+            None,
+            Cube,
+            Cross
+        };
+
+        enum class BlockFaceOcclusion : uint8_t
+        {
+            None,
+            Opaque,
+            Cutout
+        };
+
+        enum class BlockAlphaMode : uint8_t
+        {
+            Opaque,
+            Cutout,
+            Blend
+        };
+
+        struct BlockDefinition
+        {
+            BlockRenderType renderType = BlockRenderType::None;
+            bool directional = false;
+            bool collision = false;
+            bool ao = false;
+            BlockFaceOcclusion faceOcclusion = BlockFaceOcclusion::None;
+            bool sameBlockFaceCulling = false;
+            BlockAlphaMode alphaMode = BlockAlphaMode::Opaque;
+            float alphaCutoff = 0.5f;
+            float mipDistanceScale = 1.0f;
+        };
+
         struct ChunkOffset
         {
             int x = 0;
@@ -170,6 +234,7 @@ namespace dolbuto
         struct ChunkData
         {
             uint64_t generation = 0;
+            uint64_t revision = 0;
             int chunkX = 0;
             int chunkZ = 0;
             std::vector<uint16_t> blocks;
@@ -186,6 +251,7 @@ namespace dolbuto
 
             Type type = Type::BuildChunkData;
             uint64_t generation = 0;
+            uint64_t revision = 0;
             int chunkX = 0;
             int chunkZ = 0;
             std::shared_ptr<ChunkData> chunk;
@@ -194,6 +260,7 @@ namespace dolbuto
         struct CompletedChunkMesh
         {
             uint64_t generation = 0;
+            uint64_t revision = 0;
             int chunkX = 0;
             int chunkZ = 0;
             std::array<TerrainBuildData, SubchunkCount> rockSubchunks;
@@ -212,6 +279,16 @@ namespace dolbuto
             ChunkRenderData chunk;
         };
 
+        struct BlockRaycastHit
+        {
+            int blockX = 0;
+            int blockY = 0;
+            int blockZ = 0;
+            int previousBlockX = 0;
+            int previousBlockY = 0;
+            int previousBlockZ = 0;
+        };
+
         void createInstance();
         void createSurface();
         void pickPhysicalDevice();
@@ -224,6 +301,7 @@ namespace dolbuto
         void createDescriptorSetLayout();
         void createPipeline();
         void createTerrainPipeline();
+        void createSelectionPipeline();
         void createFramebuffers();
         void createCommandPool();
         void createSampler();
@@ -232,6 +310,7 @@ namespace dolbuto
         void createTextures();
         void createFont();
         void createTextVertexBuffer();
+        void createSelectionLineBuffer();
         void createPlayerMesh();
         void loadWorldConfig();
         void loadHeightLut();
@@ -246,7 +325,14 @@ namespace dolbuto
         uint32_t processPendingTerrainUnloads();
         void processRetiredTerrainChunks();
         std::shared_ptr<ChunkData> buildChunkData(int chunkX, int chunkZ) const;
-        TerrainBuildData buildSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, int subchunkY) const;
+        bool setBlockAtWorld(int x, int y, int z, uint16_t block);
+        void updateChunkEmptySubchunk(const std::shared_ptr<ChunkData>& chunk, int subchunkY);
+        void rebuildSubchunkMeshNow(int chunkX, int chunkZ, int subchunkY);
+        void rebuildEditedChunkMeshes(int blockX, int blockY, int blockZ);
+        std::vector<uint16_t> buildMeshingBlocks(const std::shared_ptr<ChunkData>& chunk) const;
+        TerrainBuildData buildSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, const std::vector<uint16_t>& meshingBlocks, int subchunkY) const;
+        TerrainBuildData buildEditedSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, int subchunkY) const;
+        TerrainBuildData buildSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, int subchunkY, const std::function<uint16_t(int, int, int)>& blockAt) const;
         CompletedChunkMesh buildChunkMesh(const std::shared_ptr<ChunkData>& chunk, uint64_t generation) const;
         bool chunkMeshReady(uint64_t key) const;
         void destroyChunkRenderData(ChunkRenderData& chunk);
@@ -268,6 +354,10 @@ namespace dolbuto
         VkShaderModule createShaderModule(const std::string& path) const;
         Texture createTexture(const std::string& path);
         Texture createTextureFromRgba(const unsigned char* pixels, int width, int height);
+        Texture createTextureArray(const std::vector<std::string>& paths);
+        uint32_t calculateMipLevels(int width, int height) const;
+        void generateMipmaps(VkImage image, int32_t width, int32_t height, uint32_t mipLevels, uint32_t layerCount = 1) const;
+        void generateTextureArrayMipmaps(VkImage image, int32_t width, int32_t height, uint32_t mipLevels, uint32_t layerCount, const std::vector<TextureMipOverride>& mipOverrides, VkBuffer mipOverrideBuffer) const;
         void destroyTexture(Texture& texture);
         void destroyTerrainMesh(TerrainMesh& mesh);
 
@@ -277,8 +367,8 @@ namespace dolbuto
         void copyBuffer(VkBuffer source, VkBuffer destination, VkDeviceSize size) const;
         void uploadBufferRegions(VkBuffer destination, const std::vector<BufferUploadRegion>& regions) const;
         void uploadBufferData(VkBuffer destination, const void* source, VkDeviceSize size, VkDeviceSize destinationOffset = 0) const;
-        void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) const;
-        void transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) const;
+        void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layerCount = 1) const;
+        void transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1, uint32_t layerCount = 1) const;
         VkCommandBuffer beginSingleTimeCommands() const;
         void endSingleTimeCommands(VkCommandBuffer commandBuffer) const;
 
@@ -288,6 +378,15 @@ namespace dolbuto
         void updatePlayerMesh(Vec3 playerPosition, float playerYaw);
         void drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe);
         void drawTerrainMesh(VkCommandBuffer commandBuffer, const TerrainMesh& mesh, const Texture& texture) const;
+        const BlockDefinition& blockDefinition(uint16_t block) const;
+        bool raycastBlock(DVec3 origin, Vec3 direction, BlockRaycastHit& hit) const;
+        uint16_t blockAtWorld(int x, int y, int z) const;
+        bool terrainCellBlocksPlayer(int x, int y, int z) const;
+        uint32_t blockFaceTextureLayer(uint16_t block, int face) const;
+        bool blockUsesCubeMesh(uint16_t block) const;
+        bool blockContributesAo(uint16_t block) const;
+        bool neighborCullsFace(uint16_t block, uint16_t neighbor) const;
+        void drawBlockSelection(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition);
         void drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const;
         void drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
         void drawSpriteDescriptor(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
@@ -363,6 +462,8 @@ namespace dolbuto
         VkPipeline terrainPipeline_ = VK_NULL_HANDLE;
         VkPipeline terrainWireframePipeline_ = VK_NULL_HANDLE;
         VkPipeline playerPipeline_ = VK_NULL_HANDLE;
+        VkPipelineLayout selectionPipelineLayout_ = VK_NULL_HANDLE;
+        VkPipeline selectionPipeline_ = VK_NULL_HANDLE;
         VkCommandPool commandPool_ = VK_NULL_HANDLE;
         std::vector<VkCommandBuffer> commandBuffers_;
         VkQueryPool timestampQueryPool_ = VK_NULL_HANDLE;
@@ -375,10 +476,29 @@ namespace dolbuto
         VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
         VkBuffer textVertexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory textVertexMemory_ = VK_NULL_HANDLE;
+        VkBuffer selectionLineVertexBuffer_ = VK_NULL_HANDLE;
+        VkDeviceMemory selectionLineVertexMemory_ = VK_NULL_HANDLE;
+        bool hasSelectedBlock_ = false;
+        int selectedBlockX_ = 0;
+        int selectedBlockY_ = 0;
+        int selectedBlockZ_ = 0;
         TerrainMesh playerMesh_;
         std::vector<TerrainVertex> playerLocalVertices_;
         std::vector<uint32_t> playerIndices_;
         int loadGridScale_ = 0;
+        int terrainWorkerCount_ = 4;
+        int maxTerrainUploadChunksPerFrame_ = 8;
+        int maxTerrainUnloadChunksPerFrame_ = 16;
+        float terrainNoiseFeatureScale_ = 0.0f;
+        int terrainNoiseOctaveCount_ = 0;
+        float terrainNoiseLacunarity_ = 0.0f;
+        float terrainNoiseGain_ = 0.0f;
+        float terrainNoiseSimplexScale_ = 0.0f;
+        bool terrainDomainWarpEnabled_ = false;
+        float terrainDomainWarpAmplitude_ = 0.0f;
+        float terrainDomainWarpFrequency_ = 0.0f;
+        int terrainDomainWarpOctaveCount_ = 0;
+        float terrainDomainWarpGain_ = 0.0f;
         int loadedChunkDiameter_ = 0;
         int loadedCenterGroupChunkX_ = 0;
         int loadedCenterGroupChunkZ_ = 0;
@@ -414,9 +534,9 @@ namespace dolbuto
         Texture crosshair_;
         Texture font_;
         Texture playerTexture_;
-        Texture rock_;
-        Texture grassSide_;
-        Texture grassTop_;
+        Texture terrainTextureArray_;
+        std::vector<BlockDefinition> blockDefinitions_;
+        std::vector<BlockTextureLayers> blockTextureLayers_;
         std::array<stbtt_bakedchar, 95> bakedChars_{};
 
         std::vector<VkSemaphore> imageAvailableSemaphores_;

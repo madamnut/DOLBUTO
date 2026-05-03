@@ -53,6 +53,8 @@ set(SHADER_SOURCES
     shaders/sprite.frag
     shaders/terrain.vert
     shaders/terrain.frag
+    shaders/selection.vert
+    shaders/selection.frag
 )
 
 set(SHADER_OUTPUTS)
@@ -80,6 +82,7 @@ add_executable(DOLBUTO
     src/renderer/Renderer.cpp
     src/renderer/Renderer.h
     src/third_party/stb_image.cpp
+    src/third_party/stb_image_write.cpp
     src/third_party/stb_truetype.cpp
 )
 
