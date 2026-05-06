@@ -16,6 +16,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -48,6 +49,7 @@ namespace dolbuto
         bool playerColliderIntersectsTerrain(DVec3 playerPosition) const;
         void updateBlockSelection(DVec3 origin, Vec3 direction);
         bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock);
+        void resetPeakProfiler();
 
     private:
         static constexpr std::size_t ChunkColumnCount = 16u * 16u;
@@ -148,6 +150,20 @@ namespace dolbuto
             float mipDistanceScale = 1.0f;
         };
 
+        struct PackedTerrainQuad
+        {
+            uint32_t p0x = 0;
+            uint32_t p0y = 0;
+            uint32_t p0z = 0;
+            uint32_t edgeUxy = 0;
+            uint32_t edgeUzVx = 0;
+            uint32_t edgeVyz = 0;
+            uint32_t uv0 = 0;
+            uint32_t uvU = 0;
+            uint32_t uvV = 0;
+            uint32_t material = 0;
+        };
+
         struct TerrainPush
         {
             float mvp[16]{};
@@ -176,6 +192,7 @@ namespace dolbuto
             VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
             VkBuffer indexBuffer = VK_NULL_HANDLE;
             VkDeviceMemory indexMemory = VK_NULL_HANDLE;
+            VkDescriptorSet vertexDescriptorSet = VK_NULL_HANDLE;
             uint32_t vertexCount = 0;
             uint32_t indexCount = 0;
         };
@@ -241,20 +258,51 @@ namespace dolbuto
             std::array<bool, SubchunkCount> emptySubchunks{};
         };
 
+        enum class ChunkGenState : uint8_t
+        {
+            Empty,
+            Featuring,
+            Full,
+            Meshed
+        };
+
+        struct FeatureWrite
+        {
+            int localX = 0;
+            int y = 0;
+            int localZ = 0;
+            uint16_t block = 0;
+        };
+
+        using FeatureWriteList = std::vector<FeatureWrite>;
+        using FeatureWriteListPtr = std::shared_ptr<FeatureWriteList>;
+        static constexpr size_t FeatureNeighborCount = 8;
+
+        struct CompletedChunkData
+        {
+            std::shared_ptr<ChunkData> chunk;
+            std::array<FeatureWriteListPtr, FeatureNeighborCount> outgoingFeatureSlots{};
+        };
+
         struct TerrainJob
         {
             enum class Type
             {
-                BuildChunkData,
+                BuildFeaturing,
+                FinalizeFeatures,
                 BuildChunkMesh
             };
 
-            Type type = Type::BuildChunkData;
+            Type type = Type::BuildFeaturing;
             uint64_t generation = 0;
             uint64_t revision = 0;
+            uint32_t priority = UINT32_MAX;
+            uint64_t sequence = 0;
             int chunkX = 0;
             int chunkZ = 0;
             std::shared_ptr<ChunkData> chunk;
+            std::array<FeatureWriteListPtr, FeatureNeighborCount> incomingFeatureSlots{};
+            std::array<std::shared_ptr<ChunkData>, 9> meshChunks{};
         };
 
         struct CompletedChunkMesh
@@ -266,8 +314,60 @@ namespace dolbuto
             std::array<TerrainBuildData, SubchunkCount> rockSubchunks;
         };
 
+        struct RuntimeChunk
+        {
+            ChunkGenState genState = ChunkGenState::Empty;
+            int chunkX = 0;
+            int chunkZ = 0;
+            std::shared_ptr<ChunkData> data;
+            std::array<FeatureWriteListPtr, FeatureNeighborCount> incomingFeatureSlots{};
+            std::array<FeatureWriteListPtr, FeatureNeighborCount> outgoingFeatureSlots{};
+            uint8_t incomingFeatureMask = 0;
+            uint64_t outgoingPublishedTicket = 0;
+            uint64_t renderTicket = 0;
+            uint64_t meshTicket = 0;
+            uint64_t fullTicket = 0;
+            uint64_t featuringTicket = 0;
+            uint32_t bestPriority = UINT32_MAX;
+            uint64_t buildQueuedTicket = 0;
+            uint64_t finalizeQueuedTicket = 0;
+            uint64_t meshQueuedTicket = 0;
+            bool hasSavedBacking = false;
+            bool dataDirtyForSave = false;
+        };
+
+        struct SaveChunkSnapshot
+        {
+            int chunkX = 0;
+            int chunkZ = 0;
+            ChunkGenState genState = ChunkGenState::Empty;
+            uint64_t revision = 0;
+            bool hasData = false;
+            bool forceSave = false;
+            bool hasSavedBacking = false;
+            std::shared_ptr<const ChunkData> chunkData;
+            std::vector<uint16_t> blocks;
+            std::array<FeatureWriteListPtr, FeatureNeighborCount> incomingFeatureSlots{};
+            uint8_t incomingFeatureMask = 0;
+        };
+
+        struct RegionChunkEntry
+        {
+            uint32_t offsetSector = 0;
+            uint32_t sectorCount = 0;
+            uint32_t storedSize = 0;
+            uint32_t rawSize = 0;
+        };
+
+        struct RegionHeaderCache
+        {
+            bool exists = false;
+            std::array<RegionChunkEntry, 16u * 16u> entries{};
+        };
+
         struct ChunkRenderData
         {
+            uint64_t revision = 0;
             int chunkX = 0;
             int chunkZ = 0;
             std::array<TerrainMesh, SubchunkCount> rockSubchunks;
@@ -299,6 +399,7 @@ namespace dolbuto
         void createRenderPass();
         void createDepthResources();
         void createDescriptorSetLayout();
+        void createTerrainVertexDescriptorSetLayout();
         void createPipeline();
         void createTerrainPipeline();
         void createSelectionPipeline();
@@ -319,12 +420,33 @@ namespace dolbuto
         void rebuildLoadOrderIfNeeded();
         void startTerrainWorkers();
         void stopTerrainWorkers();
+        void startSaveWorker();
+        void stopSaveWorker();
+        void saveWorkerLoop();
         void terrainWorkerLoop();
         void enqueueTerrainJob(TerrainJob job);
         void processCompletedTerrainJobs();
         uint32_t processPendingTerrainUnloads();
         void processRetiredTerrainChunks();
+        RuntimeChunk& ensureRuntimeChunk(int chunkX, int chunkZ, uint64_t generation);
+        void wantRender(int chunkX, int chunkZ, uint32_t priority);
+        void wantMesh(int chunkX, int chunkZ, uint32_t priority);
+        void wantFull(int chunkX, int chunkZ, uint32_t priority);
+        void wantFeaturing(int chunkX, int chunkZ, uint32_t priority);
+        SaveChunkSnapshot makeSaveSnapshot(const RuntimeChunk& chunk) const;
+        void enqueueSaveSnapshot(SaveChunkSnapshot snapshot);
+        void enqueueSaveAllRuntimeChunks();
+        void saveChunkSnapshot(const SaveChunkSnapshot& snapshot);
+        std::optional<SaveChunkSnapshot> loadChunkSnapshot(int chunkX, int chunkZ);
+        RuntimeChunk runtimeChunkFromSnapshot(const SaveChunkSnapshot& snapshot, uint64_t generation);
         std::shared_ptr<ChunkData> buildChunkData(int chunkX, int chunkZ) const;
+        std::array<FeatureWriteListPtr, FeatureNeighborCount> buildTreeFeatures(const std::shared_ptr<ChunkData>& chunk, const std::array<int, ChunkColumnCount>& heights) const;
+        bool applyFeatureWrites(const std::shared_ptr<ChunkData>& chunk, const std::array<FeatureWriteListPtr, FeatureNeighborCount>& incomingFeatureSlots) const;
+        void acceptFeatureSlot(int targetChunkX, int targetChunkZ, size_t sourceSlot, FeatureWriteListPtr writes);
+        void publishFeatureSlots(RuntimeChunk& sourceChunk);
+        void tryQueueFeatureFinalize(uint64_t key);
+        void tryQueueMeshIfReady(int chunkX, int chunkZ);
+        void tryQueueMeshesAround(int chunkX, int chunkZ);
         bool setBlockAtWorld(int x, int y, int z, uint16_t block);
         void updateChunkEmptySubchunk(const std::shared_ptr<ChunkData>& chunk, int subchunkY);
         void rebuildSubchunkMeshNow(int chunkX, int chunkZ, int subchunkY);
@@ -333,13 +455,17 @@ namespace dolbuto
         TerrainBuildData buildSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, const std::vector<uint16_t>& meshingBlocks, int subchunkY) const;
         TerrainBuildData buildEditedSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, int subchunkY) const;
         TerrainBuildData buildSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, int subchunkY, const std::function<uint16_t(int, int, int)>& blockAt) const;
-        CompletedChunkMesh buildChunkMesh(const std::shared_ptr<ChunkData>& chunk, uint64_t generation) const;
+        CompletedChunkMesh buildChunkMesh(const std::array<std::shared_ptr<ChunkData>, 9>& chunks, uint64_t generation) const;
         bool chunkMeshReady(uint64_t key) const;
         void destroyChunkRenderData(ChunkRenderData& chunk);
         void destroyAllTerrainChunks();
         void updateTerrainStats();
         std::array<int, ChunkColumnCount> buildChunkHeightmap(int chunkX, int chunkZ) const;
-        void createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh);
+        void createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh, bool deviceLocal = true);
+        void createChunkTerrainBuffers(const std::array<TerrainBuildData, SubchunkCount>& buildData, std::array<TerrainMesh, SubchunkCount>& meshes);
+        PackedTerrainQuad packTerrainQuad(const TerrainVertex& a, const TerrainVertex& b, const TerrainVertex& c, const TerrainVertex& d) const;
+        std::vector<PackedTerrainQuad> buildPackedTerrainQuads(const TerrainBuildData& buildData) const;
+        void createTerrainVertexDescriptorSet(TerrainMesh& mesh, VkDeviceSize vertexBufferSize);
         void createCommandBuffers();
         void createSyncObjects();
 
@@ -377,6 +503,7 @@ namespace dolbuto
         void saveScreenshot(VkDeviceMemory memory, VkDeviceSize size) const;
         void updatePlayerMesh(Vec3 playerPosition, float playerYaw);
         void drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe);
+        void drawTerrainMeshBound(VkCommandBuffer commandBuffer, const TerrainMesh& mesh) const;
         void drawTerrainMesh(VkCommandBuffer commandBuffer, const TerrainMesh& mesh, const Texture& texture) const;
         const BlockDefinition& blockDefinition(uint16_t block) const;
         bool raycastBlock(DVec3 origin, Vec3 direction, BlockRaycastHit& hit) const;
@@ -393,6 +520,8 @@ namespace dolbuto
         std::string_view resolutionText();
         void updateDebugTextBatch(std::string_view fpsText);
         void updatePerformanceText(double cpuFrameMs);
+        void updatePeakProfiler(double frameMs);
+        void updatePeakProfilerText();
         void addText(TextBatch& batch, std::string_view text, float x, float y, bool alignRight) const;
         void addTextPass(std::vector<TextVertex>& vertices, std::string_view text, float x, float y, bool alignRight, float offsetX, float offsetY) const;
         void appendGlyphQuad(std::vector<TextVertex>& vertices, const Glyph& glyph) const;
@@ -422,14 +551,29 @@ namespace dolbuto
         std::string cpuFrameText_ = "CPU: ---.---MS";
         std::string gpuFrameText_ = "GPU: ---.---MS";
         std::string vramText_ = "VRAM: 0MB";
-        std::string dataQueueText_ = "DATA QUEUE: 0000";
-        std::string meshQueueText_ = "MESH QUEUE: 0000";
-        std::string dataDoneText_ = "DATA DONE: 0000";
-        std::string meshDoneText_ = "MESH DONE: 0000";
+        std::string dataQueueText_ = "WANT RENDER/FEATURE/DATA: 0 / 0 / 0";
+        std::string finalizeQueueText_ = "STATE EMPTY/FEATURING/FULL/MESHED: 0 / 0 / 0 / 0";
+        std::string meshQueueText_ = "RENDER MISS: 0";
+        std::string dataDoneText_ = "QUEUE BUILD/FINALIZE/MESH: 0 / 0 / 0";
+        std::string meshDoneText_ = "DONE BUILD/FINALIZE/MESH: 0 / 0 / 0";
+        std::string saveQueueText_ = "SAVE QUEUE/CACHE: 0 / 0";
+        std::string saveDoneText_ = "SAVE CHUNK/FEATURE/FAILED: 0 / 0 / 0";
+        std::string loadText_ = "LOAD PENDING/REGION/MISS: 0 / 0 / 0";
         std::string uploadText_ = "UPLOAD: 0000 / 8";
         std::string unloadText_ = "UNLOAD: 0000 / 16";
         std::string retiredText_ = "RETIRED: 0000";
         std::string jobMainText_ = "JOB MAIN: 000.000MS";
+        std::string peakProfilerStatusText_ = "PEAK SAMPLE: WAIT 5S";
+        std::string peakFrameText_ = "PEAK FRAME: 000.000MS";
+        std::string peakUpdateText_ = "PEAK UPDATE: 000.000MS";
+        std::string peakEnsureRuntimeText_ = "PEAK ENSURE RUNTIME: 000.000MS";
+        std::string peakWantRenderText_ = "PEAK WANT RENDER: 000.000MS";
+        std::string peakEnsureKeyText_ = "PEAK ENSURE KEY: 000.000MS";
+        std::string peakEnsureMarkText_ = "PEAK ENSURE MARK: 000.000MS";
+        std::string peakEnsureFindText_ = "PEAK ENSURE FIND: 000.000MS";
+        std::string peakEnsureLoadText_ = "PEAK ENSURE LOAD: 000.000MS";
+        std::string peakEnsureCreateText_ = "PEAK ENSURE CREATE: 000.000MS";
+        std::string peakEnsureDataTouchText_ = "PEAK ENSURE DATA TOUCH: 000.000MS";
         std::chrono::steady_clock::time_point terrainDebugSampleTime_{};
         std::string chunkUpdateProfileText_ = "UPDATE TOTAL: ---.---MS";
         std::string worldBuildProfileText_ = "WORLD TOTAL: ---.---MS";
@@ -456,6 +600,7 @@ namespace dolbuto
         VkImageView depthImageView_ = VK_NULL_HANDLE;
         VkRenderPass renderPass_ = VK_NULL_HANDLE;
         VkDescriptorSetLayout descriptorSetLayout_ = VK_NULL_HANDLE;
+        VkDescriptorSetLayout terrainVertexDescriptorSetLayout_ = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
         VkPipeline pipeline_ = VK_NULL_HANDLE;
         VkPipelineLayout terrainPipelineLayout_ = VK_NULL_HANDLE;
@@ -489,6 +634,7 @@ namespace dolbuto
         int terrainWorkerCount_ = 4;
         int maxTerrainUploadChunksPerFrame_ = 8;
         int maxTerrainUnloadChunksPerFrame_ = 16;
+        int maxTerrainRetiredDestroyPerFrame_ = 4;
         float terrainNoiseFeatureScale_ = 0.0f;
         int terrainNoiseOctaveCount_ = 0;
         float terrainNoiseLacunarity_ = 0.0f;
@@ -506,21 +652,42 @@ namespace dolbuto
         int loadOrderDiameter_ = 0;
         std::vector<ChunkOffset> loadOrder_;
         std::unordered_set<uint64_t> desiredTerrainChunks_;
+        std::unordered_set<uint64_t> desiredFeatureChunks_;
+        std::unordered_set<uint64_t> desiredRenderChunks_;
         std::unordered_set<uint64_t> requestedChunkJobs_;
         std::unordered_set<uint64_t> requestedMeshJobs_;
         std::unordered_set<uint64_t> pendingUnloadSet_;
-        std::unordered_map<uint64_t, std::shared_ptr<ChunkData>> chunkData_;
+        std::unordered_map<uint64_t, RuntimeChunk> runtimeChunks_;
         std::unordered_map<uint64_t, ChunkRenderData> terrainChunks_;
         std::deque<uint64_t> pendingUnloadChunks_;
         std::deque<RetiredChunkRenderData> retiredTerrainChunks_;
         std::vector<std::thread> terrainWorkers_;
+        std::thread saveWorker_;
         std::mutex terrainJobMutex_;
         std::condition_variable terrainJobCondition_;
-        std::deque<TerrainJob> terrainDataJobs_;
+        std::deque<TerrainJob> terrainFeatureJobs_;
+        std::deque<TerrainJob> terrainFinalizeJobs_;
         std::deque<TerrainJob> terrainMeshJobs_;
-        std::deque<std::shared_ptr<ChunkData>> completedChunkData_;
+        uint64_t terrainJobSequence_ = 0;
+        std::deque<CompletedChunkData> completedChunkData_;
+        std::deque<std::shared_ptr<ChunkData>> completedMergedChunks_;
         std::deque<CompletedChunkMesh> completedChunkMeshes_;
         bool stopTerrainWorkers_ = false;
+        std::mutex saveJobMutex_;
+        std::condition_variable saveJobCondition_;
+        std::deque<SaveChunkSnapshot> saveJobs_;
+        bool stopSaveWorker_ = false;
+        std::atomic<uint64_t> saveChunkDoneCount_{0};
+        std::atomic<uint64_t> saveFeatureDoneCount_{0};
+        std::atomic<uint64_t> saveFailedCount_{0};
+        std::atomic<uint64_t> loadPendingHitCount_{0};
+        std::atomic<uint64_t> loadRegionHitCount_{0};
+        std::atomic<uint64_t> loadMissCount_{0};
+        std::mutex savedChunkMutex_;
+        std::unordered_map<uint64_t, uint64_t> savedCleanRevisions_;
+        std::unordered_map<uint64_t, SaveChunkSnapshot> pendingSaveSnapshots_;
+        std::mutex regionHeaderCacheMutex_;
+        std::unordered_map<uint64_t, RegionHeaderCache> regionHeaderCache_;
         std::array<uint16_t, 1024> heightLut_{};
         VkDeviceSize localMemoryHeapSize_ = 0;
         uint32_t localMemoryHeapIndex_ = UINT32_MAX;
@@ -548,5 +715,52 @@ namespace dolbuto
         double accumulatedCpuFrameMs_ = 0.0;
         double accumulatedGpuFrameMs_ = 0.0;
         uint32_t performanceSampleCount_ = 0;
+        std::chrono::steady_clock::time_point peakProfilerStartTime_{};
+        bool peakProfilerSamplingStarted_ = false;
+        double frameChunkUpdateMs_ = 0.0;
+        double frameJobMainMs_ = 0.0;
+        double frameUploadMs_ = 0.0;
+        double frameUnloadMs_ = 0.0;
+        double frameRetireMs_ = 0.0;
+        double frameSaveEnqueueMs_ = 0.0;
+        double frameEnsureRuntimeMs_ = 0.0;
+        double frameWantRenderMs_ = 0.0;
+        double frameRenderDetachMs_ = 0.0;
+        double frameUnloadScanMs_ = 0.0;
+        double frameWantEnsureMs_ = 0.0;
+        double frameWantInsertMs_ = 0.0;
+        double frameWantReadyMs_ = 0.0;
+        double frameWantDependMs_ = 0.0;
+        double frameWantMeshReadyMs_ = 0.0;
+        double frameWantMeshDependMs_ = 0.0;
+        double frameEnsureKeyMs_ = 0.0;
+        double frameEnsureMarkMs_ = 0.0;
+        double frameEnsureFindMs_ = 0.0;
+        double frameEnsureLoadMs_ = 0.0;
+        double frameEnsureCreateMs_ = 0.0;
+        double frameEnsureDataTouchMs_ = 0.0;
+        double peakFrameMs_ = 0.0;
+        double peakChunkUpdateMs_ = 0.0;
+        double peakJobMainMs_ = 0.0;
+        double peakUploadMs_ = 0.0;
+        double peakUnloadMs_ = 0.0;
+        double peakRetireMs_ = 0.0;
+        double peakSaveEnqueueMs_ = 0.0;
+        double peakEnsureRuntimeMs_ = 0.0;
+        double peakWantRenderMs_ = 0.0;
+        double peakRenderDetachMs_ = 0.0;
+        double peakUnloadScanMs_ = 0.0;
+        double peakWantEnsureMs_ = 0.0;
+        double peakWantInsertMs_ = 0.0;
+        double peakWantReadyMs_ = 0.0;
+        double peakWantDependMs_ = 0.0;
+        double peakWantMeshReadyMs_ = 0.0;
+        double peakWantMeshDependMs_ = 0.0;
+        double peakEnsureKeyMs_ = 0.0;
+        double peakEnsureMarkMs_ = 0.0;
+        double peakEnsureFindMs_ = 0.0;
+        double peakEnsureLoadMs_ = 0.0;
+        double peakEnsureCreateMs_ = 0.0;
+        double peakEnsureDataTouchMs_ = 0.0;
     };
 }

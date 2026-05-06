@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.24)
 
 project(DOLBUTO LANGUAGES CXX)
 
+if(WIN32)
+    enable_language(RC)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -40,6 +44,17 @@ set(GLFW_IMPORT_LIB "${GLFW_LIB_DIR}/glfw3dll.lib")
 set(GLFW_DLL "${GLFW_LIB_DIR}/glfw3.dll")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
+set(DOLBUTO_WINDOWS_RESOURCE)
+if(WIN32)
+    set(DOLBUTO_ICON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/assets/textures/icon/icon.ico")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/windows/DOLBUTO.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/DOLBUTO.rc"
+        @ONLY
+    )
+    set(DOLBUTO_WINDOWS_RESOURCE "${CMAKE_CURRENT_BINARY_DIR}/DOLBUTO.rc")
+endif()
+
 if(NOT EXISTS "${GLFW_IMPORT_LIB}")
     message(FATAL_ERROR "GLFW import library not found: ${GLFW_IMPORT_LIB}")
 endif()
@@ -53,6 +68,7 @@ set(SHADER_SOURCES
     shaders/sprite.frag
     shaders/terrain.vert
     shaders/terrain.frag
+    shaders/player.vert
     shaders/selection.vert
     shaders/selection.frag
 )
@@ -74,11 +90,14 @@ endforeach()
 add_custom_target(DOLBUTOShaders DEPENDS ${SHADER_OUTPUTS})
 
 add_executable(DOLBUTO
+    ${DOLBUTO_WINDOWS_RESOURCE}
     src/main.cpp
     src/app/Application.cpp
     src/app/Application.h
     src/camera/Camera.cpp
     src/camera/Camera.h
+    src/platform/RuntimePaths.cpp
+    src/platform/RuntimePaths.h
     src/renderer/Renderer.cpp
     src/renderer/Renderer.h
     src/third_party/stb_image.cpp
@@ -99,6 +118,7 @@ target_compile_definitions(DOLBUTO
     PRIVATE
         DOLBUTO_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
         DOLBUTO_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config"
+        DOLBUTO_WORLD_DIR="${CMAKE_CURRENT_SOURCE_DIR}/saves/world"
         DOLBUTO_SHADER_DIR="${SHADER_OUTPUT_DIR}"
 )
 
@@ -113,8 +133,40 @@ if(WIN32)
     target_link_libraries(DOLBUTO PRIVATE advapi32)
 endif()
 
+if(WIN32 AND MSVC)
+    target_link_options(DOLBUTO
+        PRIVATE
+            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:/SUBSYSTEM:WINDOWS>"
+            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:/ENTRY:mainCRTStartup>"
+    )
+endif()
+
 add_custom_command(TARGET DOLBUTO POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${GLFW_DLL}"
         "$<TARGET_FILE_DIR:DOLBUTO>"
+)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+    add_custom_command(TARGET DOLBUTO POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets" "$<TARGET_FILE_DIR:DOLBUTO>/assets"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/config" "$<TARGET_FILE_DIR:DOLBUTO>/config"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${SHADER_OUTPUT_DIR}" "$<TARGET_FILE_DIR:DOLBUTO>/shaders"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:DOLBUTO>/saves/world/regions"
+    )
+endif()
+
+set(DOLBUTO_PORTABLE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dist/DOLBUTO_0.0.0.0")
+
+add_custom_target(DOLBUTOPortable
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${DOLBUTO_PORTABLE_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${DOLBUTO_PORTABLE_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${DOLBUTO_PORTABLE_DIR}/saves/world/regions"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:DOLBUTO>" "${DOLBUTO_PORTABLE_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GLFW_DLL}" "${DOLBUTO_PORTABLE_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets" "${DOLBUTO_PORTABLE_DIR}/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/config" "${DOLBUTO_PORTABLE_DIR}/config"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${SHADER_OUTPUT_DIR}" "${DOLBUTO_PORTABLE_DIR}/shaders"
+    DEPENDS DOLBUTO
+    COMMENT "Creating portable DOLBUTO package at ${DOLBUTO_PORTABLE_DIR}"
 )

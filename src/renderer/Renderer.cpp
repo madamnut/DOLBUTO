@@ -1,6 +1,7 @@
 #include "renderer/Renderer.h"
 
 #include "camera/Camera.h"
+#include "platform/RuntimePaths.h"
 
 #include <FastNoise/FastNoise.h>
 #include <stb_image.h>
@@ -40,7 +41,7 @@ namespace dolbuto
         constexpr float FieldOfViewRadians = 1.0471975512f;
         constexpr int FontAtlasSize = 512;
         constexpr float FontPixelHeight = 18.0f;
-        constexpr size_t MaxTextVertices = 16384;
+        constexpr size_t MaxTextVertices = 65536;
         constexpr int ChunkSizeX = 16;
         constexpr int ChunkSizeY = 512;
         constexpr int ChunkSizeZ = 16;
@@ -51,11 +52,15 @@ namespace dolbuto
         constexpr int MeshingSizeZ = ChunkSizeZ + MeshingBorder * 2;
         constexpr size_t MeshingBlockCount = MeshingSizeX * ChunkSizeY * MeshingSizeZ;
         constexpr int LoadGridUnitChunks = 16;
+        constexpr int RegionSizeChunks = 16;
+        constexpr uint32_t RegionSectorSize = 4096;
+        constexpr size_t RegionChunkEntrySize = 16;
         constexpr int CenterGroupChunks = 2;
         constexpr int DefaultLoadGridScale = 1;
         constexpr int DefaultTerrainWorkerCount = 4;
         constexpr int DefaultMaxTerrainUploadChunksPerFrame = 8;
         constexpr int DefaultMaxTerrainUnloadChunksPerFrame = 16;
+        constexpr int DefaultMaxTerrainRetiredDestroyPerFrame = 4;
         constexpr int TerrainMinHeight = 120;
         constexpr int TerrainMaxHeight = 140;
         constexpr int TerrainTilePeriod = 65536;
@@ -72,6 +77,7 @@ namespace dolbuto
         constexpr float DefaultTerrainDomainWarpGain = 0.5f;
         constexpr float TerrainNearPlane = 0.1f;
         constexpr float TerrainFarPlane = 4000.0f;
+        constexpr double PeakProfilerStartupDelaySeconds = 5.0;
         constexpr float HeightLutNoiseMin = -2.0f;
         constexpr float HeightLutNoiseMax = 2.0f;
         constexpr uint32_t HeightLutVersion = 1;
@@ -81,12 +87,16 @@ namespace dolbuto
         constexpr uint16_t BlockRock = 1;
         constexpr uint16_t BlockGrass = 2;
         constexpr uint16_t BlockDirt = 3;
+        constexpr uint16_t BlockTrunk = 8;
+        constexpr uint16_t BlockLeaves = 9;
         constexpr uint16_t BlockPlant = 10000;
         constexpr uint16_t BlockBedrock = 65535;
         constexpr uint32_t BedrockHeightSalt = 0xBEEFBEDu;
         constexpr uint32_t TopFaceRotationSalt = 0x51A7E001u;
         constexpr uint32_t PlantPlacementSalt = 0x9A7D3E21u;
-        constexpr uint8_t PlantPlacementThreshold = 178;
+        constexpr uint8_t PlantPlacementThreshold = 168;
+        constexpr uint8_t TreePlacementMin = 168;
+        constexpr uint8_t TreePlacementMax = 170;
         constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
         constexpr const char* VersionText = "DOLBUTO 0.0.0.0";
         constexpr std::array<const char*, 1> DeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -610,7 +620,7 @@ namespace dolbuto
 
         std::filesystem::path screenshotPath()
         {
-            const std::filesystem::path directory = std::filesystem::path(DOLBUTO_ASSET_DIR).parent_path() / "screenshots";
+            const std::filesystem::path directory = screenshotDirectory();
             std::filesystem::create_directories(directory);
 
             const auto now = std::chrono::system_clock::now();
@@ -683,6 +693,227 @@ namespace dolbuto
         {
             return (static_cast<uint64_t>(static_cast<uint32_t>(chunkX)) << 32u) |
                 static_cast<uint64_t>(static_cast<uint32_t>(chunkZ));
+        }
+
+        struct FeatureNeighborOffset
+        {
+            int x = 0;
+            int z = 0;
+        };
+
+        constexpr std::array<FeatureNeighborOffset, 8> FeatureNeighborOffsets = {
+            FeatureNeighborOffset{-1, -1},
+            FeatureNeighborOffset{0, -1},
+            FeatureNeighborOffset{1, -1},
+            FeatureNeighborOffset{-1, 0},
+            FeatureNeighborOffset{1, 0},
+            FeatureNeighborOffset{-1, 1},
+            FeatureNeighborOffset{0, 1},
+            FeatureNeighborOffset{1, 1}
+        };
+
+        constexpr uint8_t AllFeatureSourcesMask = 0xFFu;
+
+        std::optional<size_t> featureNeighborIndex(int offsetX, int offsetZ)
+        {
+            for (size_t i = 0; i < FeatureNeighborOffsets.size(); ++i)
+            {
+                if (FeatureNeighborOffsets[i].x == offsetX && FeatureNeighborOffsets[i].z == offsetZ)
+                {
+                    return i;
+                }
+            }
+            return std::nullopt;
+        }
+
+        void writeU8(std::vector<uint8_t>& bytes, uint8_t value)
+        {
+            bytes.push_back(value);
+        }
+
+        void writeU16(std::vector<uint8_t>& bytes, uint16_t value)
+        {
+            bytes.push_back(static_cast<uint8_t>(value & 0xFFu));
+            bytes.push_back(static_cast<uint8_t>((value >> 8u) & 0xFFu));
+        }
+
+        void writeU32(std::vector<uint8_t>& bytes, uint32_t value)
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                bytes.push_back(static_cast<uint8_t>((value >> (i * 8)) & 0xFFu));
+            }
+        }
+
+        void writeU64(std::vector<uint8_t>& bytes, uint64_t value)
+        {
+            for (int i = 0; i < 8; ++i)
+            {
+                bytes.push_back(static_cast<uint8_t>((value >> (i * 8)) & 0xFFu));
+            }
+        }
+
+        uint8_t readU8(const std::vector<uint8_t>& bytes, size_t& offset)
+        {
+            if (offset >= bytes.size())
+            {
+                throw std::runtime_error("Chunk payload read overflow.");
+            }
+            return bytes[offset++];
+        }
+
+        uint16_t readU16(const std::vector<uint8_t>& bytes, size_t& offset)
+        {
+            if (offset + 2 > bytes.size())
+            {
+                throw std::runtime_error("Chunk payload read overflow.");
+            }
+            const uint16_t value = static_cast<uint16_t>(bytes[offset]) |
+                static_cast<uint16_t>(static_cast<uint16_t>(bytes[offset + 1]) << 8u);
+            offset += 2;
+            return value;
+        }
+
+        uint32_t readU32(const std::vector<uint8_t>& bytes, size_t& offset)
+        {
+            if (offset + 4 > bytes.size())
+            {
+                throw std::runtime_error("Chunk payload read overflow.");
+            }
+            uint32_t value = 0;
+            for (int i = 0; i < 4; ++i)
+            {
+                value |= static_cast<uint32_t>(bytes[offset + static_cast<size_t>(i)]) << (i * 8);
+            }
+            offset += 4;
+            return value;
+        }
+
+        uint64_t readU64(const std::vector<uint8_t>& bytes, size_t& offset)
+        {
+            if (offset + 8 > bytes.size())
+            {
+                throw std::runtime_error("Chunk payload read overflow.");
+            }
+            uint64_t value = 0;
+            for (int i = 0; i < 8; ++i)
+            {
+                value |= static_cast<uint64_t>(bytes[offset + static_cast<size_t>(i)]) << (i * 8);
+            }
+            offset += 8;
+            return value;
+        }
+
+        void writeU32At(std::vector<uint8_t>& bytes, size_t offset, uint32_t value)
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                bytes[offset + static_cast<size_t>(i)] = static_cast<uint8_t>((value >> (i * 8)) & 0xFFu);
+            }
+        }
+
+        uint32_t readU32At(const std::vector<uint8_t>& bytes, size_t offset)
+        {
+            uint32_t value = 0;
+            for (int i = 0; i < 4; ++i)
+            {
+                value |= static_cast<uint32_t>(bytes[offset + static_cast<size_t>(i)]) << (i * 8);
+            }
+            return value;
+        }
+
+        std::vector<uint8_t> lz4EncodeLiteralBlock(const std::vector<uint8_t>& raw)
+        {
+            std::vector<uint8_t> encoded;
+            encoded.reserve(raw.size() + raw.size() / 255 + 16);
+            const size_t literalLength = raw.size();
+            const uint8_t tokenLiteral = static_cast<uint8_t>(std::min<size_t>(literalLength, 15u));
+            encoded.push_back(static_cast<uint8_t>(tokenLiteral << 4u));
+            if (literalLength >= 15)
+            {
+                size_t remaining = literalLength - 15;
+                while (remaining >= 255)
+                {
+                    encoded.push_back(255);
+                    remaining -= 255;
+                }
+                encoded.push_back(static_cast<uint8_t>(remaining));
+            }
+            encoded.insert(encoded.end(), raw.begin(), raw.end());
+            return encoded;
+        }
+
+        std::vector<uint8_t> lz4DecodeBlock(const std::vector<uint8_t>& encoded, size_t rawSize)
+        {
+            std::vector<uint8_t> decoded;
+            decoded.reserve(rawSize);
+            size_t offset = 0;
+            while (offset < encoded.size() && decoded.size() < rawSize)
+            {
+                const uint8_t token = encoded[offset++];
+                size_t literalLength = token >> 4u;
+                if (literalLength == 15)
+                {
+                    uint8_t lengthByte = 0;
+                    do
+                    {
+                        if (offset >= encoded.size())
+                        {
+                            throw std::runtime_error("Invalid LZ4 literal length.");
+                        }
+                        lengthByte = encoded[offset++];
+                        literalLength += lengthByte;
+                    } while (lengthByte == 255);
+                }
+
+                if (offset + literalLength > encoded.size())
+                {
+                    throw std::runtime_error("Invalid LZ4 literal data.");
+                }
+                decoded.insert(decoded.end(), encoded.begin() + static_cast<std::ptrdiff_t>(offset), encoded.begin() + static_cast<std::ptrdiff_t>(offset + literalLength));
+                offset += literalLength;
+                if (decoded.size() >= rawSize)
+                {
+                    break;
+                }
+
+                if (offset + 2 > encoded.size())
+                {
+                    throw std::runtime_error("Invalid LZ4 match offset.");
+                }
+                const size_t matchOffset = static_cast<size_t>(encoded[offset]) |
+                    (static_cast<size_t>(encoded[offset + 1]) << 8u);
+                offset += 2;
+                size_t matchLength = token & 0x0Fu;
+                if (matchLength == 15)
+                {
+                    uint8_t lengthByte = 0;
+                    do
+                    {
+                        if (offset >= encoded.size())
+                        {
+                            throw std::runtime_error("Invalid LZ4 match length.");
+                        }
+                        lengthByte = encoded[offset++];
+                        matchLength += lengthByte;
+                    } while (lengthByte == 255);
+                }
+                matchLength += 4;
+                if (matchOffset == 0 || matchOffset > decoded.size())
+                {
+                    throw std::runtime_error("Invalid LZ4 match distance.");
+                }
+                for (size_t i = 0; i < matchLength; ++i)
+                {
+                    decoded.push_back(decoded[decoded.size() - matchOffset]);
+                }
+            }
+
+            if (decoded.size() != rawSize)
+            {
+                throw std::runtime_error("Invalid LZ4 decoded size.");
+            }
+            return decoded;
         }
 
         FastNoise::SmartNode<> terrainNoiseGenerator(float simplexScale, int octaveCount, float lacunarity, float gain)
@@ -998,6 +1229,7 @@ namespace dolbuto
         createRenderPass();
         createDepthResources();
         createDescriptorSetLayout();
+        createTerrainVertexDescriptorSetLayout();
         createPipeline();
         createTerrainPipeline();
         createSelectionPipeline();
@@ -1013,6 +1245,7 @@ namespace dolbuto
         createPlayerMesh();
         loadWorldConfig();
         loadHeightLut();
+        startSaveWorker();
         startTerrainWorkers();
         requestTerrainLoad(loadedCenterGroupChunkX_, loadedCenterGroupChunkZ_);
         createCommandBuffers();
@@ -1022,6 +1255,8 @@ namespace dolbuto
     Renderer::~Renderer()
     {
         stopTerrainWorkers();
+        enqueueSaveAllRuntimeChunks();
+        stopSaveWorker();
         vkDeviceWaitIdle(device_);
 
         cleanupSwapchain();
@@ -1111,6 +1346,10 @@ namespace dolbuto
         {
             vkDestroyDescriptorSetLayout(device_, descriptorSetLayout_, nullptr);
         }
+        if (terrainVertexDescriptorSetLayout_ != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorSetLayout(device_, terrainVertexDescriptorSetLayout_, nullptr);
+        }
         if (renderPass_ != VK_NULL_HANDLE)
         {
             vkDestroyRenderPass(device_, renderPass_, nullptr);
@@ -1140,6 +1379,30 @@ namespace dolbuto
         float playerYaw,
         bool terrainWireframe)
     {
+        const auto frameStart = std::chrono::steady_clock::now();
+        frameChunkUpdateMs_ = 0.0;
+        frameJobMainMs_ = 0.0;
+        frameUploadMs_ = 0.0;
+        frameUnloadMs_ = 0.0;
+        frameRetireMs_ = 0.0;
+        frameSaveEnqueueMs_ = 0.0;
+        frameEnsureRuntimeMs_ = 0.0;
+        frameWantRenderMs_ = 0.0;
+        frameRenderDetachMs_ = 0.0;
+        frameUnloadScanMs_ = 0.0;
+        frameWantEnsureMs_ = 0.0;
+        frameWantInsertMs_ = 0.0;
+        frameWantReadyMs_ = 0.0;
+        frameWantDependMs_ = 0.0;
+        frameWantMeshReadyMs_ = 0.0;
+        frameWantMeshDependMs_ = 0.0;
+        frameEnsureKeyMs_ = 0.0;
+        frameEnsureMarkMs_ = 0.0;
+        frameEnsureFindMs_ = 0.0;
+        frameEnsureLoadMs_ = 0.0;
+        frameEnsureCreateMs_ = 0.0;
+        frameEnsureDataTouchMs_ = 0.0;
+
         const Vec3 cameraPositionFloat = toVec3(cameraPosition);
         const Vec3 playerPositionFloat = toVec3(playerPosition);
 
@@ -1163,7 +1426,10 @@ namespace dolbuto
                 lastGpuFrameMs_ = static_cast<double>(timestamps[1] - timestamps[0]) * static_cast<double>(timestampPeriod_) / 1000000.0;
             }
         }
+        const auto chunkUpdateStart = std::chrono::steady_clock::now();
         updateLoadedChunks(playerPosition);
+        const auto chunkUpdateEnd = std::chrono::steady_clock::now();
+        frameChunkUpdateMs_ += std::chrono::duration<double, std::milli>(chunkUpdateEnd - chunkUpdateStart).count();
         processCompletedTerrainJobs();
         const auto cpuStart = std::chrono::steady_clock::now();
 
@@ -1259,12 +1525,45 @@ namespace dolbuto
 
         const auto cpuEnd = std::chrono::steady_clock::now();
         updatePerformanceText(std::chrono::duration<double, std::milli>(cpuEnd - cpuStart).count());
+        updatePeakProfiler(std::chrono::duration<double, std::milli>(cpuEnd - frameStart).count());
         currentFrame_ = (currentFrame_ + 1) % MaxFramesInFlight;
     }
 
     void Renderer::setFramebufferResized()
     {
         framebufferResized_ = true;
+    }
+
+    void Renderer::resetPeakProfiler()
+    {
+        peakFrameMs_ = 0.0;
+        peakChunkUpdateMs_ = 0.0;
+        peakJobMainMs_ = 0.0;
+        peakUploadMs_ = 0.0;
+        peakUnloadMs_ = 0.0;
+        peakRetireMs_ = 0.0;
+        peakSaveEnqueueMs_ = 0.0;
+        peakEnsureRuntimeMs_ = 0.0;
+        peakWantRenderMs_ = 0.0;
+        peakRenderDetachMs_ = 0.0;
+        peakUnloadScanMs_ = 0.0;
+        peakWantEnsureMs_ = 0.0;
+        peakWantInsertMs_ = 0.0;
+        peakWantReadyMs_ = 0.0;
+        peakWantDependMs_ = 0.0;
+        peakWantMeshReadyMs_ = 0.0;
+        peakWantMeshDependMs_ = 0.0;
+        peakEnsureKeyMs_ = 0.0;
+        peakEnsureMarkMs_ = 0.0;
+        peakEnsureFindMs_ = 0.0;
+        peakEnsureLoadMs_ = 0.0;
+        peakEnsureCreateMs_ = 0.0;
+        peakEnsureDataTouchMs_ = 0.0;
+        if (peakProfilerSamplingStarted_)
+        {
+            peakProfilerStatusText_ = "PEAK SAMPLE: ON";
+        }
+        updatePeakProfilerText();
     }
 
     bool Renderer::playerColliderIntersectsTerrain(DVec3 playerPosition) const
@@ -1690,10 +1989,30 @@ namespace dolbuto
         }
     }
 
+    void Renderer::createTerrainVertexDescriptorSetLayout()
+    {
+        VkDescriptorSetLayoutBinding binding{};
+        binding.binding = 0;
+        binding.descriptorCount = 1;
+        binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+        VkDescriptorSetLayoutCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        createInfo.bindingCount = 1;
+        createInfo.pBindings = &binding;
+
+        if (vkCreateDescriptorSetLayout(device_, &createInfo, nullptr, &terrainVertexDescriptorSetLayout_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create terrain vertex descriptor set layout.");
+        }
+    }
+
     void Renderer::createPipeline()
     {
-        VkShaderModule vertShader = createShaderModule(std::string(DOLBUTO_SHADER_DIR) + "/sprite.vert.spv");
-        VkShaderModule fragShader = createShaderModule(std::string(DOLBUTO_SHADER_DIR) + "/sprite.frag.spv");
+        const std::filesystem::path shaderDir = shaderDirectory();
+        VkShaderModule vertShader = createShaderModule((shaderDir / "sprite.vert.spv").string());
+        VkShaderModule fragShader = createShaderModule((shaderDir / "sprite.frag.spv").string());
 
         VkPipelineShaderStageCreateInfo vertStage{};
         vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1827,8 +2146,10 @@ namespace dolbuto
 
     void Renderer::createTerrainPipeline()
     {
-        VkShaderModule vertShader = createShaderModule(std::string(DOLBUTO_SHADER_DIR) + "/terrain.vert.spv");
-        VkShaderModule fragShader = createShaderModule(std::string(DOLBUTO_SHADER_DIR) + "/terrain.frag.spv");
+        const std::filesystem::path shaderDir = shaderDirectory();
+        VkShaderModule vertShader = createShaderModule((shaderDir / "terrain.vert.spv").string());
+        VkShaderModule playerVertShader = createShaderModule((shaderDir / "player.vert.spv").string());
+        VkShaderModule fragShader = createShaderModule((shaderDir / "terrain.frag.spv").string());
 
         VkPipelineShaderStageCreateInfo vertStage{};
         vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1844,39 +2165,42 @@ namespace dolbuto
 
         VkPipelineShaderStageCreateInfo stages[] = {vertStage, fragStage};
 
-        VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(TerrainVertex);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-        std::array<VkVertexInputAttributeDescription, 5> attributes{};
-        attributes[0].binding = 0;
-        attributes[0].location = 0;
-        attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributes[0].offset = offsetof(TerrainVertex, x);
-        attributes[1].binding = 0;
-        attributes[1].location = 1;
-        attributes[1].format = VK_FORMAT_R32G32_SFLOAT;
-        attributes[1].offset = offsetof(TerrainVertex, u);
-        attributes[2].binding = 0;
-        attributes[2].location = 2;
-        attributes[2].format = VK_FORMAT_R32_SFLOAT;
-        attributes[2].offset = offsetof(TerrainVertex, ao);
-        attributes[3].binding = 0;
-        attributes[3].location = 3;
-        attributes[3].format = VK_FORMAT_R32_SFLOAT;
-        attributes[3].offset = offsetof(TerrainVertex, textureLayer);
-        attributes[4].binding = 0;
-        attributes[4].location = 4;
-        attributes[4].format = VK_FORMAT_R32_SFLOAT;
-        attributes[4].offset = offsetof(TerrainVertex, mipDistanceScale);
-
         VkPipelineVertexInputStateCreateInfo vertexInput{};
         vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertexInput.vertexBindingDescriptionCount = 1;
-        vertexInput.pVertexBindingDescriptions = &bindingDescription;
-        vertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributes.size());
-        vertexInput.pVertexAttributeDescriptions = attributes.data();
+
+        VkVertexInputBindingDescription playerBindingDescription{};
+        playerBindingDescription.binding = 0;
+        playerBindingDescription.stride = sizeof(TerrainVertex);
+        playerBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        std::array<VkVertexInputAttributeDescription, 5> playerAttributes{};
+        playerAttributes[0].binding = 0;
+        playerAttributes[0].location = 0;
+        playerAttributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+        playerAttributes[0].offset = offsetof(TerrainVertex, x);
+        playerAttributes[1].binding = 0;
+        playerAttributes[1].location = 1;
+        playerAttributes[1].format = VK_FORMAT_R32G32_SFLOAT;
+        playerAttributes[1].offset = offsetof(TerrainVertex, u);
+        playerAttributes[2].binding = 0;
+        playerAttributes[2].location = 2;
+        playerAttributes[2].format = VK_FORMAT_R32_SFLOAT;
+        playerAttributes[2].offset = offsetof(TerrainVertex, ao);
+        playerAttributes[3].binding = 0;
+        playerAttributes[3].location = 3;
+        playerAttributes[3].format = VK_FORMAT_R32_SFLOAT;
+        playerAttributes[3].offset = offsetof(TerrainVertex, textureLayer);
+        playerAttributes[4].binding = 0;
+        playerAttributes[4].location = 4;
+        playerAttributes[4].format = VK_FORMAT_R32_SFLOAT;
+        playerAttributes[4].offset = offsetof(TerrainVertex, mipDistanceScale);
+
+        VkPipelineVertexInputStateCreateInfo playerVertexInput{};
+        playerVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        playerVertexInput.vertexBindingDescriptionCount = 1;
+        playerVertexInput.pVertexBindingDescriptions = &playerBindingDescription;
+        playerVertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(playerAttributes.size());
+        playerVertexInput.pVertexAttributeDescriptions = playerAttributes.data();
 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -1931,8 +2255,12 @@ namespace dolbuto
 
         VkPipelineLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        layoutInfo.setLayoutCount = 1;
-        layoutInfo.pSetLayouts = &descriptorSetLayout_;
+        std::array<VkDescriptorSetLayout, 2> terrainSetLayouts = {
+            descriptorSetLayout_,
+            terrainVertexDescriptorSetLayout_
+        };
+        layoutInfo.setLayoutCount = static_cast<uint32_t>(terrainSetLayouts.size());
+        layoutInfo.pSetLayouts = terrainSetLayouts.data();
         layoutInfo.pushConstantRangeCount = 1;
         layoutInfo.pPushConstantRanges = &pushRange;
 
@@ -1970,19 +2298,24 @@ namespace dolbuto
 
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.cullMode = VK_CULL_MODE_NONE;
+        vertStage.module = playerVertShader;
+        stages[0] = vertStage;
+        pipelineInfo.pVertexInputState = &playerVertexInput;
         if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &playerPipeline_) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create player pipeline.");
         }
 
         vkDestroyShaderModule(device_, fragShader, nullptr);
+        vkDestroyShaderModule(device_, playerVertShader, nullptr);
         vkDestroyShaderModule(device_, vertShader, nullptr);
     }
 
     void Renderer::createSelectionPipeline()
     {
-        VkShaderModule vertShader = createShaderModule(std::string(DOLBUTO_SHADER_DIR) + "/selection.vert.spv");
-        VkShaderModule fragShader = createShaderModule(std::string(DOLBUTO_SHADER_DIR) + "/selection.frag.spv");
+        const std::filesystem::path shaderDir = shaderDirectory();
+        VkShaderModule vertShader = createShaderModule((shaderDir / "selection.vert.spv").string());
+        VkShaderModule fragShader = createShaderModule((shaderDir / "selection.frag.spv").string());
 
         VkPipelineShaderStageCreateInfo vertStage{};
         vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -2193,15 +2526,20 @@ namespace dolbuto
 
     void Renderer::createDescriptorPool()
     {
-        std::array<VkDescriptorPoolSize, 1> poolSizes{};
+        constexpr uint32_t MaxTextureDescriptorSets = 16;
+        constexpr uint32_t MaxTerrainVertexDescriptorSets = 65536;
+        std::array<VkDescriptorPoolSize, 2> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[0].descriptorCount = 8;
+        poolSizes[0].descriptorCount = MaxTextureDescriptorSets;
+        poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        poolSizes[1].descriptorCount = MaxTerrainVertexDescriptorSets;
 
         VkDescriptorPoolCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        createInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         createInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         createInfo.pPoolSizes = poolSizes.data();
-        createInfo.maxSets = 8;
+        createInfo.maxSets = MaxTextureDescriptorSets + MaxTerrainVertexDescriptorSets;
 
         if (vkCreateDescriptorPool(device_, &createInfo, nullptr, &descriptorPool_) != VK_SUCCESS)
         {
@@ -2211,13 +2549,14 @@ namespace dolbuto
 
     void Renderer::createTextures()
     {
-        const std::string blockTextureDir = std::string(DOLBUTO_ASSET_DIR) + "/textures/block/";
-        sun_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/sky/Sun.png");
-        moon_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/sky/Moon.png");
-        crosshair_ = createTexture(std::string(DOLBUTO_ASSET_DIR) + "/textures/ui/Crosshair.png");
-        playerTexture_ = createTextureArray({std::string(DOLBUTO_ASSET_DIR) + "/textures/character/Character.png"});
+        const std::filesystem::path assetDir = assetDirectory();
+        const std::string blockTextureDir = (assetDir / "textures" / "block").string() + "/";
+        sun_ = createTexture((assetDir / "textures" / "sky" / "Sun.png").string());
+        moon_ = createTexture((assetDir / "textures" / "sky" / "Moon.png").string());
+        crosshair_ = createTexture((assetDir / "textures" / "ui" / "Crosshair.png").string());
+        playerTexture_ = createTextureArray({(assetDir / "textures" / "character" / "Character.png").string()});
 
-        const std::vector<char> blockDefinitionData = readFile(std::string(DOLBUTO_ASSET_DIR) + "/data/blocks.json");
+        const std::vector<char> blockDefinitionData = readFile((assetDir / "data" / "blocks.json").string());
         const std::string blockDefinitionText(blockDefinitionData.begin(), blockDefinitionData.end());
         const std::vector<ParsedBlockDefinition> blockDefinitions = parseBlockDefinitions(blockDefinitionText);
 
@@ -2336,7 +2675,7 @@ namespace dolbuto
 
     void Renderer::createFont()
     {
-        std::vector<char> fontData = readFile(std::string(DOLBUTO_ASSET_DIR) + "/fonts/VCR_OSD_MONO.ttf");
+        std::vector<char> fontData = readFile((assetDirectory() / "fonts" / "VCR_OSD_MONO.ttf").string());
         std::vector<unsigned char> alpha(FontAtlasSize * FontAtlasSize);
 
         const int bakeResult = stbtt_BakeFontBitmap(
@@ -2391,7 +2730,7 @@ namespace dolbuto
 
     void Renderer::createPlayerMesh()
     {
-        const std::vector<char> meshData = readFile(std::string(DOLBUTO_ASSET_DIR) + "/textures/character/Character.mesh");
+        const std::vector<char> meshData = readFile((assetDirectory() / "textures" / "character" / "Character.mesh").string());
         if (meshData.size() < 12 || std::memcmp(meshData.data(), "PMSH", 4) != 0)
         {
             throw std::runtime_error("Invalid player mesh file.");
@@ -2466,7 +2805,7 @@ namespace dolbuto
             playerIndices_.push_back(index);
         }
 
-        createTerrainBuffer({playerLocalVertices_, playerIndices_}, playerMesh_);
+        createTerrainBuffer({playerLocalVertices_, playerIndices_}, playerMesh_, false);
     }
 
     void Renderer::loadWorldConfig()
@@ -2475,6 +2814,7 @@ namespace dolbuto
         terrainWorkerCount_ = DefaultTerrainWorkerCount;
         maxTerrainUploadChunksPerFrame_ = DefaultMaxTerrainUploadChunksPerFrame;
         maxTerrainUnloadChunksPerFrame_ = DefaultMaxTerrainUnloadChunksPerFrame;
+        maxTerrainRetiredDestroyPerFrame_ = DefaultMaxTerrainRetiredDestroyPerFrame;
         terrainNoiseFeatureScale_ = DefaultTerrainNoiseFeatureScale;
         terrainNoiseOctaveCount_ = DefaultTerrainNoiseOctaveCount;
         terrainNoiseLacunarity_ = DefaultTerrainNoiseLacunarity;
@@ -2486,7 +2826,7 @@ namespace dolbuto
         terrainDomainWarpOctaveCount_ = DefaultTerrainDomainWarpOctaveCount;
         terrainDomainWarpGain_ = DefaultTerrainDomainWarpGain;
 
-        const std::filesystem::path path = std::filesystem::path(DOLBUTO_CONFIG_DIR) / "world.json";
+        const std::filesystem::path path = configDirectory() / "world.json";
         std::ifstream file(path);
         if (!file.is_open())
         {
@@ -2516,6 +2856,10 @@ namespace dolbuto
         if (const std::optional<int> value = jsonIntField(chunkLoad, "maxUnloadedChunksPerFrame"); value.has_value())
         {
             maxTerrainUnloadChunksPerFrame_ = std::clamp(*value, 1, 64);
+        }
+        if (const std::optional<int> value = jsonIntField(chunkLoad, "maxRetiredChunksDestroyedPerFrame"); value.has_value())
+        {
+            maxTerrainRetiredDestroyPerFrame_ = std::clamp(*value, 1, 64);
         }
         if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "featureScale"); value.has_value() && *value > 0.0f)
         {
@@ -2567,7 +2911,7 @@ namespace dolbuto
             heightLut_[i] = static_cast<uint16_t>(std::lround(static_cast<double>(TerrainMinHeight) + t * static_cast<double>(TerrainMaxHeight - TerrainMinHeight)));
         }
 
-        const std::filesystem::path path = std::filesystem::path(DOLBUTO_ASSET_DIR) / "data" / "world" / "height_lut.bin";
+        const std::filesystem::path path = assetDirectory() / "data" / "world" / "height_lut.bin";
         std::ifstream file(path, std::ios::binary);
         if (!file.is_open())
         {
@@ -2628,84 +2972,120 @@ namespace dolbuto
         const uint64_t generation = ++terrainGeneration_;
         rebuildLoadOrderIfNeeded();
 
-        std::unordered_set<uint64_t> desired;
-        desired.reserve(static_cast<size_t>(loadedChunkDiameter_) * loadedChunkDiameter_);
-
-        const auto gridStart = std::chrono::steady_clock::now();
-        for (const ChunkOffset& offset : loadOrder_)
-        {
-            desired.insert(chunkKey(loadedCenterGroupChunkX_ + offset.x, loadedCenterGroupChunkZ_ + offset.z));
-        }
-        const auto gridEnd = std::chrono::steady_clock::now();
-
-        desiredTerrainChunks_ = std::move(desired);
+        desiredTerrainChunks_.clear();
+        desiredFeatureChunks_.clear();
+        desiredRenderChunks_.clear();
+        desiredTerrainChunks_.reserve(static_cast<size_t>(loadedChunkDiameter_ + 4) * static_cast<size_t>(loadedChunkDiameter_ + 4));
+        desiredFeatureChunks_.reserve(static_cast<size_t>(loadedChunkDiameter_ + 2) * static_cast<size_t>(loadedChunkDiameter_ + 2));
+        desiredRenderChunks_.reserve(static_cast<size_t>(loadedChunkDiameter_) * loadedChunkDiameter_);
+        const size_t runtimeCapacity = static_cast<size_t>(loadedChunkDiameter_ + 4) * static_cast<size_t>(loadedChunkDiameter_ + 4);
+        const size_t featureCapacity = static_cast<size_t>(loadedChunkDiameter_ + 2) * static_cast<size_t>(loadedChunkDiameter_ + 2);
+        const size_t renderCapacity = static_cast<size_t>(loadedChunkDiameter_) * static_cast<size_t>(loadedChunkDiameter_);
+        runtimeChunks_.reserve(runtimeCapacity + 256u);
+        terrainChunks_.reserve(renderCapacity + 256u);
+        pendingUnloadSet_.reserve(runtimeCapacity + 256u);
+        requestedChunkJobs_.reserve(featureCapacity + 256u);
+        requestedMeshJobs_.reserve(renderCapacity + 256u);
         requestedChunkJobs_.clear();
         requestedMeshJobs_.clear();
 
+        const auto gridStart = std::chrono::steady_clock::now();
+        const int renderMin = -(loadedChunkDiameter_ / 2 - 1);
+        const int renderMax = loadedChunkDiameter_ / 2;
+        const int runtimeKeepMin = renderMin - 2;
+        const int runtimeKeepMax = renderMax + 2;
+
         {
             std::lock_guard<std::mutex> lock(terrainJobMutex_);
-            terrainDataJobs_.clear();
+            terrainFeatureJobs_.clear();
+            terrainFinalizeJobs_.clear();
             terrainMeshJobs_.clear();
-            completedChunkData_.clear();
             completedChunkMeshes_.clear();
         }
 
+        for (auto& entry : runtimeChunks_)
+        {
+            entry.second.bestPriority = UINT32_MAX;
+        }
+
+        const auto ensureStart = std::chrono::steady_clock::now();
+        for (const ChunkOffset& offset : loadOrder_)
+        {
+            if (offset.x < runtimeKeepMin || offset.x > runtimeKeepMax || offset.z < runtimeKeepMin || offset.z > runtimeKeepMax)
+            {
+                continue;
+            }
+            ensureRuntimeChunk(
+                loadedCenterGroupChunkX_ + offset.x,
+                loadedCenterGroupChunkZ_ + offset.z,
+                generation);
+        }
+        const auto ensureEnd = std::chrono::steady_clock::now();
+        frameEnsureRuntimeMs_ += std::chrono::duration<double, std::milli>(ensureEnd - ensureStart).count();
+
+        auto distanceToCenterGroupSquared = [](const ChunkOffset& offset)
+        {
+            const int dx = offset.x < 0 ? -offset.x : (offset.x > 1 ? offset.x - 1 : 0);
+            const int dz = offset.z < 0 ? -offset.z : (offset.z > 1 ? offset.z - 1 : 0);
+            return static_cast<uint32_t>(dx * dx + dz * dz);
+        };
+
+        const auto wantRenderStart = std::chrono::steady_clock::now();
+        for (const ChunkOffset& offset : loadOrder_)
+        {
+            if (offset.x < renderMin || offset.x > renderMax || offset.z < renderMin || offset.z > renderMax)
+            {
+                continue;
+            }
+            wantRender(
+                loadedCenterGroupChunkX_ + offset.x,
+                loadedCenterGroupChunkZ_ + offset.z,
+                distanceToCenterGroupSquared(offset));
+        }
+        const auto wantRenderEnd = std::chrono::steady_clock::now();
+        frameWantRenderMs_ += std::chrono::duration<double, std::milli>(wantRenderEnd - wantRenderStart).count();
+        const auto gridEnd = std::chrono::steady_clock::now();
+
+        const auto renderDetachStart = std::chrono::steady_clock::now();
         for (auto it = terrainChunks_.begin(); it != terrainChunks_.end();)
         {
-            if (desiredTerrainChunks_.find(it->first) == desiredTerrainChunks_.end())
+            if (desiredRenderChunks_.find(it->first) == desiredRenderChunks_.end())
             {
-                if (pendingUnloadSet_.insert(it->first).second)
-                {
-                    pendingUnloadChunks_.push_back(it->first);
-                }
-                ++it;
+                retiredTerrainChunks_.push_back(RetiredChunkRenderData{
+                    static_cast<uint32_t>(MaxFramesInFlight + 1),
+                    std::move(it->second)});
+                it = terrainChunks_.erase(it);
             }
             else
             {
-                pendingUnloadSet_.erase(it->first);
                 ++it;
             }
         }
+        const auto renderDetachEnd = std::chrono::steady_clock::now();
+        frameRenderDetachMs_ += std::chrono::duration<double, std::milli>(renderDetachEnd - renderDetachStart).count();
 
-        uint32_t queuedChunks = 0;
-        for (const ChunkOffset& offset : loadOrder_)
+        const auto unloadScanStart = std::chrono::steady_clock::now();
+        for (const auto& entry : runtimeChunks_)
         {
-            const int chunkX = loadedCenterGroupChunkX_ + offset.x;
-            const int chunkZ = loadedCenterGroupChunkZ_ + offset.z;
-            const uint64_t key = chunkKey(chunkX, chunkZ);
-            pendingUnloadSet_.erase(key);
-            auto dataIt = chunkData_.find(key);
-            if (dataIt != chunkData_.end())
+            if (desiredTerrainChunks_.find(entry.first) == desiredTerrainChunks_.end())
             {
-                dataIt->second->generation = generation;
-                if (!chunkMeshReady(key) && requestedMeshJobs_.insert(key).second)
+                if (pendingUnloadSet_.insert(entry.first).second)
                 {
-                    TerrainJob job{};
-                    job.type = TerrainJob::Type::BuildChunkMesh;
-                    job.generation = generation;
-                    job.revision = dataIt->second->revision;
-                    job.chunkX = chunkX;
-                    job.chunkZ = chunkZ;
-                    job.chunk = dataIt->second;
-                    enqueueTerrainJob(std::move(job));
+                    pendingUnloadChunks_.push_back(entry.first);
                 }
-                continue;
             }
-
-            TerrainJob job{};
-            job.type = TerrainJob::Type::BuildChunkData;
-            job.generation = generation;
-            job.chunkX = chunkX;
-            job.chunkZ = chunkZ;
-            enqueueTerrainJob(std::move(job));
-            requestedChunkJobs_.insert(key);
-            ++queuedChunks;
+            else
+            {
+                pendingUnloadSet_.erase(entry.first);
+            }
         }
+        const auto unloadScanEnd = std::chrono::steady_clock::now();
+        frameUnloadScanMs_ += std::chrono::duration<double, std::milli>(unloadScanEnd - unloadScanStart).count();
 
         const auto updateEnd = std::chrono::steady_clock::now();
         chunkUpdateProfileText_ = formatProfileMs("UPDATE TOTAL", std::chrono::duration<double, std::milli>(updateEnd - updateStart).count());
         gridScanProfileText_ = formatProfileMs("GRID SCAN", std::chrono::duration<double, std::milli>(gridEnd - gridStart).count());
-        newChunksProfileText_ = "NEW CHUNKS: " + std::to_string(queuedChunks);
+        newChunksProfileText_ = "NEW CHUNKS: " + std::to_string(requestedChunkJobs_.size());
         metadataBuildProfileText_ = formatProfileMs("META BUILD", 0.0);
         updateTerrainStats();
         debugTextBatchDirty_ = true;
@@ -2713,17 +3093,18 @@ namespace dolbuto
 
     void Renderer::rebuildLoadOrderIfNeeded()
     {
-        if (loadOrderDiameter_ == loadedChunkDiameter_ && !loadOrder_.empty())
+        const int dataDiameter = loadedChunkDiameter_ + 4;
+        if (loadOrderDiameter_ == dataDiameter && !loadOrder_.empty())
         {
             return;
         }
 
-        loadOrderDiameter_ = loadedChunkDiameter_;
+        loadOrderDiameter_ = dataDiameter;
         loadOrder_.clear();
-        loadOrder_.reserve(static_cast<size_t>(loadedChunkDiameter_) * loadedChunkDiameter_);
+        loadOrder_.reserve(static_cast<size_t>(dataDiameter) * dataDiameter);
 
-        const int min = -(loadedChunkDiameter_ / 2 - 1);
-        const int max = loadedChunkDiameter_ / 2;
+        const int min = -(dataDiameter / 2 - 1);
+        const int max = dataDiameter / 2;
         for (int z = min; z <= max; ++z)
         {
             for (int x = min; x <= max; ++x)
@@ -2760,10 +3141,9 @@ namespace dolbuto
         {
             std::lock_guard<std::mutex> lock(terrainJobMutex_);
             stopTerrainWorkers_ = true;
-            terrainDataJobs_.clear();
+            terrainFeatureJobs_.clear();
+            terrainFinalizeJobs_.clear();
             terrainMeshJobs_.clear();
-            completedChunkData_.clear();
-            completedChunkMeshes_.clear();
         }
         terrainJobCondition_.notify_all();
 
@@ -2775,6 +3155,134 @@ namespace dolbuto
             }
         }
         terrainWorkers_.clear();
+
+        std::deque<CompletedChunkData> completedData;
+        std::deque<std::shared_ptr<ChunkData>> completedMerged;
+        {
+            std::lock_guard<std::mutex> lock(terrainJobMutex_);
+            completedData = std::move(completedChunkData_);
+            completedMerged = std::move(completedMergedChunks_);
+            completedChunkMeshes_.clear();
+        }
+
+        for (CompletedChunkData& completed : completedData)
+        {
+            if (!completed.chunk)
+            {
+                continue;
+            }
+
+            SaveChunkSnapshot snapshot{};
+            snapshot.chunkX = completed.chunk->chunkX;
+            snapshot.chunkZ = completed.chunk->chunkZ;
+            snapshot.genState = ChunkGenState::Featuring;
+            snapshot.revision = completed.chunk->revision;
+            snapshot.hasData = true;
+            snapshot.chunkData = completed.chunk;
+            enqueueSaveSnapshot(std::move(snapshot));
+        }
+
+        for (const std::shared_ptr<ChunkData>& chunk : completedMerged)
+        {
+            if (!chunk)
+            {
+                continue;
+            }
+
+            SaveChunkSnapshot snapshot{};
+            snapshot.chunkX = chunk->chunkX;
+            snapshot.chunkZ = chunk->chunkZ;
+            snapshot.genState = ChunkGenState::Full;
+            snapshot.revision = chunk->revision;
+            snapshot.hasData = true;
+            snapshot.chunkData = chunk;
+            enqueueSaveSnapshot(std::move(snapshot));
+        }
+    }
+
+    void Renderer::startSaveWorker()
+    {
+        stopSaveWorker_ = false;
+        saveWorker_ = std::thread(&Renderer::saveWorkerLoop, this);
+    }
+
+    void Renderer::stopSaveWorker()
+    {
+        {
+            std::lock_guard<std::mutex> lock(saveJobMutex_);
+            stopSaveWorker_ = true;
+        }
+        saveJobCondition_.notify_all();
+
+        if (saveWorker_.joinable())
+        {
+            saveWorker_.join();
+        }
+    }
+
+    void Renderer::saveWorkerLoop()
+    {
+        for (;;)
+        {
+            SaveChunkSnapshot snapshot{};
+            {
+                std::unique_lock<std::mutex> lock(saveJobMutex_);
+                saveJobCondition_.wait(lock, [this]
+                {
+                    return stopSaveWorker_ || !saveJobs_.empty();
+                });
+
+                if (saveJobs_.empty())
+                {
+                    if (stopSaveWorker_)
+                    {
+                        return;
+                    }
+                    continue;
+                }
+
+                snapshot = std::move(saveJobs_.front());
+                saveJobs_.pop_front();
+            }
+
+            try
+            {
+                const bool savedChunkData = snapshot.hasData;
+                saveChunkSnapshot(snapshot);
+                const uint64_t key = chunkKey(snapshot.chunkX, snapshot.chunkZ);
+                {
+                    std::lock_guard<std::mutex> lock(saveJobMutex_);
+                    const auto pendingIt = pendingSaveSnapshots_.find(key);
+                    if (pendingIt != pendingSaveSnapshots_.end() &&
+                        pendingIt->second.hasData == snapshot.hasData &&
+                        pendingIt->second.revision == snapshot.revision &&
+                        pendingIt->second.genState == snapshot.genState)
+                    {
+                        pendingSaveSnapshots_.erase(pendingIt);
+                    }
+                }
+                if (savedChunkData)
+                {
+                    auto runtimeIt = runtimeChunks_.find(key);
+                    if (runtimeIt != runtimeChunks_.end() &&
+                        runtimeIt->second.data &&
+                        runtimeIt->second.data->revision == snapshot.revision)
+                    {
+                        runtimeIt->second.hasSavedBacking = true;
+                        runtimeIt->second.dataDirtyForSave = false;
+                    }
+                    saveChunkDoneCount_.fetch_add(1, std::memory_order_relaxed);
+                }
+                else
+                {
+                    saveFeatureDoneCount_.fetch_add(1, std::memory_order_relaxed);
+                }
+            }
+            catch (...)
+            {
+                saveFailedCount_.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
     }
 
     void Renderer::terrainWorkerLoop()
@@ -2786,7 +3294,10 @@ namespace dolbuto
                 std::unique_lock<std::mutex> lock(terrainJobMutex_);
                 terrainJobCondition_.wait(lock, [this]
                 {
-                    return stopTerrainWorkers_ || !terrainMeshJobs_.empty() || !terrainDataJobs_.empty();
+                    return stopTerrainWorkers_ ||
+                        !terrainMeshJobs_.empty() ||
+                        !terrainFinalizeJobs_.empty() ||
+                        !terrainFeatureJobs_.empty();
                 });
 
                 if (stopTerrainWorkers_)
@@ -2794,15 +3305,58 @@ namespace dolbuto
                     return;
                 }
 
-                if (!terrainMeshJobs_.empty())
+                auto stageRank = [](TerrainJob::Type type)
                 {
-                    job = std::move(terrainMeshJobs_.front());
-                    terrainMeshJobs_.pop_front();
-                }
-                else
+                    switch (type)
+                    {
+                    case TerrainJob::Type::BuildChunkMesh:
+                        return 0;
+                    case TerrainJob::Type::FinalizeFeatures:
+                        return 1;
+                    case TerrainJob::Type::BuildFeaturing:
+                        return 2;
+                    }
+                    return 3;
+                };
+
+                auto jobLess = [&](const TerrainJob& left, const TerrainJob& right)
                 {
-                    job = std::move(terrainDataJobs_.front());
-                    terrainDataJobs_.pop_front();
+                    if (left.priority != right.priority)
+                    {
+                        return left.priority < right.priority;
+                    }
+                    const int leftStage = stageRank(left.type);
+                    const int rightStage = stageRank(right.type);
+                    if (leftStage != rightStage)
+                    {
+                        return leftStage < rightStage;
+                    }
+                    return left.sequence < right.sequence;
+                };
+
+                auto bestQueue = &terrainFeatureJobs_;
+                auto bestIt = terrainFeatureJobs_.begin();
+                bool hasBest = bestIt != terrainFeatureJobs_.end();
+                auto considerQueue = [&](std::deque<TerrainJob>& jobs)
+                {
+                    for (auto it = jobs.begin(); it != jobs.end(); ++it)
+                    {
+                        if (!hasBest || jobLess(*it, *bestIt))
+                        {
+                            bestQueue = &jobs;
+                            bestIt = it;
+                            hasBest = true;
+                        }
+                    }
+                };
+
+                considerQueue(terrainFinalizeJobs_);
+                considerQueue(terrainMeshJobs_);
+
+                if (hasBest)
+                {
+                    job = std::move(*bestIt);
+                    bestQueue->erase(bestIt);
                 }
             }
 
@@ -2811,21 +3365,36 @@ namespace dolbuto
                 continue;
             }
 
-            if (job.type == TerrainJob::Type::BuildChunkData)
+            if (job.type == TerrainJob::Type::BuildFeaturing)
             {
                 std::shared_ptr<ChunkData> chunk = buildChunkData(job.chunkX, job.chunkZ);
                 chunk->generation = job.generation;
                 chunk->revision = 0;
+                const std::array<int, Renderer::ChunkColumnCount> heights = buildChunkHeightmap(job.chunkX, job.chunkZ);
+                std::array<FeatureWriteListPtr, FeatureNeighborCount> outgoingFeatureSlots = buildTreeFeatures(chunk, heights);
                 std::lock_guard<std::mutex> lock(terrainJobMutex_);
-                completedChunkData_.push_back(std::move(chunk));
+                completedChunkData_.push_back(CompletedChunkData{std::move(chunk), std::move(outgoingFeatureSlots)});
             }
-            else if (job.chunk)
+            else if (job.type == TerrainJob::Type::FinalizeFeatures && job.chunk)
             {
-                if (job.revision != job.chunk->revision)
+                applyFeatureWrites(job.chunk, job.incomingFeatureSlots);
+                std::lock_guard<std::mutex> lock(terrainJobMutex_);
+                completedMergedChunks_.push_back(std::move(job.chunk));
+            }
+            else if (job.meshChunks[4])
+            {
+                if (job.revision != job.meshChunks[4]->revision)
                 {
+                    CompletedChunkMesh mesh{};
+                    mesh.generation = job.generation;
+                    mesh.revision = job.revision;
+                    mesh.chunkX = job.chunkX;
+                    mesh.chunkZ = job.chunkZ;
+                    std::lock_guard<std::mutex> lock(terrainJobMutex_);
+                    completedChunkMeshes_.push_back(std::move(mesh));
                     continue;
                 }
-                CompletedChunkMesh mesh = buildChunkMesh(job.chunk, job.generation);
+                CompletedChunkMesh mesh = buildChunkMesh(job.meshChunks, job.generation);
                 std::lock_guard<std::mutex> lock(terrainJobMutex_);
                 completedChunkMeshes_.push_back(std::move(mesh));
             }
@@ -2836,13 +3405,18 @@ namespace dolbuto
     {
         {
             std::lock_guard<std::mutex> lock(terrainJobMutex_);
-            if (job.type == TerrainJob::Type::BuildChunkMesh)
+            job.sequence = ++terrainJobSequence_;
+            if (job.type == TerrainJob::Type::BuildFeaturing)
             {
-                terrainMeshJobs_.push_back(std::move(job));
+                terrainFeatureJobs_.push_back(std::move(job));
+            }
+            else if (job.type == TerrainJob::Type::FinalizeFeatures)
+            {
+                terrainFinalizeJobs_.push_back(std::move(job));
             }
             else
             {
-                terrainDataJobs_.push_back(std::move(job));
+                terrainMeshJobs_.push_back(std::move(job));
             }
         }
         terrainJobCondition_.notify_one();
@@ -2852,23 +3426,34 @@ namespace dolbuto
     {
         const auto buildStart = std::chrono::steady_clock::now();
         const uint64_t generation = terrainGeneration_.load();
-        std::vector<std::shared_ptr<ChunkData>> completedChunks;
+        std::vector<CompletedChunkData> completedChunks;
+        std::vector<std::shared_ptr<ChunkData>> completedMergedChunks;
         std::vector<CompletedChunkMesh> completedMeshes;
-        size_t queuedDataJobCount = 0;
+        size_t queuedFeatureJobCount = 0;
+        size_t queuedFinalizeJobCount = 0;
         size_t queuedMeshJobCount = 0;
         size_t queuedDataDoneCount = 0;
+        size_t queuedFinalizeDoneCount = 0;
         size_t queuedMeshDoneCount = 0;
         uint32_t uploadedChunkCount = 0;
+        double uploadMs = 0.0;
         {
             std::lock_guard<std::mutex> lock(terrainJobMutex_);
-            queuedDataJobCount = terrainDataJobs_.size();
+            queuedFeatureJobCount = terrainFeatureJobs_.size();
+            queuedFinalizeJobCount = terrainFinalizeJobs_.size();
             queuedMeshJobCount = terrainMeshJobs_.size();
             queuedDataDoneCount = completedChunkData_.size();
+            queuedFinalizeDoneCount = completedMergedChunks_.size();
             queuedMeshDoneCount = completedChunkMeshes_.size();
             while (!completedChunkData_.empty())
             {
                 completedChunks.push_back(std::move(completedChunkData_.front()));
                 completedChunkData_.pop_front();
+            }
+            while (!completedMergedChunks_.empty())
+            {
+                completedMergedChunks.push_back(std::move(completedMergedChunks_.front()));
+                completedMergedChunks_.pop_front();
             }
 
             std::vector<uint64_t> uploadChunkKeys;
@@ -2898,7 +3483,7 @@ namespace dolbuto
             {
                 const CompletedChunkMesh& frontMesh = completedChunkMeshes_.front();
                 const uint64_t key = chunkKey(frontMesh.chunkX, frontMesh.chunkZ);
-                if (frontMesh.generation != generation || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
+                if (frontMesh.generation != generation || desiredRenderChunks_.find(key) == desiredRenderChunks_.end())
                 {
                     completedChunkMeshes_.pop_front();
                     continue;
@@ -2915,74 +3500,216 @@ namespace dolbuto
             }
         }
 
-        for (const std::shared_ptr<ChunkData>& chunk : completedChunks)
+        for (CompletedChunkData& completed : completedChunks)
         {
+            const std::shared_ptr<ChunkData>& chunk = completed.chunk;
             const uint64_t key = chunkKey(chunk->chunkX, chunk->chunkZ);
             requestedChunkJobs_.erase(key);
             if (chunk->generation != generation || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
             {
+                if (chunk->generation != generation && desiredTerrainChunks_.find(key) != desiredTerrainChunks_.end())
+                {
+                    continue;
+                }
+
+                SaveChunkSnapshot snapshot{};
+                snapshot.chunkX = chunk->chunkX;
+                snapshot.chunkZ = chunk->chunkZ;
+                snapshot.genState = ChunkGenState::Featuring;
+                snapshot.revision = chunk->revision;
+                snapshot.hasData = true;
+                snapshot.chunkData = chunk;
+                enqueueSaveSnapshot(std::move(snapshot));
+
+                for (size_t slot = 0; slot < FeatureNeighborOffsets.size(); ++slot)
+                {
+                    const int targetChunkX = chunk->chunkX + FeatureNeighborOffsets[slot].x;
+                    const int targetChunkZ = chunk->chunkZ + FeatureNeighborOffsets[slot].z;
+                    const std::optional<size_t> sourceSlot = featureNeighborIndex(-FeatureNeighborOffsets[slot].x, -FeatureNeighborOffsets[slot].z);
+                    if (!sourceSlot)
+                    {
+                        continue;
+                    }
+
+                    if (desiredTerrainChunks_.find(chunkKey(targetChunkX, targetChunkZ)) != desiredTerrainChunks_.end())
+                    {
+                        acceptFeatureSlot(targetChunkX, targetChunkZ, *sourceSlot, completed.outgoingFeatureSlots[slot]);
+                    }
+                }
                 continue;
             }
-            chunkData_[key] = chunk;
-            ChunkRenderData& renderData = terrainChunks_[key];
-            renderData.chunkX = chunk->chunkX;
-            renderData.chunkZ = chunk->chunkZ;
-            if (!chunkMeshReady(key) && requestedMeshJobs_.insert(key).second)
+            RuntimeChunk& runtimeChunk = runtimeChunks_[key];
+            runtimeChunk.chunkX = chunk->chunkX;
+            runtimeChunk.chunkZ = chunk->chunkZ;
+            runtimeChunk.data = chunk;
+            runtimeChunk.outgoingFeatureSlots = std::move(completed.outgoingFeatureSlots);
+            runtimeChunk.genState = ChunkGenState::Featuring;
+            runtimeChunk.buildQueuedTicket = 0;
+            publishFeatureSlots(runtimeChunk);
+            tryQueueFeatureFinalize(key);
+            tryQueueMeshesAround(chunk->chunkX, chunk->chunkZ);
+        }
+
+        for (const std::shared_ptr<ChunkData>& chunk : completedMergedChunks)
+        {
+            const uint64_t key = chunkKey(chunk->chunkX, chunk->chunkZ);
+            if (chunk->generation != generation || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
             {
-                TerrainJob job{};
-                job.type = TerrainJob::Type::BuildChunkMesh;
-                job.generation = generation;
-                job.revision = chunk->revision;
-                job.chunkX = chunk->chunkX;
-                job.chunkZ = chunk->chunkZ;
-                job.chunk = chunk;
-                enqueueTerrainJob(std::move(job));
+                if (chunk->generation != generation && desiredTerrainChunks_.find(key) != desiredTerrainChunks_.end())
+                {
+                    continue;
+                }
+
+                SaveChunkSnapshot snapshot{};
+                snapshot.chunkX = chunk->chunkX;
+                snapshot.chunkZ = chunk->chunkZ;
+                snapshot.genState = ChunkGenState::Full;
+                snapshot.revision = chunk->revision;
+                snapshot.hasData = true;
+                snapshot.chunkData = chunk;
+                enqueueSaveSnapshot(std::move(snapshot));
+                continue;
             }
+            RuntimeChunk& runtimeChunk = runtimeChunks_[key];
+            runtimeChunk.chunkX = chunk->chunkX;
+            runtimeChunk.chunkZ = chunk->chunkZ;
+            runtimeChunk.data = chunk;
+            runtimeChunk.incomingFeatureSlots = {};
+            runtimeChunk.incomingFeatureMask = 0;
+            runtimeChunk.finalizeQueuedTicket = 0;
+            runtimeChunk.genState = ChunkGenState::Full;
+            tryQueueMeshesAround(chunk->chunkX, chunk->chunkZ);
         }
 
         for (CompletedChunkMesh& mesh : completedMeshes)
         {
             const uint64_t key = chunkKey(mesh.chunkX, mesh.chunkZ);
             requestedMeshJobs_.erase(key);
+            auto runtimeIt = runtimeChunks_.find(key);
+            if (runtimeIt != runtimeChunks_.end())
+            {
+                runtimeIt->second.meshQueuedTicket = 0;
+            }
 
-            if (mesh.generation != generation || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
+            if (mesh.generation != generation || desiredRenderChunks_.find(key) == desiredRenderChunks_.end())
             {
                 continue;
             }
-            const auto chunkIt = chunkData_.find(key);
-            if (chunkIt == chunkData_.end() || !chunkIt->second || mesh.revision != chunkIt->second->revision)
+            if (runtimeIt == runtimeChunks_.end() || !runtimeIt->second.data || mesh.revision != runtimeIt->second.data->revision)
             {
+                tryQueueMeshIfReady(mesh.chunkX, mesh.chunkZ);
                 continue;
             }
 
+            const auto uploadStart = std::chrono::steady_clock::now();
             ChunkRenderData& renderData = terrainChunks_[key];
+            retiredTerrainChunks_.push_back(RetiredChunkRenderData{
+                static_cast<uint32_t>(MaxFramesInFlight + 1),
+                std::move(renderData)});
+            renderData = {};
+            renderData.revision = mesh.revision;
             renderData.chunkX = mesh.chunkX;
             renderData.chunkZ = mesh.chunkZ;
-            for (size_t subchunkY = 0; subchunkY < mesh.rockSubchunks.size(); ++subchunkY)
-            {
-                TerrainMesh& targetMesh = renderData.rockSubchunks[subchunkY];
-                destroyTerrainMesh(targetMesh);
-                createTerrainBuffer(mesh.rockSubchunks[subchunkY], targetMesh);
-            }
+            createChunkTerrainBuffers(mesh.rockSubchunks, renderData.rockSubchunks);
+            runtimeIt->second.genState = ChunkGenState::Meshed;
+            const auto uploadEnd = std::chrono::steady_clock::now();
+            uploadMs += std::chrono::duration<double, std::milli>(uploadEnd - uploadStart).count();
         }
 
-        if (!completedChunks.empty() || !completedMeshes.empty())
+        if (!completedChunks.empty() || !completedMergedChunks.empty() || !completedMeshes.empty())
         {
             updateTerrainStats();
         }
+        const auto retireStart = std::chrono::steady_clock::now();
         processRetiredTerrainChunks();
+        const auto retireEnd = std::chrono::steady_clock::now();
         const uint32_t unloadedChunkCount = processPendingTerrainUnloads();
+        const auto unloadEnd = std::chrono::steady_clock::now();
         const size_t retiredChunkCount = retiredTerrainChunks_.size();
 
         const auto buildEnd = std::chrono::steady_clock::now();
+        frameUploadMs_ += uploadMs;
+        frameRetireMs_ += std::chrono::duration<double, std::milli>(retireEnd - retireStart).count();
+        frameUnloadMs_ += std::chrono::duration<double, std::milli>(unloadEnd - retireEnd).count();
+        frameJobMainMs_ += std::chrono::duration<double, std::milli>(buildEnd - buildStart).count();
         const std::chrono::duration<double> terrainDebugElapsed = buildEnd - terrainDebugSampleTime_;
         if (terrainDebugSampleTime_ == std::chrono::steady_clock::time_point{} || terrainDebugElapsed.count() >= 0.05)
         {
             terrainDebugSampleTime_ = buildEnd;
-            dataQueueText_ = "DATA QUEUE: " + std::to_string(queuedDataJobCount);
-            meshQueueText_ = "MESH QUEUE: " + std::to_string(queuedMeshJobCount);
-            dataDoneText_ = "DATA DONE: " + std::to_string(queuedDataDoneCount);
-            meshDoneText_ = "MESH DONE: " + std::to_string(queuedMeshDoneCount);
+            size_t emptyCount = 0;
+            size_t featuringCount = 0;
+            size_t fullCount = 0;
+            size_t meshedCount = 0;
+            for (const auto& entry : runtimeChunks_)
+            {
+                if (desiredTerrainChunks_.find(entry.first) == desiredTerrainChunks_.end())
+                {
+                    continue;
+                }
+
+                switch (entry.second.genState)
+                {
+                case ChunkGenState::Empty:
+                    ++emptyCount;
+                    break;
+                case ChunkGenState::Featuring:
+                    ++featuringCount;
+                    break;
+                case ChunkGenState::Full:
+                    ++fullCount;
+                    break;
+                case ChunkGenState::Meshed:
+                    ++meshedCount;
+                    break;
+                }
+            }
+
+            size_t renderMissingCount = 0;
+            for (uint64_t key : desiredRenderChunks_)
+            {
+                if (terrainChunks_.find(key) == terrainChunks_.end())
+                {
+                    ++renderMissingCount;
+                }
+            }
+
+            size_t saveQueueCount = 0;
+            size_t pendingSaveCount = 0;
+            {
+                std::lock_guard<std::mutex> lock(saveJobMutex_);
+                saveQueueCount = saveJobs_.size();
+                pendingSaveCount = pendingSaveSnapshots_.size();
+            }
+
+            dataQueueText_ = "WANT RENDER/FEATURE/DATA: " +
+                std::to_string(desiredRenderChunks_.size()) + " / " +
+                std::to_string(desiredFeatureChunks_.size()) + " / " +
+                std::to_string(desiredTerrainChunks_.size());
+            finalizeQueueText_ = "STATE EMPTY/FEATURING/FULL/MESHED: " +
+                std::to_string(emptyCount) + " / " +
+                std::to_string(featuringCount) + " / " +
+                std::to_string(fullCount) + " / " +
+                std::to_string(meshedCount);
+            meshQueueText_ = "RENDER MISS: " + std::to_string(renderMissingCount);
+            dataDoneText_ = "QUEUE BUILD/FINALIZE/MESH: " +
+                std::to_string(queuedFeatureJobCount) + " / " +
+                std::to_string(queuedFinalizeJobCount) + " / " +
+                std::to_string(queuedMeshJobCount);
+            meshDoneText_ = "DONE BUILD/FINALIZE/MESH: " +
+                std::to_string(queuedDataDoneCount) + " / " +
+                std::to_string(queuedFinalizeDoneCount) + " / " +
+                std::to_string(queuedMeshDoneCount);
+            saveQueueText_ = "SAVE QUEUE/CACHE: " +
+                std::to_string(saveQueueCount) + " / " +
+                std::to_string(pendingSaveCount);
+            saveDoneText_ = "SAVE CHUNK/FEATURE/FAILED: " +
+                std::to_string(saveChunkDoneCount_.load(std::memory_order_relaxed)) + " / " +
+                std::to_string(saveFeatureDoneCount_.load(std::memory_order_relaxed)) + " / " +
+                std::to_string(saveFailedCount_.load(std::memory_order_relaxed));
+            loadText_ = "LOAD PENDING/REGION/MISS: " +
+                std::to_string(loadPendingHitCount_.load(std::memory_order_relaxed)) + " / " +
+                std::to_string(loadRegionHitCount_.load(std::memory_order_relaxed)) + " / " +
+                std::to_string(loadMissCount_.load(std::memory_order_relaxed));
             uploadText_ = "UPLOAD: " + std::to_string(uploadedChunkCount) + " / " + std::to_string(maxTerrainUploadChunksPerFrame_);
             unloadText_ = "UNLOAD: " + std::to_string(unloadedChunkCount) + " / " + std::to_string(maxTerrainUnloadChunksPerFrame_);
             retiredText_ = "RETIRED: " + std::to_string(retiredChunkCount);
@@ -3009,11 +3736,16 @@ namespace dolbuto
             if (renderIt != terrainChunks_.end())
             {
                 retiredTerrainChunks_.push_back(RetiredChunkRenderData{
-                    static_cast<uint32_t>(MaxFramesInFlight),
+                    static_cast<uint32_t>(MaxFramesInFlight + 1),
                     std::move(renderIt->second)});
                 terrainChunks_.erase(renderIt);
             }
-            chunkData_.erase(key);
+            auto runtimeIt = runtimeChunks_.find(key);
+            if (runtimeIt != runtimeChunks_.end())
+            {
+                enqueueSaveSnapshot(makeSaveSnapshot(runtimeIt->second));
+            }
+            runtimeChunks_.erase(key);
             requestedChunkJobs_.erase(key);
             requestedMeshJobs_.erase(key);
             pendingUnloadSet_.erase(key);
@@ -3031,6 +3763,7 @@ namespace dolbuto
 
     void Renderer::processRetiredTerrainChunks()
     {
+        uint32_t destroyedCount = 0;
         for (auto it = retiredTerrainChunks_.begin(); it != retiredTerrainChunks_.end();)
         {
             if (it->framesLeft > 0)
@@ -3039,10 +3772,969 @@ namespace dolbuto
                 ++it;
                 continue;
             }
+            if (destroyedCount >= static_cast<uint32_t>(maxTerrainRetiredDestroyPerFrame_))
+            {
+                ++it;
+                continue;
+            }
 
             destroyChunkRenderData(it->chunk);
             it = retiredTerrainChunks_.erase(it);
+            ++destroyedCount;
         }
+    }
+
+    Renderer::RuntimeChunk& Renderer::ensureRuntimeChunk(int chunkX, int chunkZ, uint64_t generation)
+    {
+        const auto keyStart = std::chrono::steady_clock::now();
+        const uint64_t key = chunkKey(chunkX, chunkZ);
+        const auto keyEnd = std::chrono::steady_clock::now();
+        frameEnsureKeyMs_ += std::chrono::duration<double, std::milli>(keyEnd - keyStart).count();
+
+        const auto markStart = std::chrono::steady_clock::now();
+        desiredTerrainChunks_.insert(key);
+        pendingUnloadSet_.erase(key);
+        const auto markEnd = std::chrono::steady_clock::now();
+        frameEnsureMarkMs_ += std::chrono::duration<double, std::milli>(markEnd - markStart).count();
+
+        const auto findStart = std::chrono::steady_clock::now();
+        auto chunkIt = runtimeChunks_.find(key);
+        const auto findEnd = std::chrono::steady_clock::now();
+        frameEnsureFindMs_ += std::chrono::duration<double, std::milli>(findEnd - findStart).count();
+        if (chunkIt == runtimeChunks_.end())
+        {
+            const auto loadStart = std::chrono::steady_clock::now();
+            std::optional<SaveChunkSnapshot> snapshot = loadChunkSnapshot(chunkX, chunkZ);
+            const auto loadEnd = std::chrono::steady_clock::now();
+            frameEnsureLoadMs_ += std::chrono::duration<double, std::milli>(loadEnd - loadStart).count();
+
+            const auto createStart = std::chrono::steady_clock::now();
+            if (snapshot)
+            {
+                chunkIt = runtimeChunks_.emplace(key, runtimeChunkFromSnapshot(*snapshot, generation)).first;
+            }
+            else
+            {
+                RuntimeChunk chunk{};
+                chunk.chunkX = chunkX;
+                chunk.chunkZ = chunkZ;
+                chunkIt = runtimeChunks_.emplace(key, std::move(chunk)).first;
+            }
+            const auto createEnd = std::chrono::steady_clock::now();
+            frameEnsureCreateMs_ += std::chrono::duration<double, std::milli>(createEnd - createStart).count();
+        }
+
+        RuntimeChunk& chunk = chunkIt->second;
+        const auto touchStart = std::chrono::steady_clock::now();
+        chunk.chunkX = chunkX;
+        chunk.chunkZ = chunkZ;
+        if (chunk.data)
+        {
+            chunk.data->generation = generation;
+        }
+        const auto touchEnd = std::chrono::steady_clock::now();
+        frameEnsureDataTouchMs_ += std::chrono::duration<double, std::milli>(touchEnd - touchStart).count();
+        return chunk;
+    }
+
+    void Renderer::wantRender(int chunkX, int chunkZ, uint32_t priority)
+    {
+        const uint64_t generation = terrainGeneration_.load();
+        const uint64_t key = chunkKey(chunkX, chunkZ);
+        const auto ensureStart = std::chrono::steady_clock::now();
+        RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
+        const auto ensureEnd = std::chrono::steady_clock::now();
+        frameWantEnsureMs_ += std::chrono::duration<double, std::milli>(ensureEnd - ensureStart).count();
+
+        const auto insertStart = std::chrono::steady_clock::now();
+        desiredRenderChunks_.insert(key);
+        chunk.renderTicket = generation;
+        chunk.bestPriority = std::min(chunk.bestPriority, priority);
+        const auto insertEnd = std::chrono::steady_clock::now();
+        frameWantInsertMs_ += std::chrono::duration<double, std::milli>(insertEnd - insertStart).count();
+
+        const auto readyStart = std::chrono::steady_clock::now();
+        if (chunkMeshReady(key))
+        {
+            const auto readyEnd = std::chrono::steady_clock::now();
+            frameWantReadyMs_ += std::chrono::duration<double, std::milli>(readyEnd - readyStart).count();
+            return;
+        }
+        const auto readyEnd = std::chrono::steady_clock::now();
+        frameWantReadyMs_ += std::chrono::duration<double, std::milli>(readyEnd - readyStart).count();
+
+        const auto dependStart = std::chrono::steady_clock::now();
+        wantMesh(chunkX, chunkZ, priority);
+        const auto dependEnd = std::chrono::steady_clock::now();
+        frameWantDependMs_ += std::chrono::duration<double, std::milli>(dependEnd - dependStart).count();
+    }
+
+    void Renderer::wantMesh(int chunkX, int chunkZ, uint32_t priority)
+    {
+        const uint64_t generation = terrainGeneration_.load();
+        const uint64_t key = chunkKey(chunkX, chunkZ);
+        RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
+        chunk.meshTicket = generation;
+        chunk.bestPriority = std::min(chunk.bestPriority, priority);
+
+        const auto readyStart = std::chrono::steady_clock::now();
+        if (chunkMeshReady(key))
+        {
+            const auto readyEnd = std::chrono::steady_clock::now();
+            frameWantMeshReadyMs_ += std::chrono::duration<double, std::milli>(readyEnd - readyStart).count();
+            return;
+        }
+        const auto readyEnd = std::chrono::steady_clock::now();
+        frameWantMeshReadyMs_ += std::chrono::duration<double, std::milli>(readyEnd - readyStart).count();
+
+        const auto dependStart = std::chrono::steady_clock::now();
+        wantFull(chunkX, chunkZ, priority);
+        tryQueueMeshIfReady(chunkX, chunkZ);
+        const auto dependEnd = std::chrono::steady_clock::now();
+        frameWantMeshDependMs_ += std::chrono::duration<double, std::milli>(dependEnd - dependStart).count();
+    }
+
+    void Renderer::wantFull(int chunkX, int chunkZ, uint32_t priority)
+    {
+        const uint64_t generation = terrainGeneration_.load();
+        const uint64_t key = chunkKey(chunkX, chunkZ);
+        RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
+        chunk.fullTicket = generation;
+        chunk.bestPriority = std::min(chunk.bestPriority, priority);
+
+        if (chunk.genState == ChunkGenState::Full || chunk.genState == ChunkGenState::Meshed)
+        {
+            return;
+        }
+
+        wantFeaturing(chunkX, chunkZ, priority);
+        for (const FeatureNeighborOffset& offset : FeatureNeighborOffsets)
+        {
+            wantFeaturing(chunkX + offset.x, chunkZ + offset.z, priority);
+        }
+
+        RuntimeChunk& current = runtimeChunks_[key];
+        if (current.genState == ChunkGenState::Featuring)
+        {
+            publishFeatureSlots(current);
+        }
+        else if (current.genState == ChunkGenState::Full || current.genState == ChunkGenState::Meshed)
+        {
+            publishFeatureSlots(current);
+        }
+        tryQueueFeatureFinalize(key);
+    }
+
+    void Renderer::wantFeaturing(int chunkX, int chunkZ, uint32_t priority)
+    {
+        const uint64_t generation = terrainGeneration_.load();
+        RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
+        desiredFeatureChunks_.insert(chunkKey(chunkX, chunkZ));
+        chunk.featuringTicket = generation;
+        chunk.bestPriority = std::min(chunk.bestPriority, priority);
+
+        if (chunk.outgoingPublishedTicket == generation &&
+            (chunk.genState == ChunkGenState::Featuring ||
+                chunk.genState == ChunkGenState::Full ||
+                chunk.genState == ChunkGenState::Meshed))
+        {
+            return;
+        }
+
+        if (chunk.genState == ChunkGenState::Featuring ||
+            chunk.genState == ChunkGenState::Full ||
+            chunk.genState == ChunkGenState::Meshed)
+        {
+            publishFeatureSlots(chunk);
+            return;
+        }
+
+        if (chunk.buildQueuedTicket == generation)
+        {
+            return;
+        }
+
+        TerrainJob job{};
+        job.type = TerrainJob::Type::BuildFeaturing;
+        job.generation = generation;
+        job.priority = chunk.bestPriority;
+        job.chunkX = chunkX;
+        job.chunkZ = chunkZ;
+        enqueueTerrainJob(std::move(job));
+        requestedChunkJobs_.insert(chunkKey(chunkX, chunkZ));
+        chunk.buildQueuedTicket = generation;
+    }
+
+    Renderer::SaveChunkSnapshot Renderer::makeSaveSnapshot(const RuntimeChunk& chunk) const
+    {
+        SaveChunkSnapshot snapshot{};
+        snapshot.chunkX = chunk.chunkX;
+        snapshot.chunkZ = chunk.chunkZ;
+        snapshot.genState = chunk.genState == ChunkGenState::Meshed ? ChunkGenState::Full : chunk.genState;
+        snapshot.incomingFeatureMask = snapshot.genState == ChunkGenState::Full ? 0 : chunk.incomingFeatureMask;
+        if (chunk.data)
+        {
+            snapshot.hasData = true;
+            snapshot.revision = chunk.data->revision;
+            snapshot.hasSavedBacking = chunk.hasSavedBacking;
+            snapshot.forceSave = chunk.dataDirtyForSave || !chunk.hasSavedBacking;
+            snapshot.chunkData = chunk.data;
+        }
+        if (snapshot.genState != ChunkGenState::Full)
+        {
+            snapshot.incomingFeatureSlots = chunk.incomingFeatureSlots;
+        }
+        return snapshot;
+    }
+
+    void Renderer::enqueueSaveSnapshot(SaveChunkSnapshot snapshot)
+    {
+        const auto enqueueStart = std::chrono::steady_clock::now();
+        const auto recordEnqueueMs = [&]()
+        {
+            const auto enqueueEnd = std::chrono::steady_clock::now();
+            frameSaveEnqueueMs_ += std::chrono::duration<double, std::milli>(enqueueEnd - enqueueStart).count();
+        };
+
+        const uint64_t key = chunkKey(snapshot.chunkX, snapshot.chunkZ);
+        if (snapshot.genState == ChunkGenState::Meshed)
+        {
+            snapshot.genState = ChunkGenState::Full;
+        }
+
+        const auto hasIncomingFeatureSlots = [](const SaveChunkSnapshot& value)
+        {
+            for (const FeatureWriteListPtr& slot : value.incomingFeatureSlots)
+            {
+                if (slot && !slot->empty())
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        if (snapshot.hasData && !snapshot.forceSave)
+        {
+            recordEnqueueMs();
+            return;
+        }
+        if (!snapshot.hasData && snapshot.incomingFeatureMask == 0 && !hasIncomingFeatureSlots(snapshot))
+        {
+            recordEnqueueMs();
+            return;
+        }
+
+        if (snapshot.genState == ChunkGenState::Full)
+        {
+            snapshot.incomingFeatureMask = 0;
+            snapshot.incomingFeatureSlots = {};
+            if (snapshot.hasData)
+            {
+                std::lock_guard<std::mutex> lock(savedChunkMutex_);
+                const auto savedIt = savedCleanRevisions_.find(key);
+                if (savedIt != savedCleanRevisions_.end() && savedIt->second == snapshot.revision)
+                {
+                    recordEnqueueMs();
+                    return;
+                }
+            }
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(saveJobMutex_);
+            SaveChunkSnapshot& pending = pendingSaveSnapshots_[key];
+            if (snapshot.hasData)
+            {
+                const SaveChunkSnapshot previous = pending;
+                if (snapshot.hasSavedBacking && !snapshot.forceSave && previous.hasData &&
+                    previous.genState == ChunkGenState::Full &&
+                    (snapshot.genState != ChunkGenState::Full || previous.revision > snapshot.revision))
+                {
+                    recordEnqueueMs();
+                    return;
+                }
+                pending = snapshot;
+                if (pending.genState != ChunkGenState::Full)
+                {
+                    pending.incomingFeatureMask |= previous.incomingFeatureMask;
+                    for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
+                    {
+                        if (!pending.incomingFeatureSlots[slot])
+                        {
+                            pending.incomingFeatureSlots[slot] = previous.incomingFeatureSlots[slot];
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if (pending.chunkX == 0 && pending.chunkZ == 0 && key != chunkKey(0, 0))
+                {
+                    pending.chunkX = snapshot.chunkX;
+                    pending.chunkZ = snapshot.chunkZ;
+                }
+                pending.incomingFeatureMask |= snapshot.incomingFeatureMask;
+                for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
+                {
+                    if (snapshot.incomingFeatureSlots[slot])
+                    {
+                        pending.incomingFeatureSlots[slot] = snapshot.incomingFeatureSlots[slot];
+                    }
+                }
+            }
+            saveJobs_.push_back(std::move(snapshot));
+        }
+        saveJobCondition_.notify_one();
+        recordEnqueueMs();
+    }
+
+    void Renderer::enqueueSaveAllRuntimeChunks()
+    {
+        for (const auto& entry : runtimeChunks_)
+        {
+            enqueueSaveSnapshot(makeSaveSnapshot(entry.second));
+        }
+    }
+
+    void Renderer::saveChunkSnapshot(const SaveChunkSnapshot& snapshot)
+    {
+        const auto chunkHasIncomingFeatureSlots = [](const SaveChunkSnapshot& value)
+        {
+            for (const FeatureWriteListPtr& slot : value.incomingFeatureSlots)
+            {
+                if (slot && !slot->empty())
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        if (!snapshot.hasData && snapshot.incomingFeatureMask == 0 && !chunkHasIncomingFeatureSlots(snapshot))
+        {
+            return;
+        }
+
+        auto serializePayload = [&](const SaveChunkSnapshot& value)
+        {
+            std::vector<uint8_t> payload;
+            writeU8(payload, static_cast<uint8_t>(value.genState));
+            writeU8(payload, value.incomingFeatureMask);
+            for (const FeatureWriteListPtr& slot : value.incomingFeatureSlots)
+            {
+                const size_t count = slot ? slot->size() : 0;
+                writeU16(payload, static_cast<uint16_t>(std::min<size_t>(count, std::numeric_limits<uint16_t>::max())));
+            }
+
+            const std::vector<uint16_t>* blocks = nullptr;
+            if (value.chunkData && !value.chunkData->blocks.empty())
+            {
+                blocks = &value.chunkData->blocks;
+            }
+            else if (!value.blocks.empty())
+            {
+                blocks = &value.blocks;
+            }
+
+            if (!value.hasData || !blocks || blocks->empty())
+            {
+                writeU32(payload, 0);
+            }
+            else
+            {
+                const size_t runCountOffset = payload.size();
+                writeU32(payload, 0);
+                uint32_t runCount = 0;
+                uint32_t current = (*blocks)[0];
+                uint32_t count = 1;
+                for (size_t i = 1; i < blocks->size(); ++i)
+                {
+                    const uint32_t block = (*blocks)[i];
+                    if (block == current && count < std::numeric_limits<uint32_t>::max())
+                    {
+                        ++count;
+                        continue;
+                    }
+                    writeU32(payload, current);
+                    writeU32(payload, count);
+                    ++runCount;
+                    current = block;
+                    count = 1;
+                }
+                writeU32(payload, current);
+                writeU32(payload, count);
+                ++runCount;
+                writeU32At(payload, runCountOffset, runCount);
+            }
+
+            for (const FeatureWriteListPtr& slot : value.incomingFeatureSlots)
+            {
+                if (!slot)
+                {
+                    continue;
+                }
+
+                size_t written = 0;
+                for (const FeatureWrite& write : *slot)
+                {
+                    if (written >= std::numeric_limits<uint16_t>::max())
+                    {
+                        break;
+                    }
+                    writeU8(payload, static_cast<uint8_t>(std::clamp(write.localX, 0, ChunkSizeX - 1)));
+                    writeU8(payload, static_cast<uint8_t>(std::clamp(write.localZ, 0, ChunkSizeZ - 1)));
+                    writeU16(payload, static_cast<uint16_t>(std::clamp(write.y, 0, ChunkSizeY - 1)));
+                    writeU32(payload, write.block);
+                    ++written;
+                }
+            }
+            writeU64(payload, value.revision);
+            return payload;
+        };
+
+        auto deserializePayload = [&](const std::vector<uint8_t>& payload, int chunkX, int chunkZ) -> std::optional<SaveChunkSnapshot>
+        {
+            try
+            {
+                SaveChunkSnapshot value{};
+                value.chunkX = chunkX;
+                value.chunkZ = chunkZ;
+                size_t offset = 0;
+                value.genState = static_cast<ChunkGenState>(readU8(payload, offset));
+                value.incomingFeatureMask = readU8(payload, offset);
+                std::array<uint16_t, FeatureNeighborCount> featureCounts{};
+                for (uint16_t& count : featureCounts)
+                {
+                    count = readU16(payload, offset);
+                }
+
+                const uint32_t blockRunCount = readU32(payload, offset);
+                if (blockRunCount > 0)
+                {
+                    value.hasData = true;
+                    value.blocks.reserve(ChunkBlockCount);
+                    uint64_t totalCount = 0;
+                    for (uint32_t run = 0; run < blockRunCount; ++run)
+                    {
+                        const uint16_t block = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
+                        const uint32_t count = readU32(payload, offset);
+                        totalCount += count;
+                        if (totalCount > ChunkBlockCount)
+                        {
+                            return std::nullopt;
+                        }
+                        value.blocks.insert(value.blocks.end(), count, block);
+                    }
+                    if (value.blocks.size() != ChunkBlockCount)
+                    {
+                        return std::nullopt;
+                    }
+                }
+
+                for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
+                {
+                    if (featureCounts[slot] == 0)
+                    {
+                        continue;
+                    }
+                    auto writes = std::make_shared<FeatureWriteList>();
+                    writes->reserve(featureCounts[slot]);
+                    for (uint16_t i = 0; i < featureCounts[slot]; ++i)
+                    {
+                        FeatureWrite write{};
+                        write.localX = readU8(payload, offset);
+                        write.localZ = readU8(payload, offset);
+                        write.y = readU16(payload, offset);
+                        write.block = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
+                        writes->push_back(write);
+                    }
+                    value.incomingFeatureSlots[slot] = std::move(writes);
+                }
+                if (offset + 8 <= payload.size())
+                {
+                    value.revision = readU64(payload, offset);
+                }
+                return value;
+            }
+            catch (...)
+            {
+                return std::nullopt;
+            }
+        };
+
+        auto applySavedIncomingFeatureSlots = [&](SaveChunkSnapshot& value)
+        {
+            if (!value.hasData)
+            {
+                return false;
+            }
+
+            bool changed = false;
+            for (const FeatureWriteListPtr& writes : value.incomingFeatureSlots)
+            {
+                if (!writes)
+                {
+                    continue;
+                }
+                for (const FeatureWrite& write : *writes)
+                {
+                    if (write.block != BlockLeaves ||
+                        write.localX < 0 || write.localX >= ChunkSizeX ||
+                        write.localZ < 0 || write.localZ >= ChunkSizeZ ||
+                        write.y < 0 || write.y >= ChunkSizeY)
+                    {
+                        continue;
+                    }
+
+                    const size_t index = static_cast<size_t>((write.y * ChunkSizeZ + write.localZ) * ChunkSizeX + write.localX);
+                    uint16_t& existing = value.blocks[index];
+                    if (existing == BlockAir || existing == BlockPlant)
+                    {
+                        existing = BlockLeaves;
+                        changed = true;
+                    }
+                }
+            }
+            return changed;
+        };
+
+        const int regionX = floorDiv(snapshot.chunkX, RegionSizeChunks);
+        const int regionZ = floorDiv(snapshot.chunkZ, RegionSizeChunks);
+        const int localX = positiveModulo(snapshot.chunkX, RegionSizeChunks);
+        const int localZ = positiveModulo(snapshot.chunkZ, RegionSizeChunks);
+        const size_t entryIndex = static_cast<size_t>(localZ * RegionSizeChunks + localX);
+        const std::filesystem::path regionDirectory = worldDirectory() / "regions";
+        std::filesystem::create_directories(regionDirectory);
+        const std::filesystem::path regionPath = regionDirectory / ("r." + std::to_string(regionX) + "." + std::to_string(regionZ) + ".region");
+
+        if (!std::filesystem::exists(regionPath))
+        {
+            std::ofstream createFile(regionPath, std::ios::binary);
+            std::vector<uint8_t> emptyHeader(RegionSectorSize, 0);
+            createFile.write(reinterpret_cast<const char*>(emptyHeader.data()), static_cast<std::streamsize>(emptyHeader.size()));
+        }
+
+        std::fstream file(regionPath, std::ios::binary | std::ios::in | std::ios::out);
+        if (!file.is_open())
+        {
+            return;
+        }
+
+        std::vector<uint8_t> header(RegionSectorSize, 0);
+        file.seekg(0);
+        file.read(reinterpret_cast<char*>(header.data()), static_cast<std::streamsize>(header.size()));
+
+        const size_t entryOffset = entryIndex * RegionChunkEntrySize;
+        const uint32_t existingOffsetSector = readU32At(header, entryOffset);
+        const uint32_t existingSectorCount = readU32At(header, entryOffset + 4);
+        const uint32_t existingStoredSize = readU32At(header, entryOffset + 8);
+        const uint32_t existingRawSize = readU32At(header, entryOffset + 12);
+
+        std::optional<SaveChunkSnapshot> existingSnapshot;
+        if (existingOffsetSector != 0 && existingSectorCount != 0 && existingStoredSize != 0 && existingRawSize != 0)
+        {
+            std::vector<uint8_t> stored(existingStoredSize);
+            file.seekg(static_cast<std::streamoff>(static_cast<uint64_t>(existingOffsetSector) * RegionSectorSize));
+            file.read(reinterpret_cast<char*>(stored.data()), static_cast<std::streamsize>(stored.size()));
+            try
+            {
+                existingSnapshot = deserializePayload(lz4DecodeBlock(stored, existingRawSize), snapshot.chunkX, snapshot.chunkZ);
+            }
+            catch (...)
+            {
+                existingSnapshot.reset();
+            }
+        }
+
+        SaveChunkSnapshot merged = existingSnapshot.value_or(SaveChunkSnapshot{});
+        if (!existingSnapshot)
+        {
+            merged.chunkX = snapshot.chunkX;
+            merged.chunkZ = snapshot.chunkZ;
+            merged.genState = ChunkGenState::Empty;
+        }
+
+        if (snapshot.hasData)
+        {
+            const std::optional<SaveChunkSnapshot> previous = existingSnapshot;
+            if (snapshot.hasSavedBacking && !snapshot.forceSave && previous && previous->hasData &&
+                previous->genState == ChunkGenState::Full &&
+                (snapshot.genState != ChunkGenState::Full || previous->revision > snapshot.revision))
+            {
+                return;
+            }
+            merged = snapshot;
+            if (merged.genState == ChunkGenState::Meshed)
+            {
+                merged.genState = ChunkGenState::Full;
+            }
+            if (merged.genState == ChunkGenState::Full)
+            {
+                merged.incomingFeatureMask = 0;
+                merged.incomingFeatureSlots = {};
+            }
+            else if (previous)
+            {
+                merged.incomingFeatureMask |= previous->incomingFeatureMask;
+                for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
+                {
+                    if (!merged.incomingFeatureSlots[slot])
+                    {
+                        merged.incomingFeatureSlots[slot] = previous->incomingFeatureSlots[slot];
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (merged.genState != ChunkGenState::Full)
+            {
+                merged.incomingFeatureMask |= snapshot.incomingFeatureMask;
+            }
+            for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
+            {
+                if (!snapshot.incomingFeatureSlots[slot])
+                {
+                    continue;
+                }
+                if (merged.genState == ChunkGenState::Full && merged.hasData)
+                {
+                    std::array<FeatureWriteListPtr, FeatureNeighborCount> singleSlot{};
+                    singleSlot[slot] = snapshot.incomingFeatureSlots[slot];
+                    merged.incomingFeatureSlots = singleSlot;
+                    if (applySavedIncomingFeatureSlots(merged))
+                    {
+                        merged.revision += 1;
+                    }
+                    merged.incomingFeatureSlots = {};
+                    merged.incomingFeatureMask = 0;
+                }
+                else
+                {
+                    merged.incomingFeatureSlots[slot] = snapshot.incomingFeatureSlots[slot];
+                    merged.incomingFeatureMask |= static_cast<uint8_t>(1u << static_cast<uint32_t>(slot));
+                }
+            }
+        }
+
+        if (merged.genState == ChunkGenState::Meshed)
+        {
+            merged.genState = ChunkGenState::Full;
+        }
+        if (merged.genState == ChunkGenState::Full)
+        {
+            merged.incomingFeatureSlots = {};
+            merged.incomingFeatureMask = 0;
+        }
+
+        const std::vector<uint8_t> rawPayload = serializePayload(merged);
+        const std::vector<uint8_t> storedPayload = lz4EncodeLiteralBlock(rawPayload);
+        const uint32_t storedSize = static_cast<uint32_t>(storedPayload.size());
+        const uint32_t rawSize = static_cast<uint32_t>(rawPayload.size());
+        const uint32_t sectorCount = (storedSize + RegionSectorSize - 1u) / RegionSectorSize;
+
+        file.seekp(0, std::ios::end);
+        std::streamoff endOffset = file.tellp();
+        const uint32_t paddingBefore = static_cast<uint32_t>((RegionSectorSize - (static_cast<uint64_t>(endOffset) % RegionSectorSize)) % RegionSectorSize);
+        if (paddingBefore > 0)
+        {
+            std::vector<uint8_t> padding(paddingBefore, 0);
+            file.write(reinterpret_cast<const char*>(padding.data()), static_cast<std::streamsize>(padding.size()));
+            endOffset += paddingBefore;
+        }
+
+        const uint32_t offsetSector = static_cast<uint32_t>(static_cast<uint64_t>(endOffset) / RegionSectorSize);
+        file.write(reinterpret_cast<const char*>(storedPayload.data()), static_cast<std::streamsize>(storedPayload.size()));
+        const uint32_t paddingAfter = sectorCount * RegionSectorSize - storedSize;
+        if (paddingAfter > 0)
+        {
+            std::vector<uint8_t> padding(paddingAfter, 0);
+            file.write(reinterpret_cast<const char*>(padding.data()), static_cast<std::streamsize>(padding.size()));
+        }
+
+        writeU32At(header, entryOffset, offsetSector);
+        writeU32At(header, entryOffset + 4, sectorCount);
+        writeU32At(header, entryOffset + 8, storedSize);
+        writeU32At(header, entryOffset + 12, rawSize);
+        file.seekp(0);
+        file.write(reinterpret_cast<const char*>(header.data()), static_cast<std::streamsize>(header.size()));
+
+        {
+            std::lock_guard<std::mutex> lock(regionHeaderCacheMutex_);
+            RegionHeaderCache& cache = regionHeaderCache_[chunkKey(regionX, regionZ)];
+            cache.exists = true;
+            cache.entries[entryIndex] = RegionChunkEntry{
+                offsetSector,
+                sectorCount,
+                storedSize,
+                rawSize};
+        }
+
+        if (merged.genState == ChunkGenState::Full && merged.hasData)
+        {
+            std::lock_guard<std::mutex> lock(savedChunkMutex_);
+            savedCleanRevisions_[chunkKey(merged.chunkX, merged.chunkZ)] = merged.revision;
+        }
+    }
+
+    std::optional<Renderer::SaveChunkSnapshot> Renderer::loadChunkSnapshot(int chunkX, int chunkZ)
+    {
+        const uint64_t key = chunkKey(chunkX, chunkZ);
+        auto loadMiss = [this]() -> std::optional<SaveChunkSnapshot>
+        {
+            loadMissCount_.fetch_add(1, std::memory_order_relaxed);
+            return std::nullopt;
+        };
+
+        {
+            std::lock_guard<std::mutex> lock(saveJobMutex_);
+            const auto pendingIt = pendingSaveSnapshots_.find(key);
+            if (pendingIt != pendingSaveSnapshots_.end())
+            {
+                loadPendingHitCount_.fetch_add(1, std::memory_order_relaxed);
+                return pendingIt->second;
+            }
+        }
+
+        const int regionX = floorDiv(chunkX, RegionSizeChunks);
+        const int regionZ = floorDiv(chunkZ, RegionSizeChunks);
+        const int localX = positiveModulo(chunkX, RegionSizeChunks);
+        const int localZ = positiveModulo(chunkZ, RegionSizeChunks);
+        const size_t entryIndex = static_cast<size_t>(localZ * RegionSizeChunks + localX);
+        const std::filesystem::path regionPath = worldDirectory() /
+            "regions" /
+            ("r." + std::to_string(regionX) + "." + std::to_string(regionZ) + ".region");
+
+        const uint64_t regionCacheKey = chunkKey(regionX, regionZ);
+        RegionChunkEntry entry{};
+        bool regionExists = false;
+        bool regionCached = false;
+        {
+            std::lock_guard<std::mutex> lock(regionHeaderCacheMutex_);
+            const auto cacheIt = regionHeaderCache_.find(regionCacheKey);
+            if (cacheIt != regionHeaderCache_.end())
+            {
+                regionCached = true;
+                regionExists = cacheIt->second.exists;
+                if (regionExists)
+                {
+                    entry = cacheIt->second.entries[entryIndex];
+                }
+            }
+        }
+
+        if (!regionCached)
+        {
+            RegionHeaderCache cache{};
+            std::ifstream headerFile(regionPath, std::ios::binary);
+            if (headerFile.is_open())
+            {
+                std::vector<uint8_t> header(RegionSectorSize, 0);
+                headerFile.read(reinterpret_cast<char*>(header.data()), static_cast<std::streamsize>(header.size()));
+                if (headerFile)
+                {
+                    cache.exists = true;
+                    for (size_t i = 0; i < cache.entries.size(); ++i)
+                    {
+                        const size_t entryOffset = i * RegionChunkEntrySize;
+                        cache.entries[i] = RegionChunkEntry{
+                            readU32At(header, entryOffset),
+                            readU32At(header, entryOffset + 4),
+                            readU32At(header, entryOffset + 8),
+                            readU32At(header, entryOffset + 12)};
+                    }
+                    entry = cache.entries[entryIndex];
+                    regionExists = true;
+                }
+            }
+
+            {
+                std::lock_guard<std::mutex> lock(regionHeaderCacheMutex_);
+                const auto cacheIt = regionHeaderCache_.find(regionCacheKey);
+                if (cacheIt == regionHeaderCache_.end())
+                {
+                    regionHeaderCache_.emplace(regionCacheKey, cache);
+                }
+                else if (!cacheIt->second.exists && cache.exists)
+                {
+                    cacheIt->second = cache;
+                }
+            }
+        }
+
+        if (!regionExists ||
+            entry.offsetSector == 0 ||
+            entry.sectorCount == 0 ||
+            entry.storedSize == 0 ||
+            entry.rawSize == 0)
+        {
+            return loadMiss();
+        }
+
+        std::ifstream file(regionPath, std::ios::binary);
+        if (!file.is_open())
+        {
+            return loadMiss();
+        }
+
+        std::vector<uint8_t> stored(entry.storedSize);
+        file.seekg(static_cast<std::streamoff>(static_cast<uint64_t>(entry.offsetSector) * RegionSectorSize));
+        file.read(reinterpret_cast<char*>(stored.data()), static_cast<std::streamsize>(stored.size()));
+        if (!file)
+        {
+            return loadMiss();
+        }
+
+        std::vector<uint8_t> payload;
+        try
+        {
+            payload = lz4DecodeBlock(stored, entry.rawSize);
+        }
+        catch (...)
+        {
+            return loadMiss();
+        }
+
+        try
+        {
+            SaveChunkSnapshot snapshot{};
+            snapshot.chunkX = chunkX;
+            snapshot.chunkZ = chunkZ;
+            size_t offset = 0;
+            snapshot.genState = static_cast<ChunkGenState>(readU8(payload, offset));
+            snapshot.incomingFeatureMask = readU8(payload, offset);
+            std::array<uint16_t, FeatureNeighborCount> featureCounts{};
+            for (uint16_t& count : featureCounts)
+            {
+                count = readU16(payload, offset);
+            }
+
+            const uint32_t blockRunCount = readU32(payload, offset);
+            if (blockRunCount > 0)
+            {
+                snapshot.hasData = true;
+                snapshot.blocks.reserve(ChunkBlockCount);
+                uint64_t totalCount = 0;
+                for (uint32_t run = 0; run < blockRunCount; ++run)
+                {
+                    const uint16_t block = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
+                    const uint32_t count = readU32(payload, offset);
+                    totalCount += count;
+                    if (totalCount > ChunkBlockCount)
+                    {
+                        return loadMiss();
+                    }
+                    snapshot.blocks.insert(snapshot.blocks.end(), count, block);
+                }
+                if (snapshot.blocks.size() != ChunkBlockCount)
+                {
+                    return loadMiss();
+                }
+            }
+
+            for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
+            {
+                if (featureCounts[slot] == 0)
+                {
+                    continue;
+                }
+
+                auto writes = std::make_shared<FeatureWriteList>();
+                writes->reserve(featureCounts[slot]);
+                for (uint16_t i = 0; i < featureCounts[slot]; ++i)
+                {
+                    FeatureWrite write{};
+                    write.localX = readU8(payload, offset);
+                    write.localZ = readU8(payload, offset);
+                    write.y = readU16(payload, offset);
+                    write.block = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
+                    writes->push_back(write);
+                }
+                snapshot.incomingFeatureSlots[slot] = std::move(writes);
+            }
+            if (offset + 8 <= payload.size())
+            {
+                snapshot.revision = readU64(payload, offset);
+            }
+
+            if (snapshot.genState == ChunkGenState::Full && snapshot.hasData)
+            {
+                std::lock_guard<std::mutex> lock(savedChunkMutex_);
+                savedCleanRevisions_[key] = snapshot.revision;
+            }
+            loadRegionHitCount_.fetch_add(1, std::memory_order_relaxed);
+            return snapshot;
+        }
+        catch (...)
+        {
+            return loadMiss();
+        }
+    }
+
+    Renderer::RuntimeChunk Renderer::runtimeChunkFromSnapshot(const SaveChunkSnapshot& snapshot, uint64_t generation)
+    {
+        RuntimeChunk chunk{};
+        chunk.chunkX = snapshot.chunkX;
+        chunk.chunkZ = snapshot.chunkZ;
+        chunk.genState = snapshot.genState == ChunkGenState::Meshed ? ChunkGenState::Full : snapshot.genState;
+        chunk.incomingFeatureMask = chunk.genState == ChunkGenState::Full ? 0 : snapshot.incomingFeatureMask;
+        chunk.incomingFeatureSlots = chunk.genState == ChunkGenState::Full ? std::array<FeatureWriteListPtr, FeatureNeighborCount>{} : snapshot.incomingFeatureSlots;
+        chunk.hasSavedBacking = true;
+        chunk.dataDirtyForSave = false;
+
+        if (snapshot.hasData &&
+            ((snapshot.chunkData && snapshot.chunkData->blocks.size() == ChunkBlockCount) ||
+                snapshot.blocks.size() == ChunkBlockCount))
+        {
+            auto data = std::make_shared<ChunkData>();
+            if (snapshot.chunkData && snapshot.chunkData->blocks.size() == ChunkBlockCount)
+            {
+                *data = *snapshot.chunkData;
+            }
+            else
+            {
+                data->revision = snapshot.revision;
+                data->chunkX = snapshot.chunkX;
+                data->chunkZ = snapshot.chunkZ;
+                data->blocks = snapshot.blocks;
+            }
+            data->generation = generation;
+            data->revision = snapshot.revision;
+            data->chunkX = snapshot.chunkX;
+            data->chunkZ = snapshot.chunkZ;
+            data->emptySubchunks.fill(true);
+            for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
+            {
+                const int yStart = subchunkY * SubchunkSize;
+                const int yEnd = yStart + SubchunkSize;
+                bool empty = true;
+                for (int y = yStart; y < yEnd && empty; ++y)
+                {
+                    for (int z = 0; z < ChunkSizeZ && empty; ++z)
+                    {
+                        for (int x = 0; x < ChunkSizeX; ++x)
+                        {
+                            const size_t index = static_cast<size_t>((y * ChunkSizeZ + z) * ChunkSizeX + x);
+                            if (data->blocks[index] != BlockAir)
+                            {
+                                empty = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+                data->emptySubchunks[static_cast<size_t>(subchunkY)] = empty;
+            }
+            chunk.data = std::move(data);
+        }
+
+        if (chunk.genState == ChunkGenState::Full)
+        {
+            std::lock_guard<std::mutex> lock(savedChunkMutex_);
+            savedCleanRevisions_[chunkKey(chunk.chunkX, chunk.chunkZ)] = chunk.data ? chunk.data->revision : 0;
+        }
+        return chunk;
     }
 
     std::shared_ptr<Renderer::ChunkData> Renderer::buildChunkData(int chunkX, int chunkZ) const
@@ -3110,6 +4802,353 @@ namespace dolbuto
         return chunk;
     }
 
+    std::array<Renderer::FeatureWriteListPtr, Renderer::FeatureNeighborCount> Renderer::buildTreeFeatures(const std::shared_ptr<Renderer::ChunkData>& chunk, const std::array<int, Renderer::ChunkColumnCount>& heights) const
+    {
+        std::array<FeatureWriteListPtr, FeatureNeighborCount> outgoingSlots{};
+        for (FeatureWriteListPtr& slot : outgoingSlots)
+        {
+            slot = std::make_shared<FeatureWriteList>();
+        }
+
+        auto outgoingSlotForTarget = [&](int targetChunkX, int targetChunkZ) -> FeatureWriteList*
+        {
+            const int offsetX = targetChunkX - chunk->chunkX;
+            const int offsetZ = targetChunkZ - chunk->chunkZ;
+            const std::optional<size_t> slotIndex = featureNeighborIndex(offsetX, offsetZ);
+            if (!slotIndex)
+            {
+                return nullptr;
+            }
+            return outgoingSlots[*slotIndex].get();
+        };
+
+        auto canPlaceTrunk = [](uint16_t existing)
+        {
+            return existing == BlockAir || existing == BlockPlant || existing == BlockLeaves;
+        };
+
+        auto canPlaceLeaves = [](uint16_t existing)
+        {
+            return existing == BlockAir || existing == BlockPlant;
+        };
+
+        auto setInternalBlock = [&](int localX, int y, int localZ, uint16_t block)
+        {
+            if (localX < 0 || localX >= ChunkSizeX || localZ < 0 || localZ >= ChunkSizeZ || y < 0 || y >= ChunkSizeY)
+            {
+                return;
+            }
+
+            const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+            uint16_t& existing = chunk->blocks[index];
+            const bool canPlace = block == BlockTrunk ? canPlaceTrunk(existing) : canPlaceLeaves(existing);
+            if (canPlace)
+            {
+                existing = block;
+                chunk->emptySubchunks[static_cast<size_t>(y / SubchunkSize)] = false;
+            }
+        };
+
+        auto emitLeaves = [&](int worldX, int y, int worldZ)
+        {
+            if (y < 0 || y >= ChunkSizeY)
+            {
+                return;
+            }
+
+            const int targetChunkX = floorDiv(worldX, ChunkSizeX);
+            const int targetChunkZ = floorDiv(worldZ, ChunkSizeZ);
+            if (targetChunkX == chunk->chunkX && targetChunkZ == chunk->chunkZ)
+            {
+                setInternalBlock(positiveModulo(worldX, ChunkSizeX), y, positiveModulo(worldZ, ChunkSizeZ), BlockLeaves);
+                return;
+            }
+
+            FeatureWriteList* writes = outgoingSlotForTarget(targetChunkX, targetChunkZ);
+            if (writes == nullptr)
+            {
+                return;
+            }
+
+            writes->push_back(FeatureWrite{
+                positiveModulo(worldX, ChunkSizeX),
+                y,
+                positiveModulo(worldZ, ChunkSizeZ),
+                BlockLeaves});
+        };
+
+        const int worldXStart = chunk->chunkX * ChunkSizeX;
+        const int worldZStart = chunk->chunkZ * ChunkSizeZ;
+        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+        {
+            for (int localX = 0; localX < ChunkSizeX; ++localX)
+            {
+                const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
+                const int height = std::clamp(heights[column], 0, ChunkSizeY);
+                if (height <= 0 || height + 5 >= ChunkSizeY)
+                {
+                    continue;
+                }
+
+                const int worldX = worldXStart + localX;
+                const int worldZ = worldZStart + localZ;
+                const uint8_t vegetationRandom = worldRandom8(worldX, height, worldZ, PlantPlacementSalt);
+                if (vegetationRandom < TreePlacementMin || vegetationRandom > TreePlacementMax)
+                {
+                    continue;
+                }
+
+                const size_t topIndex = static_cast<size_t>(((height - 1) * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+                if (topIndex >= chunk->blocks.size() || chunk->blocks[topIndex] != BlockGrass)
+                {
+                    continue;
+                }
+
+                for (int y = height; y <= height + 3; ++y)
+                {
+                    setInternalBlock(localX, y, localZ, BlockTrunk);
+                }
+
+                for (int y = height + 2; y <= height + 3; ++y)
+                {
+                    for (int dz = -2; dz <= 2; ++dz)
+                    {
+                        for (int dx = -2; dx <= 2; ++dx)
+                        {
+                            if (std::abs(dx) == 2 && std::abs(dz) == 2)
+                            {
+                                continue;
+                            }
+                            emitLeaves(worldX + dx, y, worldZ + dz);
+                        }
+                    }
+                }
+
+                for (int dz = -1; dz <= 1; ++dz)
+                {
+                    for (int dx = -1; dx <= 1; ++dx)
+                    {
+                        emitLeaves(worldX + dx, height + 4, worldZ + dz);
+                    }
+                }
+            }
+        }
+
+        return outgoingSlots;
+    }
+
+    bool Renderer::applyFeatureWrites(const std::shared_ptr<Renderer::ChunkData>& chunk, const std::array<FeatureWriteListPtr, FeatureNeighborCount>& incomingFeatureSlots) const
+    {
+        bool changed = false;
+        for (const FeatureWriteListPtr& writes : incomingFeatureSlots)
+        {
+            if (!writes)
+            {
+                continue;
+            }
+
+            for (const FeatureWrite& write : *writes)
+            {
+                if (write.block != BlockLeaves ||
+                    write.localX < 0 || write.localX >= ChunkSizeX ||
+                    write.localZ < 0 || write.localZ >= ChunkSizeZ ||
+                    write.y < 0 || write.y >= ChunkSizeY)
+                {
+                    continue;
+                }
+
+                const size_t index = static_cast<size_t>((write.y * ChunkSizeZ + write.localZ) * ChunkSizeX + write.localX);
+                uint16_t& existing = chunk->blocks[index];
+                if (existing == BlockAir || existing == BlockPlant)
+                {
+                    existing = BlockLeaves;
+                    chunk->emptySubchunks[static_cast<size_t>(write.y / SubchunkSize)] = false;
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed)
+        {
+            ++chunk->revision;
+        }
+        return changed;
+    }
+
+    void Renderer::acceptFeatureSlot(int targetChunkX, int targetChunkZ, size_t sourceSlot, FeatureWriteListPtr writes)
+    {
+        if (sourceSlot >= FeatureNeighborCount || !writes)
+        {
+            return;
+        }
+
+        const uint64_t targetKey = chunkKey(targetChunkX, targetChunkZ);
+        auto existingTarget = runtimeChunks_.find(targetKey);
+        if (existingTarget == runtimeChunks_.end() && desiredTerrainChunks_.find(targetKey) == desiredTerrainChunks_.end())
+        {
+            return;
+        }
+
+        RuntimeChunk& target = existingTarget != runtimeChunks_.end()
+            ? existingTarget->second
+            : runtimeChunks_[targetKey];
+        target.chunkX = targetChunkX;
+        target.chunkZ = targetChunkZ;
+
+        if ((target.genState == ChunkGenState::Full || target.genState == ChunkGenState::Meshed) && target.data)
+        {
+            std::array<FeatureWriteListPtr, FeatureNeighborCount> singleSlot{};
+            singleSlot[sourceSlot] = std::move(writes);
+            if (applyFeatureWrites(target.data, singleSlot))
+            {
+                target.genState = ChunkGenState::Full;
+                tryQueueMeshesAround(targetChunkX, targetChunkZ);
+            }
+            return;
+        }
+
+        const uint8_t sourceBit = static_cast<uint8_t>(1u << static_cast<uint32_t>(sourceSlot));
+        if ((target.incomingFeatureMask & sourceBit) != 0)
+        {
+            return;
+        }
+
+        target.incomingFeatureSlots[sourceSlot] = std::move(writes);
+        target.incomingFeatureMask |= sourceBit;
+        tryQueueFeatureFinalize(targetKey);
+    }
+
+    void Renderer::publishFeatureSlots(RuntimeChunk& sourceChunk)
+    {
+        if (sourceChunk.genState == ChunkGenState::Empty)
+        {
+            return;
+        }
+
+        const uint64_t generation = terrainGeneration_.load();
+        if (sourceChunk.outgoingPublishedTicket == generation)
+        {
+            return;
+        }
+
+        const bool hasOutgoingSlots = std::any_of(sourceChunk.outgoingFeatureSlots.begin(), sourceChunk.outgoingFeatureSlots.end(), [](const FeatureWriteListPtr& slot)
+        {
+            return slot != nullptr;
+        });
+        if (!hasOutgoingSlots && sourceChunk.data)
+        {
+            const std::array<int, Renderer::ChunkColumnCount> heights = buildChunkHeightmap(sourceChunk.chunkX, sourceChunk.chunkZ);
+            sourceChunk.outgoingFeatureSlots = buildTreeFeatures(sourceChunk.data, heights);
+        }
+
+        for (size_t slot = 0; slot < FeatureNeighborOffsets.size(); ++slot)
+        {
+            const int targetChunkX = sourceChunk.chunkX + FeatureNeighborOffsets[slot].x;
+            const int targetChunkZ = sourceChunk.chunkZ + FeatureNeighborOffsets[slot].z;
+            const std::optional<size_t> sourceSlot = featureNeighborIndex(-FeatureNeighborOffsets[slot].x, -FeatureNeighborOffsets[slot].z);
+            if (!sourceSlot)
+            {
+                continue;
+            }
+            acceptFeatureSlot(targetChunkX, targetChunkZ, *sourceSlot, sourceChunk.outgoingFeatureSlots[slot]);
+        }
+        sourceChunk.outgoingPublishedTicket = generation;
+    }
+
+    void Renderer::tryQueueFeatureFinalize(uint64_t key)
+    {
+        auto chunkIt = runtimeChunks_.find(key);
+        if (chunkIt == runtimeChunks_.end())
+        {
+            return;
+        }
+
+        RuntimeChunk& chunk = chunkIt->second;
+        const uint64_t generation = terrainGeneration_.load();
+        if (chunk.fullTicket != generation ||
+            chunk.genState != ChunkGenState::Featuring ||
+            !chunk.data ||
+            chunk.finalizeQueuedTicket == generation)
+        {
+            return;
+        }
+
+        if ((chunk.incomingFeatureMask & AllFeatureSourcesMask) != AllFeatureSourcesMask)
+        {
+            return;
+        }
+
+        TerrainJob job{};
+        job.type = TerrainJob::Type::FinalizeFeatures;
+        job.generation = generation;
+        job.priority = chunk.bestPriority;
+        job.chunkX = chunk.chunkX;
+        job.chunkZ = chunk.chunkZ;
+        job.chunk = chunk.data;
+        job.incomingFeatureSlots = chunk.incomingFeatureSlots;
+        chunk.finalizeQueuedTicket = generation;
+        enqueueTerrainJob(std::move(job));
+    }
+
+    void Renderer::tryQueueMeshIfReady(int chunkX, int chunkZ)
+    {
+        const uint64_t key = chunkKey(chunkX, chunkZ);
+        auto targetIt = runtimeChunks_.find(key);
+        const uint64_t generation = terrainGeneration_.load();
+        if (targetIt == runtimeChunks_.end() ||
+            desiredRenderChunks_.find(key) == desiredRenderChunks_.end() ||
+            targetIt->second.meshTicket != generation ||
+            requestedMeshJobs_.find(key) != requestedMeshJobs_.end() ||
+            targetIt->second.meshQueuedTicket == generation ||
+            (targetIt->second.genState != ChunkGenState::Full && targetIt->second.genState != ChunkGenState::Meshed))
+        {
+            return;
+        }
+
+        std::array<std::shared_ptr<ChunkData>, 9> chunks{};
+        for (int dz = -1; dz <= 1; ++dz)
+        {
+            for (int dx = -1; dx <= 1; ++dx)
+            {
+                const auto chunkIt = runtimeChunks_.find(chunkKey(chunkX + dx, chunkZ + dz));
+                if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data ||
+                    chunkIt->second.genState == ChunkGenState::Empty)
+                {
+                    return;
+                }
+                chunks[static_cast<size_t>((dz + 1) * 3 + (dx + 1))] = chunkIt->second.data;
+            }
+        }
+
+        if (chunkMeshReady(key))
+        {
+            return;
+        }
+
+        TerrainJob job{};
+        job.type = TerrainJob::Type::BuildChunkMesh;
+        job.generation = generation;
+        job.revision = chunks[4]->revision;
+        job.priority = targetIt->second.bestPriority;
+        job.chunkX = chunkX;
+        job.chunkZ = chunkZ;
+        job.meshChunks = chunks;
+        requestedMeshJobs_.insert(key);
+        targetIt->second.meshQueuedTicket = generation;
+        enqueueTerrainJob(std::move(job));
+    }
+
+    void Renderer::tryQueueMeshesAround(int chunkX, int chunkZ)
+    {
+        for (int dz = -1; dz <= 1; ++dz)
+        {
+            for (int dx = -1; dx <= 1; ++dx)
+            {
+                tryQueueMeshIfReady(chunkX + dx, chunkZ + dz);
+            }
+        }
+    }
+
     bool Renderer::setBlockAtWorld(int x, int y, int z, uint16_t block)
     {
         if (y < 0 || y >= ChunkSizeY)
@@ -3120,23 +5159,26 @@ namespace dolbuto
         const int chunkX = floorDiv(x, ChunkSizeX);
         const int chunkZ = floorDiv(z, ChunkSizeZ);
         const uint64_t key = chunkKey(chunkX, chunkZ);
-        const auto chunkIt = chunkData_.find(key);
-        if (chunkIt == chunkData_.end() || !chunkIt->second)
+        auto chunkIt = runtimeChunks_.find(key);
+        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data ||
+            (chunkIt->second.genState != ChunkGenState::Full && chunkIt->second.genState != ChunkGenState::Meshed))
         {
             return false;
         }
 
+        const std::shared_ptr<ChunkData>& chunk = chunkIt->second.data;
         const int localX = positiveModulo(x, ChunkSizeX);
         const int localZ = positiveModulo(z, ChunkSizeZ);
         const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-        if (index >= chunkIt->second->blocks.size() || chunkIt->second->blocks[index] == block)
+        if (index >= chunk->blocks.size() || chunk->blocks[index] == block)
         {
             return false;
         }
 
-        chunkIt->second->blocks[index] = block;
-        ++chunkIt->second->revision;
-        updateChunkEmptySubchunk(chunkIt->second, y / SubchunkSize);
+        chunk->blocks[index] = block;
+        ++chunk->revision;
+        chunkIt->second.dataDirtyForSave = true;
+        updateChunkEmptySubchunk(chunk, y / SubchunkSize);
         return true;
     }
 
@@ -3177,29 +5219,41 @@ namespace dolbuto
         }
 
         const uint64_t key = chunkKey(chunkX, chunkZ);
-        const auto chunkIt = chunkData_.find(key);
-        if (chunkIt == chunkData_.end() || !chunkIt->second || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
+        auto chunkIt = runtimeChunks_.find(key);
+        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
         {
             return;
         }
 
         const uint64_t generation = terrainGeneration_.load();
-        chunkIt->second->generation = generation;
-        const uint64_t revision = chunkIt->second->revision;
-        TerrainBuildData mesh = buildEditedSubchunkMesh(chunkIt->second, subchunkY);
+        chunkIt->second.data->generation = generation;
+        const uint64_t revision = chunkIt->second.data->revision;
+        TerrainBuildData mesh = buildEditedSubchunkMesh(chunkIt->second.data, subchunkY);
 
         requestedMeshJobs_.erase(key);
+        chunkIt->second.meshQueuedTicket = 0;
         ChunkRenderData& renderData = terrainChunks_[key];
+        renderData.revision = chunkIt->second.data->revision;
         renderData.chunkX = chunkX;
         renderData.chunkZ = chunkZ;
-        if (chunkIt->second->revision != revision || chunkIt->second->generation != generation)
+        if (chunkIt->second.data->revision != revision || chunkIt->second.data->generation != generation)
         {
             return;
         }
 
         TerrainMesh& targetMesh = renderData.rockSubchunks[static_cast<size_t>(subchunkY)];
-        destroyTerrainMesh(targetMesh);
+        if (targetMesh.vertexBuffer != VK_NULL_HANDLE || targetMesh.indexBuffer != VK_NULL_HANDLE)
+        {
+            ChunkRenderData retired{};
+            retired.rockSubchunks[static_cast<size_t>(subchunkY)] = std::move(targetMesh);
+            targetMesh = {};
+            retiredTerrainChunks_.push_back(RetiredChunkRenderData{
+                static_cast<uint32_t>(MaxFramesInFlight + 1),
+                std::move(retired)});
+        }
         createTerrainBuffer(mesh, targetMesh);
+        renderData.revision = chunkIt->second.data->revision;
+        chunkIt->second.genState = ChunkGenState::Meshed;
     }
 
     void Renderer::rebuildEditedChunkMeshes(int blockX, int blockY, int blockZ)
@@ -3951,17 +6005,66 @@ namespace dolbuto
         return result;
     }
 
-    Renderer::CompletedChunkMesh Renderer::buildChunkMesh(const std::shared_ptr<Renderer::ChunkData>& chunk, uint64_t generation) const
+    Renderer::CompletedChunkMesh Renderer::buildChunkMesh(const std::array<std::shared_ptr<Renderer::ChunkData>, 9>& chunks, uint64_t generation) const
     {
+        const std::shared_ptr<ChunkData>& chunk = chunks[4];
         CompletedChunkMesh result{};
         result.generation = generation;
         result.revision = chunk->revision;
         result.chunkX = chunk->chunkX;
         result.chunkZ = chunk->chunkZ;
-        const std::vector<uint16_t> meshingBlocks = buildMeshingBlocks(chunk);
+
+        auto blockAt = [&](int localX, int y, int localZ) -> uint16_t
+        {
+            if (y < 0 || y >= ChunkSizeY)
+            {
+                return BlockAir;
+            }
+
+            int chunkOffsetX = 0;
+            int chunkOffsetZ = 0;
+            int sampleX = localX;
+            int sampleZ = localZ;
+            if (sampleX < 0)
+            {
+                chunkOffsetX = -1;
+                sampleX += ChunkSizeX;
+            }
+            else if (sampleX >= ChunkSizeX)
+            {
+                chunkOffsetX = 1;
+                sampleX -= ChunkSizeX;
+            }
+
+            if (sampleZ < 0)
+            {
+                chunkOffsetZ = -1;
+                sampleZ += ChunkSizeZ;
+            }
+            else if (sampleZ >= ChunkSizeZ)
+            {
+                chunkOffsetZ = 1;
+                sampleZ -= ChunkSizeZ;
+            }
+
+            if (sampleX < 0 || sampleX >= ChunkSizeX || sampleZ < 0 || sampleZ >= ChunkSizeZ)
+            {
+                return BlockAir;
+            }
+
+            const std::shared_ptr<ChunkData>& sampleChunk = chunks[static_cast<size_t>((chunkOffsetZ + 1) * 3 + (chunkOffsetX + 1))];
+            if (!sampleChunk)
+            {
+                return BlockAir;
+            }
+
+            const size_t index = static_cast<size_t>((y * ChunkSizeZ + sampleZ) * ChunkSizeX + sampleX);
+            return sampleChunk->blocks[index];
+        };
+
         for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
         {
-            result.rockSubchunks[static_cast<size_t>(subchunkY)] = buildSubchunkMesh(chunk, meshingBlocks, subchunkY);
+            result.rockSubchunks[static_cast<size_t>(subchunkY)] = buildSubchunkMesh(chunk, subchunkY, blockAt);
         }
         return result;
     }
@@ -3970,6 +6073,11 @@ namespace dolbuto
     {
         auto renderIt = terrainChunks_.find(key);
         if (renderIt == terrainChunks_.end())
+        {
+            return false;
+        }
+        auto chunkIt = runtimeChunks_.find(key);
+        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data || renderIt->second.revision != chunkIt->second.data->revision)
         {
             return false;
         }
@@ -4006,6 +6114,12 @@ namespace dolbuto
         retiredTerrainChunks_.clear();
         pendingUnloadChunks_.clear();
         pendingUnloadSet_.clear();
+        requestedChunkJobs_.clear();
+        requestedMeshJobs_.clear();
+        desiredTerrainChunks_.clear();
+        desiredFeatureChunks_.clear();
+        desiredRenderChunks_.clear();
+        runtimeChunks_.clear();
     }
 
     void Renderer::updateTerrainStats()
@@ -4031,7 +6145,7 @@ namespace dolbuto
 
         terrainDrawText_ = "DRAWS: " + std::to_string(terrainDrawCount_);
         terrainFaceText_ = "FACES: " + std::to_string(terrainFaceCount_);
-        terrainVertexText_ = "VERTICES: " + std::to_string(terrainVertexCount_);
+        terrainVertexText_ = "QUADS: " + std::to_string(terrainVertexCount_);
     }
 
     std::array<int, Renderer::ChunkColumnCount> Renderer::buildChunkHeightmap(int chunkX, int chunkZ) const
@@ -4178,7 +6292,110 @@ namespace dolbuto
         return heights;
     }
 
-    void Renderer::createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh)
+    Renderer::PackedTerrainQuad Renderer::packTerrainQuad(const TerrainVertex& a, const TerrainVertex& b, const TerrainVertex& c, const TerrainVertex& d) const
+    {
+        auto encodeSignedFixed = [](float value) -> uint32_t
+        {
+            const int32_t fixed = static_cast<int32_t>(std::lround(value * 16.0f));
+            const uint32_t magnitude = fixed < 0 ? static_cast<uint32_t>(-fixed) : static_cast<uint32_t>(fixed);
+            return (magnitude << 1u) | (fixed < 0 ? 1u : 0u);
+        };
+        auto quantizeUnsigned = [](float value, float scale, int maxValue) -> uint32_t
+        {
+            return static_cast<uint32_t>(std::clamp(static_cast<int>(std::lround(value * scale)), 0, maxValue));
+        };
+        auto quantizeSigned = [](float value, float scale) -> int32_t
+        {
+            return std::clamp(static_cast<int32_t>(std::lround(value * scale)), -32768, 32767);
+        };
+        auto packI16Pair = [](int32_t a, int32_t b) -> uint32_t
+        {
+            return (static_cast<uint32_t>(static_cast<uint16_t>(a)) & 0xFFFFu) |
+                (static_cast<uint32_t>(static_cast<uint16_t>(b)) << 16u);
+        };
+        auto aoIndex = [](float ao) -> uint32_t
+        {
+            if (ao <= 0.615f)
+            {
+                return 0;
+            }
+            if (ao <= 0.75f)
+            {
+                return 1;
+            }
+            if (ao <= 0.91f)
+            {
+                return 2;
+            }
+            return 3;
+        };
+
+        const float edgeUx = b.x - a.x;
+        const float edgeUy = b.y - a.y;
+        const float edgeUz = b.z - a.z;
+        const float edgeVx = d.x - a.x;
+        const float edgeVy = d.y - a.y;
+        const float edgeVz = d.z - a.z;
+
+        PackedTerrainQuad packed{};
+        packed.p0x = encodeSignedFixed(a.x);
+        packed.p0y = encodeSignedFixed(a.y);
+        packed.p0z = encodeSignedFixed(a.z);
+        packed.edgeUxy = packI16Pair(quantizeSigned(edgeUx, 16.0f), quantizeSigned(edgeUy, 16.0f));
+        packed.edgeUzVx = packI16Pair(quantizeSigned(edgeUz, 16.0f), quantizeSigned(edgeVx, 16.0f));
+        packed.edgeVyz = packI16Pair(quantizeSigned(edgeVy, 16.0f), quantizeSigned(edgeVz, 16.0f));
+        packed.uv0 = packI16Pair(quantizeSigned(a.u, 4.0f), quantizeSigned(a.v, 4.0f));
+        packed.uvU = packI16Pair(quantizeSigned(b.u - a.u, 4.0f), quantizeSigned(b.v - a.v, 4.0f));
+        packed.uvV = packI16Pair(quantizeSigned(d.u - a.u, 4.0f), quantizeSigned(d.v - a.v, 4.0f));
+        const uint32_t textureLayer = quantizeUnsigned(a.textureLayer, 1.0f, 0xFF);
+        const uint32_t mipDistanceScale = quantizeUnsigned(a.mipDistanceScale, 16.0f, 0x3FF);
+        packed.material = textureLayer |
+            (mipDistanceScale << 8u) |
+            (aoIndex(a.ao) << 18u) |
+            (aoIndex(b.ao) << 20u) |
+            (aoIndex(c.ao) << 22u) |
+            (aoIndex(d.ao) << 24u);
+        return packed;
+    }
+
+    std::vector<Renderer::PackedTerrainQuad> Renderer::buildPackedTerrainQuads(const TerrainBuildData& buildData) const
+    {
+        std::vector<PackedTerrainQuad> quads;
+        quads.reserve(buildData.vertices.size() / 4u);
+        size_t indexCursor = 0;
+        for (size_t base = 0; base + 3 < buildData.vertices.size(); base += 4)
+        {
+            const uint32_t baseIndex = static_cast<uint32_t>(base);
+            size_t referencedIndices = 0;
+            while (indexCursor + referencedIndices < buildData.indices.size())
+            {
+                const uint32_t index = buildData.indices[indexCursor + referencedIndices];
+                if (index < baseIndex || index > baseIndex + 3u)
+                {
+                    break;
+                }
+                ++referencedIndices;
+            }
+            indexCursor += referencedIndices;
+            if (referencedIndices == 0)
+            {
+                continue;
+            }
+
+            const TerrainVertex& a = buildData.vertices[base + 0u];
+            const TerrainVertex& b = buildData.vertices[base + 1u];
+            const TerrainVertex& c = buildData.vertices[base + 2u];
+            const TerrainVertex& d = buildData.vertices[base + 3u];
+            quads.push_back(packTerrainQuad(a, b, c, d));
+            if (referencedIndices >= 12)
+            {
+                quads.push_back(packTerrainQuad(a, d, c, b));
+            }
+        }
+        return quads;
+    }
+
+    void Renderer::createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh, bool deviceLocal)
     {
         if (buildData.vertices.empty() || buildData.indices.empty())
         {
@@ -4188,30 +6405,246 @@ namespace dolbuto
         mesh.vertexCount = static_cast<uint32_t>(buildData.vertices.size());
         mesh.indexCount = static_cast<uint32_t>(buildData.indices.size());
 
-        const VkDeviceSize vertexBufferSize = sizeof(TerrainVertex) * buildData.vertices.size();
+        if (!deviceLocal)
+        {
+            const VkDeviceSize vertexBufferSize = sizeof(TerrainVertex) * buildData.vertices.size();
+            const VkDeviceSize indexBufferSize = sizeof(uint32_t) * buildData.indices.size();
+            createBuffer(
+                vertexBufferSize,
+                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                mesh.vertexBuffer,
+                mesh.vertexMemory);
+
+            void* data = nullptr;
+            vkMapMemory(device_, mesh.vertexMemory, 0, vertexBufferSize, 0, &data);
+            std::memcpy(data, buildData.vertices.data(), static_cast<size_t>(vertexBufferSize));
+            vkUnmapMemory(device_, mesh.vertexMemory);
+
+            createBuffer(
+                indexBufferSize,
+                VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                mesh.indexBuffer,
+                mesh.indexMemory);
+
+            vkMapMemory(device_, mesh.indexMemory, 0, indexBufferSize, 0, &data);
+            std::memcpy(data, buildData.indices.data(), static_cast<size_t>(indexBufferSize));
+            vkUnmapMemory(device_, mesh.indexMemory);
+            return;
+        }
+
+        const std::vector<PackedTerrainQuad> packedQuads = buildPackedTerrainQuads(buildData);
+        if (packedQuads.empty())
+        {
+            mesh = {};
+            return;
+        }
+        mesh.vertexCount = static_cast<uint32_t>(packedQuads.size());
+        mesh.indexCount = static_cast<uint32_t>(packedQuads.size() * 6u);
+
+        VkBuffer stagingBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
+        const VkDeviceSize vertexBufferSize = sizeof(PackedTerrainQuad) * packedQuads.size();
+        const VkDeviceSize stagingSize = vertexBufferSize;
+        createBuffer(
+            stagingSize,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            stagingBuffer,
+            stagingMemory);
+
+        void* data = nullptr;
+        vkMapMemory(device_, stagingMemory, 0, stagingSize, 0, &data);
+        std::memcpy(data, packedQuads.data(), static_cast<size_t>(vertexBufferSize));
+        vkUnmapMemory(device_, stagingMemory);
+
         createBuffer(
             vertexBufferSize,
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             mesh.vertexBuffer,
             mesh.vertexMemory);
 
-        void* data = nullptr;
-        vkMapMemory(device_, mesh.vertexMemory, 0, vertexBufferSize, 0, &data);
-        std::memcpy(data, buildData.vertices.data(), static_cast<size_t>(vertexBufferSize));
-        vkUnmapMemory(device_, mesh.vertexMemory);
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
-        const VkDeviceSize indexBufferSize = sizeof(uint32_t) * buildData.indices.size();
+        VkBufferCopy vertexCopy{};
+        vertexCopy.srcOffset = 0;
+        vertexCopy.dstOffset = 0;
+        vertexCopy.size = vertexBufferSize;
+        vkCmdCopyBuffer(commandBuffer, stagingBuffer, mesh.vertexBuffer, 1, &vertexCopy);
+
+        VkBufferMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.buffer = mesh.vertexBuffer;
+        barrier.size = vertexBufferSize;
+        vkCmdPipelineBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+            0,
+            0,
+            nullptr,
+            1,
+            &barrier,
+            0,
+            nullptr);
+
+        endSingleTimeCommands(commandBuffer);
+        vkDestroyBuffer(device_, stagingBuffer, nullptr);
+        vkFreeMemory(device_, stagingMemory, nullptr);
+        createTerrainVertexDescriptorSet(mesh, vertexBufferSize);
+    }
+
+    void Renderer::createChunkTerrainBuffers(const std::array<TerrainBuildData, SubchunkCount>& buildData, std::array<TerrainMesh, SubchunkCount>& meshes)
+    {
+        struct PendingUpload
+        {
+            size_t subchunkY = 0;
+            VkDeviceSize vertexSize = 0;
+            VkDeviceSize vertexOffset = 0;
+        };
+
+        auto alignCopyOffset = [](VkDeviceSize value)
+        {
+            return (value + 3) & ~VkDeviceSize{3};
+        };
+
+        std::vector<PendingUpload> uploads;
+        uploads.reserve(buildData.size());
+        std::array<std::vector<PackedTerrainQuad>, SubchunkCount> packedSubchunks{};
+        VkDeviceSize stagingSize = 0;
+        for (size_t subchunkY = 0; subchunkY < buildData.size(); ++subchunkY)
+        {
+            const TerrainBuildData& source = buildData[subchunkY];
+            if (source.vertices.empty() || source.indices.empty())
+            {
+                continue;
+            }
+            packedSubchunks[subchunkY] = buildPackedTerrainQuads(source);
+            if (packedSubchunks[subchunkY].empty())
+            {
+                continue;
+            }
+
+            TerrainMesh& mesh = meshes[subchunkY];
+            mesh.vertexCount = static_cast<uint32_t>(packedSubchunks[subchunkY].size());
+            mesh.indexCount = static_cast<uint32_t>(packedSubchunks[subchunkY].size() * 6u);
+
+            PendingUpload upload{};
+            upload.subchunkY = subchunkY;
+            upload.vertexSize = sizeof(PackedTerrainQuad) * packedSubchunks[subchunkY].size();
+            upload.vertexOffset = alignCopyOffset(stagingSize);
+            stagingSize = upload.vertexOffset + upload.vertexSize;
+            uploads.push_back(upload);
+
+            createBuffer(
+                upload.vertexSize,
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                mesh.vertexBuffer,
+                mesh.vertexMemory);
+        }
+
+        if (uploads.empty())
+        {
+            return;
+        }
+
+        VkBuffer stagingBuffer = VK_NULL_HANDLE;
+        VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
         createBuffer(
-            indexBufferSize,
-            VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            stagingSize,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            mesh.indexBuffer,
-            mesh.indexMemory);
+            stagingBuffer,
+            stagingMemory);
 
-        vkMapMemory(device_, mesh.indexMemory, 0, indexBufferSize, 0, &data);
-        std::memcpy(data, buildData.indices.data(), static_cast<size_t>(indexBufferSize));
-        vkUnmapMemory(device_, mesh.indexMemory);
+        void* data = nullptr;
+        vkMapMemory(device_, stagingMemory, 0, stagingSize, 0, &data);
+        for (const PendingUpload& upload : uploads)
+        {
+            const std::vector<PackedTerrainQuad>& source = packedSubchunks[upload.subchunkY];
+            std::memcpy(static_cast<char*>(data) + upload.vertexOffset, source.data(), static_cast<size_t>(upload.vertexSize));
+        }
+        vkUnmapMemory(device_, stagingMemory);
+
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+        std::vector<VkBufferMemoryBarrier> barriers;
+        barriers.reserve(uploads.size());
+        for (const PendingUpload& upload : uploads)
+        {
+            const TerrainMesh& mesh = meshes[upload.subchunkY];
+
+            VkBufferCopy vertexCopy{};
+            vertexCopy.srcOffset = upload.vertexOffset;
+            vertexCopy.dstOffset = 0;
+            vertexCopy.size = upload.vertexSize;
+            vkCmdCopyBuffer(commandBuffer, stagingBuffer, mesh.vertexBuffer, 1, &vertexCopy);
+
+            VkBufferMemoryBarrier vertexBarrier{};
+            vertexBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+            vertexBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            vertexBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            vertexBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            vertexBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            vertexBarrier.buffer = mesh.vertexBuffer;
+            vertexBarrier.size = upload.vertexSize;
+            barriers.push_back(vertexBarrier);
+        }
+
+        vkCmdPipelineBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+            0,
+            0,
+            nullptr,
+            static_cast<uint32_t>(barriers.size()),
+            barriers.data(),
+            0,
+            nullptr);
+
+        endSingleTimeCommands(commandBuffer);
+        vkDestroyBuffer(device_, stagingBuffer, nullptr);
+        vkFreeMemory(device_, stagingMemory, nullptr);
+
+        for (const PendingUpload& upload : uploads)
+        {
+            createTerrainVertexDescriptorSet(meshes[upload.subchunkY], upload.vertexSize);
+        }
+    }
+
+    void Renderer::createTerrainVertexDescriptorSet(TerrainMesh& mesh, VkDeviceSize vertexBufferSize)
+    {
+        VkDescriptorSetAllocateInfo setInfo{};
+        setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        setInfo.descriptorPool = descriptorPool_;
+        setInfo.descriptorSetCount = 1;
+        setInfo.pSetLayouts = &terrainVertexDescriptorSetLayout_;
+
+        if (vkAllocateDescriptorSets(device_, &setInfo, &mesh.vertexDescriptorSet) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to allocate terrain vertex descriptor set.");
+        }
+
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = mesh.vertexBuffer;
+        bufferInfo.offset = 0;
+        bufferInfo.range = vertexBufferSize;
+
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = mesh.vertexDescriptorSet;
+        write.dstBinding = 0;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write.pBufferInfo = &bufferInfo;
+        vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
     }
 
     void Renderer::createCommandBuffers()
@@ -5055,6 +7488,10 @@ namespace dolbuto
 
     void Renderer::destroyTerrainMesh(TerrainMesh& mesh)
     {
+        if (mesh.vertexDescriptorSet != VK_NULL_HANDLE && descriptorPool_ != VK_NULL_HANDLE)
+        {
+            vkFreeDescriptorSets(device_, descriptorPool_, 1, &mesh.vertexDescriptorSet);
+        }
         if (mesh.vertexBuffer != VK_NULL_HANDLE)
         {
             vkDestroyBuffer(device_, mesh.vertexBuffer, nullptr);
@@ -5163,7 +7600,7 @@ namespace dolbuto
         VkBufferMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_INDEX_READ_BIT | VK_ACCESS_SHADER_READ_BIT;
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.buffer = destination;
@@ -5171,7 +7608,7 @@ namespace dolbuto
         vkCmdPipelineBarrier(
             commandBuffer,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             0,
             0,
             nullptr,
@@ -5569,6 +8006,7 @@ namespace dolbuto
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, wireframe ? terrainWireframePipeline_ : terrainPipeline_);
         vkCmdPushConstants(commandBuffer, terrainPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 0, 1, &terrainTextureArray_.descriptorSet, 0, nullptr);
 
         uint32_t visibleDrawCount = 0;
         uint32_t visibleFaceCount = 0;
@@ -5595,7 +8033,7 @@ namespace dolbuto
                     continue;
                 }
 
-                drawTerrainMesh(commandBuffer, mesh, terrainTextureArray_);
+                drawTerrainMeshBound(commandBuffer, mesh);
                 ++visibleDrawCount;
                 visibleFaceCount += mesh.indexCount / 6;
                 visibleVertexCount += mesh.vertexCount;
@@ -5611,7 +8049,7 @@ namespace dolbuto
             terrainVertexCount_ = visibleVertexCount;
             terrainDrawText_ = "DRAWS: " + std::to_string(terrainDrawCount_);
             terrainFaceText_ = "FACES: " + std::to_string(terrainFaceCount_);
-            terrainVertexText_ = "VERTICES: " + std::to_string(terrainVertexCount_);
+            terrainVertexText_ = "QUADS: " + std::to_string(terrainVertexCount_);
             debugTextBatchDirty_ = true;
         }
     }
@@ -5717,8 +8155,9 @@ namespace dolbuto
 
         const int chunkX = floorDiv(x, ChunkSizeX);
         const int chunkZ = floorDiv(z, ChunkSizeZ);
-        const auto chunkIt = chunkData_.find(chunkKey(chunkX, chunkZ));
-        if (chunkIt == chunkData_.end() || !chunkIt->second)
+        const auto chunkIt = runtimeChunks_.find(chunkKey(chunkX, chunkZ));
+        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data ||
+            (chunkIt->second.genState != ChunkGenState::Full && chunkIt->second.genState != ChunkGenState::Meshed))
         {
             return BlockAir;
         }
@@ -5726,12 +8165,12 @@ namespace dolbuto
         const int localX = positiveModulo(x, ChunkSizeX);
         const int localZ = positiveModulo(z, ChunkSizeZ);
         const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-        if (index >= chunkIt->second->blocks.size())
+        if (index >= chunkIt->second.data->blocks.size())
         {
             return BlockAir;
         }
 
-        return chunkIt->second->blocks[index];
+        return chunkIt->second.data->blocks[index];
     }
 
     bool Renderer::terrainCellBlocksPlayer(int x, int y, int z) const
@@ -5747,8 +8186,9 @@ namespace dolbuto
 
         const int chunkX = floorDiv(x, ChunkSizeX);
         const int chunkZ = floorDiv(z, ChunkSizeZ);
-        const auto chunkIt = chunkData_.find(chunkKey(chunkX, chunkZ));
-        if (chunkIt == chunkData_.end() || !chunkIt->second)
+        const auto chunkIt = runtimeChunks_.find(chunkKey(chunkX, chunkZ));
+        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data ||
+            (chunkIt->second.genState != ChunkGenState::Full && chunkIt->second.genState != ChunkGenState::Meshed))
         {
             return true;
         }
@@ -5756,12 +8196,12 @@ namespace dolbuto
         const int localX = positiveModulo(x, ChunkSizeX);
         const int localZ = positiveModulo(z, ChunkSizeZ);
         const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-        if (index >= chunkIt->second->blocks.size())
+        if (index >= chunkIt->second.data->blocks.size())
         {
             return true;
         }
 
-        return blockDefinition(chunkIt->second->blocks[index]).collision;
+        return blockDefinition(chunkIt->second.data->blocks[index]).collision;
     }
 
     uint32_t Renderer::blockFaceTextureLayer(uint16_t block, int face) const
@@ -5819,6 +8259,17 @@ namespace dolbuto
         drawTerrainMesh(commandBuffer, playerMesh_, playerTexture_);
     }
 
+    void Renderer::drawTerrainMeshBound(VkCommandBuffer commandBuffer, const TerrainMesh& mesh) const
+    {
+        if (mesh.indexCount == 0 || mesh.vertexDescriptorSet == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 1, 1, &mesh.vertexDescriptorSet, 0, nullptr);
+        vkCmdDraw(commandBuffer, mesh.indexCount, 1, 0, 0);
+    }
+
     void Renderer::drawTerrainMesh(VkCommandBuffer commandBuffer, const TerrainMesh& mesh, const Texture& texture) const
     {
         if (mesh.indexCount == 0)
@@ -5826,10 +8277,10 @@ namespace dolbuto
             return;
         }
 
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 0, 1, &texture.descriptorSet, 0, nullptr);
         const VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &mesh.vertexBuffer, &offset);
         vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 0, 1, &texture.descriptorSet, 0, nullptr);
         vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, 0, 0, 0);
     }
 
@@ -5977,10 +8428,25 @@ namespace dolbuto
         addText(debugTextBatch_, terrainDrawText_, rightX, 222.0f, true);
         addText(debugTextBatch_, terrainFaceText_, rightX, 244.0f, true);
         addText(debugTextBatch_, terrainVertexText_, rightX, 266.0f, true);
-        addText(debugTextBatch_, dataQueueText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 176.0f, false);
-        addText(debugTextBatch_, meshQueueText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 154.0f, false);
-        addText(debugTextBatch_, dataDoneText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 132.0f, false);
-        addText(debugTextBatch_, meshDoneText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 110.0f, false);
+        addText(debugTextBatch_, peakProfilerStatusText_, rightX, static_cast<float>(swapchainExtent_.height) - 242.0f, true);
+        addText(debugTextBatch_, peakFrameText_, rightX, static_cast<float>(swapchainExtent_.height) - 220.0f, true);
+        addText(debugTextBatch_, peakUpdateText_, rightX, static_cast<float>(swapchainExtent_.height) - 198.0f, true);
+        addText(debugTextBatch_, peakEnsureRuntimeText_, rightX, static_cast<float>(swapchainExtent_.height) - 176.0f, true);
+        addText(debugTextBatch_, peakWantRenderText_, rightX, static_cast<float>(swapchainExtent_.height) - 154.0f, true);
+        addText(debugTextBatch_, peakEnsureKeyText_, rightX, static_cast<float>(swapchainExtent_.height) - 132.0f, true);
+        addText(debugTextBatch_, peakEnsureMarkText_, rightX, static_cast<float>(swapchainExtent_.height) - 110.0f, true);
+        addText(debugTextBatch_, peakEnsureFindText_, rightX, static_cast<float>(swapchainExtent_.height) - 88.0f, true);
+        addText(debugTextBatch_, peakEnsureLoadText_, rightX, static_cast<float>(swapchainExtent_.height) - 66.0f, true);
+        addText(debugTextBatch_, peakEnsureCreateText_, rightX, static_cast<float>(swapchainExtent_.height) - 44.0f, true);
+        addText(debugTextBatch_, peakEnsureDataTouchText_, rightX, static_cast<float>(swapchainExtent_.height) - 22.0f, true);
+        addText(debugTextBatch_, dataQueueText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 264.0f, false);
+        addText(debugTextBatch_, finalizeQueueText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 242.0f, false);
+        addText(debugTextBatch_, meshQueueText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 220.0f, false);
+        addText(debugTextBatch_, dataDoneText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 198.0f, false);
+        addText(debugTextBatch_, meshDoneText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 176.0f, false);
+        addText(debugTextBatch_, saveQueueText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 154.0f, false);
+        addText(debugTextBatch_, saveDoneText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 132.0f, false);
+        addText(debugTextBatch_, loadText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 110.0f, false);
         addText(debugTextBatch_, uploadText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 88.0f, false);
         addText(debugTextBatch_, unloadText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 66.0f, false);
         addText(debugTextBatch_, retiredText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 44.0f, false);
@@ -6026,6 +8492,83 @@ namespace dolbuto
         accumulatedGpuFrameMs_ = 0.0;
         performanceSampleCount_ = 0;
         performanceSampleStart_ = now;
+        debugTextBatchDirty_ = true;
+    }
+
+    void Renderer::updatePeakProfiler(double frameMs)
+    {
+        const auto now = std::chrono::steady_clock::now();
+        if (peakProfilerStartTime_ == std::chrono::steady_clock::time_point{})
+        {
+            peakProfilerStartTime_ = now;
+            peakProfilerStatusText_ = "PEAK SAMPLE: WAIT 5S";
+            debugTextBatchDirty_ = true;
+            return;
+        }
+
+        const std::chrono::duration<double> elapsed = now - peakProfilerStartTime_;
+        if (!peakProfilerSamplingStarted_)
+        {
+            if (elapsed.count() < PeakProfilerStartupDelaySeconds)
+            {
+                return;
+            }
+
+            peakProfilerSamplingStarted_ = true;
+            peakProfilerStatusText_ = "PEAK SAMPLE: ON";
+            updatePeakProfilerText();
+        }
+
+        bool changed = false;
+        const auto updatePeak = [&](double value, double& peak)
+        {
+            if (value > peak)
+            {
+                peak = value;
+                changed = true;
+            }
+        };
+
+        updatePeak(frameMs, peakFrameMs_);
+        updatePeak(frameChunkUpdateMs_, peakChunkUpdateMs_);
+        updatePeak(frameJobMainMs_, peakJobMainMs_);
+        updatePeak(frameUploadMs_, peakUploadMs_);
+        updatePeak(frameUnloadMs_, peakUnloadMs_);
+        updatePeak(frameRetireMs_, peakRetireMs_);
+        updatePeak(frameSaveEnqueueMs_, peakSaveEnqueueMs_);
+        updatePeak(frameEnsureRuntimeMs_, peakEnsureRuntimeMs_);
+        updatePeak(frameWantRenderMs_, peakWantRenderMs_);
+        updatePeak(frameWantEnsureMs_, peakWantEnsureMs_);
+        updatePeak(frameWantInsertMs_, peakWantInsertMs_);
+        updatePeak(frameWantReadyMs_, peakWantReadyMs_);
+        updatePeak(frameWantDependMs_, peakWantDependMs_);
+        updatePeak(frameWantMeshReadyMs_, peakWantMeshReadyMs_);
+        updatePeak(frameWantMeshDependMs_, peakWantMeshDependMs_);
+        updatePeak(frameEnsureKeyMs_, peakEnsureKeyMs_);
+        updatePeak(frameEnsureMarkMs_, peakEnsureMarkMs_);
+        updatePeak(frameEnsureFindMs_, peakEnsureFindMs_);
+        updatePeak(frameEnsureLoadMs_, peakEnsureLoadMs_);
+        updatePeak(frameEnsureCreateMs_, peakEnsureCreateMs_);
+        updatePeak(frameEnsureDataTouchMs_, peakEnsureDataTouchMs_);
+
+        if (changed)
+        {
+            updatePeakProfilerText();
+        }
+    }
+
+    void Renderer::updatePeakProfilerText()
+    {
+        peakFrameText_ = formatProfileMs("PEAK FRAME", peakFrameMs_);
+        peakUpdateText_ = formatProfileMs("PEAK UPDATE", peakChunkUpdateMs_);
+        peakEnsureRuntimeText_ = formatProfileMs("PEAK ENSURE RUNTIME", peakEnsureRuntimeMs_);
+        peakWantRenderText_ = formatProfileMs("PEAK WANT RENDER", peakWantRenderMs_);
+        peakEnsureKeyText_ = formatProfileMs("PEAK ENSURE KEY", peakEnsureKeyMs_);
+        peakEnsureMarkText_ = formatProfileMs("PEAK ENSURE MARK", peakEnsureMarkMs_);
+        peakEnsureFindText_ = formatProfileMs("PEAK ENSURE FIND", peakEnsureFindMs_);
+        peakEnsureLoadText_ = formatProfileMs("PEAK ENSURE LOAD", peakEnsureLoadMs_);
+        peakEnsureCreateText_ = formatProfileMs("PEAK ENSURE CREATE", peakEnsureCreateMs_);
+        peakEnsureDataTouchText_ = formatProfileMs("PEAK ENSURE DATA TOUCH", peakEnsureDataTouchMs_);
         debugTextBatchDirty_ = true;
     }
 
@@ -6100,7 +8643,7 @@ namespace dolbuto
         const size_t totalVertices = batch.outline.size() + batch.fill.size();
         if (totalVertices > MaxTextVertices)
         {
-            throw std::runtime_error("Debug text vertex buffer is too small: " + std::to_string(totalVertices));
+            return;
         }
 
         const VkDeviceSize outlineSize = sizeof(TextVertex) * batch.outline.size();
@@ -6254,7 +8797,7 @@ namespace dolbuto
         terrainDebugInitialized_ = true;
         terrainDrawText_ = "DRAWS: 2";
         terrainFaceText_ = "FACES: 0";
-        terrainVertexText_ = "VERTICES: 9";
+        terrainVertexText_ = "QUADS: 9";
         debugTextBatchDirty_ = true;
     }
 

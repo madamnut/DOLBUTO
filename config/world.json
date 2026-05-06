@@ -1,9 +1,10 @@
 {
   "chunkLoad": {
-    "loadGridScale": 4,
+    "loadGridScale": 2,
     "workerCount": 4,
     "maxCompletedChunksAppliedPerFrame": 8,
-    "maxUnloadedChunksPerFrame": 16
+    "maxUnloadedChunksPerFrame": 64,
+    "maxRetiredChunksDestroyedPerFrame": 4
   },
   "player": {
     "flyMoveSpeed": 64.0,

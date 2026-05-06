@@ -6,11 +6,10 @@ layout(push_constant) uniform TerrainPush
     vec4 cameraPosition;
 } pushData;
 
-layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec2 inUv;
-layout(location = 2) in float inAo;
-layout(location = 3) in float inTextureLayer;
-layout(location = 4) in float inMipDistanceScale;
+layout(set = 1, binding = 0, std430) readonly buffer TerrainQuadBuffer
+{
+    uint packedQuads[];
+} terrainQuadBuffer;
 
 layout(location = 0) out vec2 fragUv;
 layout(location = 1) out float fragAo;
@@ -18,12 +17,87 @@ layout(location = 2) out vec3 fragWorldPosition;
 layout(location = 3) flat out float fragTextureLayer;
 layout(location = 4) flat out float fragMipDistanceScale;
 
+int decodeSignedFixed(uint packedValue)
+{
+    int magnitude = int(packedValue >> 1u);
+    return (packedValue & 1u) != 0u ? -magnitude : magnitude;
+}
+
+int lowI16(uint packedValue)
+{
+    return (int(packedValue << 16u) >> 16);
+}
+
+int highI16(uint packedValue)
+{
+    return int(packedValue) >> 16;
+}
+
+float decodeAo(uint value)
+{
+    if (value == 0u)
+    {
+        return 0.55;
+    }
+    if (value == 1u)
+    {
+        return 0.68;
+    }
+    if (value == 2u)
+    {
+        return 0.82;
+    }
+    return 1.0;
+}
+
 void main()
 {
-    gl_Position = pushData.mvp * vec4(inPosition, 1.0);
-    fragUv = inUv;
-    fragAo = inAo;
-    fragWorldPosition = inPosition;
-    fragTextureLayer = inTextureLayer;
-    fragMipDistanceScale = inMipDistanceScale;
+    uint quadIndex = uint(gl_VertexIndex) / 6u;
+    uint triangleVertex = uint(gl_VertexIndex) - quadIndex * 6u;
+    uint corner = triangleVertex == 0u ? 0u :
+        (triangleVertex == 1u ? 1u :
+        (triangleVertex == 2u ? 2u :
+        (triangleVertex == 3u ? 0u :
+        (triangleVertex == 4u ? 2u : 3u))));
+    float useU = (corner == 1u || corner == 2u) ? 1.0 : 0.0;
+    float useV = (corner == 2u || corner == 3u) ? 1.0 : 0.0;
+
+    uint base = quadIndex * 10u;
+    uint p0x = terrainQuadBuffer.packedQuads[base + 0u];
+    uint p0y = terrainQuadBuffer.packedQuads[base + 1u];
+    uint p0z = terrainQuadBuffer.packedQuads[base + 2u];
+    uint edgeUxy = terrainQuadBuffer.packedQuads[base + 3u];
+    uint edgeUzVx = terrainQuadBuffer.packedQuads[base + 4u];
+    uint edgeVyz = terrainQuadBuffer.packedQuads[base + 5u];
+    uint uv0 = terrainQuadBuffer.packedQuads[base + 6u];
+    uint uvU = terrainQuadBuffer.packedQuads[base + 7u];
+    uint uvV = terrainQuadBuffer.packedQuads[base + 8u];
+    uint material = terrainQuadBuffer.packedQuads[base + 9u];
+
+    vec3 origin = vec3(
+        float(decodeSignedFixed(p0x)) / 16.0,
+        float(decodeSignedFixed(p0y)) / 16.0,
+        float(decodeSignedFixed(p0z)) / 16.0);
+    vec3 edgeU = vec3(
+        float(lowI16(edgeUxy)) / 16.0,
+        float(highI16(edgeUxy)) / 16.0,
+        float(lowI16(edgeUzVx)) / 16.0);
+    vec3 edgeV = vec3(
+        float(highI16(edgeUzVx)) / 16.0,
+        float(lowI16(edgeVyz)) / 16.0,
+        float(highI16(edgeVyz)) / 16.0);
+    vec2 uvOrigin = vec2(float(lowI16(uv0)) / 4.0, float(highI16(uv0)) / 4.0);
+    vec2 uvEdgeU = vec2(float(lowI16(uvU)) / 4.0, float(highI16(uvU)) / 4.0);
+    vec2 uvEdgeV = vec2(float(lowI16(uvV)) / 4.0, float(highI16(uvV)) / 4.0);
+
+    vec3 position = origin + edgeU * useU + edgeV * useV;
+    vec2 uv = uvOrigin + uvEdgeU * useU + uvEdgeV * useV;
+    uint aoIndex = (material >> (18u + corner * 2u)) & 0x3u;
+
+    gl_Position = pushData.mvp * vec4(position, 1.0);
+    fragUv = uv;
+    fragAo = decodeAo(aoIndex);
+    fragWorldPosition = position;
+    fragTextureLayer = float(material & 0xFFu);
+    fragMipDistanceScale = float((material >> 8u) & 0x3FFu) / 16.0;
 }

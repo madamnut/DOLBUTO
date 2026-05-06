@@ -39,6 +39,7 @@ namespace dolbuto
 
         void initWindow();
         void shutdownWindow();
+        void setWindowIcon();
         void handleMouse(double x, double y);
         void toggleFullscreen();
         void setMouseCaptured(bool captured);

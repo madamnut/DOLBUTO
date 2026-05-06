@@ -23,6 +23,9 @@ compile_commands.json
 *.pdb
 *.ilk
 
+# Runtime world saves
+saves/
+
 # OS / editor noise
 Thumbs.db
 .DS_Store

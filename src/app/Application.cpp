@@ -1,9 +1,13 @@
 #include "app/Application.h"
 
+#include "platform/RuntimePaths.h"
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
 #include "renderer/Renderer.h"
+
+#include <stb_image.h>
 
 #include <algorithm>
 #include <cmath>
@@ -258,6 +262,8 @@ namespace dolbuto
             throw std::runtime_error("Failed to create GLFW window.");
         }
 
+        setWindowIcon();
+
         glfwSetWindowUserPointer(window_, this);
         glfwSetFramebufferSizeCallback(window_, [](GLFWwindow* window, int, int)
         {
@@ -324,6 +330,10 @@ namespace dolbuto
                 app->grounded_ = false;
                 app->jumpPressed_ = false;
             }
+            else if (key == GLFW_KEY_R && action == GLFW_PRESS && app != nullptr && app->renderer_ != nullptr)
+            {
+                app->renderer_->resetPeakProfiler();
+            }
         });
 
         glfwSetMouseButtonCallback(window_, [](GLFWwindow* window, int button, int action, int)
@@ -366,6 +376,28 @@ namespace dolbuto
         });
 
         setMouseCaptured(true);
+    }
+
+    void Application::setWindowIcon()
+    {
+        const std::filesystem::path path = assetDirectory() / "textures" / "icon" / "icon.png";
+
+        int width = 0;
+        int height = 0;
+        int channels = 0;
+        unsigned char* pixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
+        if (pixels == nullptr)
+        {
+            return;
+        }
+
+        GLFWimage icon{};
+        icon.width = width;
+        icon.height = height;
+        icon.pixels = pixels;
+        glfwSetWindowIcon(window_, 1, &icon);
+
+        stbi_image_free(pixels);
     }
 
     void Application::shutdownWindow()
@@ -453,7 +485,7 @@ namespace dolbuto
         jumpSpeed_ = DefaultJumpSpeed;
         gravity_ = DefaultGravity;
 
-        const std::filesystem::path path = std::filesystem::path(DOLBUTO_CONFIG_DIR) / "world.json";
+        const std::filesystem::path path = configDirectory() / "world.json";
         std::ifstream file(path);
         if (!file.is_open())
         {
