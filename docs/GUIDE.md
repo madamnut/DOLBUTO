@@ -35,7 +35,7 @@
 - Debug 빌드의 shader는 CMake 빌드 폴더의 컴파일된 `.spv`를 사용한다.
 - Release/Portable 빌드는 실행 파일 옆의 `assets`, `config`, `shaders`, `saves/world`를 사용한다.
 - 포터블 배포본은 `DOLBUTOPortable` 타깃으로 생성한다.
-- 포터블 배포본은 `dist/DOLBUTO_0.0.0.0/` 아래에 생성된다.
+- 포터블 배포본은 `dist/DOLBUTO_0.0.0.1/` 아래에 생성된다.
 - Release 배포 확인은 반드시 dist 폴더에서 직접 실행해서 확인한다.
 - 빌드는 반드시 사용자가 직접 수행한다.
 
@@ -145,9 +145,9 @@ docs/0.0.0.0/2026-05-01.md
 
 ## Version
 
-현재 버전은 `0.0.0.0`이다.
+현재 버전은 `0.0.0.1`이다.
 
-현재 개발 기록은 `docs/0.0.0.0/` 아래에 작성한다.
+현재 개발 기록은 `docs/0.0.0.1/` 아래에 작성한다.
 
 ## Notes
 

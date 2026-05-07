@@ -18,7 +18,7 @@
 
 ## 현재 기준
 
-- 현재 버전 표기: `DOLBUTO 0.0.0.0`
+- 현재 버전 표기: `DOLBUTO 0.0.0.1`
 - 개발 언어/그래픽스: C++20 / Vulkan
 - 윈도우/입력: GLFW
 - 빌드: CMake / Ninja / Visual Studio
@@ -26,4 +26,3 @@
 - 청크 크기: `16 x 512 x 16`
 - 서브청크 크기: `16 x 16 x 16`
 - 저장 위치: `saves/world/regions`
-

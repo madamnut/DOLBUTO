@@ -39,7 +39,7 @@ Release, RelWithDebInfo, MinSizeRel은 배포 형태에 가깝게 동작한다.
 `DOLBUTOPortable` 타깃은 다음 폴더를 생성한다.
 
 ```text
-dist/DOLBUTO_0.0.0.0/
+dist/DOLBUTO_0.0.0.1/
   DOLBUTO.exe
   glfw3.dll
   assets/
@@ -58,4 +58,3 @@ dist/DOLBUTO_0.0.0.0/
 - 아이콘 생성은 픽셀 느낌 유지를 위해 `NEAREST` 리사이즈를 사용한다.
 
 관련 문서: [[runtime-paths]]
-

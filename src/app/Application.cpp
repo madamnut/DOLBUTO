@@ -36,6 +36,7 @@ namespace dolbuto
         constexpr double DefaultGroundMoveSpeed = 4.317;
         constexpr double DefaultJumpSpeed = 8.4;
         constexpr double DefaultGravity = 32.0;
+        constexpr double WorldSizeBlocks = 65536.0;
 
         std::optional<double> jsonDoubleField(const std::string& object, const std::string& key)
         {
@@ -157,6 +158,12 @@ namespace dolbuto
             return z >= 0.0f ? "NORTH" : "SOUTH";
         }
 
+        double wrapWorldCoordinate(double value)
+        {
+            const double wrapped = value - std::floor(value / WorldSizeBlocks) * WorldSizeBlocks;
+            return wrapped >= WorldSizeBlocks ? 0.0 : wrapped;
+        }
+
         Vec3 renderViewDirection(const Camera& camera)
         {
             const Vec3 forward = camera.forward();
@@ -201,14 +208,13 @@ namespace dolbuto
                 physicsAccumulator_ -= FixedPhysicsTimestep;
             }
 
-            updateDebugText();
-
             const double physicsAlpha = std::clamp(physicsAccumulator_ / FixedPhysicsTimestep, 0.0, 1.0);
             const DVec3 renderPlayerPosition = interpolatedPlayerPosition(physicsAlpha);
             const DVec3 eyePosition{renderPlayerPosition.x, renderPlayerPosition.y + EyeHeight, renderPlayerPosition.z};
             renderer_->updateBlockSelection(
                 {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
                 renderViewDirection(camera_));
+            updateDebugText();
             Camera renderCamera = camera_;
             DVec3 renderCameraPosition = eyePosition;
             bool showPlayer = false;
@@ -692,19 +698,25 @@ namespace dolbuto
         const float yawDegrees = camera_.yaw() * RadiansToDegrees;
         const float pitchDegrees = camera_.pitch() * RadiansToDegrees;
         const char* facing = facingName(camera_.yaw());
+        const double wrappedPlayerX = wrapWorldCoordinate(playerPosition_.x);
+        const double wrappedPlayerZ = wrapWorldCoordinate(playerPosition_.z);
+        const std::string lookAtText = renderer_ != nullptr ? renderer_->selectedBlockText() : "LOOKAT: none";
 
         std::snprintf(
             debugText_.data(),
             debugText_.size(),
-            "FPS: %04d [%07.3fMS]\nPOS: X %.3f / Y %.3f / Z %.3f\nLOOK: YAW %.1f / PITCH %.1f [%s]",
+            "FPS: %04d [%07.3fMS]\nPOS: X %.3f [%.3f] / Y %.3f / Z %.3f [%.3f]\nVIEW: YAW %.1f / PITCH %.1f [%s]\n%s",
             clampedFps,
             milliseconds,
+            wrappedPlayerX,
             playerPosition_.x,
             playerPosition_.y,
+            wrappedPlayerZ,
             playerPosition_.z,
             yawDegrees,
             pitchDegrees,
-            facing);
+            facing,
+            lookAtText.c_str());
 
         fpsSampleFrames_ = 0;
         fpsSampleStart_ = now;

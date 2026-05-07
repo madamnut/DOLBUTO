@@ -2,6 +2,9 @@
 build/
 out/
 
+# Distribution output
+dist/
+
 # CMake
 CMakeFiles/
 CMakeCache.txt
@@ -25,6 +28,9 @@ compile_commands.json
 
 # Runtime world saves
 saves/
+
+# Local references
+ref/
 
 # OS / editor noise
 Thumbs.db

@@ -77,7 +77,7 @@ namespace dolbuto
         int windowedHeight_ = 720;
         std::chrono::steady_clock::time_point fpsSampleStart_{};
         int fpsSampleFrames_ = 0;
-        std::array<char, 192> debugText_{"FPS: 0000 [000.000MS]\nPOS: X 0.000 / Y 300.000 / Z 0.000\nLOOK: YAW 0.0 / PITCH 0.0 [EAST]"};
+        std::array<char, 384> debugText_{"FPS: 0000 [000.000MS]\nPOS: X 0.000 [0.000] / Y 300.000 / Z 0.000 [0.000]\nVIEW: YAW 0.0 / PITCH 0.0 [EAST]\nLOOKAT: none"};
         bool firstMouse_ = true;
         double lastMouseX_ = 0.0;
         double lastMouseY_ = 0.0;

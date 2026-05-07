@@ -13,6 +13,7 @@
     "gravity": 32.0
   },
   "terrain": {
+    "seaLevel": 256,
     "domainWarp": {
       "enabled": true,
       "amplitude": 0.5,

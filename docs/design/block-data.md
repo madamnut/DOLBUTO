@@ -78,7 +78,78 @@ assets/data/blocks.json
 런타임 청크의 블록 데이터는 `uint16_t` 블록 ID 배열이다.
 청크 전체 크기는 `16 x 512 x 16`이므로 블록 수는 131072개다.
 
-유체 데이터 구조는 아직 본격적으로 사용하지 않는다.
+## 유체 데이터
+
+유체 정의는 다음 파일에서 읽는 것을 기준으로 한다.
+
+```text
+assets/data/fluids.json
+```
+
+유체 정의는 현재 `id`, `name`만 가진다.
+유체별 물성 파라미터는 아직 정의하지 않는다.
+
+```json
+{
+  "id": 1,
+  "name": "water"
+}
+```
+
+현재 유체 ID:
+
+```text
+0   none
+1   water
+2   lava
+300 methane
+301 hydrogen
+```
+
+유체 ID 범위는 다음 기준을 사용한다.
+
+- `0`: 유체 없음
+- `1~299`: 액체
+- `300~511`: 기체
+
+런타임 유체 셀 데이터는 `uint16_t`로 표현한다.
+상위 9비트는 유체 ID, 하위 7비트는 유체량이다.
+
+- `id = 0`, `amount = 0`: 유체 없음
+- `id = 1~511`: 유체 종류
+- `amount = 1~100`: 유체량
+- `amount = 100`: 가득 찬 상태
+- `amount = 101~127`: 예약값
+
+청크 런타임 데이터는 블록 배열과 유체 배열을 분리해서 가진다.
+
+```text
+blocks: uint16_t block id 배열
+fluids: uint16_t packed fluid 배열
+```
+
+초기 월드 생성은 해수면 `Y = 256` 이하의 빈 공간에 `water`를 `amount = 100`으로 채운다.
 
 관련 문서: [[rendering]], [[world-generation]], [[save-load]]
 
+## Fluid Rendering Notes
+
+`fluids.json` includes `id = 0`, `name = "none"` as an explicit reserved entry.
+It is not a real render/simulation fluid.
+Packed fluid data with `id = 0` and `amount > 0` is invalid.
+
+`water` rendering uses `assets/textures/fluid/water.png`.
+Water uses Fresnel alpha with base `0.7`, edge `0.95`, and power `1.0`.
+Water also uses `assets/textures/fluid/water_normal.jpg` as a fixed normal-map convention.
+The normal map is sampled twice with separate tiling/speed values from `config/render.json`.
+Water SSR settings are stored under `fluid.water.ssr` in `config/render.json`.
+The current SSR prototype samples projection depth directly instead of linear depth or Hi-Z.
+Fluids do not use manual mip textures yet.
+Rendered fluid height is quantized by amount in 10-unit steps.
+
+```text
+1~10   -> 0.1 block
+11~20  -> 0.2 block
+...
+91~100 -> 1.0 block
+```

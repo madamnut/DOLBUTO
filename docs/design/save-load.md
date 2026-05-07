@@ -30,6 +30,9 @@ rawSize
 ```
 
 region 인덱스는 파일명으로 구분한다.
+순환 월드 기준으로 저장 청크 좌표는 `0~4095` 범위로 래핑한다.
+따라서 region 좌표 범위는 축별 `0~255`다.
+런타임 청크 좌표가 음수이거나 `4096` 이상이어도 저장/로드는 래핑된 청크 좌표의 region 파일을 사용한다.
 
 ## 청크 페이로드
 
@@ -38,8 +41,12 @@ region 인덱스는 파일명으로 구분한다.
 - 생성 상태 `genState`
 - 청크 revision
 - 청크 블록 데이터
+- 청크 유체 데이터
 - incoming feature slot
 - incoming feature mask
+
+블록 데이터와 유체 데이터는 각각 별도 RLE run으로 저장한다.
+유체 값은 `uint16_t` 패킹 값이다.
 
 저장하지 않는 것:
 
@@ -90,4 +97,3 @@ region 인덱스는 파일명으로 구분한다.
 마지막으로 save worker flush가 끝나야 종료가 안전하다.
 
 관련 문서: [[chunk-system]], [[runtime-paths]]
-

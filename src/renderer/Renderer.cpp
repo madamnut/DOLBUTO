@@ -55,6 +55,7 @@ namespace dolbuto
         constexpr int RegionSizeChunks = 16;
         constexpr uint32_t RegionSectorSize = 4096;
         constexpr size_t RegionChunkEntrySize = 16;
+        constexpr int DefaultSeaLevel = 256;
         constexpr int CenterGroupChunks = 2;
         constexpr int DefaultLoadGridScale = 1;
         constexpr int DefaultTerrainWorkerCount = 4;
@@ -64,6 +65,8 @@ namespace dolbuto
         constexpr int TerrainMinHeight = 120;
         constexpr int TerrainMaxHeight = 140;
         constexpr int TerrainTilePeriod = 65536;
+        constexpr int WorldSizeBlocks = TerrainTilePeriod;
+        constexpr int WorldSizeChunks = WorldSizeBlocks / ChunkSizeX;
         constexpr int TerrainNoiseSeed = 1337;
         constexpr float DefaultTerrainNoiseFeatureScale = 220.0f;
         constexpr int DefaultTerrainNoiseOctaveCount = 4;
@@ -75,6 +78,23 @@ namespace dolbuto
         constexpr float DefaultTerrainDomainWarpFrequency = 1.0f;
         constexpr int DefaultTerrainDomainWarpOctaveCount = 2;
         constexpr float DefaultTerrainDomainWarpGain = 0.5f;
+        constexpr float DefaultFluidWaterBaseAlpha = 0.7f;
+        constexpr float DefaultFluidWaterEdgeAlpha = 0.95f;
+        constexpr float DefaultFluidWaterFresnelPower = 1.0f;
+        constexpr float DefaultFluidWaterNormalScale = 0.05f;
+        constexpr float DefaultFluidWaterNormalTiling = 1.0f;
+        constexpr float DefaultFluidWaterNormalSpeed = 1.1f;
+        constexpr bool DefaultFluidWaterSsrEnabled = true;
+        constexpr float DefaultFluidWaterSsrStrength = 0.35f;
+        constexpr int DefaultFluidWaterSsrMaxSteps = 32;
+        constexpr float DefaultFluidWaterSsrStepSize = 0.25f;
+        constexpr float DefaultFluidWaterSsrThickness = 0.001f;
+        constexpr float DefaultFluidWaterSsrMaxDistance = 64.0f;
+        constexpr float DefaultFluidWaterSsrEdgeFade = 0.15f;
+        constexpr float DefaultFluidWaterSsrFallbackStrength = 0.12f;
+        constexpr float DefaultFluidWaterSsrFallbackR = 0.65f;
+        constexpr float DefaultFluidWaterSsrFallbackG = 0.85f;
+        constexpr float DefaultFluidWaterSsrFallbackB = 1.0f;
         constexpr float TerrainNearPlane = 0.1f;
         constexpr float TerrainFarPlane = 4000.0f;
         constexpr double PeakProfilerStartupDelaySeconds = 5.0;
@@ -87,10 +107,17 @@ namespace dolbuto
         constexpr uint16_t BlockRock = 1;
         constexpr uint16_t BlockGrass = 2;
         constexpr uint16_t BlockDirt = 3;
+        constexpr uint16_t BlockSand = 4;
         constexpr uint16_t BlockTrunk = 8;
         constexpr uint16_t BlockLeaves = 9;
         constexpr uint16_t BlockPlant = 10000;
         constexpr uint16_t BlockBedrock = 65535;
+        constexpr uint16_t FluidNone = 0;
+        constexpr uint16_t FluidWater = 1;
+        constexpr uint16_t FluidFullAmount = 100;
+        constexpr int FluidAmountBits = 7;
+        constexpr uint16_t FluidAmountMask = (1u << FluidAmountBits) - 1u;
+        constexpr float FluidMipDistanceScale = 0.0f;
         constexpr uint32_t BedrockHeightSalt = 0xBEEFBEDu;
         constexpr uint32_t TopFaceRotationSalt = 0x51A7E001u;
         constexpr uint32_t PlantPlacementSalt = 0x9A7D3E21u;
@@ -98,7 +125,7 @@ namespace dolbuto
         constexpr uint8_t TreePlacementMin = 168;
         constexpr uint8_t TreePlacementMax = 170;
         constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
-        constexpr const char* VersionText = "DOLBUTO 0.0.0.0";
+        constexpr const char* VersionText = "DOLBUTO 0.0.0.1";
         constexpr std::array<const char*, 1> DeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
         constexpr const char* MemoryBudgetExtension = "VK_EXT_memory_budget";
         constexpr const char* PhysicalDeviceProperties2Extension = "VK_KHR_get_physical_device_properties2";
@@ -151,6 +178,7 @@ namespace dolbuto
         struct ParsedBlockDefinition
         {
             uint16_t id = BlockAir;
+            std::string name = "unknown";
             std::string renderType = "none";
             bool directional = false;
             bool collision = false;
@@ -302,6 +330,118 @@ namespace dolbuto
             {
                 return std::nullopt;
             }
+        }
+
+        std::optional<std::array<float, 2>> jsonFloat2Field(const std::string& object, const std::string& key)
+        {
+            const std::string token = "\"" + key + "\"";
+            const size_t keyPos = object.find(token);
+            if (keyPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t openPos = object.find('[', keyPos + token.size());
+            const size_t closePos = object.find(']', openPos == std::string::npos ? keyPos + token.size() : openPos + 1);
+            if (openPos == std::string::npos || closePos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            std::array<float, 2> values{};
+            size_t cursor = openPos + 1;
+            for (size_t i = 0; i < values.size(); ++i)
+            {
+                cursor = object.find_first_not_of(" \t\r\n,", cursor);
+                if (cursor == std::string::npos || cursor >= closePos)
+                {
+                    return std::nullopt;
+                }
+
+                size_t valueEnd = cursor;
+                while (valueEnd < closePos)
+                {
+                    const char c = object[valueEnd];
+                    if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E')
+                    {
+                        ++valueEnd;
+                        continue;
+                    }
+                    break;
+                }
+                if (valueEnd == cursor)
+                {
+                    return std::nullopt;
+                }
+
+                try
+                {
+                    values[i] = std::stof(object.substr(cursor, valueEnd - cursor));
+                }
+                catch (...)
+                {
+                    return std::nullopt;
+                }
+                cursor = valueEnd;
+            }
+
+            return values;
+        }
+
+        std::optional<std::array<float, 3>> jsonFloat3Field(const std::string& object, const std::string& key)
+        {
+            const std::string token = "\"" + key + "\"";
+            const size_t keyPos = object.find(token);
+            if (keyPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t openPos = object.find('[', keyPos + token.size());
+            const size_t closePos = object.find(']', openPos == std::string::npos ? keyPos + token.size() : openPos + 1);
+            if (openPos == std::string::npos || closePos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            std::array<float, 3> values{};
+            size_t cursor = openPos + 1;
+            for (size_t i = 0; i < values.size(); ++i)
+            {
+                cursor = object.find_first_not_of(" \t\r\n,", cursor);
+                if (cursor == std::string::npos || cursor >= closePos)
+                {
+                    return std::nullopt;
+                }
+
+                size_t valueEnd = cursor;
+                while (valueEnd < closePos)
+                {
+                    const char c = object[valueEnd];
+                    if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E')
+                    {
+                        ++valueEnd;
+                        continue;
+                    }
+                    break;
+                }
+                if (valueEnd == cursor)
+                {
+                    return std::nullopt;
+                }
+
+                try
+                {
+                    values[i] = std::stof(object.substr(cursor, valueEnd - cursor));
+                }
+                catch (...)
+                {
+                    return std::nullopt;
+                }
+                cursor = valueEnd;
+            }
+
+            return values;
         }
 
         std::optional<bool> jsonBoolField(const std::string& object, const std::string& key)
@@ -465,6 +605,10 @@ namespace dolbuto
 
                 ParsedBlockDefinition definition{};
                 definition.id = static_cast<uint16_t>(*id);
+                if (const std::optional<std::string> name = jsonStringField(object, "name"); name.has_value())
+                {
+                    definition.name = *name;
+                }
                 if (const std::optional<std::string> renderType = jsonStringField(object, "renderType"); renderType.has_value())
                 {
                     definition.renderType = *renderType;
@@ -531,9 +675,25 @@ namespace dolbuto
             return hash;
         }
 
+        int positiveModulo(int value, int divisor)
+        {
+            int result = value % divisor;
+            return result < 0 ? result + divisor : result;
+        }
+
+        int wrapBlockCoordinate(int value)
+        {
+            return positiveModulo(value, WorldSizeBlocks);
+        }
+
+        int wrapChunkCoordinate(int value)
+        {
+            return positiveModulo(value, WorldSizeChunks);
+        }
+
         uint8_t worldRandom8(int x, int y, int z, uint32_t salt)
         {
-            return static_cast<uint8_t>(worldRandomHash(x, y, z, salt) & 255u);
+            return static_cast<uint8_t>(worldRandomHash(wrapBlockCoordinate(x), y, wrapBlockCoordinate(z), salt) & 255u);
         }
 
         void writePngRgba(const std::filesystem::path& path, const std::vector<unsigned char>& rgba, uint32_t width, uint32_t height)
@@ -597,7 +757,28 @@ namespace dolbuto
             return 1 + static_cast<int>(worldRandom8(worldX, 0, worldZ, BedrockHeightSalt) & 3u);
         }
 
-        uint16_t terrainBlockForColumn(int worldX, int y, int worldZ, int height)
+        constexpr uint16_t packFluid(uint16_t id, uint16_t amount)
+        {
+            return static_cast<uint16_t>((id << FluidAmountBits) | amount);
+        }
+
+        constexpr uint16_t fluidId(uint16_t fluid)
+        {
+            return static_cast<uint16_t>(fluid >> FluidAmountBits);
+        }
+
+        constexpr uint16_t fluidAmount(uint16_t fluid)
+        {
+            return static_cast<uint16_t>(fluid & FluidAmountMask);
+        }
+
+        constexpr float fluidHeight(uint16_t amount)
+        {
+            const uint16_t clampedAmount = amount > FluidFullAmount ? FluidFullAmount : amount;
+            return static_cast<float>((clampedAmount + 9u) / 10u) * 0.1f;
+        }
+
+        uint16_t baseTerrainBlockForColumn(int worldX, int y, int worldZ, int height)
         {
             if (y < 0 || y >= height)
             {
@@ -607,13 +788,25 @@ namespace dolbuto
             {
                 return BlockBedrock;
             }
+            return BlockRock;
+        }
+
+        uint16_t generatedTerrainBlockForColumn(int worldX, int y, int worldZ, int height, int seaLevel)
+        {
+            const uint16_t baseBlock = baseTerrainBlockForColumn(worldX, y, worldZ, height);
+            if (baseBlock != BlockRock)
+            {
+                return baseBlock;
+            }
+
+            const bool waterAbove = height <= seaLevel;
             if (y == height - 1)
             {
-                return BlockGrass;
+                return waterAbove ? BlockSand : BlockGrass;
             }
             if (y >= height - 5)
             {
-                return BlockDirt;
+                return waterAbove ? BlockSand : BlockDirt;
             }
             return BlockRock;
         }
@@ -673,12 +866,6 @@ namespace dolbuto
             return floorDiv(chunkCoordinate, CenterGroupChunks) * CenterGroupChunks;
         }
 
-        int positiveModulo(int value, int divisor)
-        {
-            int result = value % divisor;
-            return result < 0 ? result + divisor : result;
-        }
-
         int blockCoordinateXz(double worldCoordinate)
         {
             return static_cast<int>(std::floor(worldCoordinate + 0.5));
@@ -693,6 +880,11 @@ namespace dolbuto
         {
             return (static_cast<uint64_t>(static_cast<uint32_t>(chunkX)) << 32u) |
                 static_cast<uint64_t>(static_cast<uint32_t>(chunkZ));
+        }
+
+        uint64_t storageChunkKey(int chunkX, int chunkZ)
+        {
+            return chunkKey(wrapChunkCoordinate(chunkX), wrapChunkCoordinate(chunkZ));
         }
 
         struct FeatureNeighborOffset
@@ -1227,23 +1419,26 @@ namespace dolbuto
         createSwapchain();
         createImageViews();
         createRenderPass();
+        createSceneRenderPass();
         createDepthResources();
         createDescriptorSetLayout();
         createTerrainVertexDescriptorSetLayout();
         createPipeline();
         createTerrainPipeline();
         createSelectionPipeline();
-        createFramebuffers();
         createCommandPool();
         createPerformanceQueries();
         createSampler();
         createDescriptorPool();
+        createSceneTargets();
+        createFramebuffers();
         createTextures();
         createFont();
         createTextVertexBuffer();
         createSelectionLineBuffer();
         createPlayerMesh();
         loadWorldConfig();
+        loadRenderConfig();
         loadHeightLut();
         startSaveWorker();
         startTerrainWorkers();
@@ -1261,6 +1456,8 @@ namespace dolbuto
 
         cleanupSwapchain();
         destroyTexture(terrainTextureArray_);
+        destroyTexture(fluidTextureArray_);
+        destroyTexture(fluidNormalTexture_);
         destroyTexture(playerTexture_);
         destroyTexture(font_);
         destroyTexture(crosshair_);
@@ -1314,6 +1511,10 @@ namespace dolbuto
         {
             vkDestroyPipeline(device_, terrainWireframePipeline_, nullptr);
         }
+        if (fluidPipeline_ != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(device_, fluidPipeline_, nullptr);
+        }
         if (playerPipeline_ != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(device_, playerPipeline_, nullptr);
@@ -1353,6 +1554,10 @@ namespace dolbuto
         if (renderPass_ != VK_NULL_HANDLE)
         {
             vkDestroyRenderPass(device_, renderPass_, nullptr);
+        }
+        if (sceneRenderPass_ != VK_NULL_HANDLE)
+        {
+            vkDestroyRenderPass(device_, sceneRenderPass_, nullptr);
         }
         if (device_ != VK_NULL_HANDLE)
         {
@@ -1636,6 +1841,21 @@ namespace dolbuto
         selectedBlockX_ = hit.blockX;
         selectedBlockY_ = hit.blockY;
         selectedBlockZ_ = hit.blockZ;
+        selectedBlockId_ = blockAtWorld(hit.blockX, hit.blockY, hit.blockZ);
+    }
+
+    std::string Renderer::selectedBlockText() const
+    {
+        if (!hasSelectedBlock_)
+        {
+            return "LOOKAT: none";
+        }
+
+        const BlockDefinition& definition = blockDefinition(selectedBlockId_);
+        return "LOOKAT: " + definition.name +
+            "[" + std::to_string(selectedBlockId_) + "] (x: " + std::to_string(wrapBlockCoordinate(selectedBlockX_)) +
+            ", y: " + std::to_string(selectedBlockY_) +
+            ", z: " + std::to_string(wrapBlockCoordinate(selectedBlockZ_)) + ")";
     }
 
     void Renderer::createInstance()
@@ -1920,6 +2140,74 @@ namespace dolbuto
 
     }
 
+    void Renderer::createSceneRenderPass()
+    {
+        VkAttachmentDescription colorAttachment{};
+        colorAttachment.format = swapchainImageFormat_;
+        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkAttachmentReference colorRef{};
+        colorRef.attachment = 0;
+        colorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentDescription depthAttachment{};
+        depthAttachment.format = DepthFormat;
+        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+        VkAttachmentReference depthRef{};
+        depthRef.attachment = 1;
+        depthRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = 1;
+        subpass.pColorAttachments = &colorRef;
+        subpass.pDepthStencilAttachment = &depthRef;
+
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        VkSubpassDependency readDependency{};
+        readDependency.srcSubpass = 0;
+        readDependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+        readDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        readDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        readDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        readDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        std::array<VkAttachmentDescription, 2> attachments = {colorAttachment, depthAttachment};
+        std::array<VkSubpassDependency, 2> dependencies = {dependency, readDependency};
+
+        VkRenderPassCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        createInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+        createInfo.pAttachments = attachments.data();
+        createInfo.subpassCount = 1;
+        createInfo.pSubpasses = &subpass;
+        createInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+        createInfo.pDependencies = dependencies.data();
+
+        if (vkCreateRenderPass(device_, &createInfo, nullptr, &sceneRenderPass_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create scene render pass.");
+        }
+    }
+
     void Renderer::createDepthResources()
     {
         VkImageCreateInfo imageInfo{};
@@ -2150,6 +2438,7 @@ namespace dolbuto
         VkShaderModule vertShader = createShaderModule((shaderDir / "terrain.vert.spv").string());
         VkShaderModule playerVertShader = createShaderModule((shaderDir / "player.vert.spv").string());
         VkShaderModule fragShader = createShaderModule((shaderDir / "terrain.frag.spv").string());
+        VkShaderModule fluidFragShader = createShaderModule((shaderDir / "fluid.frag.spv").string());
 
         VkPipelineShaderStageCreateInfo vertStage{};
         vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -2251,13 +2540,16 @@ namespace dolbuto
         pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         pushRange.offset = 0;
         pushRange.size = sizeof(TerrainPush);
-        static_assert(sizeof(TerrainPush) == sizeof(float) * 20);
+        static_assert(sizeof(TerrainPush) == sizeof(float) * 48);
 
         VkPipelineLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        std::array<VkDescriptorSetLayout, 2> terrainSetLayouts = {
+        std::array<VkDescriptorSetLayout, 5> terrainSetLayouts = {
             descriptorSetLayout_,
-            terrainVertexDescriptorSetLayout_
+            terrainVertexDescriptorSetLayout_,
+            descriptorSetLayout_,
+            descriptorSetLayout_,
+            descriptorSetLayout_
         };
         layoutInfo.setLayoutCount = static_cast<uint32_t>(terrainSetLayouts.size());
         layoutInfo.pSetLayouts = terrainSetLayouts.data();
@@ -2290,6 +2582,23 @@ namespace dolbuto
             throw std::runtime_error("Failed to create terrain pipeline.");
         }
 
+        colorBlend.blendEnable = VK_TRUE;
+        colorBlend.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlend.colorBlendOp = VK_BLEND_OP_ADD;
+        colorBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlend.alphaBlendOp = VK_BLEND_OP_ADD;
+        depthStencil.depthWriteEnable = VK_FALSE;
+        stages[1].module = fluidFragShader;
+        if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &fluidPipeline_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create fluid pipeline.");
+        }
+
+        colorBlend.blendEnable = VK_FALSE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+        stages[1].module = fragShader;
         rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
         if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &terrainWireframePipeline_) != VK_SUCCESS)
         {
@@ -2307,6 +2616,7 @@ namespace dolbuto
         }
 
         vkDestroyShaderModule(device_, fragShader, nullptr);
+        vkDestroyShaderModule(device_, fluidFragShader, nullptr);
         vkDestroyShaderModule(device_, playerVertShader, nullptr);
         vkDestroyShaderModule(device_, vertShader, nullptr);
     }
@@ -2436,6 +2746,26 @@ namespace dolbuto
 
     void Renderer::createFramebuffers()
     {
+        sceneFramebuffers_.resize(swapchainImageViews_.size());
+        for (size_t i = 0; i < sceneFramebuffers_.size(); ++i)
+        {
+            std::array<VkImageView, 2> sceneAttachments = {sceneColorTargets_[i].view, sceneDepthTargets_[i].view};
+
+            VkFramebufferCreateInfo createInfo{};
+            createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            createInfo.renderPass = sceneRenderPass_;
+            createInfo.attachmentCount = static_cast<uint32_t>(sceneAttachments.size());
+            createInfo.pAttachments = sceneAttachments.data();
+            createInfo.width = swapchainExtent_.width;
+            createInfo.height = swapchainExtent_.height;
+            createInfo.layers = 1;
+
+            if (vkCreateFramebuffer(device_, &createInfo, nullptr, &sceneFramebuffers_[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create scene framebuffer.");
+            }
+        }
+
         framebuffers_.resize(swapchainImageViews_.size());
         for (size_t i = 0; i < swapchainImageViews_.size(); ++i)
         {
@@ -2526,7 +2856,7 @@ namespace dolbuto
 
     void Renderer::createDescriptorPool()
     {
-        constexpr uint32_t MaxTextureDescriptorSets = 16;
+        constexpr uint32_t MaxTextureDescriptorSets = 64;
         constexpr uint32_t MaxTerrainVertexDescriptorSets = 65536;
         std::array<VkDescriptorPoolSize, 2> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -2547,10 +2877,32 @@ namespace dolbuto
         }
     }
 
+    void Renderer::createSceneTargets()
+    {
+        sceneColorTargets_.clear();
+        sceneDepthTargets_.clear();
+        sceneColorTargets_.reserve(swapchainImageViews_.size());
+        sceneDepthTargets_.reserve(swapchainImageViews_.size());
+        for (size_t i = 0; i < swapchainImageViews_.size(); ++i)
+        {
+            sceneColorTargets_.push_back(createRenderTargetTexture(
+                swapchainImageFormat_,
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+            sceneDepthTargets_.push_back(createRenderTargetTexture(
+                DepthFormat,
+                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_IMAGE_ASPECT_DEPTH_BIT,
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL));
+        }
+    }
+
     void Renderer::createTextures()
     {
         const std::filesystem::path assetDir = assetDirectory();
         const std::string blockTextureDir = (assetDir / "textures" / "block").string() + "/";
+        const std::string fluidTextureDir = (assetDir / "textures" / "fluid").string() + "/";
         sun_ = createTexture((assetDir / "textures" / "sky" / "Sun.png").string());
         moon_ = createTexture((assetDir / "textures" / "sky" / "Moon.png").string());
         crosshair_ = createTexture((assetDir / "textures" / "ui" / "Crosshair.png").string());
@@ -2618,6 +2970,7 @@ namespace dolbuto
         for (const ParsedBlockDefinition& definition : blockDefinitions)
         {
             BlockDefinition blockDefinition{};
+            blockDefinition.name = definition.name;
             blockDefinition.renderType = parseRenderType(definition.renderType);
             blockDefinition.directional = definition.directional;
             blockDefinition.collision = definition.collision;
@@ -2671,6 +3024,8 @@ namespace dolbuto
             texturePaths.push_back(blockTextureDir + textureName + ".png");
         }
         terrainTextureArray_ = createTextureArray(texturePaths);
+        fluidTextureArray_ = createTextureArray({fluidTextureDir + "water.png"});
+        fluidNormalTexture_ = createTexture(fluidTextureDir + "water_normal.jpg", VK_FORMAT_R8G8B8A8_UNORM);
     }
 
     void Renderer::createFont()
@@ -2825,6 +3180,7 @@ namespace dolbuto
         terrainDomainWarpFrequency_ = DefaultTerrainDomainWarpFrequency;
         terrainDomainWarpOctaveCount_ = DefaultTerrainDomainWarpOctaveCount;
         terrainDomainWarpGain_ = DefaultTerrainDomainWarpGain;
+        seaLevel_ = DefaultSeaLevel;
 
         const std::filesystem::path path = configDirectory() / "world.json";
         std::ifstream file(path);
@@ -2840,6 +3196,10 @@ namespace dolbuto
         const std::string terrain = jsonObjectField(text, "terrain").value_or("{}");
         const std::string terrainDomainWarp = jsonObjectField(terrain, "domainWarp").value_or("{}");
         const std::string terrainBaseNoise = jsonObjectField(terrain, "baseNoise").value_or("{}");
+        if (const std::optional<int> value = jsonIntField(terrain, "seaLevel"); value.has_value())
+        {
+            seaLevel_ = std::clamp(*value, 0, ChunkSizeY - 1);
+        }
 
         if (const std::optional<int> value = jsonIntField(chunkLoad, "loadGridScale"); value.has_value())
         {
@@ -2900,6 +3260,104 @@ namespace dolbuto
         if (const std::optional<float> value = jsonFloatField(terrainDomainWarp, "gain"); value.has_value() && *value >= 0.0f)
         {
             terrainDomainWarpGain_ = *value;
+        }
+    }
+
+    void Renderer::loadRenderConfig()
+    {
+        fluidWaterBaseAlpha_ = DefaultFluidWaterBaseAlpha;
+        fluidWaterEdgeAlpha_ = DefaultFluidWaterEdgeAlpha;
+        fluidWaterFresnelPower_ = DefaultFluidWaterFresnelPower;
+        fluidWaterNormalScale_ = DefaultFluidWaterNormalScale;
+        fluidWaterNormalTiling_ = DefaultFluidWaterNormalTiling;
+        fluidWaterNormalSpeed_ = DefaultFluidWaterNormalSpeed;
+        fluidWaterSsrEnabled_ = DefaultFluidWaterSsrEnabled;
+        fluidWaterSsrStrength_ = DefaultFluidWaterSsrStrength;
+        fluidWaterSsrMaxSteps_ = DefaultFluidWaterSsrMaxSteps;
+        fluidWaterSsrStepSize_ = DefaultFluidWaterSsrStepSize;
+        fluidWaterSsrThickness_ = DefaultFluidWaterSsrThickness;
+        fluidWaterSsrMaxDistance_ = DefaultFluidWaterSsrMaxDistance;
+        fluidWaterSsrEdgeFade_ = DefaultFluidWaterSsrEdgeFade;
+        fluidWaterSsrFallbackStrength_ = DefaultFluidWaterSsrFallbackStrength;
+        fluidWaterSsrFallbackR_ = DefaultFluidWaterSsrFallbackR;
+        fluidWaterSsrFallbackG_ = DefaultFluidWaterSsrFallbackG;
+        fluidWaterSsrFallbackB_ = DefaultFluidWaterSsrFallbackB;
+
+        const std::filesystem::path path = configDirectory() / "render.json";
+        std::ifstream file(path);
+        if (!file.is_open())
+        {
+            return;
+        }
+
+        std::ostringstream contents;
+        contents << file.rdbuf();
+        const std::string text = contents.str();
+        const std::string fluid = jsonObjectField(text, "fluid").value_or("{}");
+        const std::string water = jsonObjectField(fluid, "water").value_or("{}");
+        const std::string ssr = jsonObjectField(water, "ssr").value_or("{}");
+
+        if (const std::optional<float> value = jsonFloatField(water, "baseAlpha"); value.has_value())
+        {
+            fluidWaterBaseAlpha_ = std::clamp(*value, 0.0f, 1.0f);
+        }
+        if (const std::optional<float> value = jsonFloatField(water, "edgeAlpha"); value.has_value())
+        {
+            fluidWaterEdgeAlpha_ = std::clamp(*value, 0.0f, 1.0f);
+        }
+        if (const std::optional<float> value = jsonFloatField(water, "fresnelPower"); value.has_value())
+        {
+            fluidWaterFresnelPower_ = std::max(0.0f, *value);
+        }
+        if (const std::optional<float> value = jsonFloatField(water, "normalScale"); value.has_value())
+        {
+            fluidWaterNormalScale_ = std::max(0.0f, *value);
+        }
+        if (const std::optional<float> value = jsonFloatField(water, "normalTiling"); value.has_value() && *value > 0.0f)
+        {
+            fluidWaterNormalTiling_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(water, "normalSpeed"); value.has_value() && *value >= 0.0f)
+        {
+            fluidWaterNormalSpeed_ = *value;
+        }
+        if (const std::optional<bool> value = jsonBoolField(ssr, "enabled"); value.has_value())
+        {
+            fluidWaterSsrEnabled_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(ssr, "strength"); value.has_value())
+        {
+            fluidWaterSsrStrength_ = std::clamp(*value, 0.0f, 1.0f);
+        }
+        if (const std::optional<int> value = jsonIntField(ssr, "maxSteps"); value.has_value())
+        {
+            fluidWaterSsrMaxSteps_ = std::clamp(*value, 1, 128);
+        }
+        if (const std::optional<float> value = jsonFloatField(ssr, "stepSize"); value.has_value() && *value > 0.0f)
+        {
+            fluidWaterSsrStepSize_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(ssr, "thickness"); value.has_value() && *value >= 0.0f)
+        {
+            fluidWaterSsrThickness_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(ssr, "maxDistance"); value.has_value() && *value > 0.0f)
+        {
+            fluidWaterSsrMaxDistance_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(ssr, "edgeFade"); value.has_value())
+        {
+            fluidWaterSsrEdgeFade_ = std::clamp(*value, 0.0f, 0.5f);
+        }
+        if (const std::optional<float> value = jsonFloatField(ssr, "fallbackStrength"); value.has_value())
+        {
+            fluidWaterSsrFallbackStrength_ = std::clamp(*value, 0.0f, 1.0f);
+        }
+        if (const std::optional<std::array<float, 3>> value = jsonFloat3Field(ssr, "fallbackColor"); value.has_value())
+        {
+            fluidWaterSsrFallbackR_ = std::clamp((*value)[0], 0.0f, 1.0f);
+            fluidWaterSsrFallbackG_ = std::clamp((*value)[1], 0.0f, 1.0f);
+            fluidWaterSsrFallbackB_ = std::clamp((*value)[2], 0.0f, 1.0f);
         }
     }
 
@@ -3249,10 +3707,11 @@ namespace dolbuto
             {
                 const bool savedChunkData = snapshot.hasData;
                 saveChunkSnapshot(snapshot);
-                const uint64_t key = chunkKey(snapshot.chunkX, snapshot.chunkZ);
+                const uint64_t storageKey = storageChunkKey(snapshot.chunkX, snapshot.chunkZ);
+                const uint64_t runtimeKey = chunkKey(snapshot.chunkX, snapshot.chunkZ);
                 {
                     std::lock_guard<std::mutex> lock(saveJobMutex_);
-                    const auto pendingIt = pendingSaveSnapshots_.find(key);
+                    const auto pendingIt = pendingSaveSnapshots_.find(storageKey);
                     if (pendingIt != pendingSaveSnapshots_.end() &&
                         pendingIt->second.hasData == snapshot.hasData &&
                         pendingIt->second.revision == snapshot.revision &&
@@ -3263,7 +3722,7 @@ namespace dolbuto
                 }
                 if (savedChunkData)
                 {
-                    auto runtimeIt = runtimeChunks_.find(key);
+                    auto runtimeIt = runtimeChunks_.find(runtimeKey);
                     if (runtimeIt != runtimeChunks_.end() &&
                         runtimeIt->second.data &&
                         runtimeIt->second.data->revision == snapshot.revision)
@@ -3611,6 +4070,7 @@ namespace dolbuto
             renderData.chunkX = mesh.chunkX;
             renderData.chunkZ = mesh.chunkZ;
             createChunkTerrainBuffers(mesh.rockSubchunks, renderData.rockSubchunks);
+            createChunkTerrainBuffers(mesh.fluidSubchunks, renderData.fluidSubchunks);
             runtimeIt->second.genState = ChunkGenState::Meshed;
             const auto uploadEnd = std::chrono::steady_clock::now();
             uploadMs += std::chrono::duration<double, std::milli>(uploadEnd - uploadStart).count();
@@ -3996,7 +4456,7 @@ namespace dolbuto
             frameSaveEnqueueMs_ += std::chrono::duration<double, std::milli>(enqueueEnd - enqueueStart).count();
         };
 
-        const uint64_t key = chunkKey(snapshot.chunkX, snapshot.chunkZ);
+        const uint64_t key = storageChunkKey(snapshot.chunkX, snapshot.chunkZ);
         if (snapshot.genState == ChunkGenState::Meshed)
         {
             snapshot.genState = ChunkGenState::Full;
@@ -4069,7 +4529,7 @@ namespace dolbuto
             }
             else
             {
-                if (pending.chunkX == 0 && pending.chunkZ == 0 && key != chunkKey(0, 0))
+                if (pending.chunkX == 0 && pending.chunkZ == 0 && key != storageChunkKey(0, 0))
                 {
                     pending.chunkX = snapshot.chunkX;
                     pending.chunkZ = snapshot.chunkZ;
@@ -4137,21 +4597,33 @@ namespace dolbuto
                 blocks = &value.blocks;
             }
 
-            if (!value.hasData || !blocks || blocks->empty())
+            const std::vector<uint16_t>* fluids = nullptr;
+            if (value.chunkData && !value.chunkData->fluids.empty())
             {
-                writeU32(payload, 0);
+                fluids = &value.chunkData->fluids;
             }
-            else
+            else if (!value.fluids.empty())
             {
+                fluids = &value.fluids;
+            }
+
+            auto writeRuns = [&](const std::vector<uint16_t>* values)
+            {
+                if (!value.hasData || !values || values->empty())
+                {
+                    writeU32(payload, 0);
+                    return;
+                }
+
                 const size_t runCountOffset = payload.size();
                 writeU32(payload, 0);
                 uint32_t runCount = 0;
-                uint32_t current = (*blocks)[0];
+                uint32_t current = (*values)[0];
                 uint32_t count = 1;
-                for (size_t i = 1; i < blocks->size(); ++i)
+                for (size_t i = 1; i < values->size(); ++i)
                 {
-                    const uint32_t block = (*blocks)[i];
-                    if (block == current && count < std::numeric_limits<uint32_t>::max())
+                    const uint32_t item = (*values)[i];
+                    if (item == current && count < std::numeric_limits<uint32_t>::max())
                     {
                         ++count;
                         continue;
@@ -4159,14 +4631,17 @@ namespace dolbuto
                     writeU32(payload, current);
                     writeU32(payload, count);
                     ++runCount;
-                    current = block;
+                    current = item;
                     count = 1;
                 }
                 writeU32(payload, current);
                 writeU32(payload, count);
                 ++runCount;
                 writeU32At(payload, runCountOffset, runCount);
-            }
+            };
+
+            writeRuns(blocks);
+            writeRuns(fluids);
 
             for (const FeatureWriteListPtr& slot : value.incomingFeatureSlots)
             {
@@ -4227,6 +4702,29 @@ namespace dolbuto
                         value.blocks.insert(value.blocks.end(), count, block);
                     }
                     if (value.blocks.size() != ChunkBlockCount)
+                    {
+                        return std::nullopt;
+                    }
+                }
+
+                const uint32_t fluidRunCount = readU32(payload, offset);
+                if (fluidRunCount > 0)
+                {
+                    value.hasData = true;
+                    value.fluids.reserve(ChunkBlockCount);
+                    uint64_t totalCount = 0;
+                    for (uint32_t run = 0; run < fluidRunCount; ++run)
+                    {
+                        const uint16_t fluid = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
+                        const uint32_t count = readU32(payload, offset);
+                        totalCount += count;
+                        if (totalCount > ChunkBlockCount)
+                        {
+                            return std::nullopt;
+                        }
+                        value.fluids.insert(value.fluids.end(), count, fluid);
+                    }
+                    if (value.fluids.size() != ChunkBlockCount)
                     {
                         return std::nullopt;
                     }
@@ -4299,10 +4797,12 @@ namespace dolbuto
             return changed;
         };
 
-        const int regionX = floorDiv(snapshot.chunkX, RegionSizeChunks);
-        const int regionZ = floorDiv(snapshot.chunkZ, RegionSizeChunks);
-        const int localX = positiveModulo(snapshot.chunkX, RegionSizeChunks);
-        const int localZ = positiveModulo(snapshot.chunkZ, RegionSizeChunks);
+        const int storageChunkX = wrapChunkCoordinate(snapshot.chunkX);
+        const int storageChunkZ = wrapChunkCoordinate(snapshot.chunkZ);
+        const int regionX = storageChunkX / RegionSizeChunks;
+        const int regionZ = storageChunkZ / RegionSizeChunks;
+        const int localX = storageChunkX % RegionSizeChunks;
+        const int localZ = storageChunkZ % RegionSizeChunks;
         const size_t entryIndex = static_cast<size_t>(localZ * RegionSizeChunks + localX);
         const std::filesystem::path regionDirectory = worldDirectory() / "regions";
         std::filesystem::create_directories(regionDirectory);
@@ -4474,13 +4974,13 @@ namespace dolbuto
         if (merged.genState == ChunkGenState::Full && merged.hasData)
         {
             std::lock_guard<std::mutex> lock(savedChunkMutex_);
-            savedCleanRevisions_[chunkKey(merged.chunkX, merged.chunkZ)] = merged.revision;
+            savedCleanRevisions_[storageChunkKey(merged.chunkX, merged.chunkZ)] = merged.revision;
         }
     }
 
     std::optional<Renderer::SaveChunkSnapshot> Renderer::loadChunkSnapshot(int chunkX, int chunkZ)
     {
-        const uint64_t key = chunkKey(chunkX, chunkZ);
+        const uint64_t key = storageChunkKey(chunkX, chunkZ);
         auto loadMiss = [this]() -> std::optional<SaveChunkSnapshot>
         {
             loadMissCount_.fetch_add(1, std::memory_order_relaxed);
@@ -4493,14 +4993,19 @@ namespace dolbuto
             if (pendingIt != pendingSaveSnapshots_.end())
             {
                 loadPendingHitCount_.fetch_add(1, std::memory_order_relaxed);
-                return pendingIt->second;
+                SaveChunkSnapshot snapshot = pendingIt->second;
+                snapshot.chunkX = chunkX;
+                snapshot.chunkZ = chunkZ;
+                return snapshot;
             }
         }
 
-        const int regionX = floorDiv(chunkX, RegionSizeChunks);
-        const int regionZ = floorDiv(chunkZ, RegionSizeChunks);
-        const int localX = positiveModulo(chunkX, RegionSizeChunks);
-        const int localZ = positiveModulo(chunkZ, RegionSizeChunks);
+        const int storageChunkX = wrapChunkCoordinate(chunkX);
+        const int storageChunkZ = wrapChunkCoordinate(chunkZ);
+        const int regionX = storageChunkX / RegionSizeChunks;
+        const int regionZ = storageChunkZ / RegionSizeChunks;
+        const int localX = storageChunkX % RegionSizeChunks;
+        const int localZ = storageChunkZ % RegionSizeChunks;
         const size_t entryIndex = static_cast<size_t>(localZ * RegionSizeChunks + localX);
         const std::filesystem::path regionPath = worldDirectory() /
             "regions" /
@@ -4633,6 +5138,29 @@ namespace dolbuto
                 }
             }
 
+            const uint32_t fluidRunCount = readU32(payload, offset);
+            if (fluidRunCount > 0)
+            {
+                snapshot.hasData = true;
+                snapshot.fluids.reserve(ChunkBlockCount);
+                uint64_t totalCount = 0;
+                for (uint32_t run = 0; run < fluidRunCount; ++run)
+                {
+                    const uint16_t fluid = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
+                    const uint32_t count = readU32(payload, offset);
+                    totalCount += count;
+                    if (totalCount > ChunkBlockCount)
+                    {
+                        return loadMiss();
+                    }
+                    snapshot.fluids.insert(snapshot.fluids.end(), count, fluid);
+                }
+                if (snapshot.fluids.size() != ChunkBlockCount)
+                {
+                    return loadMiss();
+                }
+            }
+
             for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
             {
                 if (featureCounts[slot] == 0)
@@ -4698,6 +5226,11 @@ namespace dolbuto
                 data->chunkX = snapshot.chunkX;
                 data->chunkZ = snapshot.chunkZ;
                 data->blocks = snapshot.blocks;
+                data->fluids = snapshot.fluids;
+            }
+            if (data->fluids.size() != ChunkBlockCount)
+            {
+                data->fluids.assign(ChunkBlockCount, FluidNone);
             }
             data->generation = generation;
             data->revision = snapshot.revision;
@@ -4732,7 +5265,7 @@ namespace dolbuto
         if (chunk.genState == ChunkGenState::Full)
         {
             std::lock_guard<std::mutex> lock(savedChunkMutex_);
-            savedCleanRevisions_[chunkKey(chunk.chunkX, chunk.chunkZ)] = chunk.data ? chunk.data->revision : 0;
+            savedCleanRevisions_[storageChunkKey(chunk.chunkX, chunk.chunkZ)] = chunk.data ? chunk.data->revision : 0;
         }
         return chunk;
     }
@@ -4743,17 +5276,18 @@ namespace dolbuto
         chunk->chunkX = chunkX;
         chunk->chunkZ = chunkZ;
         chunk->blocks.assign(ChunkBlockCount, BlockAir);
+        chunk->fluids.assign(ChunkBlockCount, FluidNone);
         chunk->emptySubchunks.fill(true);
 
         std::array<int, Renderer::ChunkColumnCount> heights = buildChunkHeightmap(chunkX, chunkZ);
         int maxHeight = 0;
-        for (int& height : heights)
+        for (int height : heights)
         {
-            height = std::clamp(height, 0, ChunkSizeY);
             maxHeight = std::max(maxHeight, height);
         }
 
-        const int filledSubchunks = std::min(SubchunksPerChunk, (maxHeight + SubchunkSize - 1) / SubchunkSize);
+        const int solidHeightLimit = std::min(maxHeight, ChunkSizeY);
+        const int filledSubchunks = std::min(SubchunksPerChunk, (solidHeightLimit + SubchunkSize - 1) / SubchunkSize);
         for (int subchunkY = 0; subchunkY < filledSubchunks; ++subchunkY)
         {
             chunk->emptySubchunks[static_cast<size_t>(subchunkY)] = false;
@@ -4762,7 +5296,7 @@ namespace dolbuto
         constexpr size_t BlocksPerLayer = ChunkSizeX * ChunkSizeZ;
         const int worldXStart = chunkX * ChunkSizeX;
         const int worldZStart = chunkZ * ChunkSizeZ;
-        for (int y = 0; y < maxHeight; ++y)
+        for (int y = 0; y < solidHeightLimit; ++y)
         {
             uint16_t* layer = chunk->blocks.data() + static_cast<size_t>(y) * BlocksPerLayer;
             for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
@@ -4770,7 +5304,66 @@ namespace dolbuto
                 for (int localX = 0; localX < ChunkSizeX; ++localX)
                 {
                     const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                    layer[column] = terrainBlockForColumn(worldXStart + localX, y, worldZStart + localZ, heights[column]);
+                    layer[column] = baseTerrainBlockForColumn(worldXStart + localX, y, worldZStart + localZ, heights[column]);
+                }
+            }
+        }
+
+        constexpr uint16_t FullWater = packFluid(FluidWater, FluidFullAmount);
+        const int seaY = std::clamp(seaLevel_, 0, ChunkSizeY - 1);
+        for (int y = 0; y <= seaY; ++y)
+        {
+            uint16_t* fluidLayer = chunk->fluids.data() + static_cast<size_t>(y) * BlocksPerLayer;
+            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+            {
+                for (int localX = 0; localX < ChunkSizeX; ++localX)
+                {
+                    const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
+                    if (y >= heights[column])
+                    {
+                        fluidLayer[column] = FullWater;
+                    }
+                }
+            }
+        }
+
+        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+        {
+            for (int localX = 0; localX < ChunkSizeX; ++localX)
+            {
+                const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
+                const int height = heights[column];
+                const int surfaceY = height - 1;
+                if (surfaceY < 0 || surfaceY >= ChunkSizeY)
+                {
+                    continue;
+                }
+
+                const size_t surfaceIndex = static_cast<size_t>((surfaceY * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+                if (surfaceIndex >= chunk->blocks.size() || chunk->blocks[surfaceIndex] == BlockBedrock)
+                {
+                    continue;
+                }
+
+                const bool waterAbove = height >= 0 && height < ChunkSizeY &&
+                    chunk->fluids[static_cast<size_t>((height * ChunkSizeZ + localZ) * ChunkSizeX + localX)] != FluidNone;
+                const uint16_t surfaceBlock = waterAbove ? BlockSand : BlockGrass;
+                const uint16_t subsurfaceBlock = waterAbove ? BlockSand : BlockDirt;
+                chunk->blocks[surfaceIndex] = surfaceBlock;
+
+                const int bedrockHeight = bedrockHeightAt(worldXStart + localX, worldZStart + localZ);
+                const int subsurfaceStartY = std::max(bedrockHeight, height - 5);
+                for (int y = subsurfaceStartY; y < surfaceY; ++y)
+                {
+                    if (y < 0 || y >= ChunkSizeY)
+                    {
+                        continue;
+                    }
+                    const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+                    if (index < chunk->blocks.size() && chunk->blocks[index] != BlockBedrock)
+                    {
+                        chunk->blocks[index] = subsurfaceBlock;
+                    }
                 }
             }
         }
@@ -5396,7 +5989,7 @@ namespace dolbuto
                 const int height = heightAtWorldColumn(worldX, worldZ);
                 for (int y = 0; y < height; ++y)
                 {
-                    meshingBlocks[meshingIndex(meshX, y, meshZ)] = terrainBlockForColumn(worldX, y, worldZ, height);
+                    meshingBlocks[meshingIndex(meshX, y, meshZ)] = generatedTerrainBlockForColumn(worldX, y, worldZ, height, seaLevel_);
                 }
             }
         }
@@ -6005,6 +6598,212 @@ namespace dolbuto
         return result;
     }
 
+    Renderer::TerrainBuildData Renderer::buildFluidSubchunkMesh(const std::array<std::shared_ptr<Renderer::ChunkData>, 9>& chunks, int subchunkY) const
+    {
+        TerrainBuildData result{};
+        if (subchunkY < 0 || subchunkY >= SubchunksPerChunk || !chunks[4])
+        {
+            return result;
+        }
+
+        const std::shared_ptr<ChunkData>& chunk = chunks[4];
+        if (chunk->fluids.size() != ChunkBlockCount)
+        {
+            return result;
+        }
+
+        auto sampleChunk = [&](int localX, int localZ, int& sampleX, int& sampleZ) -> const std::shared_ptr<ChunkData>&
+        {
+            int chunkOffsetX = 0;
+            int chunkOffsetZ = 0;
+            sampleX = localX;
+            sampleZ = localZ;
+            if (sampleX < 0)
+            {
+                chunkOffsetX = -1;
+                sampleX += ChunkSizeX;
+            }
+            else if (sampleX >= ChunkSizeX)
+            {
+                chunkOffsetX = 1;
+                sampleX -= ChunkSizeX;
+            }
+
+            if (sampleZ < 0)
+            {
+                chunkOffsetZ = -1;
+                sampleZ += ChunkSizeZ;
+            }
+            else if (sampleZ >= ChunkSizeZ)
+            {
+                chunkOffsetZ = 1;
+                sampleZ -= ChunkSizeZ;
+            }
+
+            static const std::shared_ptr<ChunkData> EmptyChunk;
+            if (sampleX < 0 || sampleX >= ChunkSizeX || sampleZ < 0 || sampleZ >= ChunkSizeZ)
+            {
+                return EmptyChunk;
+            }
+            return chunks[static_cast<size_t>((chunkOffsetZ + 1) * 3 + (chunkOffsetX + 1))];
+        };
+
+        auto blockAt = [&](int localX, int y, int localZ) -> uint16_t
+        {
+            if (y < 0 || y >= ChunkSizeY)
+            {
+                return BlockAir;
+            }
+
+            int sampleX = localX;
+            int sampleZ = localZ;
+            const std::shared_ptr<ChunkData>& sample = sampleChunk(localX, localZ, sampleX, sampleZ);
+            if (!sample || sample->blocks.size() != ChunkBlockCount)
+            {
+                return BlockAir;
+            }
+
+            return sample->blocks[static_cast<size_t>((y * ChunkSizeZ + sampleZ) * ChunkSizeX + sampleX)];
+        };
+
+        auto fluidAt = [&](int localX, int y, int localZ) -> uint16_t
+        {
+            if (y < 0 || y >= ChunkSizeY)
+            {
+                return FluidNone;
+            }
+
+            int sampleX = localX;
+            int sampleZ = localZ;
+            const std::shared_ptr<ChunkData>& sample = sampleChunk(localX, localZ, sampleX, sampleZ);
+            if (!sample || sample->fluids.size() != ChunkBlockCount)
+            {
+                return FluidNone;
+            }
+
+            return sample->fluids[static_cast<size_t>((y * ChunkSizeZ + sampleZ) * ChunkSizeX + sampleX)];
+        };
+
+        auto blockOccludesFluid = [&](uint16_t block)
+        {
+            return block != BlockAir && blockDefinition(block).faceOcclusion == BlockFaceOcclusion::Opaque;
+        };
+
+        auto appendQuad = [&](TerrainVertex a, TerrainVertex b, TerrainVertex c, TerrainVertex d)
+        {
+            a.textureLayer = 0.0f;
+            b.textureLayer = 0.0f;
+            c.textureLayer = 0.0f;
+            d.textureLayer = 0.0f;
+            a.mipDistanceScale = FluidMipDistanceScale;
+            b.mipDistanceScale = FluidMipDistanceScale;
+            c.mipDistanceScale = FluidMipDistanceScale;
+            d.mipDistanceScale = FluidMipDistanceScale;
+
+            const uint32_t baseIndex = static_cast<uint32_t>(result.vertices.size());
+            result.vertices.push_back(a);
+            result.vertices.push_back(b);
+            result.vertices.push_back(c);
+            result.vertices.push_back(d);
+            result.indices.push_back(baseIndex);
+            result.indices.push_back(baseIndex + 1);
+            result.indices.push_back(baseIndex + 2);
+            result.indices.push_back(baseIndex);
+            result.indices.push_back(baseIndex + 2);
+            result.indices.push_back(baseIndex + 3);
+        };
+
+        auto appendFluidFace = [&](int localX, int y, int localZ, int face, float sideBottom, float sideTop)
+        {
+            const int worldX = chunk->chunkX * ChunkSizeX + localX;
+            const int worldZ = chunk->chunkZ * ChunkSizeZ + localZ;
+            const float x0 = static_cast<float>(worldX) - 0.5f;
+            const float x1 = static_cast<float>(worldX) + 0.5f;
+            const float y0 = static_cast<float>(y) + sideBottom;
+            const float y1 = static_cast<float>(y) + sideTop;
+            const float z0 = static_cast<float>(worldZ) - 0.5f;
+            const float z1 = static_cast<float>(worldZ) + 0.5f;
+
+            if (face == 0)
+            {
+                appendQuad({x0, y1, z0, 0.0f, 0.0f, 1.0f}, {x0, y1, z1, 0.0f, 1.0f, 1.0f}, {x1, y1, z1, 1.0f, 1.0f, 1.0f}, {x1, y1, z0, 1.0f, 0.0f, 1.0f});
+            }
+            else if (face == 1)
+            {
+                appendQuad({x0, y0, z1, 0.0f, 0.0f, 1.0f}, {x0, y0, z0, 0.0f, 1.0f, 1.0f}, {x1, y0, z0, 1.0f, 1.0f, 1.0f}, {x1, y0, z1, 1.0f, 0.0f, 1.0f});
+            }
+            else if (face == 2)
+            {
+                appendQuad({x1, y0, z0, 0.0f, 1.0f, 1.0f}, {x1, y1, z0, 0.0f, 0.0f, 1.0f}, {x1, y1, z1, 1.0f, 0.0f, 1.0f}, {x1, y0, z1, 1.0f, 1.0f, 1.0f});
+            }
+            else if (face == 3)
+            {
+                appendQuad({x0, y0, z1, 0.0f, 1.0f, 1.0f}, {x0, y1, z1, 0.0f, 0.0f, 1.0f}, {x0, y1, z0, 1.0f, 0.0f, 1.0f}, {x0, y0, z0, 1.0f, 1.0f, 1.0f});
+            }
+            else if (face == 4)
+            {
+                appendQuad({x1, y0, z1, 0.0f, 1.0f, 1.0f}, {x1, y1, z1, 0.0f, 0.0f, 1.0f}, {x0, y1, z1, 1.0f, 0.0f, 1.0f}, {x0, y0, z1, 1.0f, 1.0f, 1.0f});
+            }
+            else
+            {
+                appendQuad({x0, y0, z0, 0.0f, 1.0f, 1.0f}, {x0, y1, z0, 0.0f, 0.0f, 1.0f}, {x1, y1, z0, 1.0f, 0.0f, 1.0f}, {x1, y0, z0, 1.0f, 1.0f, 1.0f});
+            }
+        };
+
+        result.vertices.reserve(256);
+        result.indices.reserve(384);
+
+        const int yStart = subchunkY * SubchunkSize;
+        const int yEnd = yStart + SubchunkSize;
+        for (int y = yStart; y < yEnd; ++y)
+        {
+            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+            {
+                for (int localX = 0; localX < ChunkSizeX; ++localX)
+                {
+                    const uint16_t fluid = fluidAt(localX, y, localZ);
+                    const uint16_t id = fluidId(fluid);
+                    const uint16_t amount = fluidAmount(fluid);
+                    if (id != FluidWater || amount == 0 || blockOccludesFluid(blockAt(localX, y, localZ)))
+                    {
+                        continue;
+                    }
+
+                    const float height = fluidHeight(amount);
+                    if (fluidId(fluidAt(localX, y + 1, localZ)) != FluidWater && !blockOccludesFluid(blockAt(localX, y + 1, localZ)))
+                    {
+                        appendFluidFace(localX, y, localZ, 0, 0.0f, height);
+                    }
+                    if (fluidId(fluidAt(localX, y - 1, localZ)) != FluidWater && !blockOccludesFluid(blockAt(localX, y - 1, localZ)))
+                    {
+                        appendFluidFace(localX, y, localZ, 1, 0.0f, height);
+                    }
+
+                    const std::array<std::array<int, 3>, 4> sideOffsets = {{{1, 0, 2}, {-1, 0, 3}, {0, 1, 4}, {0, -1, 5}}};
+                    for (const std::array<int, 3>& side : sideOffsets)
+                    {
+                        const int neighborX = localX + side[0];
+                        const int neighborZ = localZ + side[1];
+                        if (blockOccludesFluid(blockAt(neighborX, y, neighborZ)))
+                        {
+                            continue;
+                        }
+
+                        const uint16_t neighborFluid = fluidAt(neighborX, y, neighborZ);
+                        const float neighborHeight = fluidId(neighborFluid) == FluidWater ? fluidHeight(fluidAmount(neighborFluid)) : 0.0f;
+                        if (neighborHeight >= height)
+                        {
+                            continue;
+                        }
+                        appendFluidFace(localX, y, localZ, side[2], neighborHeight, height);
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
     Renderer::CompletedChunkMesh Renderer::buildChunkMesh(const std::array<std::shared_ptr<Renderer::ChunkData>, 9>& chunks, uint64_t generation) const
     {
         const std::shared_ptr<ChunkData>& chunk = chunks[4];
@@ -6065,6 +6864,7 @@ namespace dolbuto
         for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
         {
             result.rockSubchunks[static_cast<size_t>(subchunkY)] = buildSubchunkMesh(chunk, subchunkY, blockAt);
+            result.fluidSubchunks[static_cast<size_t>(subchunkY)] = buildFluidSubchunkMesh(chunks, subchunkY);
         }
         return result;
     }
@@ -6089,12 +6889,23 @@ namespace dolbuto
                 return true;
             }
         }
+        for (const TerrainMesh& mesh : renderIt->second.fluidSubchunks)
+        {
+            if (mesh.indexCount > 0)
+            {
+                return true;
+            }
+        }
         return false;
     }
 
     void Renderer::destroyChunkRenderData(Renderer::ChunkRenderData& chunk)
     {
         for (TerrainMesh& mesh : chunk.rockSubchunks)
+        {
+            destroyTerrainMesh(mesh);
+        }
+        for (TerrainMesh& mesh : chunk.fluidSubchunks)
         {
             destroyTerrainMesh(mesh);
         }
@@ -6131,6 +6942,17 @@ namespace dolbuto
         for (const auto& entry : terrainChunks_)
         {
             for (const TerrainMesh& mesh : entry.second.rockSubchunks)
+            {
+                if (mesh.indexCount == 0)
+                {
+                    continue;
+                }
+
+                ++terrainDrawCount_;
+                terrainVertexCount_ += mesh.vertexCount;
+                terrainFaceCount_ += mesh.indexCount / 6;
+            }
+            for (const TerrainMesh& mesh : entry.second.fluidSubchunks)
             {
                 if (mesh.indexCount == 0)
                 {
@@ -6689,11 +7511,28 @@ namespace dolbuto
 
     void Renderer::cleanupSwapchain()
     {
+        for (VkFramebuffer framebuffer : sceneFramebuffers_)
+        {
+            vkDestroyFramebuffer(device_, framebuffer, nullptr);
+        }
+        sceneFramebuffers_.clear();
+
         for (VkFramebuffer framebuffer : framebuffers_)
         {
             vkDestroyFramebuffer(device_, framebuffer, nullptr);
         }
         framebuffers_.clear();
+
+        for (Texture& texture : sceneColorTargets_)
+        {
+            destroyTexture(texture);
+        }
+        sceneColorTargets_.clear();
+        for (Texture& texture : sceneDepthTargets_)
+        {
+            destroyTexture(texture);
+        }
+        sceneDepthTargets_.clear();
 
         if (depthImageView_ != VK_NULL_HANDLE)
         {
@@ -6740,6 +7579,7 @@ namespace dolbuto
         createSwapchain();
         createImageViews();
         createDepthResources();
+        createSceneTargets();
         createFramebuffers();
     }
 
@@ -6754,7 +7594,7 @@ namespace dolbuto
 
         for (uint32_t i = 0; i < familyCount; ++i)
         {
-            if (families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            if ((families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
             {
                 indices.graphics = i;
             }
@@ -6872,7 +7712,7 @@ namespace dolbuto
         return module;
     }
 
-    Renderer::Texture Renderer::createTexture(const std::string& path)
+    Renderer::Texture Renderer::createTexture(const std::string& path, VkFormat format)
     {
         Texture texture;
         int channels = 0;
@@ -6882,12 +7722,12 @@ namespace dolbuto
             throw std::runtime_error("Failed to load texture: " + path);
         }
 
-        Texture result = createTextureFromRgba(pixels, texture.width, texture.height);
+        Texture result = createTextureFromRgba(pixels, texture.width, texture.height, format);
         stbi_image_free(pixels);
         return result;
     }
 
-    Renderer::Texture Renderer::createTextureFromRgba(const unsigned char* pixels, int width, int height)
+    Renderer::Texture Renderer::createTextureFromRgba(const unsigned char* pixels, int width, int height, VkFormat format)
     {
         Texture texture;
         texture.width = width;
@@ -6910,7 +7750,7 @@ namespace dolbuto
         imageInfo.extent = {static_cast<uint32_t>(texture.width), static_cast<uint32_t>(texture.height), 1};
         imageInfo.mipLevels = texture.mipLevels;
         imageInfo.arrayLayers = 1;
-        imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+        imageInfo.format = format;
         imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
         imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -6947,7 +7787,7 @@ namespace dolbuto
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = texture.image;
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+        viewInfo.format = format;
         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         viewInfo.subresourceRange.levelCount = texture.mipLevels;
         viewInfo.subresourceRange.layerCount = 1;
@@ -6985,7 +7825,90 @@ namespace dolbuto
         return texture;
     }
 
-    Renderer::Texture Renderer::createTextureArray(const std::vector<std::string>& paths)
+    Renderer::Texture Renderer::createRenderTargetTexture(VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkImageLayout descriptorLayout)
+    {
+        Texture texture;
+        texture.width = static_cast<int>(swapchainExtent_.width);
+        texture.height = static_cast<int>(swapchainExtent_.height);
+        texture.mipLevels = 1;
+        texture.layers = 1;
+
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent = {swapchainExtent_.width, swapchainExtent_.height, 1};
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = format;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = usage;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateImage(device_, &imageInfo, nullptr, &texture.image) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create render target image.");
+        }
+
+        VkMemoryRequirements requirements{};
+        vkGetImageMemoryRequirements(device_, texture.image, &requirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = requirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        if (vkAllocateMemory(device_, &allocInfo, nullptr, &texture.memory) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to allocate render target memory.");
+        }
+
+        vkBindImageMemory(device_, texture.image, texture.memory, 0);
+
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = texture.image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = format;
+        viewInfo.subresourceRange.aspectMask = aspectMask;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(device_, &viewInfo, nullptr, &texture.view) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create render target image view.");
+        }
+
+        VkDescriptorSetAllocateInfo setInfo{};
+        setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        setInfo.descriptorPool = descriptorPool_;
+        setInfo.descriptorSetCount = 1;
+        setInfo.pSetLayouts = &descriptorSetLayout_;
+
+        if (vkAllocateDescriptorSets(device_, &setInfo, &texture.descriptorSet) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to allocate render target descriptor set.");
+        }
+
+        VkDescriptorImageInfo imageDescriptor{};
+        imageDescriptor.imageLayout = descriptorLayout;
+        imageDescriptor.imageView = texture.view;
+        imageDescriptor.sampler = sampler_;
+
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = texture.descriptorSet;
+        write.dstBinding = 0;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.pImageInfo = &imageDescriptor;
+        vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
+
+        return texture;
+    }
+
+    Renderer::Texture Renderer::createTextureArray(const std::vector<std::string>& paths, float alphaMultiplier)
     {
         if (paths.empty())
         {
@@ -7024,6 +7947,18 @@ namespace dolbuto
 
             const size_t layerSize = static_cast<size_t>(texture.width) * static_cast<size_t>(texture.height) * 4u;
             std::memcpy(pixels.data() + layer * layerSize, loadedPixels, layerSize);
+            if (alphaMultiplier < 1.0f)
+            {
+                unsigned char* layerPixels = pixels.data() + layer * layerSize;
+                for (size_t pixel = 0; pixel < layerSize / 4u; ++pixel)
+                {
+                    unsigned char& alpha = layerPixels[pixel * 4u + 3u];
+                    alpha = static_cast<unsigned char>(std::clamp(
+                        static_cast<int>(std::lround(static_cast<float>(alpha) * alphaMultiplier)),
+                        0,
+                        255));
+                }
+            }
             stbi_image_free(loadedPixels);
         }
 
@@ -7471,6 +8406,10 @@ namespace dolbuto
 
     void Renderer::destroyTexture(Texture& texture)
     {
+        if (texture.descriptorSet != VK_NULL_HANDLE && descriptorPool_ != VK_NULL_HANDLE)
+        {
+            vkFreeDescriptorSets(device_, descriptorPool_, 1, &texture.descriptorSet);
+        }
         if (texture.view != VK_NULL_HANDLE)
         {
             vkDestroyImageView(device_, texture.view, nullptr);
@@ -7805,16 +8744,16 @@ namespace dolbuto
         clearDepth.depthStencil = {1.0f, 0};
         std::array<VkClearValue, 2> clearValues = {clearColor, clearDepth};
 
-        VkRenderPassBeginInfo renderPassInfo{};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassInfo.renderPass = renderPass_;
-        renderPassInfo.framebuffer = framebuffers_[imageIndex];
-        renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = swapchainExtent_;
-        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-        renderPassInfo.pClearValues = clearValues.data();
+        VkRenderPassBeginInfo scenePassInfo{};
+        scenePassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        scenePassInfo.renderPass = sceneRenderPass_;
+        scenePassInfo.framebuffer = sceneFramebuffers_[imageIndex];
+        scenePassInfo.renderArea.offset = {0, 0};
+        scenePassInfo.renderArea.extent = swapchainExtent_;
+        scenePassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        scenePassInfo.pClearValues = clearValues.data();
 
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(commandBuffer, &scenePassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
 
         VkViewport viewport{};
@@ -7842,12 +8781,31 @@ namespace dolbuto
             drawSprite(commandBuffer, moon_, rect);
         }
 
-        drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe);
+        drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe, true, false, imageIndex);
         drawBlockSelection(commandBuffer, camera, cameraPosition);
         if (showPlayer)
         {
             drawPlayer(commandBuffer, camera, cameraPosition);
         }
+        vkCmdEndRenderPass(commandBuffer);
+
+        VkRenderPassBeginInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = renderPass_;
+        renderPassInfo.framebuffer = framebuffers_[imageIndex];
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent = swapchainExtent_;
+        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
+
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+        SpriteRect sceneRect{};
+        sceneRect.halfWidth = 1.0f;
+        sceneRect.halfHeight = 1.0f;
+        drawSprite(commandBuffer, sceneColorTargets_[imageIndex], sceneRect, {0.0f, 1.0f, 1.0f, -1.0f});
+
+        drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe, false, true, imageIndex);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
 
         const float crosshairPixels = 32.0f;
@@ -7970,7 +8928,7 @@ namespace dolbuto
         vkUnmapMemory(device_, playerMesh_.vertexMemory);
     }
 
-    void Renderer::drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe)
+    void Renderer::drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe, bool drawBlocks, bool drawFluids, uint32_t sceneImageIndex)
     {
         if (terrainChunks_.empty())
         {
@@ -8002,47 +8960,116 @@ namespace dolbuto
         push.cameraPosition[0] = cameraPosition.x;
         push.cameraPosition[1] = cameraPosition.y;
         push.cameraPosition[2] = cameraPosition.z;
-        push.cameraPosition[3] = 0.0f;
-
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, wireframe ? terrainWireframePipeline_ : terrainPipeline_);
-        vkCmdPushConstants(commandBuffer, terrainPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 0, 1, &terrainTextureArray_.descriptorSet, 0, nullptr);
+        push.cameraPosition[3] = static_cast<float>(glfwGetTime());
+        push.fluidWaterParams[0] = fluidWaterBaseAlpha_;
+        push.fluidWaterParams[1] = fluidWaterEdgeAlpha_;
+        push.fluidWaterParams[2] = fluidWaterFresnelPower_;
+        push.fluidWaterParams[3] = 0.0f;
+        push.fluidWaterNormalParams[0] = fluidWaterNormalTiling_;
+        push.fluidWaterNormalParams[1] = 0.0f;
+        push.fluidWaterNormalParams[2] = fluidWaterNormalScale_;
+        push.fluidWaterNormalParams[3] = 0.0f;
+        push.fluidWaterNormalSpeed[0] = fluidWaterNormalSpeed_;
+        push.fluidWaterNormalSpeed[1] = 0.0f;
+        push.fluidWaterNormalSpeed[2] = 0.0f;
+        push.fluidWaterNormalSpeed[3] = 0.0f;
+        push.ssrParams[0] = fluidWaterSsrEnabled_ ? 1.0f : 0.0f;
+        push.ssrParams[1] = fluidWaterSsrStrength_;
+        push.ssrParams[2] = fluidWaterSsrMaxDistance_;
+        push.ssrParams[3] = fluidWaterSsrEdgeFade_;
+        push.ssrMarchParams[0] = static_cast<float>(fluidWaterSsrMaxSteps_);
+        push.ssrMarchParams[1] = fluidWaterSsrStepSize_;
+        push.ssrMarchParams[2] = fluidWaterSsrThickness_;
+        push.ssrMarchParams[3] = fluidWaterSsrFallbackStrength_;
+        push.ssrFallbackColor[0] = fluidWaterSsrFallbackR_;
+        push.ssrFallbackColor[1] = fluidWaterSsrFallbackG_;
+        push.ssrFallbackColor[2] = fluidWaterSsrFallbackB_;
+        push.ssrFallbackColor[3] = 1.0f;
+        push.ssrDepthParams[0] = TerrainNearPlane;
+        push.ssrDepthParams[1] = TerrainFarPlane;
+        push.ssrDepthParams[2] = 0.0f;
+        push.ssrDepthParams[3] = 0.0f;
 
         uint32_t visibleDrawCount = 0;
         uint32_t visibleFaceCount = 0;
         uint32_t visibleVertexCount = 0;
-        for (const auto& entry : terrainChunks_)
+        if (drawBlocks)
         {
-            const ChunkRenderData& chunk = entry.second;
-            const float minX = static_cast<float>(chunk.chunkX * ChunkSizeX) - 0.5f;
-            const float maxX = static_cast<float>(chunk.chunkX * ChunkSizeX + ChunkSizeX) - 0.5f;
-            const float minZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ) - 0.5f;
-            const float maxZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ + ChunkSizeZ) - 0.5f;
-            for (size_t subchunkY = 0; subchunkY < chunk.rockSubchunks.size(); ++subchunkY)
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, wireframe ? terrainWireframePipeline_ : terrainPipeline_);
+            vkCmdPushConstants(commandBuffer, terrainPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 0, 1, &terrainTextureArray_.descriptorSet, 0, nullptr);
+
+            for (const auto& entry : terrainChunks_)
             {
-                const TerrainMesh& mesh = chunk.rockSubchunks[subchunkY];
-                if (mesh.indexCount == 0)
+                const ChunkRenderData& chunk = entry.second;
+                const float minX = static_cast<float>(chunk.chunkX * ChunkSizeX) - 0.5f;
+                const float maxX = static_cast<float>(chunk.chunkX * ChunkSizeX + ChunkSizeX) - 0.5f;
+                const float minZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ) - 0.5f;
+                const float maxZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ + ChunkSizeZ) - 0.5f;
+                for (size_t subchunkY = 0; subchunkY < chunk.rockSubchunks.size(); ++subchunkY)
                 {
-                    continue;
-                }
+                    const TerrainMesh& mesh = chunk.rockSubchunks[subchunkY];
+                    if (mesh.indexCount == 0)
+                    {
+                        continue;
+                    }
 
-                const float minY = static_cast<float>(subchunkY * SubchunkSize);
-                const float maxY = minY + static_cast<float>(SubchunkSize);
-                if (!aabbIntersectsFrustum(frustum, {minX, minY, minZ}, {maxX, maxY, maxZ}))
-                {
-                    continue;
-                }
+                    const float minY = static_cast<float>(subchunkY * SubchunkSize);
+                    const float maxY = minY + static_cast<float>(SubchunkSize);
+                    if (!aabbIntersectsFrustum(frustum, {minX, minY, minZ}, {maxX, maxY, maxZ}))
+                    {
+                        continue;
+                    }
 
-                drawTerrainMeshBound(commandBuffer, mesh);
-                ++visibleDrawCount;
-                visibleFaceCount += mesh.indexCount / 6;
-                visibleVertexCount += mesh.vertexCount;
+                    drawTerrainMeshBound(commandBuffer, mesh);
+                    ++visibleDrawCount;
+                    visibleFaceCount += mesh.indexCount / 6;
+                    visibleVertexCount += mesh.vertexCount;
+                }
             }
         }
 
-        if (visibleDrawCount != terrainDrawCount_ ||
+        if (drawFluids)
+        {
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, fluidPipeline_);
+            vkCmdPushConstants(commandBuffer, terrainPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 0, 1, &fluidTextureArray_.descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 2, 1, &fluidNormalTexture_.descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 3, 1, &sceneColorTargets_[sceneImageIndex].descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 4, 1, &sceneDepthTargets_[sceneImageIndex].descriptorSet, 0, nullptr);
+            for (const auto& entry : terrainChunks_)
+            {
+                const ChunkRenderData& chunk = entry.second;
+                const float minX = static_cast<float>(chunk.chunkX * ChunkSizeX) - 0.5f;
+                const float maxX = static_cast<float>(chunk.chunkX * ChunkSizeX + ChunkSizeX) - 0.5f;
+                const float minZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ) - 0.5f;
+                const float maxZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ + ChunkSizeZ) - 0.5f;
+                for (size_t subchunkY = 0; subchunkY < chunk.fluidSubchunks.size(); ++subchunkY)
+                {
+                    const TerrainMesh& mesh = chunk.fluidSubchunks[subchunkY];
+                    if (mesh.indexCount == 0)
+                    {
+                        continue;
+                    }
+
+                    const float minY = static_cast<float>(subchunkY * SubchunkSize);
+                    const float maxY = minY + static_cast<float>(SubchunkSize + 1);
+                    if (!aabbIntersectsFrustum(frustum, {minX, minY, minZ}, {maxX, maxY, maxZ}))
+                    {
+                        continue;
+                    }
+
+                    drawTerrainMeshBound(commandBuffer, mesh);
+                    ++visibleDrawCount;
+                    visibleFaceCount += mesh.indexCount / 6;
+                    visibleVertexCount += mesh.vertexCount;
+                }
+            }
+        }
+
+        if (drawBlocks && !drawFluids && (visibleDrawCount != terrainDrawCount_ ||
             visibleFaceCount != terrainFaceCount_ ||
-            visibleVertexCount != terrainVertexCount_)
+            visibleVertexCount != terrainVertexCount_))
         {
             terrainDrawCount_ = visibleDrawCount;
             terrainFaceCount_ = visibleFaceCount;
@@ -8066,7 +9093,7 @@ namespace dolbuto
 
     bool Renderer::raycastBlock(DVec3 origin, Vec3 direction, BlockRaycastHit& hit) const
     {
-        constexpr double MaxInteractionDistance = 5.0;
+        constexpr double MaxInteractionDistance = 8.0;
         constexpr double Epsilon = 0.000001;
 
         Vec3 normalizedDirection = normalize(direction);

@@ -25,5 +25,5 @@ void main()
         discard;
     }
     color.rgb *= fragAo;
-    outColor = color;
+    outColor = vec4(color.rgb, 1.0);
 }

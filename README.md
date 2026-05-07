@@ -13,7 +13,7 @@ Vulkan / C++
 - Debug 빌드는 기존 개발 폴더의 `assets`, `config`, `saves/world`를 직접 사용한다.
 - Release/Portable 빌드는 실행 파일 옆의 `assets`, `config`, `shaders`, `saves/world`를 사용한다.
 - 포터블 배포본은 Release 구성에서 `DOLBUTOPortable` 타깃을 빌드해서 생성한다.
-- 생성 위치는 `dist/DOLBUTO_0.0.0.0/`이다.
+- 생성 위치는 `dist/DOLBUTO_0.0.0.1/`이다.
 - 배포 전에는 해당 dist 폴더 안의 `DOLBUTO.exe`를 직접 실행해서 확인한다.
 
 ## 조작
@@ -38,7 +38,7 @@ Vulkan / C++
 ## 디버그 텍스트
 
 - 좌상단: FPS, 프레임 시간, 플레이어 위치, yaw/pitch, 4방위 시야 방향
-- 우상단: `DOLBUTO 0.0.0.0`
+- 우상단: `DOLBUTO 0.0.0.1`
 - 우상단 버전 아래: CPU/GPU 이름, Vulkan API 버전, driver 버전, 해상도
 - 우상단 하단: terrain draw, face, quad 통계
 - 좌하단: 청크 로딩, 작업 큐, 저장/로드 상태

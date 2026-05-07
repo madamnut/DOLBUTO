@@ -16,6 +16,7 @@ layout(location = 1) out float fragAo;
 layout(location = 2) out vec3 fragWorldPosition;
 layout(location = 3) flat out float fragTextureLayer;
 layout(location = 4) flat out float fragMipDistanceScale;
+layout(location = 5) flat out vec3 fragNormal;
 
 int decodeSignedFixed(uint packedValue)
 {
@@ -100,4 +101,5 @@ void main()
     fragWorldPosition = position;
     fragTextureLayer = float(material & 0xFFu);
     fragMipDistanceScale = float((material >> 8u) & 0x3FFu) / 16.0;
+    fragNormal = normalize(cross(edgeU, edgeV));
 }

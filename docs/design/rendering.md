@@ -61,3 +61,43 @@
 - [[block-data]]
 - [[debug-profiling]]
 
+## Fluid Rendering
+
+Fluids are rendered as separate subchunk meshes from block terrain.
+The current rendered fluid is `water`.
+
+- Texture: `assets/textures/fluid/water.png`
+- Normal texture: `assets/textures/fluid/water_normal.jpg`
+- The current normal texture keeps the existing filename and uses a 256x256 PNG water-normal source.
+- Fresnel alpha: base `0.7`, edge `0.95`, power `1.0`
+- Runtime config: `config/render.json` -> `fluid.water.baseAlpha`, `fluid.water.edgeAlpha`, `fluid.water.fresnelPower`, `normalScale`, `normalTiling`, `normalSpeed`, `ssr`
+- Manual fluid mip textures: not used yet
+- `amount = 0` or `id = 0` is not rendered
+- Amount height is rounded up by 10-unit steps from `0.1` to `1.0` block
+
+Block terrain is drawn first, then fluid meshes are drawn.
+Internal fluid faces are skipped when an adjacent fluid reaches the same or greater height.
+Fluid rendering uses a separate `fluidPipeline_` with alpha blending enabled and depth write disabled.
+The normal terrain pipeline remains non-blended for opaque/cutout block rendering.
+The fluid pipeline uses `fluid.frag`.
+`terrain.vert` provides the reconstructed quad normal so fluid alpha becomes stronger at grazing view angles.
+`water_normal.jpg` is loaded as `VK_FORMAT_R8G8B8A8_UNORM` through `stbi_load`.
+`fluid.frag` samples the texture RG channels as signed water-normal offsets four times: medium, small, broad, and very broad wave scales.
+The combined offset uses fixed medium/small/big wave weights, is reduced at grazing Fresnel angles, and perturbs the Fresnel/reflection normal; it does not deform water geometry.
+
+## Water SSR
+
+Water SSR uses the offscreen scene color and scene depth from the scene pass.
+
+- Scene rendering is split into an offscreen scene pass and a swapchain composite/fluid pass.
+- The offscreen scene pass renders sky sprites, block terrain, block selection, and player mesh into scene color/depth targets.
+- The swapchain pass first composites the scene color target, then renders fluid meshes.
+- `fluid.frag` samples the offscreen scene color and scene depth directly.
+- `fluid.frag` samples scene color and scene depth in the offscreen texture coordinate space.
+- Fluid occlusion against terrain is handled in the shader by linearizing and comparing the water fragment depth against the sampled scene depth.
+- SSR ray samples project world-space ray points through the existing MVP and compare linearized ray depth against linearized scene depth.
+- The SSR march uses variable step growth and refinement when it overshoots a possible hit.
+- Misses fall back to `ssr.fallbackColor` and `ssr.fallbackStrength`.
+
+`ssr.thickness` is interpreted in linear depth units.
+The Hi-Z compute path is not used.

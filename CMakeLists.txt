@@ -68,6 +68,7 @@ set(SHADER_SOURCES
     shaders/sprite.frag
     shaders/terrain.vert
     shaders/terrain.frag
+    shaders/fluid.frag
     shaders/player.vert
     shaders/selection.vert
     shaders/selection.frag
@@ -156,7 +157,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebI
     )
 endif()
 
-set(DOLBUTO_PORTABLE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dist/DOLBUTO_0.0.0.0")
+set(DOLBUTO_PORTABLE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dist/DOLBUTO_0.0.0.1")
 
 add_custom_target(DOLBUTOPortable
     COMMAND ${CMAKE_COMMAND} -E rm -rf "${DOLBUTO_PORTABLE_DIR}"

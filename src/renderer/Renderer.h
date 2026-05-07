@@ -49,6 +49,7 @@ namespace dolbuto
         bool playerColliderIntersectsTerrain(DVec3 playerPosition) const;
         void updateBlockSelection(DVec3 origin, Vec3 direction);
         bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock);
+        std::string selectedBlockText() const;
         void resetPeakProfiler();
 
     private:
@@ -168,6 +169,13 @@ namespace dolbuto
         {
             float mvp[16]{};
             float cameraPosition[4]{};
+            float fluidWaterParams[4]{};
+            float fluidWaterNormalParams[4]{};
+            float fluidWaterNormalSpeed[4]{};
+            float ssrParams[4]{};
+            float ssrMarchParams[4]{};
+            float ssrFallbackColor[4]{};
+            float ssrDepthParams[4]{};
         };
 
         struct BufferUploadRegion
@@ -231,6 +239,7 @@ namespace dolbuto
 
         struct BlockDefinition
         {
+            std::string name = "unknown";
             BlockRenderType renderType = BlockRenderType::None;
             bool directional = false;
             bool collision = false;
@@ -255,6 +264,7 @@ namespace dolbuto
             int chunkX = 0;
             int chunkZ = 0;
             std::vector<uint16_t> blocks;
+            std::vector<uint16_t> fluids;
             std::array<bool, SubchunkCount> emptySubchunks{};
         };
 
@@ -312,6 +322,7 @@ namespace dolbuto
             int chunkX = 0;
             int chunkZ = 0;
             std::array<TerrainBuildData, SubchunkCount> rockSubchunks;
+            std::array<TerrainBuildData, SubchunkCount> fluidSubchunks;
         };
 
         struct RuntimeChunk
@@ -347,6 +358,7 @@ namespace dolbuto
             bool hasSavedBacking = false;
             std::shared_ptr<const ChunkData> chunkData;
             std::vector<uint16_t> blocks;
+            std::vector<uint16_t> fluids;
             std::array<FeatureWriteListPtr, FeatureNeighborCount> incomingFeatureSlots{};
             uint8_t incomingFeatureMask = 0;
         };
@@ -371,6 +383,7 @@ namespace dolbuto
             int chunkX = 0;
             int chunkZ = 0;
             std::array<TerrainMesh, SubchunkCount> rockSubchunks;
+            std::array<TerrainMesh, SubchunkCount> fluidSubchunks;
         };
 
         struct RetiredChunkRenderData
@@ -397,7 +410,9 @@ namespace dolbuto
         void createSwapchain();
         void createImageViews();
         void createRenderPass();
+        void createSceneRenderPass();
         void createDepthResources();
+        void createSceneTargets();
         void createDescriptorSetLayout();
         void createTerrainVertexDescriptorSetLayout();
         void createPipeline();
@@ -414,6 +429,7 @@ namespace dolbuto
         void createSelectionLineBuffer();
         void createPlayerMesh();
         void loadWorldConfig();
+        void loadRenderConfig();
         void loadHeightLut();
         void updateLoadedChunks(DVec3 playerPosition);
         void requestTerrainLoad(int centerGroupChunkX, int centerGroupChunkZ);
@@ -455,6 +471,7 @@ namespace dolbuto
         TerrainBuildData buildSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, const std::vector<uint16_t>& meshingBlocks, int subchunkY) const;
         TerrainBuildData buildEditedSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, int subchunkY) const;
         TerrainBuildData buildSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, int subchunkY, const std::function<uint16_t(int, int, int)>& blockAt) const;
+        TerrainBuildData buildFluidSubchunkMesh(const std::array<std::shared_ptr<ChunkData>, 9>& chunks, int subchunkY) const;
         CompletedChunkMesh buildChunkMesh(const std::array<std::shared_ptr<ChunkData>, 9>& chunks, uint64_t generation) const;
         bool chunkMeshReady(uint64_t key) const;
         void destroyChunkRenderData(ChunkRenderData& chunk);
@@ -478,9 +495,10 @@ namespace dolbuto
         VkExtent2D chooseExtent(const VkSurfaceCapabilitiesKHR& capabilities) const;
 
         VkShaderModule createShaderModule(const std::string& path) const;
-        Texture createTexture(const std::string& path);
-        Texture createTextureFromRgba(const unsigned char* pixels, int width, int height);
-        Texture createTextureArray(const std::vector<std::string>& paths);
+        Texture createTexture(const std::string& path, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
+        Texture createTextureFromRgba(const unsigned char* pixels, int width, int height, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
+        Texture createTextureArray(const std::vector<std::string>& paths, float alphaMultiplier = 1.0f);
+        Texture createRenderTargetTexture(VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspectMask, VkImageLayout descriptorLayout);
         uint32_t calculateMipLevels(int width, int height) const;
         void generateMipmaps(VkImage image, int32_t width, int32_t height, uint32_t mipLevels, uint32_t layerCount = 1) const;
         void generateTextureArrayMipmaps(VkImage image, int32_t width, int32_t height, uint32_t mipLevels, uint32_t layerCount, const std::vector<TextureMipOverride>& mipOverrides, VkBuffer mipOverrideBuffer) const;
@@ -502,7 +520,7 @@ namespace dolbuto
         void copySwapchainImageToBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VkBuffer buffer) const;
         void saveScreenshot(VkDeviceMemory memory, VkDeviceSize size) const;
         void updatePlayerMesh(Vec3 playerPosition, float playerYaw);
-        void drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe);
+        void drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe, bool drawBlocks, bool drawFluids, uint32_t sceneImageIndex = 0);
         void drawTerrainMeshBound(VkCommandBuffer commandBuffer, const TerrainMesh& mesh) const;
         void drawTerrainMesh(VkCommandBuffer commandBuffer, const TerrainMesh& mesh, const Texture& texture) const;
         const BlockDefinition& blockDefinition(uint16_t block) const;
@@ -599,6 +617,7 @@ namespace dolbuto
         VkDeviceMemory depthMemory_ = VK_NULL_HANDLE;
         VkImageView depthImageView_ = VK_NULL_HANDLE;
         VkRenderPass renderPass_ = VK_NULL_HANDLE;
+        VkRenderPass sceneRenderPass_ = VK_NULL_HANDLE;
         VkDescriptorSetLayout descriptorSetLayout_ = VK_NULL_HANDLE;
         VkDescriptorSetLayout terrainVertexDescriptorSetLayout_ = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
@@ -606,6 +625,7 @@ namespace dolbuto
         VkPipelineLayout terrainPipelineLayout_ = VK_NULL_HANDLE;
         VkPipeline terrainPipeline_ = VK_NULL_HANDLE;
         VkPipeline terrainWireframePipeline_ = VK_NULL_HANDLE;
+        VkPipeline fluidPipeline_ = VK_NULL_HANDLE;
         VkPipeline playerPipeline_ = VK_NULL_HANDLE;
         VkPipelineLayout selectionPipelineLayout_ = VK_NULL_HANDLE;
         VkPipeline selectionPipeline_ = VK_NULL_HANDLE;
@@ -627,6 +647,7 @@ namespace dolbuto
         int selectedBlockX_ = 0;
         int selectedBlockY_ = 0;
         int selectedBlockZ_ = 0;
+        uint16_t selectedBlockId_ = 0;
         TerrainMesh playerMesh_;
         std::vector<TerrainVertex> playerLocalVertices_;
         std::vector<uint32_t> playerIndices_;
@@ -645,6 +666,24 @@ namespace dolbuto
         float terrainDomainWarpFrequency_ = 0.0f;
         int terrainDomainWarpOctaveCount_ = 0;
         float terrainDomainWarpGain_ = 0.0f;
+        int seaLevel_ = 0;
+        float fluidWaterBaseAlpha_ = 0.7f;
+        float fluidWaterEdgeAlpha_ = 0.95f;
+        float fluidWaterFresnelPower_ = 1.0f;
+        float fluidWaterNormalScale_ = 0.05f;
+        float fluidWaterNormalTiling_ = 1.0f;
+        float fluidWaterNormalSpeed_ = 1.1f;
+        bool fluidWaterSsrEnabled_ = true;
+        float fluidWaterSsrStrength_ = 0.35f;
+        int fluidWaterSsrMaxSteps_ = 32;
+        float fluidWaterSsrStepSize_ = 0.25f;
+        float fluidWaterSsrThickness_ = 0.001f;
+        float fluidWaterSsrMaxDistance_ = 64.0f;
+        float fluidWaterSsrEdgeFade_ = 0.15f;
+        float fluidWaterSsrFallbackStrength_ = 0.12f;
+        float fluidWaterSsrFallbackR_ = 0.65f;
+        float fluidWaterSsrFallbackG_ = 0.85f;
+        float fluidWaterSsrFallbackB_ = 1.0f;
         int loadedChunkDiameter_ = 0;
         int loadedCenterGroupChunkX_ = 0;
         int loadedCenterGroupChunkZ_ = 0;
@@ -702,6 +741,11 @@ namespace dolbuto
         Texture font_;
         Texture playerTexture_;
         Texture terrainTextureArray_;
+        Texture fluidTextureArray_;
+        Texture fluidNormalTexture_;
+        std::vector<Texture> sceneColorTargets_;
+        std::vector<Texture> sceneDepthTargets_;
+        std::vector<VkFramebuffer> sceneFramebuffers_;
         std::vector<BlockDefinition> blockDefinitions_;
         std::vector<BlockTextureLayers> blockTextureLayers_;
         std::array<stbtt_bakedchar, 95> bakedChars_{};

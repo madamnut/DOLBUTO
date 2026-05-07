@@ -1,0 +1,22 @@
+[
+  {
+    "id": 0,
+    "name": "none"
+  },
+  {
+    "id": 1,
+    "name": "water"
+  },
+  {
+    "id": 2,
+    "name": "lava"
+  },
+  {
+    "id": 300,
+    "name": "methane"
+  },
+  {
+    "id": 301,
+    "name": "hydrogen"
+  }
+]

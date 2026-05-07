@@ -1,0 +1,23 @@
+{
+  "fluid": {
+    "water": {
+      "baseAlpha": 0.8,
+      "edgeAlpha": 1.0,
+      "fresnelPower": 1.0,
+      "normalScale": 0.05,
+      "normalTiling": 1.0,
+      "normalSpeed": 1.1,
+      "ssr": {
+        "enabled": true,
+        "strength": 0.35,
+        "maxSteps": 128,
+        "stepSize": 0.5,
+        "thickness": 0.5,
+        "maxDistance": 64.0,
+        "edgeFade": 0.15,
+        "fallbackStrength": 0.25,
+        "fallbackColor": [0.1647, 0.4078, 0.502]
+      }
+    }
+  }
+}
