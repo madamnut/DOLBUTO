@@ -8,6 +8,28 @@
 assets/data/blocks.json
 ```
 
+## Block Drops
+
+Block definitions include a `drops` array.
+Drop entries are authored with item keys and resolved to item ids at load time.
+The item and drop-table draft is documented in [[item-data]].
+
+## Random Offset
+
+`randomOffset` is a boolean block-data flag for `cross` and `prop` render types.
+When true, only the rendered mesh is moved on X/Z by `-0.2 ~ +0.2` blocks.
+The offset is deterministic from wrapped world coordinates and the existing placement salt.
+Saved block data, collision, generation, and block identity are not changed.
+Current users are `plant`, `stone`, and `branch`.
+
+## Directional Random Rotation
+
+When `directional` is `false`, terrain meshing applies deterministic 4-way random rotation from wrapped world coordinates.
+For cube blocks this rotates the top face UVs.
+For `cross` blocks this rotates the crossed planes around the block center.
+For `prop` blocks this rotates the loaded model quads around the block center.
+When `directional` is `true`, these random rotations are disabled.
+
 등록된 블록 엔트리만 texture array에 포함된다.
 
 ## 현재 블록 ID

@@ -1,0 +1,11 @@
+<rml>
+<head>
+    <link type="text/rcss" href="style.rcss"/>
+</head>
+<body>
+    <div class="hud-root">
+        <img class="hotbar-image" src="../textures/ui/player/Hotbar.png"/>
+        <img id="hotbar-scope" class="hotbar-scope hotbar-slot-0" src="../textures/ui/player/Hotbarscope.png"/>
+    </div>
+</body>
+</rml>

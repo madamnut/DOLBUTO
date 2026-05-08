@@ -10,7 +10,8 @@
     "faceOcclusion": "none",
     "sameBlockFaceCulling": false,
     "alphaMode": "opaque",
-    "textures": {}
+    "textures": {},
+    "drops": []
   },
   {
     "id": 1,
@@ -25,7 +26,10 @@
     "alphaMode": "opaque",
     "textures": {
       "all": "rock"
-    }
+    },
+    "drops": [
+      { "item": "rock_chunk", "min": 1, "max": 2, "chance": 1.0 }
+    ]
   },
   {
     "id": 2,
@@ -42,7 +46,12 @@
       "top": "grass_top",
       "bottom": "grass_bottom",
       "side": "grass_side"
-    }
+    },
+    "drops": [
+      { "item": "dirt_pile", "min": 1, "max": 1, "chance": 1.0 },
+      { "item": "grass_scrap", "min": 1, "max": 1, "chance": 0.25 },
+      { "item": "seed", "min": 1, "max": 1, "chance": 0.05 }
+    ]
   },
   {
     "id": 3,
@@ -57,7 +66,10 @@
     "alphaMode": "opaque",
     "textures": {
       "all": "dirt"
-    }
+    },
+    "drops": [
+      { "item": "dirt_pile", "min": 1, "max": 2, "chance": 1.0 }
+    ]
   },
   {
     "id": 4,
@@ -72,7 +84,10 @@
     "alphaMode": "opaque",
     "textures": {
       "all": "sand"
-    }
+    },
+    "drops": [
+      { "item": "sand_pile", "min": 1, "max": 2, "chance": 1.0 }
+    ]
   },
   {
     "id": 5,
@@ -88,7 +103,8 @@
     "textures": {
       "topBottom": "sandstone_topbottom",
       "side": "sandstone_side"
-    }
+    },
+    "drops": []
   },
   {
     "id": 6,
@@ -103,7 +119,8 @@
     "alphaMode": "opaque",
     "textures": {
       "all": "mud"
-    }
+    },
+    "drops": []
   },
   {
     "id": 7,
@@ -118,7 +135,8 @@
     "alphaMode": "opaque",
     "textures": {
       "all": "clay"
-    }
+    },
+    "drops": []
   },
   {
     "id": 8,
@@ -134,7 +152,8 @@
     "textures": {
       "topBottom": "trunk_topbottom",
       "side": "trunk_side"
-    }
+    },
+    "drops": []
   },
   {
     "id": 9,
@@ -150,7 +169,10 @@
     "alphaCutoff": 0.5,
     "textures": {
       "all": "leaves"
-    }
+    },
+    "drops": [
+      { "item": "leaf", "min": 1, "max": 1, "chance": 1.0 }
+    ]
   },
   {
     "id": 10000,
@@ -160,13 +182,17 @@
     "mipDistanceScale": 1.0,
     "collision": false,
     "ao": false,
+    "randomOffset": true,
     "faceOcclusion": "cutout",
     "sameBlockFaceCulling": false,
     "alphaMode": "cutout",
     "alphaCutoff": 0.5,
     "textures": {
       "all": "plant"
-    }
+    },
+    "drops": [
+      { "item": "plant", "min": 1, "max": 1, "chance": 1.0 }
+    ]
   },
   {
     "id": 20000,
@@ -176,13 +202,17 @@
     "mipDistanceScale": 1.0,
     "collision": false,
     "ao": false,
+    "randomOffset": true,
     "faceOcclusion": "none",
     "sameBlockFaceCulling": false,
     "alphaMode": "opaque",
     "prop": {
       "model": "stone",
       "texture": "rock"
-    }
+    },
+    "drops": [
+      { "item": "rock_chunk", "min": 1, "max": 1, "chance": 1.0 }
+    ]
   },
   {
     "id": 20001,
@@ -192,13 +222,17 @@
     "mipDistanceScale": 1.0,
     "collision": false,
     "ao": false,
+    "randomOffset": true,
     "faceOcclusion": "none",
     "sameBlockFaceCulling": false,
     "alphaMode": "opaque",
     "prop": {
       "model": "branch",
       "texture": "trunk_side"
-    }
+    },
+    "drops": [
+      { "item": "branch", "min": 1, "max": 1, "chance": 1.0 }
+    ]
   },
   {
     "id": 65535,
@@ -213,6 +247,7 @@
     "alphaMode": "opaque",
     "textures": {
       "all": "bedrock"
-    }
+    },
+    "drops": []
   }
 ]

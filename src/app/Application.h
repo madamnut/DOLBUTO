@@ -47,6 +47,7 @@ namespace dolbuto
             WorldSelect,
             WorldCreate,
             Game,
+            Inventory,
             Pause
         };
 
@@ -77,13 +78,15 @@ namespace dolbuto
         std::filesystem::path worldStatePath() const;
         void returnToLobbyScene();
         void cycleViewMode();
+        void setHotbarSelectedSlot(int slot);
+        void cycleHotbarSelectedSlot(int delta);
         void loadMovementConfig();
         void loadWorldState();
         void saveWorldState();
         void loadPlayerState();
         void savePlayerState() const;
         DVec3 interpolatedPlayerPosition(double alpha) const;
-        void updatePlayer(double fixedDeltaSeconds);
+        void updatePlayer(double fixedDeltaSeconds, bool allowInput);
         void updateDebugText();
 
         GLFWwindow* window_ = nullptr;
@@ -93,6 +96,7 @@ namespace dolbuto
         bool debugTextVisible_ = true;
         bool terrainWireframe_ = false;
         int climateOverlayMode_ = 0;
+        int hotbarSelectedSlot_ = 0;
         bool screenshotRequested_ = false;
         bool mouseCaptured_ = true;
         AppScreen screen_ = AppScreen::Lobby;

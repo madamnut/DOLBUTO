@@ -60,6 +60,7 @@
 - During `.glb` conversion, source triangle pairs are merged back into quads.
 - During subchunk meshing, prop quads are appended at the block position.
 - Prop quads are emitted double-sided to avoid depending on source model winding.
+- `randomOffset` prop blocks offset only rendered X/Z mesh position by up to `0.2` blocks from center.
 - Packed terrain positions and UVs use 1/256 precision so small rotated prop geometry and model UV islands survive.
 
 ## 컬링
@@ -94,6 +95,24 @@ Fluids keep depth testing enabled so blocks, cutout terrain, selection outlines,
 The fluid pipeline uses `fluid.frag`.
 `fluid.frag` samples the fluid texture array and applies a fixed alpha value from render config.
 Water normal mapping, Fresnel alpha, depth absorption, and SSR are not part of the current renderer.
+
+## Block Break Particles
+
+Block destruction spawns short-lived runtime particles. Particles are not saved.
+
+- Trigger: successful block removal.
+- Count: 24 particles per destroyed block.
+- Shape: camera-facing billboard quads using the same right/up basis as the terrain view matrix.
+- Texture: the destroyed block's representative block texture layer.
+- UVs: deterministic random 4x4 sub-tiles within the texture.
+- Lifetime: `0.45 ~ 0.75` seconds.
+- Size: `0.10 ~ 0.16` blocks.
+- Gravity: `22`.
+- Collision: simple floor collision against solid terrain cells with weak bounce and strong X/Z friction.
+- Pipeline: dedicated particle graphics pipeline using the existing block texture array.
+- Depth test is enabled and depth write is disabled.
+
+Scene draw order is blocks, fluids, player, block break particles, then selection outline.
 
 ## Climate Overlay
 

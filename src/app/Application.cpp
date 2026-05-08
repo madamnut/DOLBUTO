@@ -202,6 +202,19 @@ namespace dolbuto
                 y <= centerY + MenuButtonHeight * 0.5;
         }
 
+        int hotbarSlotFromKey(int key)
+        {
+            if (key >= GLFW_KEY_1 && key <= GLFW_KEY_9)
+            {
+                return key - GLFW_KEY_1;
+            }
+            if (key == GLFW_KEY_0)
+            {
+                return 9;
+            }
+            return -1;
+        }
+
         std::string trim(std::string value)
         {
             while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front())) != 0)
@@ -478,14 +491,15 @@ namespace dolbuto
             lastFrameTime_ = now;
 
             physicsAccumulator_ += std::min(delta.count(), MaxPhysicsFrameTime);
-            while (screen_ == AppScreen::Game && physicsAccumulator_ >= FixedPhysicsTimestep)
+            const bool gameSimulationActive = screen_ == AppScreen::Game || screen_ == AppScreen::Inventory;
+            while (gameSimulationActive && physicsAccumulator_ >= FixedPhysicsTimestep)
             {
                 previousPlayerPosition_ = playerPosition_;
-                updatePlayer(FixedPhysicsTimestep);
+                updatePlayer(FixedPhysicsTimestep, screen_ == AppScreen::Game);
                 ++worldTicks_;
                 physicsAccumulator_ -= FixedPhysicsTimestep;
             }
-            if (screen_ != AppScreen::Game)
+            if (!gameSimulationActive)
             {
                 physicsAccumulator_ = 0.0;
                 previousPlayerPosition_ = playerPosition_;
@@ -494,7 +508,7 @@ namespace dolbuto
             const double physicsAlpha = std::clamp(physicsAccumulator_ / FixedPhysicsTimestep, 0.0, 1.0);
             const DVec3 renderPlayerPosition = interpolatedPlayerPosition(physicsAlpha);
             const DVec3 eyePosition{renderPlayerPosition.x, renderPlayerPosition.y + EyeHeight, renderPlayerPosition.z};
-            if (screen_ == AppScreen::Game)
+            if (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory)
             {
                 renderer_->updateBlockSelection(
                     {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
@@ -526,10 +540,10 @@ namespace dolbuto
                 showPlayer = true;
             }
 
-            const int menuOverlayMode = screen_ == AppScreen::Lobby ? 1 : (screen_ == AppScreen::Pause ? 2 : (screen_ == AppScreen::WorldSelect ? 3 : (screen_ == AppScreen::WorldCreate ? 4 : 0)));
-            const bool worldUpdateEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause;
-            const bool gameSceneRenderEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause;
-            const bool renderDebugText = screen_ == AppScreen::Game && debugTextVisible_;
+            const int menuOverlayMode = screen_ == AppScreen::Lobby ? 1 : (screen_ == AppScreen::Pause ? 2 : (screen_ == AppScreen::WorldSelect ? 3 : (screen_ == AppScreen::WorldCreate ? 4 : (screen_ == AppScreen::Inventory ? 5 : 0))));
+            const bool worldUpdateEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory;
+            const bool gameSceneRenderEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory;
+            const bool renderDebugText = (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory) && debugTextVisible_;
             renderer_->drawFrame(renderCamera, renderCameraPosition, debugText_.data(), renderDebugText, screenshotRequested_, showPlayer, renderPlayerPosition, camera_.yaw(), terrainWireframe_, climateOverlayMode_, menuOverlayMode, worldUpdateEnabled, gameSceneRenderEnabled, worldTicks_);
             screenshotRequested_ = false;
         }
@@ -579,12 +593,13 @@ namespace dolbuto
             }
         });
 
-        glfwSetKeyCallback(window_, [](GLFWwindow* window, int key, int, int action, int)
+        glfwSetKeyCallback(window_, [](GLFWwindow* window, int key, int, int action, int mods)
         {
             auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-            if (app != nullptr && app->screen_ != Application::AppScreen::Game && app->renderer_ != nullptr && (action == GLFW_PRESS || action == GLFW_RELEASE))
+            if (app != nullptr && app->screen_ != Application::AppScreen::Game && app->renderer_ != nullptr &&
+                (action == GLFW_PRESS || action == GLFW_REPEAT || action == GLFW_RELEASE))
             {
-                app->renderer_->uiKey(key, action == GLFW_PRESS);
+                app->renderer_->uiKey(key, action != GLFW_RELEASE, mods);
             }
             if (key == GLFW_KEY_SPACE && app != nullptr && app->screen_ == Application::AppScreen::Game)
             {
@@ -604,6 +619,10 @@ namespace dolbuto
                 if (app != nullptr && app->screen_ == Application::AppScreen::Game)
                 {
                     app->setScreen(Application::AppScreen::Pause);
+                }
+                else if (app != nullptr && app->screen_ == Application::AppScreen::Inventory)
+                {
+                    app->setScreen(Application::AppScreen::Game);
                 }
                 else if (app != nullptr && app->screen_ == Application::AppScreen::Pause)
                 {
@@ -638,7 +657,31 @@ namespace dolbuto
             {
                 app->climateOverlayMode_ = (app->climateOverlayMode_ + 1) % 3;
             }
+            else if (key == GLFW_KEY_E && action == GLFW_PRESS && app != nullptr)
+            {
+                if (app->screen_ == Application::AppScreen::Game)
+                {
+                    app->setScreen(Application::AppScreen::Inventory);
+                }
+                else if (app->screen_ == Application::AppScreen::Inventory)
+                {
+                    app->setScreen(Application::AppScreen::Game);
+                }
+            }
+            else if (const int slot = hotbarSlotFromKey(key); action == GLFW_PRESS && app != nullptr && app->screen_ == Application::AppScreen::Game && slot >= 0)
+            {
+                app->setHotbarSelectedSlot(slot);
+            }
             else if (key == GLFW_KEY_F && action == GLFW_PRESS && app != nullptr)
+            {
+                if (app->screen_ == Application::AppScreen::Game && app->renderer_ != nullptr)
+                {
+                    app->renderer_->pickupDroppedItemInView(
+                        {app->playerPosition_.x, app->playerPosition_.y + EyeHeight, app->playerPosition_.z},
+                        renderViewDirection(app->camera_));
+                }
+            }
+            else if (key == GLFW_KEY_V && action == GLFW_PRESS && app != nullptr)
             {
                 if (app->screen_ == Application::AppScreen::Game)
                 {
@@ -663,7 +706,7 @@ namespace dolbuto
             }
         });
 
-        glfwSetMouseButtonCallback(window_, [](GLFWwindow* window, int button, int action, int)
+        glfwSetMouseButtonCallback(window_, [](GLFWwindow* window, int button, int action, int mods)
         {
             auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
             if (app == nullptr)
@@ -679,9 +722,9 @@ namespace dolbuto
                 if (app->renderer_ != nullptr && (action == GLFW_PRESS || action == GLFW_RELEASE))
                 {
                     app->renderer_->uiMouseMove(x, y);
-                    app->renderer_->uiMouseButton(button, action == GLFW_PRESS);
+                    app->renderer_->uiMouseButton(button, action == GLFW_PRESS, mods);
                 }
-                if (action == GLFW_PRESS)
+                if (action == GLFW_PRESS && (app->renderer_ == nullptr || !app->renderer_->rmlUiAvailable()))
                 {
                     app->handleMenuClick(x, y);
                 }
@@ -729,7 +772,25 @@ namespace dolbuto
         glfwSetScrollCallback(window_, [](GLFWwindow* window, double, double yOffset)
         {
             auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-            if (app != nullptr && app->screen_ != Application::AppScreen::Game && app->renderer_ != nullptr)
+            if (app == nullptr)
+            {
+                return;
+            }
+
+            if (app->screen_ == Application::AppScreen::Game)
+            {
+                if (yOffset > 0.0)
+                {
+                    app->cycleHotbarSelectedSlot(-1);
+                }
+                else if (yOffset < 0.0)
+                {
+                    app->cycleHotbarSelectedSlot(1);
+                }
+                return;
+            }
+
+            if (app->renderer_ != nullptr)
             {
                 double x = 0.0;
                 double y = 0.0;
@@ -826,6 +887,20 @@ namespace dolbuto
         {
             renderer_->setFramebufferResized();
         }
+    }
+
+    void Application::setHotbarSelectedSlot(int slot)
+    {
+        hotbarSelectedSlot_ = std::clamp(slot, 0, 9);
+        if (renderer_ != nullptr)
+        {
+            renderer_->setHotbarSelectedSlot(hotbarSelectedSlot_);
+        }
+    }
+
+    void Application::cycleHotbarSelectedSlot(int delta)
+    {
+        setHotbarSelectedSlot((hotbarSelectedSlot_ + delta + 10) % 10);
     }
 
     void Application::setMouseCaptured(bool captured)
@@ -1336,7 +1411,7 @@ namespace dolbuto
         };
     }
 
-    void Application::updatePlayer(double fixedDeltaSeconds)
+    void Application::updatePlayer(double fixedDeltaSeconds, bool allowInput)
     {
         constexpr double MaxCollisionStep = 0.25;
 
@@ -1345,22 +1420,22 @@ namespace dolbuto
         const Vec3 right{std::sin(yaw), 0.0f, -std::cos(yaw)};
 
         Vec3 movement{};
-        if (glfwGetKey(window_, GLFW_KEY_W) == GLFW_PRESS)
+        if (allowInput && glfwGetKey(window_, GLFW_KEY_W) == GLFW_PRESS)
         {
             movement.x += forward.x;
             movement.z += forward.z;
         }
-        if (glfwGetKey(window_, GLFW_KEY_S) == GLFW_PRESS)
+        if (allowInput && glfwGetKey(window_, GLFW_KEY_S) == GLFW_PRESS)
         {
             movement.x -= forward.x;
             movement.z -= forward.z;
         }
-        if (glfwGetKey(window_, GLFW_KEY_D) == GLFW_PRESS)
+        if (allowInput && glfwGetKey(window_, GLFW_KEY_D) == GLFW_PRESS)
         {
             movement.x += right.x;
             movement.z += right.z;
         }
-        if (glfwGetKey(window_, GLFW_KEY_A) == GLFW_PRESS)
+        if (allowInput && glfwGetKey(window_, GLFW_KEY_A) == GLFW_PRESS)
         {
             movement.x -= right.x;
             movement.z -= right.z;
@@ -1368,11 +1443,11 @@ namespace dolbuto
 
         if (moveMode_ == MoveMode::Fly)
         {
-            if (glfwGetKey(window_, GLFW_KEY_SPACE) == GLFW_PRESS)
+            if (allowInput && glfwGetKey(window_, GLFW_KEY_SPACE) == GLFW_PRESS)
             {
                 movement.y += 1.0f;
             }
-            if (glfwGetKey(window_, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS)
+            if (allowInput && (glfwGetKey(window_, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS))
             {
                 movement.y -= 1.0f;
             }

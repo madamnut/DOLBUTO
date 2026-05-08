@@ -22,12 +22,102 @@ body {
     decorator: none;
 }
 
+.inventory-screen {
+    background-color: rgba(0, 0, 0, 180);
+    decorator: none;
+}
+
+.hud-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.hotbar-image {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 708px;
+    height: 96px;
+    margin-left: -354px;
+}
+
+.hotbar-scope {
+    position: absolute;
+    left: 50%;
+    bottom: 12px;
+    width: 72px;
+    height: 72px;
+    margin-left: -342px;
+}
+
+.hotbar-slot-0 {
+    margin-left: -342px;
+}
+
+.hotbar-slot-1 {
+    margin-left: -274px;
+}
+
+.hotbar-slot-2 {
+    margin-left: -206px;
+}
+
+.hotbar-slot-3 {
+    margin-left: -138px;
+}
+
+.hotbar-slot-4 {
+    margin-left: -70px;
+}
+
+.hotbar-slot-5 {
+    margin-left: -2px;
+}
+
+.hotbar-slot-6 {
+    margin-left: 66px;
+}
+
+.hotbar-slot-7 {
+    margin-left: 134px;
+}
+
+.hotbar-slot-8 {
+    margin-left: 202px;
+}
+
+.hotbar-slot-9 {
+    margin-left: 270px;
+}
+
+.inventory-image {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 708px;
+    height: 388px;
+    margin-left: -354px;
+    margin-top: -194px;
+}
+
 .center-stack {
     position: absolute;
     left: 50%;
-    top: 118px;
     width: 520px;
     margin-left: -260px;
+}
+
+.lobby-stack {
+    top: 50%;
+    margin-top: -148px;
+}
+
+.pause-stack {
+    top: 50%;
+    margin-top: -96px;
 }
 
 .title {
@@ -77,19 +167,21 @@ body {
 .world-panel {
     position: absolute;
     left: 50%;
-    top: 48px;
+    top: 50%;
     width: 820px;
     height: 560px;
     margin-left: -410px;
+    margin-top: -280px;
 }
 
 .create-panel {
     position: absolute;
     left: 50%;
-    top: 112px;
+    top: 50%;
     width: 520px;
     height: 360px;
     margin-left: -260px;
+    margin-top: -180px;
 }
 
 .world-list-large {

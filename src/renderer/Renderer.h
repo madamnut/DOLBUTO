@@ -9,6 +9,7 @@
 #include <RmlUi/Core/EventListener.h>
 #include <RmlUi/Core/Input.h>
 #include <RmlUi/Core/RenderInterface.h>
+#include <RmlUi/Core/SystemInterface.h>
 
 #include <array>
 #include <atomic>
@@ -66,18 +67,21 @@ namespace dolbuto
         bool playerColliderIntersectsTerrain(DVec3 playerPosition) const;
         void updateBlockSelection(DVec3 origin, Vec3 direction);
         bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition);
+        bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
         std::string selectedBlockText() const;
         std::string climateText(DVec3 position) const;
         void loadGameScene(const std::filesystem::path& worldDirectory, uint64_t worldSeed);
         void unloadGameScene();
         void resetPeakProfiler();
         void setWorldList(const std::vector<WorldListItem>& worlds);
+        void setHotbarSelectedSlot(int slot);
         std::string uiInputValue(std::string_view id) const;
         void uiMouseMove(double x, double y);
-        void uiMouseButton(int button, bool pressed);
+        void uiMouseButton(int button, bool pressed, int modifiers);
         void uiMouseWheel(double yOffset);
         void uiTextInput(unsigned int codepoint);
-        void uiKey(int key, bool pressed);
+        void uiKey(int key, bool pressed, int modifiers);
+        bool rmlUiAvailable() const;
         std::optional<std::string> consumeUiAction();
 
     private:
@@ -216,6 +220,46 @@ namespace dolbuto
             float mipDistanceScale = 1.0f;
         };
 
+        struct BlockBreakParticle
+        {
+            Vec3 position{};
+            Vec3 velocity{};
+            float age = 0.0f;
+            float lifetime = 0.0f;
+            float size = 0.0f;
+            uint32_t textureLayer = 0;
+            float u0 = 0.0f;
+            float v0 = 0.0f;
+            float u1 = 1.0f;
+            float v1 = 1.0f;
+        };
+
+        struct DroppedItem
+        {
+            Vec3 position{};
+            Vec3 velocity{};
+            uint16_t itemId = 0;
+            uint16_t count = 0;
+            float age = 0.0f;
+            float rotation = 0.0f;
+            float spin = 0.0f;
+            bool grounded = false;
+            bool collecting = false;
+            float collectAge = 0.0f;
+        };
+
+        struct ItemSpriteQuad
+        {
+            std::array<Vec3, 4> positions{};
+            std::array<std::array<float, 2>, 4> uvs{};
+            float ao = 1.0f;
+        };
+
+        struct ItemSpriteMesh
+        {
+            std::vector<ItemSpriteQuad> quads;
+        };
+
         struct PackedTerrainQuad
         {
             uint32_t p0x = 0;
@@ -280,6 +324,29 @@ namespace dolbuto
             std::array<uint32_t, 6> faces{};
         };
 
+        enum class ItemRenderType : uint8_t
+        {
+            Sprite
+        };
+
+        struct BlockDrop
+        {
+            uint16_t itemId = 0;
+            uint16_t min = 1;
+            uint16_t max = 1;
+            float chance = 1.0f;
+        };
+
+        struct ItemDefinition
+        {
+            std::string key = "none";
+            std::string name = "None";
+            uint16_t stackSize = 0;
+            uint32_t textureLayer = 0;
+            ItemRenderType droppedRender = ItemRenderType::Sprite;
+            ItemRenderType heldRender = ItemRenderType::Sprite;
+        };
+
         enum class BlockRenderType : uint8_t
         {
             None,
@@ -314,6 +381,8 @@ namespace dolbuto
             BlockAlphaMode alphaMode = BlockAlphaMode::Opaque;
             float alphaCutoff = 0.5f;
             float mipDistanceScale = 1.0f;
+            bool randomOffset = false;
+            std::vector<BlockDrop> drops;
         };
 
         struct ChunkOffset
@@ -487,6 +556,7 @@ namespace dolbuto
         void createPipeline();
         void createUiPipeline();
         void createTerrainPipeline();
+        void createParticlePipeline();
         void createSelectionPipeline();
         void createFramebuffers();
         void createCommandPool();
@@ -497,13 +567,17 @@ namespace dolbuto
         void createFont();
         void createTextVertexBuffer();
         void createUiBuffers();
+        void createParticleBuffers();
         void createSelectionLineBuffer();
         void initializeRmlUi();
         void shutdownRmlUi();
         bool renderRmlUi(VkCommandBuffer commandBuffer, int menuOverlayMode);
         void setRmlUiDocument(int menuOverlayMode);
+        void updateHotbarScopeClass();
         void attachRmlUiEvents(Rml::ElementDocument* document);
         Rml::Input::KeyIdentifier rmlKeyFromGlfw(int key) const;
+        int rmlKeyModifiersFromGlfw(int modifiers) const;
+        int currentRmlKeyModifiers() const;
         void createPlayerMesh();
         void loadWorldConfig();
         void loadRenderConfig();
@@ -594,7 +668,7 @@ namespace dolbuto
         VkCommandBuffer beginSingleTimeCommands() const;
         void endSingleTimeCommands(VkCommandBuffer commandBuffer) const;
 
-        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool gameSceneRenderEnabled, uint64_t worldTicks);
+        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool gameSceneRenderEnabled, uint64_t worldTicks);
         void copySwapchainImageToBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VkBuffer buffer) const;
         void saveScreenshot(VkDeviceMemory memory, VkDeviceSize size) const;
         void updatePlayerMesh(Vec3 playerPosition, float playerYaw);
@@ -611,6 +685,15 @@ namespace dolbuto
         bool neighborCullsFace(uint16_t block, uint16_t neighbor) const;
         void drawBlockSelection(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition);
         void drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const;
+        void spawnBlockBreakParticles(int x, int y, int z, uint16_t block);
+        void updateBlockBreakParticles();
+        void drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition);
+        void spawnBlockDrops(int x, int y, int z, uint16_t block);
+        bool raycastDroppedItem(DVec3 origin, Vec3 direction, size_t& itemIndex) const;
+        bool droppedItemTouchesPlayerCollider(const DroppedItem& item, Vec3 playerPosition) const;
+        void updateDroppedItems(Vec3 playerPosition);
+        void drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition);
+        ItemSpriteMesh buildItemSpriteMesh(const std::filesystem::path& path) const;
         void drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
         void drawSpriteDescriptor(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
         void drawMenuOverlay(VkCommandBuffer commandBuffer, int menuOverlayMode);
@@ -736,6 +819,9 @@ namespace dolbuto
         VkPipeline terrainWireframePipeline_ = VK_NULL_HANDLE;
         VkPipeline fluidPipeline_ = VK_NULL_HANDLE;
         VkPipeline playerPipeline_ = VK_NULL_HANDLE;
+        VkPipelineLayout particlePipelineLayout_ = VK_NULL_HANDLE;
+        VkPipeline particlePipeline_ = VK_NULL_HANDLE;
+        VkPipeline itemPipeline_ = VK_NULL_HANDLE;
         VkPipelineLayout selectionPipelineLayout_ = VK_NULL_HANDLE;
         VkPipeline selectionPipeline_ = VK_NULL_HANDLE;
         VkCommandPool commandPool_ = VK_NULL_HANDLE;
@@ -754,6 +840,14 @@ namespace dolbuto
         VkDeviceMemory uiVertexMemory_ = VK_NULL_HANDLE;
         VkBuffer uiIndexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory uiIndexMemory_ = VK_NULL_HANDLE;
+        VkBuffer particleVertexBuffer_ = VK_NULL_HANDLE;
+        VkDeviceMemory particleVertexMemory_ = VK_NULL_HANDLE;
+        VkBuffer particleIndexBuffer_ = VK_NULL_HANDLE;
+        VkDeviceMemory particleIndexMemory_ = VK_NULL_HANDLE;
+        VkBuffer droppedItemVertexBuffer_ = VK_NULL_HANDLE;
+        VkDeviceMemory droppedItemVertexMemory_ = VK_NULL_HANDLE;
+        VkBuffer droppedItemIndexBuffer_ = VK_NULL_HANDLE;
+        VkDeviceMemory droppedItemIndexMemory_ = VK_NULL_HANDLE;
         VkBuffer selectionLineVertexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory selectionLineVertexMemory_ = VK_NULL_HANDLE;
         bool hasSelectedBlock_ = false;
@@ -764,6 +858,10 @@ namespace dolbuto
         TerrainMesh playerMesh_;
         std::vector<TerrainVertex> playerLocalVertices_;
         std::vector<uint32_t> playerIndices_;
+        std::vector<BlockBreakParticle> blockBreakParticles_;
+        std::vector<DroppedItem> droppedItems_;
+        double lastParticleUpdateTime_ = 0.0;
+        double lastDroppedItemUpdateTime_ = 0.0;
         int loadGridScale_ = 0;
         int terrainWorkerCount_ = 4;
         int maxTerrainUploadChunksPerFrame_ = 8;
@@ -862,12 +960,17 @@ namespace dolbuto
         Texture playerTexture_;
         Texture terrainTextureArray_;
         Texture fluidTextureArray_;
+        Texture itemTextureArray_;
+        std::unique_ptr<Rml::SystemInterface> rmlSystemInterface_;
         bool rmlInitialized_ = false;
         Rml::Context* rmlContext_ = nullptr;
         Rml::ElementDocument* rmlLobbyDocument_ = nullptr;
         Rml::ElementDocument* rmlWorldSelectDocument_ = nullptr;
         Rml::ElementDocument* rmlWorldCreateDocument_ = nullptr;
+        Rml::ElementDocument* rmlHudDocument_ = nullptr;
+        Rml::ElementDocument* rmlInventoryDocument_ = nullptr;
         Rml::ElementDocument* rmlPauseDocument_ = nullptr;
+        int hotbarSelectedSlot_ = 0;
         int activeRmlMenuOverlayMode_ = -1;
         VkCommandBuffer rmlCommandBuffer_ = VK_NULL_HANDLE;
         bool rmlScissorEnabled_ = false;
@@ -880,6 +983,9 @@ namespace dolbuto
         std::vector<VkFramebuffer> sceneFramebuffers_;
         std::vector<BlockDefinition> blockDefinitions_;
         std::vector<BlockTextureLayers> blockTextureLayers_;
+        std::vector<ItemDefinition> itemDefinitions_;
+        std::vector<ItemSpriteMesh> itemSpriteMeshes_;
+        std::unordered_map<std::string, uint16_t> itemIdByKey_;
         std::unordered_map<uint16_t, PropMesh> propMeshesByBlock_;
         std::array<FontCharacter, 95> fontCharacters_{};
 

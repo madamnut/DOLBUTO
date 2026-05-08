@@ -26,7 +26,7 @@ F5로 순환한다.
 
 ## 이동 모드
 
-F 키로 fly/ground 모드를 전환한다.
+V 키로 fly/ground 모드를 전환한다.
 기본 모드는 fly다.
 
 현재 `config/world.json` 기준:
@@ -74,7 +74,8 @@ F 키로 fly/ground 모드를 전환한다.
 - `A/D`: 좌우 이동
 - `Space`: 상승 또는 점프
 - `Shift`: fly 모드 하강
-- `F`: fly/ground 전환
+- `F`: dropped item pickup
+- `V`: fly/ground 전환
 - `F2`: 스크린샷
 - `F3`: 디버그 텍스트
 - `F4`: 지형 와이어프레임

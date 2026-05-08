@@ -14,6 +14,7 @@
 - [[save-load]]
 - [[player]]
 - [[block-data]]
+- [[item-data]]
 - [[ui]]
 - [[debug-profiling]]
 

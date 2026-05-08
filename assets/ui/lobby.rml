@@ -4,7 +4,7 @@
 </head>
 <body>
     <div class="screen">
-        <div class="center-stack">
+        <div class="center-stack lobby-stack">
             <img class="title" src="../textures/ui/Title.png"/>
             <div id="start" class="button">START</div>
             <div id="exit" class="button secondary">EXIT</div>

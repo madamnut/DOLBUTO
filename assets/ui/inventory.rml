@@ -1,0 +1,10 @@
+<rml>
+<head>
+    <link type="text/rcss" href="style.rcss"/>
+</head>
+<body>
+    <div class="screen inventory-screen">
+        <img class="inventory-image" src="../textures/ui/player/Inventory.png"/>
+    </div>
+</body>
+</rml>
