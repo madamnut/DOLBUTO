@@ -5,6 +5,11 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <RmlUi/Core.h>
+#include <RmlUi/Core/EventListener.h>
+#include <RmlUi/Core/Input.h>
+#include <RmlUi/Core/RenderInterface.h>
+
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -12,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -25,7 +31,7 @@
 
 namespace dolbuto
 {
-    class Renderer
+    class Renderer : public Rml::RenderInterface, public Rml::EventListener
     {
     public:
         explicit Renderer(GLFWwindow* window);
@@ -33,6 +39,13 @@ namespace dolbuto
 
         Renderer(const Renderer&) = delete;
         Renderer& operator=(const Renderer&) = delete;
+
+        struct WorldListItem
+        {
+            std::string name;
+            std::string createdText;
+            std::string lastPlayedText;
+        };
 
         void drawFrame(
             const Camera& camera,
@@ -46,16 +59,26 @@ namespace dolbuto
             bool terrainWireframe,
             int climateOverlayMode,
             int menuOverlayMode,
-            bool worldUpdateEnabled);
+            bool worldUpdateEnabled,
+            bool gameSceneRenderEnabled,
+            uint64_t worldTicks);
         void setFramebufferResized();
         bool playerColliderIntersectsTerrain(DVec3 playerPosition) const;
         void updateBlockSelection(DVec3 origin, Vec3 direction);
-        bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock);
+        bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition);
         std::string selectedBlockText() const;
         std::string climateText(DVec3 position) const;
-        void loadGameScene();
+        void loadGameScene(const std::filesystem::path& worldDirectory, uint64_t worldSeed);
         void unloadGameScene();
         void resetPeakProfiler();
+        void setWorldList(const std::vector<WorldListItem>& worlds);
+        std::string uiInputValue(std::string_view id) const;
+        void uiMouseMove(double x, double y);
+        void uiMouseButton(int button, bool pressed);
+        void uiMouseWheel(double yOffset);
+        void uiTextInput(unsigned int codepoint);
+        void uiKey(int key, bool pressed);
+        std::optional<std::string> consumeUiAction();
 
     private:
         static constexpr std::size_t ChunkColumnCount = 16u * 16u;
@@ -140,6 +163,32 @@ namespace dolbuto
             float y = 0.0f;
             float u = 0.0f;
             float v = 0.0f;
+        };
+
+        struct UiVertex
+        {
+            float x = 0.0f;
+            float y = 0.0f;
+            float r = 1.0f;
+            float g = 1.0f;
+            float b = 1.0f;
+            float a = 1.0f;
+            float u = 0.0f;
+            float v = 0.0f;
+        };
+
+        struct UiPush
+        {
+            float viewportWidth = 1.0f;
+            float viewportHeight = 1.0f;
+            float translateX = 0.0f;
+            float translateY = 0.0f;
+        };
+
+        struct UiGeometry
+        {
+            std::vector<UiVertex> vertices;
+            std::vector<uint32_t> indices;
         };
 
         struct LineVertex
@@ -436,6 +485,7 @@ namespace dolbuto
         void createDescriptorSetLayout();
         void createTerrainVertexDescriptorSetLayout();
         void createPipeline();
+        void createUiPipeline();
         void createTerrainPipeline();
         void createSelectionPipeline();
         void createFramebuffers();
@@ -446,7 +496,14 @@ namespace dolbuto
         void createTextures();
         void createFont();
         void createTextVertexBuffer();
+        void createUiBuffers();
         void createSelectionLineBuffer();
+        void initializeRmlUi();
+        void shutdownRmlUi();
+        bool renderRmlUi(VkCommandBuffer commandBuffer, int menuOverlayMode);
+        void setRmlUiDocument(int menuOverlayMode);
+        void attachRmlUiEvents(Rml::ElementDocument* document);
+        Rml::Input::KeyIdentifier rmlKeyFromGlfw(int key) const;
         void createPlayerMesh();
         void loadWorldConfig();
         void loadRenderConfig();
@@ -484,6 +541,7 @@ namespace dolbuto
         void tryQueueMeshIfReady(int chunkX, int chunkZ);
         void tryQueueMeshesAround(int chunkX, int chunkZ);
         bool setBlockAtWorld(int x, int y, int z, uint16_t block);
+        bool blockIntersectsPlayerCollider(int x, int y, int z, uint16_t block, DVec3 playerPosition) const;
         void updateChunkEmptySubchunk(const std::shared_ptr<ChunkData>& chunk, int subchunkY);
         void rebuildSubchunkMeshNow(int chunkX, int chunkZ, int subchunkY);
         void rebuildEditedChunkMeshes(int blockX, int blockY, int blockZ);
@@ -536,7 +594,7 @@ namespace dolbuto
         VkCommandBuffer beginSingleTimeCommands() const;
         void endSingleTimeCommands(VkCommandBuffer commandBuffer) const;
 
-        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode);
+        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool gameSceneRenderEnabled, uint64_t worldTicks);
         void copySwapchainImageToBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VkBuffer buffer) const;
         void saveScreenshot(VkDeviceMemory memory, VkDeviceSize size) const;
         void updatePlayerMesh(Vec3 playerPosition, float playerYaw);
@@ -582,8 +640,22 @@ namespace dolbuto
         bool projectSkyDirection(const Camera& camera, float aspect, const std::array<float, 3>& direction, SpriteRect& rect) const;
         std::string readCpuName() const;
         std::string formatVersion(uint32_t version) const;
+        int terrainSeed(int offset = 0) const;
+        int temperatureSeed() const;
+        int precipitationSeed() const;
+        static std::string escapeRml(std::string_view text);
         void updateTerrainDebugText();
         void updateVramText();
+
+        Rml::CompiledGeometryHandle CompileGeometry(Rml::Span<const Rml::Vertex> vertices, Rml::Span<const int> indices) override;
+        void RenderGeometry(Rml::CompiledGeometryHandle geometry, Rml::Vector2f translation, Rml::TextureHandle texture) override;
+        void ReleaseGeometry(Rml::CompiledGeometryHandle geometry) override;
+        Rml::TextureHandle LoadTexture(Rml::Vector2i& textureDimensions, const Rml::String& source) override;
+        Rml::TextureHandle GenerateTexture(Rml::Span<const Rml::byte> source, Rml::Vector2i sourceDimensions) override;
+        void ReleaseTexture(Rml::TextureHandle texture) override;
+        void EnableScissorRegion(bool enable) override;
+        void SetScissorRegion(Rml::Rectanglei region) override;
+        void ProcessEvent(Rml::Event& event) override;
 
         GLFWwindow* window_ = nullptr;
 
@@ -657,6 +729,8 @@ namespace dolbuto
         VkDescriptorSetLayout terrainVertexDescriptorSetLayout_ = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
         VkPipeline pipeline_ = VK_NULL_HANDLE;
+        VkPipelineLayout uiPipelineLayout_ = VK_NULL_HANDLE;
+        VkPipeline uiPipeline_ = VK_NULL_HANDLE;
         VkPipelineLayout terrainPipelineLayout_ = VK_NULL_HANDLE;
         VkPipeline terrainPipeline_ = VK_NULL_HANDLE;
         VkPipeline terrainWireframePipeline_ = VK_NULL_HANDLE;
@@ -676,6 +750,10 @@ namespace dolbuto
         VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
         VkBuffer textVertexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory textVertexMemory_ = VK_NULL_HANDLE;
+        VkBuffer uiVertexBuffer_ = VK_NULL_HANDLE;
+        VkDeviceMemory uiVertexMemory_ = VK_NULL_HANDLE;
+        VkBuffer uiIndexBuffer_ = VK_NULL_HANDLE;
+        VkDeviceMemory uiIndexMemory_ = VK_NULL_HANDLE;
         VkBuffer selectionLineVertexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory selectionLineVertexMemory_ = VK_NULL_HANDLE;
         bool hasSelectedBlock_ = false;
@@ -714,6 +792,9 @@ namespace dolbuto
         float precipitationNoiseSimplexScale_ = 1.0f;
         int seaLevel_ = 0;
         float fluidWaterAlpha_ = 0.8f;
+        std::filesystem::path activeWorldDirectory_;
+        uint64_t activeWorldSeed_ = 0;
+        int activeWorldSeedSalt_ = 0;
         int loadedChunkDiameter_ = 0;
         int loadedCenterGroupChunkX_ = 0;
         int loadedCenterGroupChunkZ_ = 0;
@@ -781,6 +862,19 @@ namespace dolbuto
         Texture playerTexture_;
         Texture terrainTextureArray_;
         Texture fluidTextureArray_;
+        bool rmlInitialized_ = false;
+        Rml::Context* rmlContext_ = nullptr;
+        Rml::ElementDocument* rmlLobbyDocument_ = nullptr;
+        Rml::ElementDocument* rmlWorldSelectDocument_ = nullptr;
+        Rml::ElementDocument* rmlWorldCreateDocument_ = nullptr;
+        Rml::ElementDocument* rmlPauseDocument_ = nullptr;
+        int activeRmlMenuOverlayMode_ = -1;
+        VkCommandBuffer rmlCommandBuffer_ = VK_NULL_HANDLE;
+        bool rmlScissorEnabled_ = false;
+        VkRect2D rmlScissor_{};
+        size_t rmlUiVertexOffset_ = 0;
+        size_t rmlUiIndexOffset_ = 0;
+        std::optional<std::string> pendingUiAction_;
         std::vector<Texture> sceneColorTargets_;
         std::vector<Texture> sceneDepthTargets_;
         std::vector<VkFramebuffer> sceneFramebuffers_;

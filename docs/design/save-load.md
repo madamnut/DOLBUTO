@@ -5,7 +5,7 @@
 월드 저장 파일은 다음 경로를 사용한다.
 
 ```text
-saves/world/regions/
+saves/<world-name>/regions/
 ```
 
 Debug와 Release/Portable의 실제 기준 경로는 [[runtime-paths]]를 따른다.
@@ -112,7 +112,7 @@ Chunk payloads store climate immediately after block/fluid RLE data and before i
 Player state is stored separately from region chunk data.
 
 ```text
-saves/world/player.dat
+saves/<world-name>/player.dat
 ```
 
 The file is a fixed binary layout with no version field.
@@ -134,3 +134,37 @@ Total size is 41 bytes. X/Z are saved as wrapped world coordinates.
 Pause `EXIT` uses the same save boundary for the game scene before returning to the lobby.
 Player state is saved first, terrain workers are stopped, all runtime chunks are enqueued for saving, and the save worker is drained before loaded terrain data is destroyed.
 The save worker remains stopped while the lobby scene is active and is started again by the next game scene.
+
+## World State
+
+World-level metadata is stored separately from player and region data.
+
+```text
+saves/<world-name>/world.dat
+```
+
+The file is a fixed binary layout with no version field.
+
+```text
+uint64 totalTicks
+uint64 seed
+uint64 createdUnixSeconds
+uint64 lastPlayedUnixSeconds
+```
+
+Game time uses 20 ticks per in-game minute.
+One day is `24 * 60 * 20 = 28800` ticks.
+If `world.dat` does not exist, the world starts at `7200` ticks, displayed as `0D 06H 00M`.
+The seed is displayed in the upper-left debug text as `SEED: <value>`.
+Creation and last-played times are stored as Unix seconds and formatted only for UI display.
+Saving world state updates `lastPlayedUnixSeconds`; `createdUnixSeconds` is fixed at world creation.
+
+## World Slots
+
+The lobby has a world selection UI with a saved-world list and a new-world form.
+Creating a world requires a world name and seed.
+Worlds are stored as folders directly under `saves`.
+The world folder name is the world name.
+The world selection UI scans `saves` when entering the world list screen and shows directories containing `world.dat`.
+Each world row displays the world creation time and last played time.
+Creating a world creates `saves/<world-name>/regions`, writes `world.dat`, writes default `player.dat`, and enters the game scene.

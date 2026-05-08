@@ -87,6 +87,8 @@ endif()
 set(SHADER_SOURCES
     shaders/sprite.vert
     shaders/sprite.frag
+    shaders/rmlui.vert
+    shaders/rmlui.frag
     shaders/terrain.vert
     shaders/terrain.frag
     shaders/fluid.frag
@@ -141,7 +143,7 @@ target_compile_definitions(DOLBUTO
     PRIVATE
         DOLBUTO_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
         DOLBUTO_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config"
-        DOLBUTO_WORLD_DIR="${CMAKE_CURRENT_SOURCE_DIR}/saves/world"
+        DOLBUTO_SAVE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/saves"
         DOLBUTO_SHADER_DIR="${SHADER_OUTPUT_DIR}"
         DOLBUTO_LOG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/logs"
 )
@@ -178,7 +180,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebI
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets" "$<TARGET_FILE_DIR:DOLBUTO>/assets"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/config" "$<TARGET_FILE_DIR:DOLBUTO>/config"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${SHADER_OUTPUT_DIR}" "$<TARGET_FILE_DIR:DOLBUTO>/shaders"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:DOLBUTO>/saves/world/regions"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:DOLBUTO>/saves"
     )
 endif()
 
@@ -187,7 +189,7 @@ set(DOLBUTO_PORTABLE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dist/DOLBUTO_0.0.0.1")
 add_custom_target(DOLBUTOPortable
     COMMAND ${CMAKE_COMMAND} -E rm -rf "${DOLBUTO_PORTABLE_DIR}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${DOLBUTO_PORTABLE_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${DOLBUTO_PORTABLE_DIR}/saves/world/regions"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${DOLBUTO_PORTABLE_DIR}/saves"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:DOLBUTO>" "${DOLBUTO_PORTABLE_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GLFW_DLL}" "${DOLBUTO_PORTABLE_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets" "${DOLBUTO_PORTABLE_DIR}/assets"

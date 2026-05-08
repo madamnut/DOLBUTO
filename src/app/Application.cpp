@@ -11,12 +11,15 @@
 #include <stb_image.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cmath>
 #include <cstdio>
+#include <ctime>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <optional>
 #include <stdexcept>
 #include <sstream>
@@ -42,10 +45,18 @@ namespace dolbuto
         constexpr double DefaultGravity = 32.0;
         constexpr double WorldSizeBlocks = 65536.0;
         constexpr size_t PlayerStateFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t);
+        constexpr size_t WorldStateFileSize = sizeof(uint64_t) * 4u;
+        constexpr uint64_t TicksPerMinute = 20;
+        constexpr uint64_t MinutesPerHour = 60;
+        constexpr uint64_t HoursPerDay = 24;
+        constexpr uint64_t TicksPerHour = TicksPerMinute * MinutesPerHour;
+        constexpr uint64_t TicksPerDay = TicksPerHour * HoursPerDay;
+        constexpr uint64_t DefaultWorldTicks = TicksPerHour * 6u;
         constexpr float MenuButtonWidth = 240.0f;
         constexpr float MenuButtonHeight = 56.0f;
         constexpr float LobbyStartButtonY = 0.45f;
         constexpr float LobbyExitButtonY = 0.56f;
+        constexpr float WorldBackButtonY = 0.72f;
         constexpr float PauseResumeButtonY = 0.46f;
         constexpr float PauseExitButtonY = 0.57f;
 
@@ -191,9 +202,97 @@ namespace dolbuto
                 y <= centerY + MenuButtonHeight * 0.5;
         }
 
-        std::filesystem::path playerStatePath()
+        std::string trim(std::string value)
         {
-            return worldDirectory() / "player.dat";
+            while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front())) != 0)
+            {
+                value.erase(value.begin());
+            }
+            while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back())) != 0)
+            {
+                value.pop_back();
+            }
+            return value;
+        }
+
+        std::string sanitizeWorldName(std::string value)
+        {
+            value = trim(std::move(value));
+            if (value.empty())
+            {
+                value = "New World";
+            }
+
+            for (char& c : value)
+            {
+                const unsigned char ch = static_cast<unsigned char>(c);
+                if (ch < 32u || c == '<' || c == '>' || c == ':' || c == '"' || c == '/' || c == '\\' || c == '|' || c == '?' || c == '*')
+                {
+                    c = '_';
+                }
+            }
+            return value;
+        }
+
+        uint64_t hashSeedString(std::string_view text)
+        {
+            uint64_t hash = 1469598103934665603ull;
+            for (const unsigned char c : text)
+            {
+                hash ^= c;
+                hash *= 1099511628211ull;
+            }
+            return hash;
+        }
+
+        uint64_t parseWorldSeed(std::string value)
+        {
+            value = trim(std::move(value));
+            if (value.empty())
+            {
+                return static_cast<uint64_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+            }
+
+            try
+            {
+                size_t parsed = 0;
+                const uint64_t seed = std::stoull(value, &parsed, 10);
+                if (parsed == value.size())
+                {
+                    return seed;
+                }
+            }
+            catch (...)
+            {
+            }
+
+            return hashSeedString(value);
+        }
+
+        uint64_t currentUnixSeconds()
+        {
+            return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
+        }
+
+        std::string formatUnixSeconds(uint64_t seconds)
+        {
+            if (seconds == 0)
+            {
+                return "----.--.-- --:--";
+            }
+
+            const std::time_t time = static_cast<std::time_t>(seconds);
+            std::tm localTime{};
+#if defined(_WIN32)
+            localtime_s(&localTime, &time);
+#else
+            localtime_r(&time, &localTime);
+#endif
+
+            std::ostringstream text;
+            text << std::put_time(&localTime, "%Y.%m.%d %H:%M");
+            return text.str();
         }
 
         void writeU8(std::vector<uint8_t>& bytes, uint8_t value)
@@ -294,10 +393,9 @@ namespace dolbuto
         log::info("Asset directory: " + assetDirectory().string());
         log::info("Config directory: " + configDirectory().string());
         log::info("Shader directory: " + shaderDirectory().string());
-        log::info("World directory: " + worldDirectory().string());
+        log::info("Save root directory: " + saveRootDirectory().string());
         log::info("Log directory: " + logDirectory().string());
         loadMovementConfig();
-        loadPlayerState();
         initWindow();
         renderer_ = std::make_unique<Renderer>(window_);
         setScreen(AppScreen::Lobby);
@@ -307,7 +405,11 @@ namespace dolbuto
 
     Application::~Application()
     {
-        savePlayerState();
+        if (hasSelectedWorld_)
+        {
+            saveWorldState();
+            savePlayerState();
+        }
         renderer_.reset();
         shutdownWindow();
     }
@@ -321,6 +423,55 @@ namespace dolbuto
             {
                 break;
             }
+            if (renderer_ != nullptr)
+            {
+                while (std::optional<std::string> action = renderer_->consumeUiAction())
+                {
+                    if (*action == "start")
+                    {
+                        setScreen(AppScreen::WorldSelect);
+                    }
+                    else if (action->rfind("world-open-", 0) == 0)
+                    {
+                        try
+                        {
+                            openWorldByIndex(static_cast<size_t>(std::stoull(action->substr(11))));
+                        }
+                        catch (...)
+                        {
+                            log::warn("Invalid world list action: " + *action);
+                        }
+                    }
+                    else if (*action == "exit")
+                    {
+                        glfwSetWindowShouldClose(window_, GLFW_TRUE);
+                    }
+                    else if (*action == "new-world")
+                    {
+                        setScreen(AppScreen::WorldCreate);
+                    }
+                    else if (*action == "create-world")
+                    {
+                        createWorldFromUi();
+                    }
+                    else if (*action == "back-to-lobby")
+                    {
+                        setScreen(AppScreen::Lobby);
+                    }
+                    else if (*action == "back-to-world-select")
+                    {
+                        setScreen(AppScreen::WorldSelect);
+                    }
+                    else if (*action == "resume")
+                    {
+                        setScreen(AppScreen::Game);
+                    }
+                    else if (*action == "exit-to-lobby")
+                    {
+                        returnToLobbyScene();
+                    }
+                }
+            }
 
             const auto now = std::chrono::steady_clock::now();
             const std::chrono::duration<double> delta = now - lastFrameTime_;
@@ -331,6 +482,7 @@ namespace dolbuto
             {
                 previousPlayerPosition_ = playerPosition_;
                 updatePlayer(FixedPhysicsTimestep);
+                ++worldTicks_;
                 physicsAccumulator_ -= FixedPhysicsTimestep;
             }
             if (screen_ != AppScreen::Game)
@@ -374,9 +526,11 @@ namespace dolbuto
                 showPlayer = true;
             }
 
-            const int menuOverlayMode = screen_ == AppScreen::Lobby ? 1 : (screen_ == AppScreen::Pause ? 2 : 0);
-            const bool worldUpdateEnabled = screen_ != AppScreen::Lobby;
-            renderer_->drawFrame(renderCamera, renderCameraPosition, debugText_.data(), debugTextVisible_, screenshotRequested_, showPlayer, renderPlayerPosition, camera_.yaw(), terrainWireframe_, climateOverlayMode_, menuOverlayMode, worldUpdateEnabled);
+            const int menuOverlayMode = screen_ == AppScreen::Lobby ? 1 : (screen_ == AppScreen::Pause ? 2 : (screen_ == AppScreen::WorldSelect ? 3 : (screen_ == AppScreen::WorldCreate ? 4 : 0)));
+            const bool worldUpdateEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause;
+            const bool gameSceneRenderEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause;
+            const bool renderDebugText = screen_ == AppScreen::Game && debugTextVisible_;
+            renderer_->drawFrame(renderCamera, renderCameraPosition, debugText_.data(), renderDebugText, screenshotRequested_, showPlayer, renderPlayerPosition, camera_.yaw(), terrainWireframe_, climateOverlayMode_, menuOverlayMode, worldUpdateEnabled, gameSceneRenderEnabled, worldTicks_);
             screenshotRequested_ = false;
         }
     }
@@ -428,6 +582,10 @@ namespace dolbuto
         glfwSetKeyCallback(window_, [](GLFWwindow* window, int key, int, int action, int)
         {
             auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+            if (app != nullptr && app->screen_ != Application::AppScreen::Game && app->renderer_ != nullptr && (action == GLFW_PRESS || action == GLFW_RELEASE))
+            {
+                app->renderer_->uiKey(key, action == GLFW_PRESS);
+            }
             if (key == GLFW_KEY_SPACE && app != nullptr && app->screen_ == Application::AppScreen::Game)
             {
                 if (action == GLFW_PRESS)
@@ -450,6 +608,10 @@ namespace dolbuto
                 else if (app != nullptr && app->screen_ == Application::AppScreen::Pause)
                 {
                     app->setScreen(Application::AppScreen::Game);
+                }
+                else if (app != nullptr && (app->screen_ == Application::AppScreen::WorldSelect || app->screen_ == Application::AppScreen::WorldCreate))
+                {
+                    app->setScreen(app->screen_ == Application::AppScreen::WorldCreate ? Application::AppScreen::WorldSelect : Application::AppScreen::Lobby);
                 }
             }
             else if (key == GLFW_KEY_F11 && action == GLFW_PRESS && app != nullptr)
@@ -492,10 +654,19 @@ namespace dolbuto
             }
         });
 
+        glfwSetCharCallback(window_, [](GLFWwindow* window, unsigned int codepoint)
+        {
+            auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+            if (app != nullptr && app->screen_ != Application::AppScreen::Game && app->renderer_ != nullptr)
+            {
+                app->renderer_->uiTextInput(codepoint);
+            }
+        });
+
         glfwSetMouseButtonCallback(window_, [](GLFWwindow* window, int button, int action, int)
         {
             auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-            if (app == nullptr || action != GLFW_PRESS)
+            if (app == nullptr)
             {
                 return;
             }
@@ -505,7 +676,20 @@ namespace dolbuto
                 double x = 0.0;
                 double y = 0.0;
                 glfwGetCursorPos(window, &x, &y);
-                app->handleMenuClick(x, y);
+                if (app->renderer_ != nullptr && (action == GLFW_PRESS || action == GLFW_RELEASE))
+                {
+                    app->renderer_->uiMouseMove(x, y);
+                    app->renderer_->uiMouseButton(button, action == GLFW_PRESS);
+                }
+                if (action == GLFW_PRESS)
+                {
+                    app->handleMenuClick(x, y);
+                }
+                return;
+            }
+
+            if (action != GLFW_PRESS)
+            {
                 return;
             }
 
@@ -520,7 +704,8 @@ namespace dolbuto
                     app->renderer_->editBlockInView(
                         {app->playerPosition_.x, app->playerPosition_.y + EyeHeight, app->playerPosition_.z},
                         renderViewDirection(app->camera_),
-                        false);
+                        false,
+                        app->playerPosition_);
                 }
                 app->setMouseCaptured(true);
             }
@@ -531,12 +716,26 @@ namespace dolbuto
                     app->renderer_->editBlockInView(
                         {app->playerPosition_.x, app->playerPosition_.y + EyeHeight, app->playerPosition_.z},
                         renderViewDirection(app->camera_),
-                        true);
+                        true,
+                        app->playerPosition_);
                 }
                 else
                 {
                     app->setMouseCaptured(true);
                 }
+            }
+        });
+
+        glfwSetScrollCallback(window_, [](GLFWwindow* window, double, double yOffset)
+        {
+            auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+            if (app != nullptr && app->screen_ != Application::AppScreen::Game && app->renderer_ != nullptr)
+            {
+                double x = 0.0;
+                double y = 0.0;
+                glfwGetCursorPos(window, &x, &y);
+                app->renderer_->uiMouseMove(x, y);
+                app->renderer_->uiMouseWheel(yOffset);
             }
         });
 
@@ -578,6 +777,15 @@ namespace dolbuto
 
     void Application::handleMouse(double x, double y)
     {
+        if (screen_ != AppScreen::Game)
+        {
+            if (renderer_ != nullptr)
+            {
+                renderer_->uiMouseMove(x, y);
+            }
+            return;
+        }
+
         if (!mouseCaptured_ || screen_ != AppScreen::Game)
         {
             return;
@@ -637,11 +845,25 @@ namespace dolbuto
         {
             if (pointInButton(x, y, width, height, LobbyStartButtonY))
             {
-                enterGameScene();
+                setScreen(AppScreen::WorldSelect);
             }
             else if (pointInButton(x, y, width, height, LobbyExitButtonY))
             {
                 glfwSetWindowShouldClose(window_, GLFW_TRUE);
+            }
+        }
+        else if (screen_ == AppScreen::WorldSelect)
+        {
+            if (pointInButton(x, y, width, height, WorldBackButtonY))
+            {
+                setScreen(AppScreen::Lobby);
+            }
+        }
+        else if (screen_ == AppScreen::WorldCreate)
+        {
+            if (pointInButton(x, y, width, height, WorldBackButtonY))
+            {
+                setScreen(AppScreen::WorldSelect);
             }
         }
         else if (screen_ == AppScreen::Pause)
@@ -660,6 +882,10 @@ namespace dolbuto
     void Application::setScreen(AppScreen screen)
     {
         screen_ = screen;
+        if (screen_ == AppScreen::WorldSelect)
+        {
+            refreshWorldList();
+        }
         jumpHeld_ = false;
         jumpPressed_ = false;
         if (screen_ == AppScreen::Game)
@@ -674,15 +900,181 @@ namespace dolbuto
 
     void Application::enterGameScene()
     {
+        if (!hasSelectedWorld_)
+        {
+            log::warn("Cannot enter game scene without a selected world.");
+            return;
+        }
+
+        loadWorldState();
+        saveWorldState();
+        resetPlayerRuntimeState();
+        loadPlayerState();
         if (renderer_ != nullptr)
         {
-            renderer_->loadGameScene();
+            renderer_->loadGameScene(selectedWorldDirectory_, worldSeed_);
         }
         setScreen(AppScreen::Game);
     }
 
+    std::filesystem::path Application::playerStatePath() const
+    {
+        return selectedWorldDirectory_ / "player.dat";
+    }
+
+    std::filesystem::path Application::worldStatePath() const
+    {
+        return selectedWorldDirectory_ / "world.dat";
+    }
+
+    void Application::resetPlayerRuntimeState()
+    {
+        playerPosition_ = {0.0, 300.0, 0.0};
+        previousPlayerPosition_ = playerPosition_;
+        camera_.setAngles(0.0f, 0.0f);
+        moveMode_ = MoveMode::Fly;
+        verticalVelocity_ = 0.0;
+        grounded_ = false;
+        jumpHeld_ = false;
+        jumpPressed_ = false;
+        physicsAccumulator_ = 0.0;
+    }
+
+    void Application::refreshWorldList()
+    {
+        availableWorlds_.clear();
+        const std::filesystem::path root = saveRootDirectory();
+
+        try
+        {
+            std::filesystem::create_directories(root);
+            for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(root))
+            {
+                if (!entry.is_directory())
+                {
+                    continue;
+                }
+
+                const std::filesystem::path worldPath = entry.path();
+                const std::filesystem::path statePath = worldPath / "world.dat";
+                if (!std::filesystem::exists(statePath))
+                {
+                    continue;
+                }
+
+                WorldInfo info{};
+                info.name = worldPath.filename().string();
+                info.path = worldPath;
+                info.totalTicks = DefaultWorldTicks;
+                info.seed = 0;
+                info.createdUnixSeconds = 0;
+                info.lastPlayedUnixSeconds = 0;
+
+                std::ifstream file(statePath, std::ios::binary);
+                if (file.is_open())
+                {
+                    std::vector<uint8_t> bytes(WorldStateFileSize);
+                    file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+                    if (file)
+                    {
+                        size_t offset = 0;
+                        info.totalTicks = readU64(bytes, offset);
+                        info.seed = readU64(bytes, offset);
+                        info.createdUnixSeconds = readU64(bytes, offset);
+                        info.lastPlayedUnixSeconds = readU64(bytes, offset);
+                    }
+                }
+
+                availableWorlds_.push_back(std::move(info));
+            }
+
+            std::sort(availableWorlds_.begin(), availableWorlds_.end(), [](const WorldInfo& a, const WorldInfo& b)
+            {
+                return a.name < b.name;
+            });
+        }
+        catch (...)
+        {
+            log::warn("World list refresh failed.");
+        }
+
+        if (renderer_ != nullptr)
+        {
+            std::vector<Renderer::WorldListItem> items;
+            items.reserve(availableWorlds_.size());
+            for (const WorldInfo& world : availableWorlds_)
+            {
+                items.push_back(Renderer::WorldListItem{
+                    world.name,
+                    formatUnixSeconds(world.createdUnixSeconds),
+                    formatUnixSeconds(world.lastPlayedUnixSeconds)
+                });
+            }
+            renderer_->setWorldList(items);
+        }
+    }
+
+    void Application::openWorldByIndex(size_t index)
+    {
+        if (index >= availableWorlds_.size())
+        {
+            log::warn("World index out of range.");
+            return;
+        }
+
+        const WorldInfo& world = availableWorlds_[index];
+        selectedWorldName_ = world.name;
+        selectedWorldDirectory_ = world.path;
+        worldSeed_ = world.seed;
+        worldCreatedUnixSeconds_ = world.createdUnixSeconds;
+        worldLastPlayedUnixSeconds_ = world.lastPlayedUnixSeconds;
+        hasSelectedWorld_ = true;
+        log::info("World selected: " + selectedWorldName_);
+        enterGameScene();
+    }
+
+    void Application::createWorldFromUi()
+    {
+        const std::string rawName = renderer_ != nullptr ? renderer_->uiInputValue("new-world-name") : "New World";
+        const std::string rawSeed = renderer_ != nullptr ? renderer_->uiInputValue("new-world-seed") : "";
+        const std::string baseName = sanitizeWorldName(rawName);
+        uint64_t seed = parseWorldSeed(rawSeed);
+
+        std::filesystem::path worldPath = saveRootDirectory() / baseName;
+        std::string finalName = baseName;
+        int suffix = 2;
+        while (std::filesystem::exists(worldPath))
+        {
+            finalName = baseName + " " + std::to_string(suffix++);
+            worldPath = saveRootDirectory() / finalName;
+        }
+
+        try
+        {
+            selectedWorldName_ = finalName;
+            selectedWorldDirectory_ = worldPath;
+            worldTicks_ = DefaultWorldTicks;
+            worldSeed_ = seed;
+            worldCreatedUnixSeconds_ = currentUnixSeconds();
+            worldLastPlayedUnixSeconds_ = worldCreatedUnixSeconds_;
+            hasSelectedWorld_ = true;
+            std::filesystem::create_directories(selectedWorldDirectory_ / "regions");
+            saveWorldState();
+            resetPlayerRuntimeState();
+            savePlayerState();
+            log::info("World created: " + selectedWorldName_);
+            enterGameScene();
+        }
+        catch (...)
+        {
+            hasSelectedWorld_ = false;
+            log::warn("World creation failed.");
+        }
+    }
+
     void Application::returnToLobbyScene()
     {
+        saveWorldState();
         savePlayerState();
         if (renderer_ != nullptr)
         {
@@ -692,6 +1084,7 @@ namespace dolbuto
         physicsAccumulator_ = 0.0;
         verticalVelocity_ = 0.0;
         grounded_ = false;
+        hasSelectedWorld_ = false;
         setScreen(AppScreen::Lobby);
     }
 
@@ -745,6 +1138,89 @@ namespace dolbuto
         if (const std::optional<double> value = jsonDoubleField(player, "gravity"); value.has_value() && *value > 0.0)
         {
             gravity_ = *value;
+        }
+    }
+
+    void Application::loadWorldState()
+    {
+        worldTicks_ = DefaultWorldTicks;
+        if (worldCreatedUnixSeconds_ == 0)
+        {
+            worldCreatedUnixSeconds_ = currentUnixSeconds();
+        }
+
+        std::ifstream file(worldStatePath(), std::ios::binary);
+        if (!file.is_open())
+        {
+            log::warn("World state not found, using default world time and selected seed.");
+            return;
+        }
+
+        std::vector<uint8_t> bytes(WorldStateFileSize);
+        file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+        if (!file)
+        {
+            log::warn("World state file is incomplete, using default world time.");
+            worldTicks_ = DefaultWorldTicks;
+            return;
+        }
+
+        try
+        {
+            size_t offset = 0;
+            worldTicks_ = readU64(bytes, offset);
+            worldSeed_ = readU64(bytes, offset);
+            worldCreatedUnixSeconds_ = readU64(bytes, offset);
+            worldLastPlayedUnixSeconds_ = readU64(bytes, offset);
+            log::info("World state loaded.");
+        }
+        catch (...)
+        {
+            log::warn("World state load failed, using default world time.");
+            worldTicks_ = DefaultWorldTicks;
+        }
+    }
+
+    void Application::saveWorldState()
+    {
+        if (!hasSelectedWorld_)
+        {
+            return;
+        }
+
+        try
+        {
+            std::filesystem::create_directories(selectedWorldDirectory_);
+            if (worldCreatedUnixSeconds_ == 0)
+            {
+                worldCreatedUnixSeconds_ = currentUnixSeconds();
+            }
+            worldLastPlayedUnixSeconds_ = currentUnixSeconds();
+
+            std::vector<uint8_t> bytes;
+            bytes.reserve(WorldStateFileSize);
+            writeU64(bytes, worldTicks_);
+            writeU64(bytes, worldSeed_);
+            writeU64(bytes, worldCreatedUnixSeconds_);
+            writeU64(bytes, worldLastPlayedUnixSeconds_);
+
+            std::ofstream file(worldStatePath(), std::ios::binary | std::ios::trunc);
+            if (!file.is_open())
+            {
+                log::warn("World state save file could not be opened.");
+                return;
+            }
+            file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+            if (!file)
+            {
+                log::warn("World state save write failed.");
+                return;
+            }
+            log::info("World state saved.");
+        }
+        catch (...)
+        {
+            log::warn("World state save failed.");
         }
     }
 
@@ -811,9 +1287,14 @@ namespace dolbuto
 
     void Application::savePlayerState() const
     {
+        if (!hasSelectedWorld_)
+        {
+            return;
+        }
+
         try
         {
-            std::filesystem::create_directories(worldDirectory());
+            std::filesystem::create_directories(selectedWorldDirectory_);
 
             std::vector<uint8_t> bytes;
             bytes.reserve(PlayerStateFileSize);
@@ -1027,11 +1508,15 @@ namespace dolbuto
         const double wrappedPlayerZ = wrapWorldCoordinate(playerPosition_.z);
         const std::string lookAtText = renderer_ != nullptr ? renderer_->selectedBlockText() : "LOOKAT: none";
         const std::string climateText = renderer_ != nullptr ? renderer_->climateText(playerPosition_) : "CLIMATE: T[0.000] P[0.000]";
+        const uint64_t day = worldTicks_ / TicksPerDay;
+        const uint64_t minuteOfDay = (worldTicks_ % TicksPerDay) / TicksPerMinute;
+        const uint64_t hour = minuteOfDay / MinutesPerHour;
+        const uint64_t minute = minuteOfDay % MinutesPerHour;
 
         std::snprintf(
             debugText_.data(),
             debugText_.size(),
-            "FPS: %04d [%07.3fMS]\nPOS: X %.3f [%.3f] / Y %.3f / Z %.3f [%.3f]\nVIEW: YAW %.1f / PITCH %.1f [%s]\n%s\n%s",
+            "FPS: %04d [%07.3fMS]\nPOS: X %.3f [%.3f] / Y %.3f / Z %.3f [%.3f]\nVIEW: YAW %.1f / PITCH %.1f [%s]\n%s\n%s\nTIME: %lluD %02lluH %02lluM\nSEED: %llu",
             clampedFps,
             milliseconds,
             wrappedPlayerX,
@@ -1043,7 +1528,11 @@ namespace dolbuto
             pitchDegrees,
             facing,
             lookAtText.c_str(),
-            climateText.c_str());
+            climateText.c_str(),
+            static_cast<unsigned long long>(day),
+            static_cast<unsigned long long>(hour),
+            static_cast<unsigned long long>(minute),
+            static_cast<unsigned long long>(worldSeed_));
 
         fpsSampleFrames_ = 0;
         fpsSampleStart_ = now;

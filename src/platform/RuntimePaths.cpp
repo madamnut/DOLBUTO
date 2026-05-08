@@ -52,13 +52,18 @@ namespace dolbuto
 #endif
     }
 
-    std::filesystem::path worldDirectory()
+    std::filesystem::path saveRootDirectory()
     {
 #ifdef NDEBUG
-        return executableDirectory() / "saves" / "world";
+        return executableDirectory() / "saves";
 #else
-        return std::filesystem::path(DOLBUTO_WORLD_DIR);
+        return std::filesystem::path(DOLBUTO_SAVE_DIR);
 #endif
+    }
+
+    std::filesystem::path worldDirectory()
+    {
+        return saveRootDirectory() / "world";
     }
 
     std::filesystem::path screenshotDirectory()

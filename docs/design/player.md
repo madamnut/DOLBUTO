@@ -96,3 +96,18 @@ Player state is loaded from and saved to `saves/world/player.dat`.
 - Interpolation state is not saved; on load, previous position is set to the loaded position.
 
 Related document: [[save-load]]
+
+## Block Placement Collision
+
+Block placement is ignored when the placed collision block would overlap the current player collider.
+Non-collision blocks are not blocked by this rule.
+
+## Debug Time
+
+The upper-left debug text includes world time as:
+
+```text
+TIME: 0D 06H 00M
+```
+
+The display is derived from the world `totalTicks` value stored in `saves/<world-name>/world.dat`.

@@ -1,0 +1,24 @@
+<rml>
+<head>
+    <link type="text/rcss" href="style.rcss"/>
+</head>
+<body>
+    <div class="screen">
+        <div class="world-panel">
+            <div class="heading">SELECT WORLD</div>
+            <div class="world-list-large">
+                <div id="world-list">
+                    <div class="world-row large">
+                        <div class="world-name">No worlds yet</div>
+                        <div class="world-meta">Create a new world to begin</div>
+                    </div>
+                </div>
+            </div>
+            <div class="bottom-actions">
+                <div id="new-world" class="button left">NEW WORLD</div>
+                <div id="back-to-lobby" class="button secondary right">EXIT</div>
+            </div>
+        </div>
+    </div>
+</body>
+</rml>

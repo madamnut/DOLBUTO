@@ -7,6 +7,12 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/Element.h>
+#include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/Elements/ElementFormControlInput.h>
+#include <RmlUi/Core/Event.h>
+
 #include <FastNoise/FastNoise.h>
 #include <stb_image.h>
 #include <stb_image_write.h>
@@ -46,6 +52,8 @@ namespace dolbuto
         constexpr int FontAtlasSize = 512;
         constexpr float FontPixelHeight = 18.0f;
         constexpr size_t MaxTextVertices = 65536;
+        constexpr size_t MaxUiVertices = 262144;
+        constexpr size_t MaxUiIndices = 393216;
         constexpr int ChunkSizeX = 16;
         constexpr int ChunkSizeY = 512;
         constexpr int ChunkSizeZ = 16;
@@ -2522,6 +2530,7 @@ namespace dolbuto
         createDescriptorSetLayout();
         createTerrainVertexDescriptorSetLayout();
         createPipeline();
+        createUiPipeline();
         createTerrainPipeline();
         createSelectionPipeline();
         createCommandPool();
@@ -2533,8 +2542,10 @@ namespace dolbuto
         createTextures();
         createFont();
         createTextVertexBuffer();
+        createUiBuffers();
         createSelectionLineBuffer();
         createPlayerMesh();
+        initializeRmlUi();
         loadWorldConfig();
         loadRenderConfig();
         loadHeightLut();
@@ -2548,6 +2559,7 @@ namespace dolbuto
         enqueueSaveAllRuntimeChunks();
         stopSaveWorker();
         vkDeviceWaitIdle(device_);
+        shutdownRmlUi();
 
         cleanupSwapchain();
         destroyTexture(terrainTextureArray_);
@@ -2572,6 +2584,22 @@ namespace dolbuto
         if (textVertexMemory_ != VK_NULL_HANDLE)
         {
             vkFreeMemory(device_, textVertexMemory_, nullptr);
+        }
+        if (uiVertexBuffer_ != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(device_, uiVertexBuffer_, nullptr);
+        }
+        if (uiVertexMemory_ != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(device_, uiVertexMemory_, nullptr);
+        }
+        if (uiIndexBuffer_ != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(device_, uiIndexBuffer_, nullptr);
+        }
+        if (uiIndexMemory_ != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(device_, uiIndexMemory_, nullptr);
         }
         if (selectionLineVertexBuffer_ != VK_NULL_HANDLE)
         {
@@ -2638,9 +2666,17 @@ namespace dolbuto
         {
             vkDestroyPipeline(device_, pipeline_, nullptr);
         }
+        if (uiPipeline_ != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(device_, uiPipeline_, nullptr);
+        }
         if (pipelineLayout_ != VK_NULL_HANDLE)
         {
             vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
+        }
+        if (uiPipelineLayout_ != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(device_, uiPipelineLayout_, nullptr);
         }
         if (descriptorSetLayout_ != VK_NULL_HANDLE)
         {
@@ -2684,7 +2720,9 @@ namespace dolbuto
         bool terrainWireframe,
         int climateOverlayMode,
         int menuOverlayMode,
-        bool worldUpdateEnabled)
+        bool worldUpdateEnabled,
+        bool gameSceneRenderEnabled,
+        uint64_t worldTicks)
     {
         const auto frameStart = std::chrono::steady_clock::now();
         frameChunkUpdateMs_ = 0.0;
@@ -2777,7 +2815,7 @@ namespace dolbuto
         }
         ensureClimateOverlayTexture(climateOverlayMode);
 
-        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPositionFloat, fpsText, debugTextVisible, screenshotBuffer, showPlayer, terrainWireframe, climateOverlayMode, menuOverlayMode);
+        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPositionFloat, fpsText, debugTextVisible, screenshotBuffer, showPlayer, terrainWireframe, climateOverlayMode, menuOverlayMode, gameSceneRenderEnabled, worldTicks);
 
         VkSemaphore waitSemaphores[] = {imageAvailableSemaphores_[currentFrame_]};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -2914,10 +2952,15 @@ namespace dolbuto
         return false;
     }
 
-    bool Renderer::editBlockInView(DVec3 origin, Vec3 direction, bool placeRock)
+    bool Renderer::editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition)
     {
         BlockRaycastHit hit{};
         if (!raycastBlock(origin, direction, hit))
+        {
+            return false;
+        }
+
+        if (placeRock && blockIntersectsPlayerCollider(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ, BlockRock, playerPosition))
         {
             return false;
         }
@@ -2933,6 +2976,32 @@ namespace dolbuto
             rebuildEditedChunkMeshes(changedX, changedY, changedZ);
         }
         return changed;
+    }
+
+    bool Renderer::blockIntersectsPlayerCollider(int x, int y, int z, uint16_t block, DVec3 playerPosition) const
+    {
+        if (!blockDefinition(block).collision)
+        {
+            return false;
+        }
+
+        constexpr double HalfWidth = 0.3;
+        constexpr double Height = 1.75;
+        constexpr double Epsilon = 0.000001;
+
+        const double minX = playerPosition.x - HalfWidth;
+        const double maxX = playerPosition.x + HalfWidth;
+        const double minY = playerPosition.y;
+        const double maxY = playerPosition.y + Height;
+        const double minZ = playerPosition.z - HalfWidth;
+        const double maxZ = playerPosition.z + HalfWidth;
+
+        return x >= blockCoordinateXz(minX) &&
+            x <= blockCoordinateXz(maxX - Epsilon) &&
+            y >= blockCoordinateY(minY) &&
+            y <= blockCoordinateY(maxY - Epsilon) &&
+            z >= blockCoordinateXz(minZ) &&
+            z <= blockCoordinateXz(maxZ - Epsilon);
     }
 
     void Renderer::updateBlockSelection(DVec3 origin, Vec3 direction)
@@ -2995,7 +3064,7 @@ namespace dolbuto
                 temperatureNoiseOctaveCount_,
                 temperatureNoiseLacunarity_,
                 temperatureNoiseGain_,
-                TemperatureNoiseSeed);
+                    temperatureSeed());
             const float precipitationNoise = sampleTileableClimateNoise(
                 wrappedX,
                 wrappedZ,
@@ -3004,7 +3073,7 @@ namespace dolbuto
                 precipitationNoiseOctaveCount_,
                 precipitationNoiseLacunarity_,
                 precipitationNoiseGain_,
-                PrecipitationNoiseSeed);
+                precipitationSeed());
             temperature = temperatureAtWrapped(wrappedZ, temperatureNoise);
             precipitation = precipitationAtNoise(precipitationNoise);
         }
@@ -3592,6 +3661,145 @@ namespace dolbuto
         vkDestroyShaderModule(device_, vertShader, nullptr);
     }
 
+    void Renderer::createUiPipeline()
+    {
+        const std::filesystem::path shaderDir = shaderDirectory();
+        VkShaderModule vertShader = createShaderModule((shaderDir / "rmlui.vert.spv").string());
+        VkShaderModule fragShader = createShaderModule((shaderDir / "rmlui.frag.spv").string());
+
+        VkPipelineShaderStageCreateInfo vertStage{};
+        vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertStage.module = vertShader;
+        vertStage.pName = "main";
+
+        VkPipelineShaderStageCreateInfo fragStage{};
+        fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragStage.module = fragShader;
+        fragStage.pName = "main";
+
+        VkPipelineShaderStageCreateInfo stages[] = {vertStage, fragStage};
+
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(UiVertex);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        std::array<VkVertexInputAttributeDescription, 3> attributes{};
+        attributes[0].binding = 0;
+        attributes[0].location = 0;
+        attributes[0].format = VK_FORMAT_R32G32_SFLOAT;
+        attributes[0].offset = offsetof(UiVertex, x);
+        attributes[1].binding = 0;
+        attributes[1].location = 1;
+        attributes[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attributes[1].offset = offsetof(UiVertex, r);
+        attributes[2].binding = 0;
+        attributes[2].location = 2;
+        attributes[2].format = VK_FORMAT_R32G32_SFLOAT;
+        attributes[2].offset = offsetof(UiVertex, u);
+
+        VkPipelineVertexInputStateCreateInfo vertexInput{};
+        vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertexInput.vertexBindingDescriptionCount = 1;
+        vertexInput.pVertexBindingDescriptions = &bindingDescription;
+        vertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributes.size());
+        vertexInput.pVertexAttributeDescriptions = attributes.data();
+
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.scissorCount = 1;
+
+        std::array<VkDynamicState, 2> dynamicStates = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+
+        VkPipelineDynamicStateCreateInfo dynamicState{};
+        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+        dynamicState.pDynamicStates = dynamicStates.data();
+
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer.cullMode = VK_CULL_MODE_NONE;
+        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer.lineWidth = 1.0f;
+
+        VkPipelineMultisampleStateCreateInfo multisampling{};
+        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        VkPipelineColorBlendAttachmentState colorBlend{};
+        colorBlend.blendEnable = VK_TRUE;
+        colorBlend.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlend.colorBlendOp = VK_BLEND_OP_ADD;
+        colorBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlend.alphaBlendOp = VK_BLEND_OP_ADD;
+        colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+        VkPipelineColorBlendStateCreateInfo colorBlending{};
+        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlending.attachmentCount = 1;
+        colorBlending.pAttachments = &colorBlend;
+
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_FALSE;
+        depthStencil.depthWriteEnable = VK_FALSE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+
+        VkPushConstantRange pushRange{};
+        pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        pushRange.offset = 0;
+        pushRange.size = sizeof(UiPush);
+
+        VkPipelineLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layoutInfo.setLayoutCount = 1;
+        layoutInfo.pSetLayouts = &descriptorSetLayout_;
+        layoutInfo.pushConstantRangeCount = 1;
+        layoutInfo.pPushConstantRanges = &pushRange;
+
+        if (vkCreatePipelineLayout(device_, &layoutInfo, nullptr, &uiPipelineLayout_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create RmlUi pipeline layout.");
+        }
+
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount = 2;
+        pipelineInfo.pStages = stages;
+        pipelineInfo.pVertexInputState = &vertexInput;
+        pipelineInfo.pInputAssemblyState = &inputAssembly;
+        pipelineInfo.pViewportState = &viewportState;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState = &multisampling;
+        pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.pDepthStencilState = &depthStencil;
+        pipelineInfo.pDynamicState = &dynamicState;
+        pipelineInfo.layout = uiPipelineLayout_;
+        pipelineInfo.renderPass = renderPass_;
+        pipelineInfo.subpass = 0;
+
+        if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &uiPipeline_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create RmlUi pipeline.");
+        }
+
+        vkDestroyShaderModule(device_, fragShader, nullptr);
+        vkDestroyShaderModule(device_, vertShader, nullptr);
+    }
+
     void Renderer::createTerrainPipeline()
     {
         const std::filesystem::path shaderDir = shaderDirectory();
@@ -4013,7 +4221,7 @@ namespace dolbuto
 
     void Renderer::createDescriptorPool()
     {
-        constexpr uint32_t MaxTextureDescriptorSets = 64;
+        constexpr uint32_t MaxTextureDescriptorSets = 256;
         constexpr uint32_t MaxTerrainVertexDescriptorSets = 65536;
         std::array<VkDescriptorPoolSize, 2> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -4345,6 +4553,22 @@ namespace dolbuto
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             textVertexBuffer_,
             textVertexMemory_);
+    }
+
+    void Renderer::createUiBuffers()
+    {
+        createBuffer(
+            sizeof(UiVertex) * MaxUiVertices,
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            uiVertexBuffer_,
+            uiVertexMemory_);
+        createBuffer(
+            sizeof(uint32_t) * MaxUiIndices,
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            uiIndexBuffer_,
+            uiIndexMemory_);
     }
 
     void Renderer::createSelectionLineBuffer()
@@ -5816,14 +6040,19 @@ namespace dolbuto
         }
     }
 
-    void Renderer::loadGameScene()
+    void Renderer::loadGameScene(const std::filesystem::path& worldDirectory, uint64_t worldSeed)
     {
         if (gameSceneLoaded_)
         {
             return;
         }
 
-        log::info("Loading game scene.");
+        log::info("Loading game scene: " + worldDirectory.string());
+        activeWorldDirectory_ = worldDirectory;
+        activeWorldSeed_ = worldSeed;
+        activeWorldSeedSalt_ = static_cast<int>((worldSeed ^ (worldSeed >> 32u)) & 0x7fffffffu);
+        climateTemperatureOverlayReady_ = false;
+        climatePrecipitationOverlayReady_ = false;
         terrainLoadRequested_ = false;
         startSaveWorker();
         startTerrainWorkers();
@@ -5844,6 +6073,15 @@ namespace dolbuto
         stopSaveWorker();
         vkDeviceWaitIdle(device_);
         destroyAllTerrainChunks();
+        {
+            std::lock_guard<std::mutex> lock(savedChunkMutex_);
+            savedCleanRevisions_.clear();
+            pendingSaveSnapshots_.clear();
+        }
+        {
+            std::lock_guard<std::mutex> lock(regionHeaderCacheMutex_);
+            regionHeaderCache_.clear();
+        }
         terrainLoadRequested_ = false;
         loadedChunkDiameter_ = 0;
         loadedCenterGroupChunkX_ = 0;
@@ -6121,7 +6359,7 @@ namespace dolbuto
         const int localX = storageChunkX % RegionSizeChunks;
         const int localZ = storageChunkZ % RegionSizeChunks;
         const size_t entryIndex = static_cast<size_t>(localZ * RegionSizeChunks + localX);
-        const std::filesystem::path regionDirectory = worldDirectory() / "regions";
+        const std::filesystem::path regionDirectory = activeWorldDirectory_ / "regions";
         std::filesystem::create_directories(regionDirectory);
         const std::filesystem::path regionPath = regionDirectory / ("r." + std::to_string(regionX) + "." + std::to_string(regionZ) + ".region");
 
@@ -6324,7 +6562,7 @@ namespace dolbuto
         const int localX = storageChunkX % RegionSizeChunks;
         const int localZ = storageChunkZ % RegionSizeChunks;
         const size_t entryIndex = static_cast<size_t>(localZ * RegionSizeChunks + localX);
-        const std::filesystem::path regionPath = worldDirectory() /
+        const std::filesystem::path regionPath = activeWorldDirectory_ /
             "regions" /
             ("r." + std::to_string(regionX) + "." + std::to_string(regionZ) + ".region");
 
@@ -8469,7 +8707,7 @@ namespace dolbuto
                     0.0f,
                     0.0f,
                     0.0f,
-                    TerrainNoiseSeed + 101);
+                    terrainSeed(101));
                 warpGenerator->GenPositionArray4D(
                     yWarp.data(),
                     static_cast<int>(yWarp.size()),
@@ -8481,7 +8719,7 @@ namespace dolbuto
                     0.0f,
                     0.0f,
                     0.0f,
-                    TerrainNoiseSeed + 202);
+                    terrainSeed(202));
                 warpGenerator->GenPositionArray4D(
                     zWarp.data(),
                     static_cast<int>(zWarp.size()),
@@ -8493,7 +8731,7 @@ namespace dolbuto
                     0.0f,
                     0.0f,
                     0.0f,
-                    TerrainNoiseSeed + 303);
+                    terrainSeed(303));
                 warpGenerator->GenPositionArray4D(
                     wWarp.data(),
                     static_cast<int>(wWarp.size()),
@@ -8505,7 +8743,7 @@ namespace dolbuto
                     0.0f,
                     0.0f,
                     0.0f,
-                    TerrainNoiseSeed + 404);
+                    terrainSeed(404));
 
                 for (size_t i = 0; i < xPositions.size(); ++i)
                 {
@@ -8528,7 +8766,7 @@ namespace dolbuto
             0.0f,
             0.0f,
             0.0f,
-            TerrainNoiseSeed);
+            terrainSeed());
 
         convertNoiseToHeights(heightLut_, noise, heights);
         return heights;
@@ -8926,6 +9164,371 @@ namespace dolbuto
             {
                 throw std::runtime_error("Failed to create sync objects.");
             }
+        }
+    }
+
+    void Renderer::initializeRmlUi()
+    {
+        Rml::SetRenderInterface(this);
+        if (!Rml::Initialise())
+        {
+            log::warn("RmlUi initialization failed.");
+            return;
+        }
+
+        rmlInitialized_ = true;
+        const std::filesystem::path assetDir = assetDirectory();
+        const std::filesystem::path fontPath = assetDir / "fonts" / "VCR_OSD_MONO.ttf";
+        if (!Rml::LoadFontFace(fontPath.string(), true))
+        {
+            log::warn("RmlUi font load failed: " + fontPath.string());
+        }
+
+        rmlContext_ = Rml::CreateContext("main", Rml::Vector2i(static_cast<int>(swapchainExtent_.width), static_cast<int>(swapchainExtent_.height)), this);
+        if (rmlContext_ == nullptr)
+        {
+            log::warn("RmlUi context creation failed.");
+            return;
+        }
+
+        const std::filesystem::path uiDir = assetDir / "ui";
+        rmlLobbyDocument_ = rmlContext_->LoadDocument((uiDir / "lobby.rml").string());
+        rmlWorldSelectDocument_ = rmlContext_->LoadDocument((uiDir / "world_select.rml").string());
+        rmlWorldCreateDocument_ = rmlContext_->LoadDocument((uiDir / "world_create.rml").string());
+        rmlPauseDocument_ = rmlContext_->LoadDocument((uiDir / "pause.rml").string());
+
+        attachRmlUiEvents(rmlLobbyDocument_);
+        attachRmlUiEvents(rmlWorldSelectDocument_);
+        attachRmlUiEvents(rmlWorldCreateDocument_);
+        attachRmlUiEvents(rmlPauseDocument_);
+
+        setRmlUiDocument(0);
+    }
+
+    void Renderer::shutdownRmlUi()
+    {
+        if (!rmlInitialized_)
+        {
+            return;
+        }
+
+        if (rmlLobbyDocument_ != nullptr)
+        {
+            rmlLobbyDocument_->Close();
+            rmlLobbyDocument_ = nullptr;
+        }
+        if (rmlWorldSelectDocument_ != nullptr)
+        {
+            rmlWorldSelectDocument_->Close();
+            rmlWorldSelectDocument_ = nullptr;
+        }
+        if (rmlWorldCreateDocument_ != nullptr)
+        {
+            rmlWorldCreateDocument_->Close();
+            rmlWorldCreateDocument_ = nullptr;
+        }
+        if (rmlPauseDocument_ != nullptr)
+        {
+            rmlPauseDocument_->Close();
+            rmlPauseDocument_ = nullptr;
+        }
+        Rml::RemoveContext("main");
+        rmlContext_ = nullptr;
+        Rml::Shutdown();
+        rmlInitialized_ = false;
+        activeRmlMenuOverlayMode_ = -1;
+    }
+
+    void Renderer::attachRmlUiEvents(Rml::ElementDocument* document)
+    {
+        if (document == nullptr)
+        {
+            return;
+        }
+
+        constexpr std::array<const char*, 8> ButtonIds = {
+            "start",
+            "exit",
+            "new-world",
+            "create-world",
+            "back-to-lobby",
+            "back-to-world-select",
+            "resume",
+            "exit-to-lobby"
+        };
+        for (const char* id : ButtonIds)
+        {
+            if (Rml::Element* element = document->GetElementById(id))
+            {
+                element->AddEventListener("click", this);
+            }
+        }
+    }
+
+    void Renderer::setRmlUiDocument(int menuOverlayMode)
+    {
+        if (activeRmlMenuOverlayMode_ == menuOverlayMode)
+        {
+            return;
+        }
+
+        activeRmlMenuOverlayMode_ = menuOverlayMode;
+        if (rmlLobbyDocument_ != nullptr)
+        {
+            menuOverlayMode == 1 ? rmlLobbyDocument_->Show() : rmlLobbyDocument_->Hide();
+        }
+        if (rmlWorldSelectDocument_ != nullptr)
+        {
+            menuOverlayMode == 3 ? rmlWorldSelectDocument_->Show() : rmlWorldSelectDocument_->Hide();
+        }
+        if (rmlWorldCreateDocument_ != nullptr)
+        {
+            menuOverlayMode == 4 ? rmlWorldCreateDocument_->Show() : rmlWorldCreateDocument_->Hide();
+        }
+        if (rmlPauseDocument_ != nullptr)
+        {
+            menuOverlayMode == 2 ? rmlPauseDocument_->Show() : rmlPauseDocument_->Hide();
+        }
+    }
+
+    bool Renderer::renderRmlUi(VkCommandBuffer commandBuffer, int menuOverlayMode)
+    {
+        if (!rmlInitialized_ || rmlContext_ == nullptr)
+        {
+            return false;
+        }
+
+        setRmlUiDocument(menuOverlayMode);
+        if (menuOverlayMode == 0)
+        {
+            return true;
+        }
+
+        rmlContext_->SetDimensions(Rml::Vector2i(static_cast<int>(swapchainExtent_.width), static_cast<int>(swapchainExtent_.height)));
+        rmlContext_->Update();
+        rmlUiVertexOffset_ = 0;
+        rmlUiIndexOffset_ = 0;
+        rmlCommandBuffer_ = commandBuffer;
+        rmlContext_->Render();
+        rmlCommandBuffer_ = VK_NULL_HANDLE;
+        return true;
+    }
+
+    void Renderer::uiMouseMove(double x, double y)
+    {
+        if (rmlContext_ != nullptr)
+        {
+            rmlContext_->ProcessMouseMove(static_cast<int>(std::round(x)), static_cast<int>(std::round(y)), 0);
+        }
+    }
+
+    void Renderer::uiMouseButton(int button, bool pressed)
+    {
+        if (rmlContext_ == nullptr)
+        {
+            return;
+        }
+
+        int rmlButton = 0;
+        if (button == GLFW_MOUSE_BUTTON_RIGHT)
+        {
+            rmlButton = 1;
+        }
+        else if (button == GLFW_MOUSE_BUTTON_MIDDLE)
+        {
+            rmlButton = 2;
+        }
+
+        if (pressed)
+        {
+            rmlContext_->ProcessMouseButtonDown(rmlButton, 0);
+        }
+        else
+        {
+            rmlContext_->ProcessMouseButtonUp(rmlButton, 0);
+        }
+    }
+
+    void Renderer::uiMouseWheel(double yOffset)
+    {
+        if (rmlContext_ != nullptr)
+        {
+            rmlContext_->ProcessMouseWheel(static_cast<float>(-yOffset), 0);
+        }
+    }
+
+    void Renderer::uiTextInput(unsigned int codepoint)
+    {
+        if (rmlContext_ != nullptr)
+        {
+            rmlContext_->ProcessTextInput(static_cast<Rml::Character>(codepoint));
+        }
+    }
+
+    void Renderer::uiKey(int key, bool pressed)
+    {
+        if (rmlContext_ == nullptr)
+        {
+            return;
+        }
+
+        const Rml::Input::KeyIdentifier identifier = rmlKeyFromGlfw(key);
+        if (identifier == Rml::Input::KI_UNKNOWN)
+        {
+            return;
+        }
+
+        if (pressed)
+        {
+            rmlContext_->ProcessKeyDown(identifier, 0);
+        }
+        else
+        {
+            rmlContext_->ProcessKeyUp(identifier, 0);
+        }
+    }
+
+    std::optional<std::string> Renderer::consumeUiAction()
+    {
+        std::optional<std::string> action = std::move(pendingUiAction_);
+        pendingUiAction_.reset();
+        return action;
+    }
+
+    void Renderer::setWorldList(const std::vector<WorldListItem>& worlds)
+    {
+        if (rmlWorldSelectDocument_ == nullptr)
+        {
+            return;
+        }
+
+        Rml::Element* list = rmlWorldSelectDocument_->GetElementById("world-list");
+        if (list == nullptr)
+        {
+            return;
+        }
+
+        std::string rml;
+        if (worlds.empty())
+        {
+            rml =
+                "<div class=\"world-row large\">"
+                "<div class=\"world-name\">No worlds yet</div>"
+                "<div class=\"world-meta\">Create a new world to begin</div>"
+                "</div>";
+        }
+        else
+        {
+            for (size_t i = 0; i < worlds.size(); ++i)
+            {
+                rml += "<div id=\"world-open-" + std::to_string(i) + "\" class=\"world-row large\">";
+                rml += "<div class=\"world-name\">" + escapeRml(worlds[i].name) + "</div>";
+                rml += "<div class=\"world-meta\">CREATED " + escapeRml(worlds[i].createdText) + " / LAST " + escapeRml(worlds[i].lastPlayedText) + "</div>";
+                rml += "</div>";
+            }
+        }
+
+        list->SetInnerRML(rml);
+        for (size_t i = 0; i < worlds.size(); ++i)
+        {
+            if (Rml::Element* element = rmlWorldSelectDocument_->GetElementById("world-open-" + std::to_string(i)))
+            {
+                element->AddEventListener("dblclick", this);
+            }
+        }
+    }
+
+    std::string Renderer::uiInputValue(std::string_view id) const
+    {
+        if (rmlContext_ == nullptr)
+        {
+            return {};
+        }
+
+        for (Rml::ElementDocument* document : {rmlLobbyDocument_, rmlWorldSelectDocument_, rmlWorldCreateDocument_, rmlPauseDocument_})
+        {
+            if (document == nullptr)
+            {
+                continue;
+            }
+            Rml::Element* element = document->GetElementById(std::string(id));
+            if (element == nullptr)
+            {
+                continue;
+            }
+            if (auto* input = dynamic_cast<Rml::ElementFormControlInput*>(element))
+            {
+                return input->GetValue();
+            }
+            return element->GetAttribute<Rml::String>("value", "");
+        }
+
+        return {};
+    }
+
+    int Renderer::terrainSeed(int offset) const
+    {
+        return TerrainNoiseSeed + activeWorldSeedSalt_ + offset;
+    }
+
+    int Renderer::temperatureSeed() const
+    {
+        return TemperatureNoiseSeed + activeWorldSeedSalt_;
+    }
+
+    int Renderer::precipitationSeed() const
+    {
+        return PrecipitationNoiseSeed + activeWorldSeedSalt_;
+    }
+
+    std::string Renderer::escapeRml(std::string_view text)
+    {
+        std::string escaped;
+        escaped.reserve(text.size());
+        for (const char c : text)
+        {
+            switch (c)
+            {
+            case '&': escaped += "&amp;"; break;
+            case '<': escaped += "&lt;"; break;
+            case '>': escaped += "&gt;"; break;
+            case '"': escaped += "&quot;"; break;
+            default: escaped.push_back(c); break;
+            }
+        }
+        return escaped;
+    }
+
+    Rml::Input::KeyIdentifier Renderer::rmlKeyFromGlfw(int key) const
+    {
+        if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z)
+        {
+            return static_cast<Rml::Input::KeyIdentifier>(Rml::Input::KI_A + (key - GLFW_KEY_A));
+        }
+        if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
+        {
+            return static_cast<Rml::Input::KeyIdentifier>(Rml::Input::KI_0 + (key - GLFW_KEY_0));
+        }
+
+        switch (key)
+        {
+        case GLFW_KEY_SPACE: return Rml::Input::KI_SPACE;
+        case GLFW_KEY_BACKSPACE: return Rml::Input::KI_BACK;
+        case GLFW_KEY_TAB: return Rml::Input::KI_TAB;
+        case GLFW_KEY_ENTER: return Rml::Input::KI_RETURN;
+        case GLFW_KEY_ESCAPE: return Rml::Input::KI_ESCAPE;
+        case GLFW_KEY_LEFT: return Rml::Input::KI_LEFT;
+        case GLFW_KEY_RIGHT: return Rml::Input::KI_RIGHT;
+        case GLFW_KEY_UP: return Rml::Input::KI_UP;
+        case GLFW_KEY_DOWN: return Rml::Input::KI_DOWN;
+        case GLFW_KEY_DELETE: return Rml::Input::KI_DELETE;
+        case GLFW_KEY_HOME: return Rml::Input::KI_HOME;
+        case GLFW_KEY_END: return Rml::Input::KI_END;
+        case GLFW_KEY_MINUS: return Rml::Input::KI_OEM_MINUS;
+        case GLFW_KEY_EQUAL: return Rml::Input::KI_OEM_PLUS;
+        case GLFW_KEY_COMMA: return Rml::Input::KI_OEM_COMMA;
+        case GLFW_KEY_PERIOD: return Rml::Input::KI_OEM_PERIOD;
+        default: return Rml::Input::KI_UNKNOWN;
         }
     }
 
@@ -9870,6 +10473,210 @@ namespace dolbuto
         mesh = {};
     }
 
+    Rml::CompiledGeometryHandle Renderer::CompileGeometry(Rml::Span<const Rml::Vertex> vertices, Rml::Span<const int> indices)
+    {
+        auto* geometry = new UiGeometry();
+        geometry->vertices.reserve(vertices.size());
+        geometry->indices.reserve(indices.size());
+
+        for (const Rml::Vertex& vertex : vertices)
+        {
+            UiVertex out{};
+            out.x = vertex.position.x;
+            out.y = vertex.position.y;
+            out.r = static_cast<float>(vertex.colour.red) / 255.0f;
+            out.g = static_cast<float>(vertex.colour.green) / 255.0f;
+            out.b = static_cast<float>(vertex.colour.blue) / 255.0f;
+            out.a = static_cast<float>(vertex.colour.alpha) / 255.0f;
+            out.u = vertex.tex_coord.x;
+            out.v = vertex.tex_coord.y;
+            geometry->vertices.push_back(out);
+        }
+        for (int index : indices)
+        {
+            geometry->indices.push_back(static_cast<uint32_t>(index));
+        }
+
+        return reinterpret_cast<Rml::CompiledGeometryHandle>(geometry);
+    }
+
+    void Renderer::RenderGeometry(Rml::CompiledGeometryHandle handle, Rml::Vector2f translation, Rml::TextureHandle textureHandle)
+    {
+        if (rmlCommandBuffer_ == VK_NULL_HANDLE || uiPipeline_ == VK_NULL_HANDLE || handle == 0)
+        {
+            return;
+        }
+
+        const auto* geometry = reinterpret_cast<const UiGeometry*>(handle);
+        if (geometry->vertices.empty() || geometry->indices.empty() ||
+            rmlUiVertexOffset_ + geometry->vertices.size() > MaxUiVertices ||
+            rmlUiIndexOffset_ + geometry->indices.size() > MaxUiIndices)
+        {
+            return;
+        }
+
+        const VkDeviceSize vertexBytes = sizeof(UiVertex) * geometry->vertices.size();
+        const VkDeviceSize vertexBufferOffset = sizeof(UiVertex) * rmlUiVertexOffset_;
+        void* vertexData = nullptr;
+        vkMapMemory(device_, uiVertexMemory_, vertexBufferOffset, vertexBytes, 0, &vertexData);
+        std::memcpy(vertexData, geometry->vertices.data(), static_cast<size_t>(vertexBytes));
+        vkUnmapMemory(device_, uiVertexMemory_);
+
+        const VkDeviceSize indexBytes = sizeof(uint32_t) * geometry->indices.size();
+        const VkDeviceSize indexBufferOffset = sizeof(uint32_t) * rmlUiIndexOffset_;
+        void* indexData = nullptr;
+        vkMapMemory(device_, uiIndexMemory_, indexBufferOffset, indexBytes, 0, &indexData);
+        std::memcpy(indexData, geometry->indices.data(), static_cast<size_t>(indexBytes));
+        vkUnmapMemory(device_, uiIndexMemory_);
+
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = static_cast<float>(swapchainExtent_.width);
+        viewport.height = static_cast<float>(swapchainExtent_.height);
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = swapchainExtent_;
+        if (rmlScissorEnabled_)
+        {
+            scissor = rmlScissor_;
+        }
+
+        const Texture* texture = textureHandle == 0 ? &white_ : reinterpret_cast<const Texture*>(textureHandle);
+        const UiPush push{
+            static_cast<float>(swapchainExtent_.width),
+            static_cast<float>(swapchainExtent_.height),
+            translation.x,
+            translation.y
+        };
+
+        vkCmdBindPipeline(rmlCommandBuffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, uiPipeline_);
+        vkCmdSetViewport(rmlCommandBuffer_, 0, 1, &viewport);
+        vkCmdSetScissor(rmlCommandBuffer_, 0, 1, &scissor);
+        vkCmdBindVertexBuffers(rmlCommandBuffer_, 0, 1, &uiVertexBuffer_, &vertexBufferOffset);
+        vkCmdBindIndexBuffer(rmlCommandBuffer_, uiIndexBuffer_, indexBufferOffset, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(rmlCommandBuffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, uiPipelineLayout_, 0, 1, &texture->descriptorSet, 0, nullptr);
+        vkCmdPushConstants(rmlCommandBuffer_, uiPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UiPush), &push);
+        vkCmdDrawIndexed(rmlCommandBuffer_, static_cast<uint32_t>(geometry->indices.size()), 1, 0, 0, 0);
+
+        rmlUiVertexOffset_ += geometry->vertices.size();
+        rmlUiIndexOffset_ += geometry->indices.size();
+    }
+
+    void Renderer::ReleaseGeometry(Rml::CompiledGeometryHandle geometry)
+    {
+        delete reinterpret_cast<UiGeometry*>(geometry);
+    }
+
+    Rml::TextureHandle Renderer::LoadTexture(Rml::Vector2i& textureDimensions, const Rml::String& source)
+    {
+        std::filesystem::path texturePath(source);
+        if (texturePath.is_relative())
+        {
+            texturePath = (assetDirectory() / "ui" / texturePath).lexically_normal();
+        }
+        if (!std::filesystem::exists(texturePath))
+        {
+            std::string normalized = texturePath.generic_string();
+            const std::string marker = "/textures/";
+            const size_t markerPosition = normalized.find(marker);
+            if (markerPosition != std::string::npos)
+            {
+                const std::string textureTail = normalized.substr(markerPosition + marker.size());
+                const std::filesystem::path remappedPath = assetDirectory() / "textures" / std::filesystem::path(textureTail);
+                if (std::filesystem::exists(remappedPath))
+                {
+                    texturePath = remappedPath;
+                }
+            }
+        }
+
+        int width = 0;
+        int height = 0;
+        int channels = 0;
+        stbi_uc* pixels = stbi_load(texturePath.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
+        if (pixels == nullptr)
+        {
+            log::warn("RmlUi texture load failed: " + texturePath.string());
+            return 0;
+        }
+
+        const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+        std::vector<unsigned char> premultiplied(pixelCount * 4u);
+        for (size_t i = 0; i < pixelCount; ++i)
+        {
+            const unsigned char alpha = pixels[i * 4u + 3u];
+            premultiplied[i * 4u + 0u] = static_cast<unsigned char>((static_cast<uint32_t>(pixels[i * 4u + 0u]) * alpha) / 255u);
+            premultiplied[i * 4u + 1u] = static_cast<unsigned char>((static_cast<uint32_t>(pixels[i * 4u + 1u]) * alpha) / 255u);
+            premultiplied[i * 4u + 2u] = static_cast<unsigned char>((static_cast<uint32_t>(pixels[i * 4u + 2u]) * alpha) / 255u);
+            premultiplied[i * 4u + 3u] = alpha;
+        }
+        stbi_image_free(pixels);
+
+        Texture texture = createTextureFromRgba(premultiplied.data(), width, height, VK_FORMAT_R8G8B8A8_SRGB);
+        textureDimensions = Rml::Vector2i(width, height);
+        return reinterpret_cast<Rml::TextureHandle>(new Texture(texture));
+    }
+
+    Rml::TextureHandle Renderer::GenerateTexture(Rml::Span<const Rml::byte> source, Rml::Vector2i sourceDimensions)
+    {
+        Texture texture = createTextureFromRgba(
+            reinterpret_cast<const unsigned char*>(source.data()),
+            sourceDimensions.x,
+            sourceDimensions.y,
+            VK_FORMAT_R8G8B8A8_UNORM);
+        return reinterpret_cast<Rml::TextureHandle>(new Texture(texture));
+    }
+
+    void Renderer::ReleaseTexture(Rml::TextureHandle textureHandle)
+    {
+        if (textureHandle == 0)
+        {
+            return;
+        }
+
+        auto* texture = reinterpret_cast<Texture*>(textureHandle);
+        destroyTexture(*texture);
+        delete texture;
+    }
+
+    void Renderer::EnableScissorRegion(bool enable)
+    {
+        rmlScissorEnabled_ = enable;
+    }
+
+    void Renderer::SetScissorRegion(Rml::Rectanglei region)
+    {
+        const int left = std::max(region.Left(), 0);
+        const int top = std::max(region.Top(), 0);
+        const int right = std::min(region.Right(), static_cast<int>(swapchainExtent_.width));
+        const int bottom = std::min(region.Bottom(), static_cast<int>(swapchainExtent_.height));
+
+        rmlScissor_.offset = {left, top};
+        rmlScissor_.extent = {
+            static_cast<uint32_t>(std::max(right - left, 0)),
+            static_cast<uint32_t>(std::max(bottom - top, 0))
+        };
+    }
+
+    void Renderer::ProcessEvent(Rml::Event& event)
+    {
+        Rml::Element* target = event.GetCurrentElement();
+        if (target == nullptr)
+        {
+            target = event.GetTargetElement();
+        }
+        if (target == nullptr)
+        {
+            return;
+        }
+
+        pendingUiAction_ = target->GetId();
+    }
+
     uint32_t Renderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const
     {
         VkPhysicalDeviceMemoryProperties memoryProperties{};
@@ -10142,7 +10949,7 @@ namespace dolbuto
         vkFreeCommandBuffers(device_, commandPool_, 1, &commandBuffer);
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool gameSceneRenderEnabled, uint64_t worldTicks)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -10190,27 +10997,41 @@ namespace dolbuto
         scissor.extent = swapchainExtent_;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
-        SpriteRect rect;
-        if (projectSkyDirection(camera, aspect, {1.0f, 0.0f, 0.0f}, rect))
+        if (gameSceneRenderEnabled)
         {
-            drawSprite(commandBuffer, sun_, rect);
-        }
-        if (projectSkyDirection(camera, aspect, {-1.0f, 0.0f, 0.0f}, rect))
-        {
-            drawSprite(commandBuffer, moon_, rect);
-        }
+            const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
+            constexpr uint64_t SkyTicksPerDay = 28800;
+            constexpr double TwoPi = 6.283185307179586;
+            constexpr double HalfPi = 1.5707963267948966;
+            const double dayPhase = static_cast<double>(worldTicks % SkyTicksPerDay) / static_cast<double>(SkyTicksPerDay);
+            const double skyAngle = HalfPi - dayPhase * TwoPi;
+            const std::array<float, 3> sunDirection{
+                static_cast<float>(std::cos(skyAngle)),
+                static_cast<float>(std::sin(skyAngle)),
+                0.0f
+            };
+            const std::array<float, 3> moonDirection{-sunDirection[0], -sunDirection[1], -sunDirection[2]};
+            SpriteRect rect;
+            if (projectSkyDirection(camera, aspect, sunDirection, rect))
+            {
+                drawSprite(commandBuffer, sun_, rect);
+            }
+            if (projectSkyDirection(camera, aspect, moonDirection, rect))
+            {
+                drawSprite(commandBuffer, moon_, rect);
+            }
 
-        drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe, true, false, imageIndex);
-        if (menuOverlayMode == 0)
-        {
-            drawBlockSelection(commandBuffer, camera, cameraPosition);
+            drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe, true, false, imageIndex);
+            if (menuOverlayMode == 0)
+            {
+                drawBlockSelection(commandBuffer, camera, cameraPosition);
+            }
+            if (showPlayer && menuOverlayMode == 0)
+            {
+                drawPlayer(commandBuffer, camera, cameraPosition);
+            }
+            drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe, false, true, imageIndex);
         }
-        if (showPlayer && menuOverlayMode == 0)
-        {
-            drawPlayer(commandBuffer, camera, cameraPosition);
-        }
-        drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe, false, true, imageIndex);
         vkCmdEndRenderPass(commandBuffer);
 
         VkRenderPassBeginInfo renderPassInfo{};
@@ -10227,10 +11048,13 @@ namespace dolbuto
         SpriteRect sceneRect{};
         sceneRect.halfWidth = 1.0f;
         sceneRect.halfHeight = 1.0f;
-        drawSprite(commandBuffer, sceneColorTargets_[imageIndex], sceneRect, {0.0f, 1.0f, 1.0f, -1.0f});
-        drawClimateOverlay(commandBuffer, climateOverlayMode);
+        if (gameSceneRenderEnabled)
+        {
+            drawSprite(commandBuffer, sceneColorTargets_[imageIndex], sceneRect, {0.0f, 1.0f, 1.0f, -1.0f});
+            drawClimateOverlay(commandBuffer, climateOverlayMode);
+        }
 
-        if (menuOverlayMode == 0)
+        if (gameSceneRenderEnabled && menuOverlayMode == 0)
         {
             if (cachedMenuOverlayMode_ != 0)
             {
@@ -10249,7 +11073,10 @@ namespace dolbuto
             updateDebugTextBatch(fpsText);
             drawTextBatch(commandBuffer, debugTextBatch_);
         }
-        drawMenuOverlay(commandBuffer, menuOverlayMode);
+        if (!renderRmlUi(commandBuffer, menuOverlayMode))
+        {
+            drawMenuOverlay(commandBuffer, menuOverlayMode);
+        }
 
         vkCmdEndRenderPass(commandBuffer);
 
@@ -10822,7 +11649,7 @@ namespace dolbuto
                 temperatureNoiseOctaveCount_,
                 temperatureNoiseLacunarity_,
                 temperatureNoiseGain_,
-                TemperatureNoiseSeed);
+                temperatureSeed());
             for (int y = 0; y < ClimateOverlaySize; ++y)
             {
                 const int worldZ = (y * WorldSizeBlocks) / ClimateOverlaySize;
@@ -10843,7 +11670,7 @@ namespace dolbuto
             precipitationNoiseOctaveCount_,
             precipitationNoiseLacunarity_,
             precipitationNoiseGain_,
-            PrecipitationNoiseSeed);
+            precipitationSeed());
         if (noise.empty())
         {
             return pixels;
@@ -11027,7 +11854,7 @@ namespace dolbuto
             temperatureNoiseOctaveCount_,
             temperatureNoiseLacunarity_,
             temperatureNoiseGain_,
-            TemperatureNoiseSeed);
+            temperatureSeed());
         const std::array<float, ChunkColumnCount> precipitationNoise = buildChunkTileableClimateNoise(
             chunk.chunkX,
             chunk.chunkZ,
@@ -11036,7 +11863,7 @@ namespace dolbuto
             precipitationNoiseOctaveCount_,
             precipitationNoiseLacunarity_,
             precipitationNoiseGain_,
-            PrecipitationNoiseSeed);
+            precipitationSeed());
 
         const int worldZStart = chunk.chunkZ * ChunkSizeZ;
         for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
@@ -11112,7 +11939,7 @@ namespace dolbuto
         const float width = static_cast<float>(swapchainExtent_.width);
         const float height = static_cast<float>(swapchainExtent_.height);
         const SpriteRect fullScreenRect = rectFromPixels(width * 0.5f, height * 0.5f, width, height);
-        if (menuOverlayMode == 1)
+        if (menuOverlayMode == 1 || menuOverlayMode == 3)
         {
             const UvRect tiledUv{0.0f, height / LobbyBackgroundTilePixels, width / LobbyBackgroundTilePixels, -height / LobbyBackgroundTilePixels};
             drawSprite(commandBuffer, lobbyBackground_, fullScreenRect, tiledUv, {1.0f, 1.0f, 1.0f, 1.0f});
@@ -11121,7 +11948,7 @@ namespace dolbuto
         const SpriteRect dimRect = rectFromPixels(width * 0.5f, height * 0.5f, width, height);
         drawSprite(commandBuffer, white_, dimRect, {}, {0.02f, 0.03f, 0.04f, 0.62f});
 
-        if (menuOverlayMode == 1 && lobbyTitle_.width > 0 && lobbyTitle_.height > 0)
+        if ((menuOverlayMode == 1 || menuOverlayMode == 3) && lobbyTitle_.width > 0 && lobbyTitle_.height > 0)
         {
             const float titleWidth = std::min(width * 0.58f, static_cast<float>(lobbyTitle_.width) * 2.0f);
             const float titleHeight = titleWidth * static_cast<float>(lobbyTitle_.height) / static_cast<float>(lobbyTitle_.width);
@@ -11129,12 +11956,25 @@ namespace dolbuto
             drawSprite(commandBuffer, lobbyTitle_, titleRect, {0.0f, 1.0f, 1.0f, -1.0f});
         }
 
-        const float firstButtonY = menuOverlayMode == 1 ? height * 0.45f : height * 0.46f;
-        const float secondButtonY = menuOverlayMode == 1 ? height * 0.56f : height * 0.57f;
-        const SpriteRect firstButton = rectFromPixels(width * 0.5f, firstButtonY, MenuButtonWidthPixels, MenuButtonHeightPixels);
-        const SpriteRect secondButton = rectFromPixels(width * 0.5f, secondButtonY, MenuButtonWidthPixels, MenuButtonHeightPixels);
-        drawSprite(commandBuffer, white_, firstButton, {}, {0.12f, 0.18f, 0.22f, 0.92f});
-        drawSprite(commandBuffer, white_, secondButton, {}, {0.08f, 0.11f, 0.14f, 0.92f});
+        if (menuOverlayMode == 3)
+        {
+            const std::array<float, 4> buttonYs = {height * 0.34f, height * 0.45f, height * 0.56f, height * 0.72f};
+            for (size_t i = 0; i < buttonYs.size(); ++i)
+            {
+                const SpriteRect button = rectFromPixels(width * 0.5f, buttonYs[i], MenuButtonWidthPixels, MenuButtonHeightPixels);
+                const Color color = i == buttonYs.size() - 1u ? Color{0.08f, 0.11f, 0.14f, 0.92f} : Color{0.12f, 0.18f, 0.22f, 0.92f};
+                drawSprite(commandBuffer, white_, button, {}, color);
+            }
+        }
+        else
+        {
+            const float firstButtonY = menuOverlayMode == 1 ? height * 0.45f : height * 0.46f;
+            const float secondButtonY = menuOverlayMode == 1 ? height * 0.56f : height * 0.57f;
+            const SpriteRect firstButton = rectFromPixels(width * 0.5f, firstButtonY, MenuButtonWidthPixels, MenuButtonHeightPixels);
+            const SpriteRect secondButton = rectFromPixels(width * 0.5f, secondButtonY, MenuButtonWidthPixels, MenuButtonHeightPixels);
+            drawSprite(commandBuffer, white_, firstButton, {}, {0.12f, 0.18f, 0.22f, 0.92f});
+            drawSprite(commandBuffer, white_, secondButton, {}, {0.08f, 0.11f, 0.14f, 0.92f});
+        }
 
         buildMenuTextBatch(menuOverlayMode);
         debugTextBufferDirty_ = true;
@@ -11262,6 +12102,14 @@ namespace dolbuto
         {
             addText(menuTextBatch_, "START", centerX - measureText("START") * 0.5f, height * 0.45f + 6.0f, false);
             addText(menuTextBatch_, "EXIT", centerX - measureText("EXIT") * 0.5f, height * 0.56f + 6.0f, false);
+        }
+        else if (menuOverlayMode == 3)
+        {
+            addText(menuTextBatch_, "SELECT WORLD", centerX - measureText("SELECT WORLD") * 0.5f, height * 0.27f, false);
+            addText(menuTextBatch_, "WORLD 1", centerX - measureText("WORLD 1") * 0.5f, height * 0.34f + 6.0f, false);
+            addText(menuTextBatch_, "WORLD 2", centerX - measureText("WORLD 2") * 0.5f, height * 0.45f + 6.0f, false);
+            addText(menuTextBatch_, "WORLD 3", centerX - measureText("WORLD 3") * 0.5f, height * 0.56f + 6.0f, false);
+            addText(menuTextBatch_, "BACK", centerX - measureText("BACK") * 0.5f, height * 0.72f + 6.0f, false);
         }
         else if (menuOverlayMode == 2)
         {
@@ -11564,8 +12412,8 @@ namespace dolbuto
         const float tanHalfFov = std::tan(FieldOfViewRadians * 0.5f);
         rect.centerX = (x / z) / (tanHalfFov * aspect);
         rect.centerY = (y / z) / tanHalfFov;
-        rect.halfWidth = 0.08f;
-        rect.halfHeight = 0.08f * aspect;
+        rect.halfWidth = 0.04f;
+        rect.halfHeight = 0.04f * aspect;
         return rect.centerX > -1.2f && rect.centerX < 1.2f && rect.centerY > -1.2f && rect.centerY < 1.2f;
     }
 

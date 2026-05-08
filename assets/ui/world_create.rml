@@ -1,0 +1,22 @@
+<rml>
+<head>
+    <link type="text/rcss" href="style.rcss"/>
+</head>
+<body>
+    <div class="screen">
+        <div class="create-panel">
+            <div class="heading">NEW WORLD</div>
+            <div class="form-area">
+                <div class="label">Name</div>
+                <input type="text" id="new-world-name" value="New World"/>
+                <div class="label">Seed</div>
+                <input type="text" id="new-world-seed" value=""/>
+            </div>
+            <div class="bottom-actions">
+                <div id="create-world" class="button left">CREATE</div>
+                <div id="back-to-world-select" class="button secondary right">EXIT</div>
+            </div>
+        </div>
+    </div>
+</body>
+</rml>

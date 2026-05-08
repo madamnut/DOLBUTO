@@ -1,0 +1,14 @@
+<rml>
+<head>
+    <link type="text/rcss" href="style.rcss"/>
+</head>
+<body>
+    <div class="screen pause-screen">
+        <div class="center-stack">
+            <div class="heading">PAUSED</div>
+            <div id="resume" class="button">RESUME</div>
+            <div id="exit-to-lobby" class="button secondary">EXIT</div>
+        </div>
+    </div>
+</body>
+</rml>

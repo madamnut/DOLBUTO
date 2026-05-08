@@ -1,0 +1,228 @@
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    font-family: VCR OSD Mono;
+    color: #f2f6f8;
+}
+
+.screen {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(4, 8, 10, 180);
+    decorator: image(../textures/block/rock.png repeat);
+    image-color: #fff;
+}
+
+.pause-screen {
+    background-color: rgba(0, 0, 0, 180);
+    decorator: none;
+}
+
+.center-stack {
+    position: absolute;
+    left: 50%;
+    top: 118px;
+    width: 520px;
+    margin-left: -260px;
+}
+
+.title {
+    display: block;
+    width: 520px;
+    height: 140px;
+    margin-bottom: 28px;
+}
+
+.heading {
+    display: block;
+    width: 100%;
+    height: 42px;
+    line-height: 42px;
+    margin-bottom: 22px;
+    text-align: center;
+    font-size: 30px;
+}
+
+.button {
+    display: block;
+    width: 260px;
+    height: 56px;
+    line-height: 56px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 16px;
+    background-color: rgba(28, 43, 52, 235);
+    border-width: 1px;
+    border-color: rgba(170, 205, 220, 120);
+    text-align: center;
+    font-size: 18px;
+}
+
+.button:hover {
+    background-color: rgba(45, 68, 80, 245);
+}
+
+.button.secondary {
+    background-color: rgba(16, 23, 28, 235);
+}
+
+.button.secondary:hover {
+    background-color: rgba(36, 54, 64, 245);
+}
+
+.world-panel {
+    position: absolute;
+    left: 50%;
+    top: 48px;
+    width: 820px;
+    height: 560px;
+    margin-left: -410px;
+}
+
+.create-panel {
+    position: absolute;
+    left: 50%;
+    top: 112px;
+    width: 520px;
+    height: 360px;
+    margin-left: -260px;
+}
+
+.world-list-large {
+    position: absolute;
+    left: 0;
+    top: 76px;
+    width: 820px;
+    height: 390px;
+    overflow-y: auto;
+    background-color: rgba(10, 17, 21, 215);
+    border-width: 1px;
+    border-color: rgba(160, 190, 205, 95);
+}
+
+scrollbarvertical {
+    width: 12px;
+    background-color: rgba(6, 10, 12, 210);
+    margin-top: 3px;
+    margin-bottom: 3px;
+}
+
+scrollbarvertical slidertrack {
+    background-color: rgba(12, 18, 22, 220);
+}
+
+scrollbarvertical sliderbar {
+    background-color: rgba(120, 160, 175, 220);
+}
+
+scrollbarvertical sliderbar:hover {
+    background-color: rgba(175, 215, 230, 240);
+}
+
+scrollbarcorner {
+    background-color: rgba(6, 10, 12, 210);
+}
+
+.panel-title {
+    display: block;
+    height: 28px;
+    line-height: 28px;
+    margin-bottom: 14px;
+    font-size: 20px;
+}
+
+.world-row {
+    display: block;
+    width: 314px;
+    height: 58px;
+    margin-bottom: 10px;
+    padding: 12px;
+    background-color: rgba(20, 31, 38, 225);
+    border-width: 1px;
+    border-color: rgba(160, 190, 205, 95);
+}
+
+.world-row.large {
+    width: 744px;
+    margin: 14px;
+}
+
+.world-row:hover {
+    background-color: rgba(52, 78, 88, 245);
+    border-color: rgba(210, 235, 245, 170);
+}
+
+.world-name {
+    display: block;
+    height: 22px;
+    line-height: 22px;
+    font-size: 17px;
+}
+
+.world-meta {
+    display: block;
+    height: 18px;
+    line-height: 18px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: #aac0ca;
+}
+
+.label {
+    display: block;
+    height: 20px;
+    line-height: 20px;
+    margin-bottom: 6px;
+    font-size: 14px;
+    color: #c8d8df;
+}
+
+input {
+    display: block;
+    width: 332px;
+    height: 36px;
+    line-height: 36px;
+    margin-bottom: 14px;
+    padding-left: 10px;
+    padding-right: 10px;
+    background-color: rgba(5, 9, 12, 235);
+    border-width: 1px;
+    border-color: rgba(150, 180, 195, 110);
+    color: #f2f6f8;
+    font-size: 16px;
+}
+
+.form-area {
+    position: absolute;
+    left: 84px;
+    top: 86px;
+    width: 360px;
+}
+
+.bottom-actions {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 72px;
+}
+
+.button.left {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.button.right {
+    position: absolute;
+    right: 0;
+    top: 0;
+    margin-left: 0;
+    margin-right: 0;
+}

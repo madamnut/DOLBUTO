@@ -111,3 +111,11 @@ Each pixel samples a `64 x 64` block area.
 - Temperature color maps low values to blue and high values to red.
 - Precipitation uses a wide tileable 2D noise sampled through the same 4D torus approach as terrain height noise.
 - Precipitation color maps low values to gray and high values to blue.
+
+## Sky Sprites
+
+Sun and moon sprites are projected from time-driven world directions and rendered as screen-space sprites.
+Their current projected half-size is `0.04` screen width, with height adjusted by the viewport aspect ratio.
+The renderer receives `worldTicks` from the application and computes a 28800-tick day cycle.
+At `06H` the sun is near the eastern horizon, at `12H` it is overhead, at `18H` it is near the western horizon, and the moon uses the opposite direction.
+The sky angle decreases through the day cycle so the projected sun rises instead of setting from the `06H` start time.
