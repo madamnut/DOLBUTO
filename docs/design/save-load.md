@@ -97,3 +97,34 @@ region 인덱스는 파일명으로 구분한다.
 마지막으로 save worker flush가 끝나야 종료가 안전하다.
 
 관련 문서: [[chunk-system]], [[runtime-paths]]
+
+## Climate Payload Data
+
+Chunk payloads store climate immediately after block/fluid RLE data and before incoming feature writes.
+
+- `temperature`: 256 raw bytes, one `uint8_t` per chunk column.
+- `precipitation`: 256 raw bytes, one `uint8_t` per chunk column.
+- Values are encoded `0~255` and decoded as `0.0~1.0`.
+- Fluids remain a separate packed `uint16_t` array in runtime and save data.
+
+## Player State
+
+Player state is stored separately from region chunk data.
+
+```text
+saves/world/player.dat
+```
+
+The file is a fixed binary layout with no version field.
+
+```text
+double x
+double y
+double z
+float yaw
+float pitch
+uint8 moveMode        // 0 = fly, 1 = ground
+double verticalVelocity
+```
+
+Total size is 41 bytes. X/Z are saved as wrapped world coordinates.

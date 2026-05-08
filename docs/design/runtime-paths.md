@@ -46,3 +46,16 @@ screenshots -> exe 옆/screenshots
 
 관련 문서: [[build-and-distribution]]
 
+## Logs
+
+Runtime logs use `RuntimePaths::logDirectory()`.
+
+Debug builds write logs to the project root `logs` directory.
+Release and portable builds write logs to the executable-side `logs` directory.
+
+```text
+logs/Latest.txt
+logs/DOLBUTO_YYYYMMDD_HHMMSS_mmm.txt
+```
+
+`Latest.txt` is overwritten on each run. The timestamped file is kept for history, and `_1`, `_2` suffixes are used if a name already exists.

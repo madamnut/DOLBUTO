@@ -97,3 +97,12 @@ retired GPU resource destroy
 GPU 리소스 폐기는 한 프레임에 몰리지 않도록 budget을 둔다.
 
 관련 문서: [[world-generation]], [[save-load]], [[rendering]]
+
+## Chunk Column Data
+
+Runtime chunk data keeps climate as per-column arrays alongside block and fluid arrays.
+
+- Blocks: `uint16_t` vector for `16 x 512 x 16` block ids.
+- Fluids: `uint16_t` vector for `16 x 512 x 16` packed fluid values.
+- Temperature: `uint8_t[256]`, indexed by `localZ * 16 + localX`.
+- Precipitation: `uint8_t[256]`, indexed by `localZ * 16 + localX`.

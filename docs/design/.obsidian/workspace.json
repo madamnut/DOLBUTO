@@ -4,17 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "f86c1a1f98d3dde8",
+        "id": "997b07f27e27f68c",
         "type": "tabs",
         "children": [
           {
-            "id": "bef82678b85e1bd5",
+            "id": "bda38083b81fbad1",
             "type": "leaf",
             "state": {
-              "type": "graph",
+              "type": "empty",
               "state": {},
-              "icon": "lucide-git-fork",
-              "title": "그래프 뷰"
+              "icon": "lucide-file",
+              "title": "새 탭"
             }
           }
         ]
@@ -176,8 +176,9 @@
       "bases:새 베이스 생성하기": false
     }
   },
-  "active": "bef82678b85e1bd5",
+  "active": "bda38083b81fbad1",
   "lastOpenFiles": [
+    "save-load.md",
     "rendering.md",
     "chunk-system.md",
     "project-overview.md",

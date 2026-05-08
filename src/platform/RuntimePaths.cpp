@@ -69,4 +69,13 @@ namespace dolbuto
         return std::filesystem::path(DOLBUTO_ASSET_DIR).parent_path() / "screenshots";
 #endif
     }
+
+    std::filesystem::path logDirectory()
+    {
+#ifdef NDEBUG
+        return executableDirectory() / "logs";
+#else
+        return std::filesystem::path(DOLBUTO_LOG_DIR);
+#endif
+    }
 }

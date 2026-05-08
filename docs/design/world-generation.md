@@ -42,6 +42,36 @@ FastNoise2를 사용한다.
 
 `terrain.seaLevel`은 초기 물 생성 기준 해수면이다.
 
+## 기후 노이즈
+
+기후 디버그용 전역 값은 `temperature`와 `precipitation`이다.
+
+- `temperature`: 래핑된 월드 Z 좌표 기준 위도 값이다. 남북 끝은 가장 낮고 월드 중앙은 가장 높다.
+- `temperature`에는 기후대 형태를 유지하기 위해 중위도에서만 강해지는 약한 타일링 노이즈를 더한다.
+- `precipitation`: `65536 x 65536` 주기로 타일링되는 넓은 2D 노이즈다.
+
+기후 설정은 `config/world.json`의 `climate`에서 읽는다.
+
+```json
+"climate": {
+  "temperature": {
+    "noiseStrength": 0.12,
+    "noiseFeatureScale": 8192.0,
+    "noiseOctaveCount": 2,
+    "noiseLacunarity": 2.0,
+    "noiseGain": 0.5,
+    "noiseSimplexScale": 1.0
+  },
+  "precipitation": {
+    "featureScale": 4096.0,
+    "octaveCount": 3,
+    "lacunarity": 2.0,
+    "gain": 0.5,
+    "simplexScale": 1.0
+  }
+}
+```
+
 ## 높이 LUT
 
 노이즈 값은 LUT를 통해 실제 높이로 변환한다.
@@ -79,10 +109,12 @@ bedrock 높이는 전역 난수를 사용해 1~4 범위로 만든다.
 
 전역 0~255 난수를 식생 판단에 사용한다.
 
-- plant: `0 ~ 167`
+- plant: `0 ~ 151`
+- stone prop: `152 ~ 159`
+- branch prop: `160 ~ 167`
 - tree: `168 ~ 170`
 
-grass 위에는 70% 확률에 해당하는 기준으로 plant가 생성된다.
+grass 위에는 같은 0~255 식생 난수 구간에 따라 plant, stone prop, branch prop, tree 중 하나가 배타적으로 생성된다.
 tree는 grass 위에 trunk와 leaves를 배치한다.
 
 ## 나무와 feature write
@@ -111,3 +143,12 @@ Empty
 ```
 
 관련 문서: [[chunk-system]], [[block-data]], [[save-load]]
+
+## Climate Chunk Data
+
+Climate is stored per X/Z column in runtime chunk data.
+
+- `temperature[256]`: `uint8_t` encoded `0~255`, decoded as `0.0~1.0`.
+- `precipitation[256]`: `uint8_t` encoded `0~255`, decoded as `0.0~1.0`.
+- Column index is `localZ * 16 + localX`.
+- Generated chunks populate these arrays with the same tileable climate noise used by the F6 overlay.

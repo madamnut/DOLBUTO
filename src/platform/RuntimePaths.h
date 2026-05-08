@@ -10,4 +10,5 @@ namespace dolbuto
     std::filesystem::path shaderDirectory();
     std::filesystem::path worldDirectory();
     std::filesystem::path screenshotDirectory();
+    std::filesystem::path logDirectory();
 }

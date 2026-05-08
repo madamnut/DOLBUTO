@@ -28,5 +28,22 @@
       "gain": 0.3,
       "simplexScale": 1.0
     }
+  },
+  "climate": {
+    "temperature": {
+      "noiseStrength": 0.12,
+      "noiseFeatureScale": 8192.0,
+      "noiseOctaveCount": 2,
+      "noiseLacunarity": 2.0,
+      "noiseGain": 0.5,
+      "noiseSimplexScale": 1.0
+    },
+    "precipitation": {
+      "featureScale": 4096.0,
+      "octaveCount": 3,
+      "lacunarity": 1.0,
+      "gain": 0.5,
+      "simplexScale": 1.0
+    }
   }
 }

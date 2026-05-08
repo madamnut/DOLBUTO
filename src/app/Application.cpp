@@ -1,5 +1,6 @@
 #include "app/Application.h"
 
+#include "platform/Log.h"
 #include "platform/RuntimePaths.h"
 
 #define GLFW_INCLUDE_VULKAN
@@ -10,14 +11,17 @@
 #include <stb_image.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <optional>
 #include <stdexcept>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace dolbuto
 {
@@ -37,6 +41,7 @@ namespace dolbuto
         constexpr double DefaultJumpSpeed = 8.4;
         constexpr double DefaultGravity = 32.0;
         constexpr double WorldSizeBlocks = 65536.0;
+        constexpr size_t PlayerStateFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t);
 
         std::optional<double> jsonDoubleField(const std::string& object, const std::string& key)
         {
@@ -169,11 +174,114 @@ namespace dolbuto
             const Vec3 forward = camera.forward();
             return {forward.x, -forward.y, forward.z};
         }
+
+        std::filesystem::path playerStatePath()
+        {
+            return worldDirectory() / "player.dat";
+        }
+
+        void writeU8(std::vector<uint8_t>& bytes, uint8_t value)
+        {
+            bytes.push_back(value);
+        }
+
+        void writeU32(std::vector<uint8_t>& bytes, uint32_t value)
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                bytes.push_back(static_cast<uint8_t>((value >> (i * 8)) & 0xFFu));
+            }
+        }
+
+        void writeU64(std::vector<uint8_t>& bytes, uint64_t value)
+        {
+            for (int i = 0; i < 8; ++i)
+            {
+                bytes.push_back(static_cast<uint8_t>((value >> (i * 8)) & 0xFFu));
+            }
+        }
+
+        void writeF32(std::vector<uint8_t>& bytes, float value)
+        {
+            uint32_t bits = 0;
+            std::memcpy(&bits, &value, sizeof(bits));
+            writeU32(bytes, bits);
+        }
+
+        void writeF64(std::vector<uint8_t>& bytes, double value)
+        {
+            uint64_t bits = 0;
+            std::memcpy(&bits, &value, sizeof(bits));
+            writeU64(bytes, bits);
+        }
+
+        uint8_t readU8(const std::vector<uint8_t>& bytes, size_t& offset)
+        {
+            if (offset >= bytes.size())
+            {
+                throw std::runtime_error("Player state read overflow.");
+            }
+            return bytes[offset++];
+        }
+
+        uint32_t readU32(const std::vector<uint8_t>& bytes, size_t& offset)
+        {
+            if (offset + 4u > bytes.size())
+            {
+                throw std::runtime_error("Player state read overflow.");
+            }
+            uint32_t value = 0;
+            for (int i = 0; i < 4; ++i)
+            {
+                value |= static_cast<uint32_t>(bytes[offset + static_cast<size_t>(i)]) << (i * 8);
+            }
+            offset += 4u;
+            return value;
+        }
+
+        uint64_t readU64(const std::vector<uint8_t>& bytes, size_t& offset)
+        {
+            if (offset + 8u > bytes.size())
+            {
+                throw std::runtime_error("Player state read overflow.");
+            }
+            uint64_t value = 0;
+            for (int i = 0; i < 8; ++i)
+            {
+                value |= static_cast<uint64_t>(bytes[offset + static_cast<size_t>(i)]) << (i * 8);
+            }
+            offset += 8u;
+            return value;
+        }
+
+        float readF32(const std::vector<uint8_t>& bytes, size_t& offset)
+        {
+            const uint32_t bits = readU32(bytes, offset);
+            float value = 0.0f;
+            std::memcpy(&value, &bits, sizeof(value));
+            return value;
+        }
+
+        double readF64(const std::vector<uint8_t>& bytes, size_t& offset)
+        {
+            const uint64_t bits = readU64(bytes, offset);
+            double value = 0.0;
+            std::memcpy(&value, &bits, sizeof(value));
+            return value;
+        }
     }
 
     Application::Application()
     {
+        log::initialize();
+        log::info("DOLBUTO 0.0.0.1 start");
+        log::info("Asset directory: " + assetDirectory().string());
+        log::info("Config directory: " + configDirectory().string());
+        log::info("Shader directory: " + shaderDirectory().string());
+        log::info("World directory: " + worldDirectory().string());
+        log::info("Log directory: " + logDirectory().string());
         loadMovementConfig();
+        loadPlayerState();
         initWindow();
         renderer_ = std::make_unique<Renderer>(window_);
         fpsSampleStart_ = std::chrono::steady_clock::now();
@@ -182,6 +290,7 @@ namespace dolbuto
 
     Application::~Application()
     {
+        savePlayerState();
         renderer_.reset();
         shutdownWindow();
     }
@@ -240,7 +349,7 @@ namespace dolbuto
                 showPlayer = true;
             }
 
-            renderer_->drawFrame(renderCamera, renderCameraPosition, debugText_.data(), debugTextVisible_, screenshotRequested_, showPlayer, renderPlayerPosition, camera_.yaw(), terrainWireframe_);
+            renderer_->drawFrame(renderCamera, renderCameraPosition, debugText_.data(), debugTextVisible_, screenshotRequested_, showPlayer, renderPlayerPosition, camera_.yaw(), terrainWireframe_, climateOverlayMode_);
             screenshotRequested_ = false;
         }
     }
@@ -328,6 +437,10 @@ namespace dolbuto
             else if (key == GLFW_KEY_F5 && action == GLFW_PRESS && app != nullptr)
             {
                 app->cycleViewMode();
+            }
+            else if (key == GLFW_KEY_F6 && action == GLFW_PRESS && app != nullptr)
+            {
+                app->climateOverlayMode_ = (app->climateOverlayMode_ + 1) % 3;
             }
             else if (key == GLFW_KEY_F && action == GLFW_PRESS && app != nullptr)
             {
@@ -521,6 +634,104 @@ namespace dolbuto
         }
     }
 
+    void Application::loadPlayerState()
+    {
+        std::ifstream file(playerStatePath(), std::ios::binary);
+        if (!file.is_open())
+        {
+            log::warn("Player state not found, using default player state.");
+            previousPlayerPosition_ = playerPosition_;
+            return;
+        }
+
+        std::vector<uint8_t> bytes(PlayerStateFileSize);
+        file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+        if (!file)
+        {
+            log::warn("Player state file is incomplete, using default player state.");
+            previousPlayerPosition_ = playerPosition_;
+            return;
+        }
+
+        try
+        {
+            size_t offset = 0;
+            const double x = readF64(bytes, offset);
+            const double y = readF64(bytes, offset);
+            const double z = readF64(bytes, offset);
+            const float yaw = readF32(bytes, offset);
+            const float pitch = readF32(bytes, offset);
+            const uint8_t moveMode = readU8(bytes, offset);
+            const double verticalVelocity = readF64(bytes, offset);
+
+            if (!std::isfinite(x) ||
+                !std::isfinite(y) ||
+                !std::isfinite(z) ||
+                !std::isfinite(yaw) ||
+                !std::isfinite(pitch) ||
+                !std::isfinite(verticalVelocity) ||
+                moveMode > 1u)
+            {
+                log::warn("Player state file contains invalid values, using default player state.");
+                previousPlayerPosition_ = playerPosition_;
+                return;
+            }
+
+            playerPosition_ = {wrapWorldCoordinate(x), y, wrapWorldCoordinate(z)};
+            previousPlayerPosition_ = playerPosition_;
+            camera_.setAngles(yaw, pitch);
+            moveMode_ = moveMode == 0u ? MoveMode::Fly : MoveMode::Ground;
+            verticalVelocity_ = verticalVelocity;
+            grounded_ = false;
+            jumpHeld_ = false;
+            jumpPressed_ = false;
+            physicsAccumulator_ = 0.0;
+            log::info("Player state loaded.");
+        }
+        catch (...)
+        {
+            log::warn("Player state load failed, using default player state.");
+            previousPlayerPosition_ = playerPosition_;
+        }
+    }
+
+    void Application::savePlayerState() const
+    {
+        try
+        {
+            std::filesystem::create_directories(worldDirectory());
+
+            std::vector<uint8_t> bytes;
+            bytes.reserve(PlayerStateFileSize);
+            writeF64(bytes, wrapWorldCoordinate(playerPosition_.x));
+            writeF64(bytes, playerPosition_.y);
+            writeF64(bytes, wrapWorldCoordinate(playerPosition_.z));
+            writeF32(bytes, camera_.yaw());
+            writeF32(bytes, camera_.pitch());
+            writeU8(bytes, static_cast<uint8_t>(moveMode_ == MoveMode::Fly ? 0u : 1u));
+            writeF64(bytes, verticalVelocity_);
+
+            std::ofstream file(playerStatePath(), std::ios::binary | std::ios::trunc);
+            if (!file.is_open())
+            {
+                log::warn("Player state save file could not be opened.");
+                return;
+            }
+            file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+            if (!file)
+            {
+                log::warn("Player state save write failed.");
+                return;
+            }
+            log::info("Player state saved.");
+        }
+        catch (...)
+        {
+            log::warn("Player state save failed.");
+            return;
+        }
+    }
+
     DVec3 Application::interpolatedPlayerPosition(double alpha) const
     {
         return {
@@ -701,11 +912,12 @@ namespace dolbuto
         const double wrappedPlayerX = wrapWorldCoordinate(playerPosition_.x);
         const double wrappedPlayerZ = wrapWorldCoordinate(playerPosition_.z);
         const std::string lookAtText = renderer_ != nullptr ? renderer_->selectedBlockText() : "LOOKAT: none";
+        const std::string climateText = renderer_ != nullptr ? renderer_->climateText(playerPosition_) : "CLIMATE: T[0.000] P[0.000]";
 
         std::snprintf(
             debugText_.data(),
             debugText_.size(),
-            "FPS: %04d [%07.3fMS]\nPOS: X %.3f [%.3f] / Y %.3f / Z %.3f [%.3f]\nVIEW: YAW %.1f / PITCH %.1f [%s]\n%s",
+            "FPS: %04d [%07.3fMS]\nPOS: X %.3f [%.3f] / Y %.3f / Z %.3f [%.3f]\nVIEW: YAW %.1f / PITCH %.1f [%s]\n%s\n%s",
             clampedFps,
             milliseconds,
             wrappedPlayerX,
@@ -716,7 +928,8 @@ namespace dolbuto
             yawDegrees,
             pitchDegrees,
             facing,
-            lookAtText.c_str());
+            lookAtText.c_str(),
+            climateText.c_str());
 
         fpsSampleFrames_ = 0;
         fpsSampleStart_ = now;

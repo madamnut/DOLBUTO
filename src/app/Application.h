@@ -45,6 +45,8 @@ namespace dolbuto
         void setMouseCaptured(bool captured);
         void cycleViewMode();
         void loadMovementConfig();
+        void loadPlayerState();
+        void savePlayerState() const;
         DVec3 interpolatedPlayerPosition(double alpha) const;
         void updatePlayer(double fixedDeltaSeconds);
         void updateDebugText();
@@ -55,6 +57,7 @@ namespace dolbuto
         bool fullscreen_ = false;
         bool debugTextVisible_ = true;
         bool terrainWireframe_ = false;
+        int climateOverlayMode_ = 0;
         bool screenshotRequested_ = false;
         bool mouseCaptured_ = true;
         ViewMode viewMode_ = ViewMode::FirstPerson;

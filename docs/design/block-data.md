@@ -139,17 +139,81 @@ It is not a real render/simulation fluid.
 Packed fluid data with `id = 0` and `amount > 0` is invalid.
 
 `water` rendering uses `assets/textures/fluid/water.png`.
-Water uses Fresnel alpha with base `0.7`, edge `0.95`, and power `1.0`.
-Water also uses `assets/textures/fluid/water_normal.jpg` as a fixed normal-map convention.
-The normal map is sampled twice with separate tiling/speed values from `config/render.json`.
-Water SSR settings are stored under `fluid.water.ssr` in `config/render.json`.
-The current SSR prototype samples projection depth directly instead of linear depth or Hi-Z.
+Water is rendered as a simple textured fluid mesh with `fluid.water.alpha` from `config/render.json`.
+Water normal mapping, Fresnel alpha, depth absorption, and SSR are not part of the current renderer.
 Fluids do not use manual mip textures yet.
-Rendered fluid height is quantized by amount in 10-unit steps.
+Rendered fluid top-surface height is quantized by amount in 10-unit steps.
+A water cell with another water cell above it renders as a full-height `1.0` block.
 
 ```text
-1~10   -> 0.1 block
-11~20  -> 0.2 block
+1~10   -> 0.08 block
+11~20  -> 0.16 block
 ...
-91~100 -> 1.0 block
+91~100 -> 0.80 block
+```
+
+## Prop Block Draft
+
+`renderType = "prop"` is reserved for small ground props stored in the normal `blocks` array.
+It does not add a separate chunk data layer.
+
+Current draft IDs:
+
+```text
+20000 stone
+20001 branch
+```
+
+Prop blocks use `prop.model` to choose the model and `prop.texture` to choose one block texture name.
+Source models are stored in `assets/textures/block/model/{model}.glb`.
+Runtime/cache models are stored in `assets/textures/block/model/{model}.dpm`.
+Textures are stored in `assets/textures/block/{texture}.png`.
+
+At startup, the renderer checks prop models used by block data.
+If `{model}.dpm` is missing, invalid by file size, or older than `{model}.glb`, it tries to convert the `.glb` file into `.dpm`.
+If both files are missing or conversion fails, the runtime writes a warning to the log.
+
+`dpm` is a compact binary prop mesh format with no magic and no version field:
+
+```text
+uint32 quadCount
+repeat quadCount:
+  float position[4][3]
+  float uv[4][2]
+  float normal[3]
+```
+
+Runtime prop rendering loads `.dpm` into a block-ID mesh cache.
+During subchunk meshing, each prop block appends the cached quads into the normal terrain mesh.
+GLB triangle pairs are merged back into quads during conversion.
+Prop quads are emitted double-sided so source model face winding does not decide visibility.
+
+```json
+{
+  "id": 20000,
+  "name": "stone",
+  "renderType": "prop",
+  "collision": false,
+  "faceOcclusion": "none",
+  "alphaMode": "opaque",
+  "prop": {
+    "model": "stone",
+    "texture": "rock"
+  }
+}
+```
+
+```json
+{
+  "id": 20001,
+  "name": "branch",
+  "renderType": "prop",
+  "collision": false,
+  "faceOcclusion": "none",
+  "alphaMode": "opaque",
+  "prop": {
+    "model": "branch",
+    "texture": "trunk"
+  }
+}
 ```

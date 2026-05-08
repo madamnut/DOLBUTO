@@ -4,6 +4,11 @@
 
 F3으로 디버그 텍스트 표시를 켜고 끈다.
 실행 시 기본값은 켜짐이다.
+F6으로 기후 오버레이를 순환한다.
+
+```text
+OFF -> Temperature -> Precipitation -> OFF
+```
 
 ## 좌상단
 
@@ -73,3 +78,26 @@ QUADS
 텍스트는 batch 방식으로 처리해 매 프레임 비용을 줄인다.
 
 관련 문서: [[chunk-system]], [[rendering]], [[save-load]]
+
+## Climate Debug Text
+
+The upper-left debug text shows sampled player-column climate as:
+
+```text
+CLIMATE: T[0.000] P[0.000]
+```
+
+`T` is temperature and `P` is precipitation, both decoded to `0.0~1.0`.
+F6 still cycles the full-screen climate overlay between off, temperature, and precipitation.
+
+## Runtime Logs
+
+The game creates text logs under `logs`.
+
+```text
+logs/Latest.txt
+logs/DOLBUTO_YYYYMMDD_HHMMSS_mmm.txt
+```
+
+Both files receive the same log lines during a run. `Latest.txt` is replaced on the next run.
+Log lines include local time with milliseconds and a level such as `INFO`, `WARN`, `ERROR`, or `DEBUG`.

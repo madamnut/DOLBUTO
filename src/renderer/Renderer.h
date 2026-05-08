@@ -44,12 +44,14 @@ namespace dolbuto
             bool showPlayer,
             DVec3 playerPosition,
             float playerYaw,
-            bool terrainWireframe);
+            bool terrainWireframe,
+            int climateOverlayMode);
         void setFramebufferResized();
         bool playerColliderIntersectsTerrain(DVec3 playerPosition) const;
         void updateBlockSelection(DVec3 origin, Vec3 direction);
         bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock);
         std::string selectedBlockText() const;
+        std::string climateText(DVec3 position) const;
         void resetPeakProfiler();
 
     private:
@@ -165,17 +167,16 @@ namespace dolbuto
             uint32_t material = 0;
         };
 
+        struct PropMesh
+        {
+            std::vector<float> quads;
+        };
+
         struct TerrainPush
         {
             float mvp[16]{};
             float cameraPosition[4]{};
             float fluidWaterParams[4]{};
-            float fluidWaterNormalParams[4]{};
-            float fluidWaterNormalSpeed[4]{};
-            float ssrParams[4]{};
-            float ssrMarchParams[4]{};
-            float ssrFallbackColor[4]{};
-            float ssrDepthParams[4]{};
         };
 
         struct BufferUploadRegion
@@ -220,7 +221,8 @@ namespace dolbuto
         {
             None,
             Cube,
-            Cross
+            Cross,
+            Prop
         };
 
         enum class BlockFaceOcclusion : uint8_t
@@ -265,6 +267,8 @@ namespace dolbuto
             int chunkZ = 0;
             std::vector<uint16_t> blocks;
             std::vector<uint16_t> fluids;
+            std::array<uint8_t, ChunkColumnCount> temperature{};
+            std::array<uint8_t, ChunkColumnCount> precipitation{};
             std::array<bool, SubchunkCount> emptySubchunks{};
         };
 
@@ -359,6 +363,8 @@ namespace dolbuto
             std::shared_ptr<const ChunkData> chunkData;
             std::vector<uint16_t> blocks;
             std::vector<uint16_t> fluids;
+            std::array<uint8_t, ChunkColumnCount> temperature{};
+            std::array<uint8_t, ChunkColumnCount> precipitation{};
             std::array<FeatureWriteListPtr, FeatureNeighborCount> incomingFeatureSlots{};
             uint8_t incomingFeatureMask = 0;
         };
@@ -516,7 +522,7 @@ namespace dolbuto
         VkCommandBuffer beginSingleTimeCommands() const;
         void endSingleTimeCommands(VkCommandBuffer commandBuffer) const;
 
-        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe);
+        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode);
         void copySwapchainImageToBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VkBuffer buffer) const;
         void saveScreenshot(VkDeviceMemory memory, VkDeviceSize size) const;
         void updatePlayerMesh(Vec3 playerPosition, float playerYaw);
@@ -535,6 +541,16 @@ namespace dolbuto
         void drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const;
         void drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
         void drawSpriteDescriptor(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
+        void ensureClimateOverlayTexture(int mode);
+        std::vector<unsigned char> buildClimateOverlayPixels(int mode) const;
+        std::vector<float> buildTileableClimateNoise(float featureScale, float simplexScale, int octaveCount, float lacunarity, float gain, int seed) const;
+        std::array<float, ChunkColumnCount> buildChunkTileableClimateNoise(int chunkX, int chunkZ, float featureScale, float simplexScale, int octaveCount, float lacunarity, float gain, int seed) const;
+        float sampleTileableClimateNoise(int wrappedX, int wrappedZ, float featureScale, float simplexScale, int octaveCount, float lacunarity, float gain, int seed) const;
+        void populateChunkClimate(ChunkData& chunk) const;
+        float baseTemperatureAtWrappedZ(int wrappedZ) const;
+        float temperatureAtWrapped(int wrappedZ, float noise) const;
+        float precipitationAtNoise(float noise) const;
+        void drawClimateOverlay(VkCommandBuffer commandBuffer, int mode) const;
         std::string_view resolutionText();
         void updateDebugTextBatch(std::string_view fpsText);
         void updatePerformanceText(double cpuFrameMs);
@@ -666,24 +682,19 @@ namespace dolbuto
         float terrainDomainWarpFrequency_ = 0.0f;
         int terrainDomainWarpOctaveCount_ = 0;
         float terrainDomainWarpGain_ = 0.0f;
+        float temperatureNoiseStrength_ = 0.12f;
+        float temperatureNoiseFeatureScale_ = 8192.0f;
+        int temperatureNoiseOctaveCount_ = 2;
+        float temperatureNoiseLacunarity_ = 2.0f;
+        float temperatureNoiseGain_ = 0.5f;
+        float temperatureNoiseSimplexScale_ = 1.0f;
+        float precipitationNoiseFeatureScale_ = 4096.0f;
+        int precipitationNoiseOctaveCount_ = 3;
+        float precipitationNoiseLacunarity_ = 2.0f;
+        float precipitationNoiseGain_ = 0.5f;
+        float precipitationNoiseSimplexScale_ = 1.0f;
         int seaLevel_ = 0;
-        float fluidWaterBaseAlpha_ = 0.7f;
-        float fluidWaterEdgeAlpha_ = 0.95f;
-        float fluidWaterFresnelPower_ = 1.0f;
-        float fluidWaterNormalScale_ = 0.05f;
-        float fluidWaterNormalTiling_ = 1.0f;
-        float fluidWaterNormalSpeed_ = 1.1f;
-        bool fluidWaterSsrEnabled_ = true;
-        float fluidWaterSsrStrength_ = 0.35f;
-        int fluidWaterSsrMaxSteps_ = 32;
-        float fluidWaterSsrStepSize_ = 0.25f;
-        float fluidWaterSsrThickness_ = 0.001f;
-        float fluidWaterSsrMaxDistance_ = 64.0f;
-        float fluidWaterSsrEdgeFade_ = 0.15f;
-        float fluidWaterSsrFallbackStrength_ = 0.12f;
-        float fluidWaterSsrFallbackR_ = 0.65f;
-        float fluidWaterSsrFallbackG_ = 0.85f;
-        float fluidWaterSsrFallbackB_ = 1.0f;
+        float fluidWaterAlpha_ = 0.8f;
         int loadedChunkDiameter_ = 0;
         int loadedCenterGroupChunkX_ = 0;
         int loadedCenterGroupChunkZ_ = 0;
@@ -738,16 +749,20 @@ namespace dolbuto
         Texture sun_;
         Texture moon_;
         Texture crosshair_;
+        Texture climateTemperatureOverlay_;
+        Texture climatePrecipitationOverlay_;
+        bool climateTemperatureOverlayReady_ = false;
+        bool climatePrecipitationOverlayReady_ = false;
         Texture font_;
         Texture playerTexture_;
         Texture terrainTextureArray_;
         Texture fluidTextureArray_;
-        Texture fluidNormalTexture_;
         std::vector<Texture> sceneColorTargets_;
         std::vector<Texture> sceneDepthTargets_;
         std::vector<VkFramebuffer> sceneFramebuffers_;
         std::vector<BlockDefinition> blockDefinitions_;
         std::vector<BlockTextureLayers> blockTextureLayers_;
+        std::unordered_map<uint16_t, PropMesh> propMeshesByBlock_;
         std::array<stbtt_bakedchar, 95> bakedChars_{};
 
         std::vector<VkSemaphore> imageAvailableSemaphores_;

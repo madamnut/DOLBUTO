@@ -49,6 +49,19 @@
 - mip 전환은 shader에서 카메라 거리 기준으로 처리한다.
 - `mipDistanceScale = 1.0`일 때 64블록 단위로 mip 단계가 바뀐다.
 
+## Prop Rendering
+
+`renderType = "prop"` blocks are rendered inside the normal terrain mesh path.
+
+- Block data chooses a `.dpm` model with `prop.model`.
+- Block data chooses one block texture array layer with `prop.texture`.
+- `.dpm` stores quad positions, UVs, and normals; it has no magic and no version field.
+- On startup, missing or stale `.dpm` files are regenerated from matching `.glb` files.
+- During `.glb` conversion, source triangle pairs are merged back into quads.
+- During subchunk meshing, prop quads are appended at the block position.
+- Prop quads are emitted double-sided to avoid depending on source model winding.
+- Packed terrain positions and UVs use 1/256 precision so small rotated prop geometry and model UV islands survive.
+
 ## 컬링
 
 - 프러스텀 컬링을 적용한다.
@@ -67,37 +80,34 @@ Fluids are rendered as separate subchunk meshes from block terrain.
 The current rendered fluid is `water`.
 
 - Texture: `assets/textures/fluid/water.png`
-- Normal texture: `assets/textures/fluid/water_normal.jpg`
-- The current normal texture keeps the existing filename and uses a 256x256 PNG water-normal source.
-- Fresnel alpha: base `0.7`, edge `0.95`, power `1.0`
-- Runtime config: `config/render.json` -> `fluid.water.baseAlpha`, `fluid.water.edgeAlpha`, `fluid.water.fresnelPower`, `normalScale`, `normalTiling`, `normalSpeed`, `ssr`
+- Runtime config: `config/render.json` -> `fluid.water.alpha`
 - Manual fluid mip textures: not used yet
 - `amount = 0` or `id = 0` is not rendered
-- Amount height is rounded up by 10-unit steps from `0.1` to `1.0` block
+- Top-surface amount height is rounded up by 10-unit steps from `0.08` to `0.8` block
+- A water cell with another water cell above it renders as `1.0` block high
 
-Block terrain is drawn first, then fluid meshes are drawn.
+Block terrain, block selection, and player mesh are drawn first, then fluid meshes are drawn in the same scene pass.
 Internal fluid faces are skipped when an adjacent fluid reaches the same or greater height.
 Fluid rendering uses a separate `fluidPipeline_` with alpha blending enabled and depth write disabled.
 The normal terrain pipeline remains non-blended for opaque/cutout block rendering.
+Fluids keep depth testing enabled so blocks, cutout terrain, selection outlines, and the player can occlude them through the scene depth buffer.
 The fluid pipeline uses `fluid.frag`.
-`terrain.vert` provides the reconstructed quad normal so fluid alpha becomes stronger at grazing view angles.
-`water_normal.jpg` is loaded as `VK_FORMAT_R8G8B8A8_UNORM` through `stbi_load`.
-`fluid.frag` samples the texture RG channels as signed water-normal offsets four times: medium, small, broad, and very broad wave scales.
-The combined offset uses fixed medium/small/big wave weights, is reduced at grazing Fresnel angles, and perturbs the Fresnel/reflection normal; it does not deform water geometry.
+`fluid.frag` samples the fluid texture array and applies a fixed alpha value from render config.
+Water normal mapping, Fresnel alpha, depth absorption, and SSR are not part of the current renderer.
 
-## Water SSR
+## Climate Overlay
 
-Water SSR uses the offscreen scene color and scene depth from the scene pass.
+F6 cycles the climate debug overlay.
 
-- Scene rendering is split into an offscreen scene pass and a swapchain composite/fluid pass.
-- The offscreen scene pass renders sky sprites, block terrain, block selection, and player mesh into scene color/depth targets.
-- The swapchain pass first composites the scene color target, then renders fluid meshes.
-- `fluid.frag` samples the offscreen scene color and scene depth directly.
-- `fluid.frag` samples scene color and scene depth in the offscreen texture coordinate space.
-- Fluid occlusion against terrain is handled in the shader by linearizing and comparing the water fragment depth against the sampled scene depth.
-- SSR ray samples project world-space ray points through the existing MVP and compare linearized ray depth against linearized scene depth.
-- The SSR march uses variable step growth and refinement when it overshoots a possible hit.
-- Misses fall back to `ssr.fallbackColor` and `ssr.fallbackStrength`.
+```text
+OFF -> Temperature -> Precipitation -> OFF
+```
 
-`ssr.thickness` is interpreted in linear depth units.
-The Hi-Z compute path is not used.
+The overlay is a `1024 x 1024` texture covering the full `65536 x 65536` wrapped world.
+Each pixel samples a `64 x 64` block area.
+
+- Temperature uses wrapped Z as a north-south latitude value: world edges are cold and the center is hot.
+- Temperature adds weak tileable noise through a mid-latitude mask so the broad climate bands remain intact.
+- Temperature color maps low values to blue and high values to red.
+- Precipitation uses a wide tileable 2D noise sampled through the same 4D torus approach as terrain height noise.
+- Precipitation color maps low values to gray and high values to blue.

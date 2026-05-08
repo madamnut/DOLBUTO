@@ -4,6 +4,7 @@ layout(push_constant) uniform TerrainPush
 {
     mat4 mvp;
     vec4 cameraPosition;
+    vec4 fluidWaterParams;
 } pushData;
 
 layout(set = 1, binding = 0, std430) readonly buffer TerrainQuadBuffer
@@ -76,20 +77,20 @@ void main()
     uint material = terrainQuadBuffer.packedQuads[base + 9u];
 
     vec3 origin = vec3(
-        float(decodeSignedFixed(p0x)) / 16.0,
-        float(decodeSignedFixed(p0y)) / 16.0,
-        float(decodeSignedFixed(p0z)) / 16.0);
+        float(decodeSignedFixed(p0x)) / 256.0,
+        float(decodeSignedFixed(p0y)) / 256.0,
+        float(decodeSignedFixed(p0z)) / 256.0);
     vec3 edgeU = vec3(
-        float(lowI16(edgeUxy)) / 16.0,
-        float(highI16(edgeUxy)) / 16.0,
-        float(lowI16(edgeUzVx)) / 16.0);
+        float(lowI16(edgeUxy)) / 256.0,
+        float(highI16(edgeUxy)) / 256.0,
+        float(lowI16(edgeUzVx)) / 256.0);
     vec3 edgeV = vec3(
-        float(highI16(edgeUzVx)) / 16.0,
-        float(lowI16(edgeVyz)) / 16.0,
-        float(highI16(edgeVyz)) / 16.0);
-    vec2 uvOrigin = vec2(float(lowI16(uv0)) / 4.0, float(highI16(uv0)) / 4.0);
-    vec2 uvEdgeU = vec2(float(lowI16(uvU)) / 4.0, float(highI16(uvU)) / 4.0);
-    vec2 uvEdgeV = vec2(float(lowI16(uvV)) / 4.0, float(highI16(uvV)) / 4.0);
+        float(highI16(edgeUzVx)) / 256.0,
+        float(lowI16(edgeVyz)) / 256.0,
+        float(highI16(edgeVyz)) / 256.0);
+    vec2 uvOrigin = vec2(float(lowI16(uv0)) / 256.0, float(highI16(uv0)) / 256.0);
+    vec2 uvEdgeU = vec2(float(lowI16(uvU)) / 256.0, float(highI16(uvU)) / 256.0);
+    vec2 uvEdgeV = vec2(float(lowI16(uvV)) / 256.0, float(highI16(uvV)) / 256.0);
 
     vec3 position = origin + edgeU * useU + edgeV * useV;
     vec2 uv = uvOrigin + uvEdgeU * useU + uvEdgeV * useV;

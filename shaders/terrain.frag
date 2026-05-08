@@ -6,6 +6,7 @@ layout(push_constant) uniform TerrainPush
 {
     mat4 mvp;
     vec4 cameraPosition;
+    vec4 fluidWaterParams;
 } pushData;
 
 layout(location = 0) in vec2 fragUv;

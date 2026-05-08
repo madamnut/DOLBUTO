@@ -84,3 +84,15 @@ F 키로 fly/ground 모드를 전환한다.
 
 관련 문서: [[block-data]], [[debug-profiling]]
 
+## Player Save Data
+
+Player state is loaded from and saved to `saves/world/player.dat`.
+
+- `x`, `y`, `z` use the player foot position.
+- `x` and `z` are stored as wrapped world coordinates.
+- `yaw` and `pitch` restore the camera view.
+- `moveMode` stores `0 = fly`, `1 = ground`.
+- `verticalVelocity` restores jump/fall momentum for ground movement.
+- Interpolation state is not saved; on load, previous position is set to the loaded position.
+
+Related document: [[save-load]]

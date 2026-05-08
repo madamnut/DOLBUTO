@@ -1,6 +1,7 @@
 #include "renderer/Renderer.h"
 
 #include "camera/Camera.h"
+#include "platform/Log.h"
 #include "platform/RuntimePaths.h"
 
 #include <FastNoise/FastNoise.h>
@@ -26,6 +27,7 @@
 #include <sstream>
 #include <set>
 #include <stdexcept>
+#include <unordered_set>
 #include <utility>
 
 #ifdef _WIN32
@@ -78,23 +80,21 @@ namespace dolbuto
         constexpr float DefaultTerrainDomainWarpFrequency = 1.0f;
         constexpr int DefaultTerrainDomainWarpOctaveCount = 2;
         constexpr float DefaultTerrainDomainWarpGain = 0.5f;
-        constexpr float DefaultFluidWaterBaseAlpha = 0.7f;
-        constexpr float DefaultFluidWaterEdgeAlpha = 0.95f;
-        constexpr float DefaultFluidWaterFresnelPower = 1.0f;
-        constexpr float DefaultFluidWaterNormalScale = 0.05f;
-        constexpr float DefaultFluidWaterNormalTiling = 1.0f;
-        constexpr float DefaultFluidWaterNormalSpeed = 1.1f;
-        constexpr bool DefaultFluidWaterSsrEnabled = true;
-        constexpr float DefaultFluidWaterSsrStrength = 0.35f;
-        constexpr int DefaultFluidWaterSsrMaxSteps = 32;
-        constexpr float DefaultFluidWaterSsrStepSize = 0.25f;
-        constexpr float DefaultFluidWaterSsrThickness = 0.001f;
-        constexpr float DefaultFluidWaterSsrMaxDistance = 64.0f;
-        constexpr float DefaultFluidWaterSsrEdgeFade = 0.15f;
-        constexpr float DefaultFluidWaterSsrFallbackStrength = 0.12f;
-        constexpr float DefaultFluidWaterSsrFallbackR = 0.65f;
-        constexpr float DefaultFluidWaterSsrFallbackG = 0.85f;
-        constexpr float DefaultFluidWaterSsrFallbackB = 1.0f;
+        constexpr float DefaultTemperatureNoiseStrength = 0.12f;
+        constexpr float DefaultTemperatureNoiseFeatureScale = 8192.0f;
+        constexpr int DefaultTemperatureNoiseOctaveCount = 2;
+        constexpr float DefaultTemperatureNoiseLacunarity = 2.0f;
+        constexpr float DefaultTemperatureNoiseGain = 0.5f;
+        constexpr float DefaultTemperatureNoiseSimplexScale = 1.0f;
+        constexpr int TemperatureNoiseSeed = 2400;
+        constexpr float DefaultPrecipitationNoiseFeatureScale = 4096.0f;
+        constexpr int DefaultPrecipitationNoiseOctaveCount = 3;
+        constexpr float DefaultPrecipitationNoiseLacunarity = 2.0f;
+        constexpr float DefaultPrecipitationNoiseGain = 0.5f;
+        constexpr float DefaultPrecipitationNoiseSimplexScale = 1.0f;
+        constexpr int PrecipitationNoiseSeed = 2401;
+        constexpr int ClimateOverlaySize = 1024;
+        constexpr float DefaultFluidWaterAlpha = 0.8f;
         constexpr float TerrainNearPlane = 0.1f;
         constexpr float TerrainFarPlane = 4000.0f;
         constexpr double PeakProfilerStartupDelaySeconds = 5.0;
@@ -111,19 +111,36 @@ namespace dolbuto
         constexpr uint16_t BlockTrunk = 8;
         constexpr uint16_t BlockLeaves = 9;
         constexpr uint16_t BlockPlant = 10000;
+        constexpr uint16_t BlockStoneProp = 20000;
+        constexpr uint16_t BlockBranchProp = 20001;
         constexpr uint16_t BlockBedrock = 65535;
         constexpr uint16_t FluidNone = 0;
         constexpr uint16_t FluidWater = 1;
         constexpr uint16_t FluidFullAmount = 100;
+        constexpr uint16_t FluidHeightStepAmount = 10;
+        constexpr uint16_t FluidHeightLevels = 10;
+        constexpr float FluidSurfaceMaxHeight = 0.8f;
         constexpr int FluidAmountBits = 7;
         constexpr uint16_t FluidAmountMask = (1u << FluidAmountBits) - 1u;
         constexpr float FluidMipDistanceScale = 0.0f;
+        constexpr uint8_t ClimateMinByte = 0;
+        constexpr uint8_t ClimateMaxByte = 255;
         constexpr uint32_t BedrockHeightSalt = 0xBEEFBEDu;
         constexpr uint32_t TopFaceRotationSalt = 0x51A7E001u;
         constexpr uint32_t PlantPlacementSalt = 0x9A7D3E21u;
-        constexpr uint8_t PlantPlacementThreshold = 168;
+        constexpr uint8_t PlantPlacementMax = 151;
+        constexpr uint8_t StonePlacementMax = 159;
+        constexpr uint8_t BranchPlacementMax = 167;
         constexpr uint8_t TreePlacementMin = 168;
         constexpr uint8_t TreePlacementMax = 170;
+        constexpr size_t DpmHeaderSize = sizeof(uint32_t);
+        constexpr size_t DpmQuadFloatCount = 4u * 3u + 4u * 2u + 3u;
+        constexpr size_t DpmQuadRenderFloatCount = 4u * 3u + 4u * 2u;
+        constexpr size_t DpmQuadSize = sizeof(float) * DpmQuadFloatCount;
+        constexpr uint32_t GlbJsonChunkType = 0x4E4F534Au;
+        constexpr uint32_t GlbBinChunkType = 0x004E4942u;
+        constexpr float TerrainPositionPackScale = 256.0f;
+        constexpr float TerrainUvPackScale = 256.0f;
         constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
         constexpr const char* VersionText = "DOLBUTO 0.0.0.1";
         constexpr std::array<const char*, 1> DeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -189,6 +206,8 @@ namespace dolbuto
             float alphaCutoff = 0.5f;
             float mipDistanceScale = 1.0f;
             std::unordered_map<std::string, std::string> textures;
+            std::string propModel;
+            std::string propTexture;
         };
 
         std::optional<std::string> jsonStringField(const std::string& object, const std::string& key)
@@ -536,6 +555,65 @@ namespace dolbuto
             return std::nullopt;
         }
 
+        std::optional<std::string> jsonArrayField(const std::string& object, const std::string& key)
+        {
+            const std::string token = "\"" + key + "\"";
+            const size_t keyPos = object.find(token);
+            if (keyPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t openPos = object.find('[', keyPos + token.size());
+            if (openPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            int depth = 0;
+            bool inString = false;
+            bool escaped = false;
+            for (size_t i = openPos; i < object.size(); ++i)
+            {
+                const char c = object[i];
+                if (inString)
+                {
+                    if (escaped)
+                    {
+                        escaped = false;
+                    }
+                    else if (c == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (c == '"')
+                    {
+                        inString = false;
+                    }
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inString = true;
+                }
+                else if (c == '[')
+                {
+                    ++depth;
+                }
+                else if (c == ']')
+                {
+                    --depth;
+                    if (depth == 0)
+                    {
+                        return object.substr(openPos, i - openPos + 1);
+                    }
+                }
+            }
+
+            return std::nullopt;
+        }
+
         std::vector<std::string> jsonTopLevelObjects(const std::string& text)
         {
             std::vector<std::string> objects;
@@ -588,6 +666,124 @@ namespace dolbuto
             }
 
             return objects;
+        }
+
+        std::vector<std::string> jsonObjectMemberObjects(const std::string& object)
+        {
+            const size_t open = object.find('{');
+            const size_t close = object.rfind('}');
+            if (open == std::string::npos || close == std::string::npos || close <= open)
+            {
+                return {};
+            }
+
+            return jsonTopLevelObjects(object.substr(open + 1u, close - open - 1u));
+        }
+
+        std::optional<std::string> jsonTopLevelArrayField(const std::string& object, const std::string& key)
+        {
+            const size_t open = object.find('{');
+            const size_t close = object.rfind('}');
+            if (open == std::string::npos || close == std::string::npos || close <= open)
+            {
+                return std::nullopt;
+            }
+
+            const std::string token = "\"" + key + "\"";
+            size_t cursor = open + 1u;
+            int depth = 0;
+            bool inString = false;
+            bool escaped = false;
+            while (cursor < close)
+            {
+                const char c = object[cursor];
+                if (inString)
+                {
+                    if (escaped)
+                    {
+                        escaped = false;
+                    }
+                    else if (c == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (c == '"')
+                    {
+                        inString = false;
+                    }
+                    ++cursor;
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    if (depth == 0 && object.compare(cursor, token.size(), token) == 0)
+                    {
+                        const size_t colon = object.find(':', cursor + token.size());
+                        if (colon == std::string::npos)
+                        {
+                            return std::nullopt;
+                        }
+                        const size_t arrayOpen = object.find_first_not_of(" \t\r\n", colon + 1u);
+                        if (arrayOpen == std::string::npos || arrayOpen >= object.size() || object[arrayOpen] != '[')
+                        {
+                            return std::nullopt;
+                        }
+
+                        int arrayDepth = 0;
+                        bool arrayInString = false;
+                        bool arrayEscaped = false;
+                        for (size_t i = arrayOpen; i < object.size(); ++i)
+                        {
+                            const char arrayChar = object[i];
+                            if (arrayInString)
+                            {
+                                if (arrayEscaped)
+                                {
+                                    arrayEscaped = false;
+                                }
+                                else if (arrayChar == '\\')
+                                {
+                                    arrayEscaped = true;
+                                }
+                                else if (arrayChar == '"')
+                                {
+                                    arrayInString = false;
+                                }
+                                continue;
+                            }
+                            if (arrayChar == '"')
+                            {
+                                arrayInString = true;
+                            }
+                            else if (arrayChar == '[')
+                            {
+                                ++arrayDepth;
+                            }
+                            else if (arrayChar == ']')
+                            {
+                                --arrayDepth;
+                                if (arrayDepth == 0)
+                                {
+                                    return object.substr(arrayOpen, i - arrayOpen + 1u);
+                                }
+                            }
+                        }
+                        return std::nullopt;
+                    }
+                    inString = true;
+                }
+                else if (c == '{' || c == '[')
+                {
+                    ++depth;
+                }
+                else if (c == '}' || c == ']')
+                {
+                    --depth;
+                }
+                ++cursor;
+            }
+            return std::nullopt;
         }
 
         std::vector<ParsedBlockDefinition> parseBlockDefinitions(const std::string& text)
@@ -653,6 +849,17 @@ namespace dolbuto
                         {
                             definition.textures[key] = *texture;
                         }
+                    }
+                }
+                if (const std::optional<std::string> prop = jsonObjectField(object, "prop"); prop.has_value())
+                {
+                    if (const std::optional<std::string> model = jsonStringField(*prop, "model"); model.has_value())
+                    {
+                        definition.propModel = *model;
+                    }
+                    if (const std::optional<std::string> texture = jsonStringField(*prop, "texture"); texture.has_value())
+                    {
+                        definition.propTexture = *texture;
                     }
                 }
                 definitions.push_back(std::move(definition));
@@ -772,10 +979,28 @@ namespace dolbuto
             return static_cast<uint16_t>(fluid & FluidAmountMask);
         }
 
-        constexpr float fluidHeight(uint16_t amount)
+        constexpr float fluidSurfaceHeight(uint16_t amount)
         {
             const uint16_t clampedAmount = amount > FluidFullAmount ? FluidFullAmount : amount;
-            return static_cast<float>((clampedAmount + 9u) / 10u) * 0.1f;
+            if (clampedAmount == 0)
+            {
+                return 0.0f;
+            }
+            const uint16_t level = static_cast<uint16_t>((clampedAmount + FluidHeightStepAmount - 1u) / FluidHeightStepAmount);
+            return (static_cast<float>(level) / static_cast<float>(FluidHeightLevels)) * FluidSurfaceMaxHeight;
+        }
+
+        uint8_t encodeClimateValue(float value)
+        {
+            return static_cast<uint8_t>(std::clamp(
+                std::lround(std::clamp(value, 0.0f, 1.0f) * static_cast<float>(ClimateMaxByte)),
+                static_cast<long>(ClimateMinByte),
+                static_cast<long>(ClimateMaxByte)));
+        }
+
+        float decodeClimateValue(uint8_t value)
+        {
+            return static_cast<float>(value) / static_cast<float>(ClimateMaxByte);
         }
 
         uint16_t baseTerrainBlockForColumn(int worldX, int y, int worldZ, int height)
@@ -1012,6 +1237,874 @@ namespace dolbuto
                 value |= static_cast<uint32_t>(bytes[offset + static_cast<size_t>(i)]) << (i * 8);
             }
             return value;
+        }
+
+        void writeF32(std::vector<uint8_t>& bytes, float value)
+        {
+            uint32_t bits = 0;
+            std::memcpy(&bits, &value, sizeof(bits));
+            writeU32(bytes, bits);
+        }
+
+        float readF32At(const std::vector<uint8_t>& bytes, size_t offset)
+        {
+            float value = 0.0f;
+            if (offset + sizeof(value) <= bytes.size())
+            {
+                std::memcpy(&value, bytes.data() + offset, sizeof(value));
+            }
+            return value;
+        }
+
+        std::optional<std::string> jsonStringAt(const std::string& text, size_t& cursor)
+        {
+            cursor = text.find('"', cursor);
+            if (cursor == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            std::string value;
+            bool escaped = false;
+            for (size_t i = cursor + 1; i < text.size(); ++i)
+            {
+                const char c = text[i];
+                if (escaped)
+                {
+                    value.push_back(c);
+                    escaped = false;
+                    continue;
+                }
+                if (c == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                if (c == '"')
+                {
+                    cursor = i + 1;
+                    return value;
+                }
+                value.push_back(c);
+            }
+            return std::nullopt;
+        }
+
+        std::vector<float> jsonFloatArrayValues(const std::string& array)
+        {
+            std::vector<float> values;
+            const size_t openPos = array.find('[');
+            const size_t closePos = array.rfind(']');
+            if (openPos == std::string::npos || closePos == std::string::npos || closePos <= openPos)
+            {
+                return values;
+            }
+
+            size_t cursor = openPos + 1;
+            while (cursor < closePos)
+            {
+                cursor = array.find_first_not_of(" \t\r\n,", cursor);
+                if (cursor == std::string::npos || cursor >= closePos)
+                {
+                    break;
+                }
+
+                size_t valueEnd = cursor;
+                while (valueEnd < closePos)
+                {
+                    const char c = array[valueEnd];
+                    if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E')
+                    {
+                        ++valueEnd;
+                        continue;
+                    }
+                    break;
+                }
+                if (valueEnd == cursor)
+                {
+                    break;
+                }
+
+                try
+                {
+                    values.push_back(std::stof(array.substr(cursor, valueEnd - cursor)));
+                }
+                catch (...)
+                {
+                    values.clear();
+                    return values;
+                }
+                cursor = valueEnd;
+            }
+            return values;
+        }
+
+        std::vector<std::string> jsonStringArrayValues(const std::string& array)
+        {
+            std::vector<std::string> values;
+            const size_t openPos = array.find('[');
+            const size_t closePos = array.rfind(']');
+            if (openPos == std::string::npos || closePos == std::string::npos || closePos <= openPos)
+            {
+                return values;
+            }
+
+            size_t cursor = openPos + 1;
+            while (cursor < closePos)
+            {
+                cursor = array.find_first_not_of(" \t\r\n,", cursor);
+                if (cursor == std::string::npos || cursor >= closePos)
+                {
+                    break;
+                }
+                std::optional<std::string> value = jsonStringAt(array, cursor);
+                if (!value)
+                {
+                    break;
+                }
+                values.push_back(*value);
+            }
+            return values;
+        }
+
+        std::optional<std::string> jsonArrayAt(const std::string& text, size_t openPos, size_t& next)
+        {
+            if (openPos == std::string::npos || openPos >= text.size() || text[openPos] != '[')
+            {
+                return std::nullopt;
+            }
+
+            int depth = 0;
+            bool inString = false;
+            bool escaped = false;
+            for (size_t i = openPos; i < text.size(); ++i)
+            {
+                const char c = text[i];
+                if (inString)
+                {
+                    if (escaped)
+                    {
+                        escaped = false;
+                    }
+                    else if (c == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (c == '"')
+                    {
+                        inString = false;
+                    }
+                    continue;
+                }
+                if (c == '"')
+                {
+                    inString = true;
+                }
+                else if (c == '[')
+                {
+                    ++depth;
+                }
+                else if (c == ']')
+                {
+                    --depth;
+                    if (depth == 0)
+                    {
+                        next = i + 1;
+                        return text.substr(openPos, i - openPos + 1);
+                    }
+                }
+            }
+            return std::nullopt;
+        }
+
+        std::unordered_map<std::string, std::array<float, 3>> jsonFloat3Map(const std::string& object)
+        {
+            std::unordered_map<std::string, std::array<float, 3>> values;
+            size_t cursor = 0;
+            while (cursor < object.size())
+            {
+                std::optional<std::string> key = jsonStringAt(object, cursor);
+                if (!key)
+                {
+                    break;
+                }
+                const size_t colon = object.find(':', cursor);
+                const size_t open = object.find('[', colon == std::string::npos ? cursor : colon + 1);
+                size_t next = 0;
+                std::optional<std::string> array = jsonArrayAt(object, open, next);
+                if (!array)
+                {
+                    break;
+                }
+                const std::vector<float> parsed = jsonFloatArrayValues(*array);
+                if (parsed.size() >= 3)
+                {
+                    values[*key] = {parsed[0], parsed[1], parsed[2]};
+                }
+                cursor = next;
+            }
+            return values;
+        }
+
+        std::unordered_map<std::string, std::array<float, 2>> jsonFloat2Map(const std::string& object)
+        {
+            std::unordered_map<std::string, std::array<float, 2>> values;
+            size_t cursor = 0;
+            while (cursor < object.size())
+            {
+                std::optional<std::string> key = jsonStringAt(object, cursor);
+                if (!key)
+                {
+                    break;
+                }
+                const size_t colon = object.find(':', cursor);
+                const size_t open = object.find('[', colon == std::string::npos ? cursor : colon + 1);
+                size_t next = 0;
+                std::optional<std::string> array = jsonArrayAt(object, open, next);
+                if (!array)
+                {
+                    break;
+                }
+                const std::vector<float> parsed = jsonFloatArrayValues(*array);
+                if (parsed.size() >= 2)
+                {
+                    values[*key] = {parsed[0], parsed[1]};
+                }
+                cursor = next;
+            }
+            return values;
+        }
+
+        struct PropVertex
+        {
+            std::array<float, 3> position{};
+            std::array<float, 2> uv{};
+            std::array<float, 3> normal{};
+        };
+
+        struct PropMeshData
+        {
+            std::vector<PropVertex> vertices;
+            std::vector<uint32_t> indices;
+        };
+
+        struct PropQuad
+        {
+            std::array<PropVertex, 4> vertices{};
+            std::array<float, 3> normal{};
+        };
+
+        struct GlbAccessor
+        {
+            int bufferView = -1;
+            int byteOffset = 0;
+            int componentType = 0;
+            int count = 0;
+            std::string type;
+        };
+
+        struct GlbBufferView
+        {
+            int byteOffset = 0;
+            int byteLength = 0;
+            int byteStride = 0;
+        };
+
+        struct GlbNode
+        {
+            int mesh = -1;
+            std::vector<int> children;
+            std::array<float, 3> translation{0.0f, 0.0f, 0.0f};
+            std::array<float, 4> rotation{0.0f, 0.0f, 0.0f, 1.0f};
+        };
+
+        struct GlbPrimitive
+        {
+            int position = -1;
+            int normal = -1;
+            int uv = -1;
+            int indices = -1;
+        };
+
+        struct GlbMesh
+        {
+            std::vector<GlbPrimitive> primitives;
+        };
+
+        std::array<float, 3> glbPositionToBlockLocal(std::array<float, 3> value)
+        {
+            return {
+                (value[0] + 8.0f) / 16.0f,
+                value[1] / 16.0f,
+                (value[2] + 8.0f) / 16.0f};
+        }
+
+        std::array<float, 3> rotateByQuaternion(std::array<float, 3> value, std::array<float, 4> q)
+        {
+            const std::array<float, 3> u{q[0], q[1], q[2]};
+            const float s = q[3];
+            const std::array<float, 3> cross1{
+                u[1] * value[2] - u[2] * value[1],
+                u[2] * value[0] - u[0] * value[2],
+                u[0] * value[1] - u[1] * value[0]};
+            const std::array<float, 3> cross2{
+                u[1] * cross1[2] - u[2] * cross1[1],
+                u[2] * cross1[0] - u[0] * cross1[2],
+                u[0] * cross1[1] - u[1] * cross1[0]};
+            return {
+                value[0] + 2.0f * (s * cross1[0] + cross2[0]),
+                value[1] + 2.0f * (s * cross1[1] + cross2[1]),
+                value[2] + 2.0f * (s * cross1[2] + cross2[2])};
+        }
+
+        std::array<float, 3> transformPoint(std::array<float, 3> value, const std::vector<int>& chain, const std::vector<GlbNode>& nodes)
+        {
+            for (auto it = chain.rbegin(); it != chain.rend(); ++it)
+            {
+                const GlbNode& node = nodes[static_cast<size_t>(*it)];
+                value = rotateByQuaternion(value, node.rotation);
+                value[0] += node.translation[0];
+                value[1] += node.translation[1];
+                value[2] += node.translation[2];
+            }
+            return value;
+        }
+
+        std::optional<std::string> jsonObjectAt(const std::vector<std::string>& objects, int index)
+        {
+            if (index < 0 || static_cast<size_t>(index) >= objects.size())
+            {
+                return std::nullopt;
+            }
+            return objects[static_cast<size_t>(index)];
+        }
+
+        std::vector<uint8_t> glbChunk(const std::vector<uint8_t>& bytes, uint32_t expectedType)
+        {
+            if (bytes.size() < 12 || bytes[0] != 'g' || bytes[1] != 'l' || bytes[2] != 'T' || bytes[3] != 'F')
+            {
+                return {};
+            }
+            size_t offset = 12;
+            while (offset + 8 <= bytes.size())
+            {
+                const uint32_t chunkLength = readU32At(bytes, offset);
+                const uint32_t chunkType = readU32At(bytes, offset + 4u);
+                offset += 8u;
+                if (offset + chunkLength > bytes.size())
+                {
+                    return {};
+                }
+                if (chunkType == expectedType)
+                {
+                    return std::vector<uint8_t>(bytes.begin() + static_cast<std::ptrdiff_t>(offset), bytes.begin() + static_cast<std::ptrdiff_t>(offset + chunkLength));
+                }
+                offset += chunkLength;
+            }
+            return {};
+        }
+
+        GlbAccessor parseGlbAccessor(const std::string& object)
+        {
+            GlbAccessor accessor{};
+            accessor.bufferView = jsonIntField(object, "bufferView").value_or(-1);
+            accessor.byteOffset = jsonIntField(object, "byteOffset").value_or(0);
+            accessor.componentType = jsonIntField(object, "componentType").value_or(0);
+            accessor.count = jsonIntField(object, "count").value_or(0);
+            accessor.type = jsonStringField(object, "type").value_or("");
+            return accessor;
+        }
+
+        GlbBufferView parseGlbBufferView(const std::string& object)
+        {
+            GlbBufferView view{};
+            view.byteOffset = jsonIntField(object, "byteOffset").value_or(0);
+            view.byteLength = jsonIntField(object, "byteLength").value_or(0);
+            view.byteStride = jsonIntField(object, "byteStride").value_or(0);
+            return view;
+        }
+
+        GlbNode parseGlbNode(const std::string& object)
+        {
+            GlbNode node{};
+            node.mesh = jsonIntField(object, "mesh").value_or(-1);
+            node.translation = jsonFloat3Field(object, "translation").value_or(node.translation);
+            if (const std::optional<std::string> rotation = jsonArrayField(object, "rotation"); rotation.has_value())
+            {
+                const std::vector<float> values = jsonFloatArrayValues(*rotation);
+                if (values.size() >= 4)
+                {
+                    node.rotation = {values[0], values[1], values[2], values[3]};
+                }
+            }
+            if (const std::optional<std::string> children = jsonArrayField(object, "children"); children.has_value())
+            {
+                const std::vector<float> values = jsonFloatArrayValues(*children);
+                for (float value : values)
+                {
+                    node.children.push_back(static_cast<int>(std::lround(value)));
+                }
+            }
+            return node;
+        }
+
+        GlbMesh parseGlbMesh(const std::string& object)
+        {
+            GlbMesh mesh{};
+            const std::optional<std::string> primitives = jsonArrayField(object, "primitives");
+            if (!primitives)
+            {
+                return mesh;
+            }
+            for (const std::string& primitiveObject : jsonTopLevelObjects(*primitives))
+            {
+                GlbPrimitive primitive{};
+                if (jsonIntField(primitiveObject, "mode").value_or(4) != 4)
+                {
+                    continue;
+                }
+                primitive.indices = jsonIntField(primitiveObject, "indices").value_or(-1);
+                if (const std::optional<std::string> attributes = jsonObjectField(primitiveObject, "attributes"); attributes.has_value())
+                {
+                    primitive.position = jsonIntField(*attributes, "POSITION").value_or(-1);
+                    primitive.normal = jsonIntField(*attributes, "NORMAL").value_or(-1);
+                    primitive.uv = jsonIntField(*attributes, "TEXCOORD_0").value_or(-1);
+                }
+                if (primitive.position >= 0 && primitive.uv >= 0 && primitive.indices >= 0)
+                {
+                    mesh.primitives.push_back(primitive);
+                }
+            }
+            return mesh;
+        }
+
+        std::array<float, 3> readGlbVec3(const std::vector<uint8_t>& bin, const std::vector<GlbAccessor>& accessors, const std::vector<GlbBufferView>& views, int accessorIndex, int elementIndex)
+        {
+            const GlbAccessor& accessor = accessors[static_cast<size_t>(accessorIndex)];
+            const GlbBufferView& view = views[static_cast<size_t>(accessor.bufferView)];
+            const int stride = view.byteStride > 0 ? view.byteStride : 12;
+            const size_t offset = static_cast<size_t>(view.byteOffset + accessor.byteOffset + elementIndex * stride);
+            return {readF32At(bin, offset), readF32At(bin, offset + 4u), readF32At(bin, offset + 8u)};
+        }
+
+        std::array<float, 2> readGlbVec2(const std::vector<uint8_t>& bin, const std::vector<GlbAccessor>& accessors, const std::vector<GlbBufferView>& views, int accessorIndex, int elementIndex)
+        {
+            const GlbAccessor& accessor = accessors[static_cast<size_t>(accessorIndex)];
+            const GlbBufferView& view = views[static_cast<size_t>(accessor.bufferView)];
+            const int stride = view.byteStride > 0 ? view.byteStride : 8;
+            const size_t offset = static_cast<size_t>(view.byteOffset + accessor.byteOffset + elementIndex * stride);
+            return {readF32At(bin, offset), readF32At(bin, offset + 4u)};
+        }
+
+        uint32_t readGlbIndex(const std::vector<uint8_t>& bin, const std::vector<GlbAccessor>& accessors, const std::vector<GlbBufferView>& views, int accessorIndex, int elementIndex)
+        {
+            const GlbAccessor& accessor = accessors[static_cast<size_t>(accessorIndex)];
+            const GlbBufferView& view = views[static_cast<size_t>(accessor.bufferView)];
+            const size_t offset = static_cast<size_t>(view.byteOffset + accessor.byteOffset);
+            if (accessor.componentType == 5125)
+            {
+                return readU32At(bin, offset + static_cast<size_t>(elementIndex) * 4u);
+            }
+            if (accessor.componentType == 5123)
+            {
+                size_t readOffset = offset + static_cast<size_t>(elementIndex) * 2u;
+                return readOffset + 1u < bin.size() ? static_cast<uint32_t>(bin[readOffset]) | (static_cast<uint32_t>(bin[readOffset + 1u]) << 8u) : 0u;
+            }
+            return offset + static_cast<size_t>(elementIndex) < bin.size() ? bin[offset + static_cast<size_t>(elementIndex)] : 0u;
+        }
+
+        std::array<float, 3> cross3(std::array<float, 3> a, std::array<float, 3> b)
+        {
+            return {
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0]};
+        }
+
+        std::array<float, 3> subtract3(std::array<float, 3> a, std::array<float, 3> b)
+        {
+            return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
+        }
+
+        float lengthSquared3(std::array<float, 3> value)
+        {
+            return value[0] * value[0] + value[1] * value[1] + value[2] * value[2];
+        }
+
+        std::array<float, 3> normalize3(std::array<float, 3> value)
+        {
+            const float length = std::sqrt(lengthSquared3(value));
+            if (length <= 0.000001f)
+            {
+                return {0.0f, 1.0f, 0.0f};
+            }
+            return {value[0] / length, value[1] / length, value[2] / length};
+        }
+
+        float quadOrderError(const std::array<PropVertex, 4>& vertices, const std::array<int, 4>& order)
+        {
+            const std::array<float, 3>& a = vertices[static_cast<size_t>(order[0])].position;
+            const std::array<float, 3>& b = vertices[static_cast<size_t>(order[1])].position;
+            const std::array<float, 3>& c = vertices[static_cast<size_t>(order[2])].position;
+            const std::array<float, 3>& d = vertices[static_cast<size_t>(order[3])].position;
+            const std::array<float, 3> predicted{b[0] + d[0] - a[0], b[1] + d[1] - a[1], b[2] + d[2] - a[2]};
+            return lengthSquared3(subtract3(predicted, c));
+        }
+
+        std::optional<PropQuad> mergeTrianglePairToQuad(const PropMeshData& mesh, size_t indexOffset)
+        {
+            if (indexOffset + 5u >= mesh.indices.size())
+            {
+                return std::nullopt;
+            }
+
+            std::array<PropVertex, 6> triangleVertices{};
+            for (size_t i = 0; i < triangleVertices.size(); ++i)
+            {
+                const uint32_t index = mesh.indices[indexOffset + i];
+                if (static_cast<size_t>(index) >= mesh.vertices.size())
+                {
+                    return std::nullopt;
+                }
+                triangleVertices[i] = mesh.vertices[static_cast<size_t>(index)];
+            }
+
+            std::array<PropVertex, 4> uniqueVertices{};
+            size_t uniqueCount = 0;
+            auto samePositionAndUv = [](const PropVertex& a, const PropVertex& b)
+            {
+                return lengthSquared3(subtract3(a.position, b.position)) <= 0.0000001f &&
+                    std::abs(a.uv[0] - b.uv[0]) <= 0.0001f &&
+                    std::abs(a.uv[1] - b.uv[1]) <= 0.0001f;
+            };
+            for (const PropVertex& vertex : triangleVertices)
+            {
+                bool exists = false;
+                for (size_t i = 0; i < uniqueCount; ++i)
+                {
+                    if (samePositionAndUv(uniqueVertices[i], vertex))
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists)
+                {
+                    if (uniqueCount >= uniqueVertices.size())
+                    {
+                        return std::nullopt;
+                    }
+                    uniqueVertices[uniqueCount++] = vertex;
+                }
+            }
+            if (uniqueCount != 4u)
+            {
+                return std::nullopt;
+            }
+
+            std::array<int, 4> bestOrder{0, 1, 2, 3};
+            float bestError = std::numeric_limits<float>::max();
+            std::array<int, 4> order{0, 1, 2, 3};
+            do
+            {
+                const std::array<float, 3> edgeU = subtract3(uniqueVertices[static_cast<size_t>(order[1])].position, uniqueVertices[static_cast<size_t>(order[0])].position);
+                const std::array<float, 3> edgeV = subtract3(uniqueVertices[static_cast<size_t>(order[3])].position, uniqueVertices[static_cast<size_t>(order[0])].position);
+                if (lengthSquared3(edgeU) <= 0.0000001f || lengthSquared3(edgeV) <= 0.0000001f || lengthSquared3(cross3(edgeU, edgeV)) <= 0.0000001f)
+                {
+                    continue;
+                }
+                const float error = quadOrderError(uniqueVertices, order);
+                if (error < bestError)
+                {
+                    bestError = error;
+                    bestOrder = order;
+                }
+            } while (std::next_permutation(order.begin(), order.end()));
+
+            if (bestError > 0.000001f)
+            {
+                return std::nullopt;
+            }
+
+            PropQuad quad{};
+            for (size_t i = 0; i < quad.vertices.size(); ++i)
+            {
+                quad.vertices[i] = uniqueVertices[static_cast<size_t>(bestOrder[i])];
+            }
+            quad.normal = normalize3(cross3(
+                subtract3(quad.vertices[1].position, quad.vertices[0].position),
+                subtract3(quad.vertices[3].position, quad.vertices[0].position)));
+            return quad;
+        }
+
+        std::vector<PropQuad> convertTrianglesToQuads(const PropMeshData& mesh)
+        {
+            std::vector<PropQuad> quads;
+            quads.reserve(mesh.indices.size() / 6u);
+            for (size_t offset = 0; offset + 5u < mesh.indices.size(); offset += 6u)
+            {
+                if (std::optional<PropQuad> quad = mergeTrianglePairToQuad(mesh, offset); quad.has_value())
+                {
+                    quads.push_back(*quad);
+                }
+            }
+            return quads;
+        }
+
+        bool writeDpm(const std::filesystem::path& path, const std::vector<PropQuad>& quads)
+        {
+            if (quads.empty())
+            {
+                return false;
+            }
+            std::vector<uint8_t> bytes;
+            bytes.reserve(DpmHeaderSize + quads.size() * DpmQuadSize);
+            writeU32(bytes, static_cast<uint32_t>(quads.size()));
+            for (const PropQuad& quad : quads)
+            {
+                for (const PropVertex& vertex : quad.vertices)
+                {
+                    for (float value : vertex.position) { writeF32(bytes, value); }
+                }
+                for (const PropVertex& vertex : quad.vertices)
+                {
+                    for (float value : vertex.uv) { writeF32(bytes, value); }
+                }
+                for (float value : quad.normal) { writeF32(bytes, value); }
+            }
+            std::ofstream file(path, std::ios::binary | std::ios::trunc);
+            if (!file.is_open())
+            {
+                return false;
+            }
+            file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+            return static_cast<bool>(file);
+        }
+
+        bool dpmLooksValid(const std::filesystem::path& path)
+        {
+            std::ifstream file(path, std::ios::binary | std::ios::ate);
+            if (!file.is_open())
+            {
+                return false;
+            }
+            const auto fileSize = static_cast<size_t>(file.tellg());
+            if (fileSize < DpmHeaderSize)
+            {
+                return false;
+            }
+            std::vector<uint8_t> header(DpmHeaderSize);
+            file.seekg(0);
+            file.read(reinterpret_cast<char*>(header.data()), static_cast<std::streamsize>(header.size()));
+            if (!file)
+            {
+                return false;
+            }
+            const uint32_t quadCount = readU32At(header, 0);
+            return fileSize == DpmHeaderSize + static_cast<size_t>(quadCount) * DpmQuadSize;
+        }
+
+        PropMeshData convertGlbToDpmMesh(const std::filesystem::path& glbPath)
+        {
+            const std::vector<char> file = readFile(glbPath.string());
+            const std::vector<uint8_t> bytes(file.begin(), file.end());
+            const std::vector<uint8_t> jsonBytes = glbChunk(bytes, GlbJsonChunkType);
+            const std::vector<uint8_t> bin = glbChunk(bytes, GlbBinChunkType);
+            if (jsonBytes.empty() || bin.empty())
+            {
+                return {};
+            }
+            std::string json(jsonBytes.begin(), jsonBytes.end());
+            while (!json.empty() && (json.back() == '\0' || json.back() == ' '))
+            {
+                json.pop_back();
+            }
+
+            std::vector<GlbAccessor> accessors;
+            std::vector<GlbBufferView> views;
+            std::vector<GlbNode> nodes;
+            std::vector<GlbMesh> meshes;
+            for (const std::string& object : jsonTopLevelObjects(jsonTopLevelArrayField(json, "accessors").value_or("[]")))
+            {
+                accessors.push_back(parseGlbAccessor(object));
+            }
+            for (const std::string& object : jsonTopLevelObjects(jsonTopLevelArrayField(json, "bufferViews").value_or("[]")))
+            {
+                views.push_back(parseGlbBufferView(object));
+            }
+            for (const std::string& object : jsonTopLevelObjects(jsonTopLevelArrayField(json, "nodes").value_or("[]")))
+            {
+                nodes.push_back(parseGlbNode(object));
+            }
+            for (const std::string& object : jsonTopLevelObjects(jsonTopLevelArrayField(json, "meshes").value_or("[]")))
+            {
+                meshes.push_back(parseGlbMesh(object));
+            }
+
+            PropMeshData mesh;
+            std::vector<bool> hasParent(nodes.size(), false);
+            for (const GlbNode& node : nodes)
+            {
+                for (int child : node.children)
+                {
+                    if (child >= 0 && static_cast<size_t>(child) < hasParent.size())
+                    {
+                        hasParent[static_cast<size_t>(child)] = true;
+                    }
+                }
+            }
+
+            auto visitNode = [&](auto&& self, int nodeIndex, std::vector<int>& chain) -> void
+            {
+                if (nodeIndex < 0 || static_cast<size_t>(nodeIndex) >= nodes.size())
+                {
+                    return;
+                }
+                chain.push_back(nodeIndex);
+                const GlbNode& node = nodes[static_cast<size_t>(nodeIndex)];
+                if (node.mesh >= 0 && static_cast<size_t>(node.mesh) < meshes.size())
+                {
+                    for (const GlbPrimitive& primitive : meshes[static_cast<size_t>(node.mesh)].primitives)
+                    {
+                        const GlbAccessor& positionAccessor = accessors[static_cast<size_t>(primitive.position)];
+                        const uint32_t vertexBase = static_cast<uint32_t>(mesh.vertices.size());
+                        for (int i = 0; i < positionAccessor.count; ++i)
+                        {
+                            PropVertex vertex{};
+                            vertex.position = glbPositionToBlockLocal(transformPoint(readGlbVec3(bin, accessors, views, primitive.position, i), chain, nodes));
+                            vertex.uv = readGlbVec2(bin, accessors, views, primitive.uv, i);
+                            vertex.normal = primitive.normal >= 0 ? rotateByQuaternion(readGlbVec3(bin, accessors, views, primitive.normal, i), node.rotation) : std::array<float, 3>{0.0f, 1.0f, 0.0f};
+                            mesh.vertices.push_back(vertex);
+                        }
+                        const GlbAccessor& indexAccessor = accessors[static_cast<size_t>(primitive.indices)];
+                        for (int i = 0; i < indexAccessor.count; ++i)
+                        {
+                            mesh.indices.push_back(vertexBase + readGlbIndex(bin, accessors, views, primitive.indices, i));
+                        }
+                    }
+                }
+                for (int child : node.children)
+                {
+                    self(self, child, chain);
+                }
+                chain.pop_back();
+            };
+
+            std::vector<int> chain;
+            for (size_t i = 0; i < nodes.size(); ++i)
+            {
+                if (!hasParent[i])
+                {
+                    visitNode(visitNode, static_cast<int>(i), chain);
+                }
+            }
+            return mesh;
+        }
+
+        bool convertGlbToDpm(const std::filesystem::path& glbPath, const std::filesystem::path& dpmPath)
+        {
+            try
+            {
+                const PropMeshData mesh = convertGlbToDpmMesh(glbPath);
+                const std::vector<PropQuad> quads = convertTrianglesToQuads(mesh);
+                if (!writeDpm(dpmPath, quads))
+                {
+                    return false;
+                }
+                return dpmLooksValid(dpmPath);
+            }
+            catch (...)
+            {
+                return false;
+            }
+        }
+
+        void ensurePropModelBinary(const std::filesystem::path& modelDirectory, const std::string& modelName)
+        {
+            if (modelName.empty())
+            {
+                return;
+            }
+            const std::filesystem::path dpmPath = modelDirectory / (modelName + ".dpm");
+            const std::filesystem::path glbPath = modelDirectory / (modelName + ".glb");
+            bool needsConvert = !std::filesystem::exists(dpmPath) || !dpmLooksValid(dpmPath);
+            if (!needsConvert && std::filesystem::exists(glbPath))
+            {
+                try
+                {
+                    needsConvert = std::filesystem::last_write_time(glbPath) > std::filesystem::last_write_time(dpmPath);
+                }
+                catch (...)
+                {
+                    needsConvert = false;
+                }
+            }
+            if (!needsConvert)
+            {
+                return;
+            }
+            if (!std::filesystem::exists(glbPath))
+            {
+                log::warn("Prop model dpm is missing and glb was not found: " + modelName);
+                return;
+            }
+            log::info("Converting prop model: " + glbPath.string() + " -> " + dpmPath.string());
+            if (!convertGlbToDpm(glbPath, dpmPath))
+            {
+                log::warn("Failed to convert prop model: " + glbPath.string());
+            }
+        }
+
+        PropMeshData loadDpmMesh(const std::filesystem::path& dpmPath)
+        {
+            std::ifstream file(dpmPath, std::ios::binary | std::ios::ate);
+            if (!file.is_open())
+            {
+                return {};
+            }
+            const auto fileSize = static_cast<size_t>(file.tellg());
+            std::vector<uint8_t> bytes(fileSize);
+            file.seekg(0);
+            file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+            if (!file || bytes.size() < DpmHeaderSize)
+            {
+                return {};
+            }
+            const uint32_t quadCount = readU32At(bytes, 0);
+            if (bytes.size() != DpmHeaderSize + static_cast<size_t>(quadCount) * DpmQuadSize)
+            {
+                return {};
+            }
+            PropMeshData mesh;
+            mesh.vertices.reserve(static_cast<size_t>(quadCount) * 4u);
+            mesh.indices.reserve(static_cast<size_t>(quadCount) * 4u);
+            size_t offset = DpmHeaderSize;
+            for (uint32_t quad = 0; quad < quadCount; ++quad)
+            {
+                std::array<PropVertex, 4> vertices{};
+                for (PropVertex& vertex : vertices)
+                {
+                    for (float& value : vertex.position) { value = readF32At(bytes, offset); offset += sizeof(float); }
+                }
+                for (PropVertex& vertex : vertices)
+                {
+                    for (float& value : vertex.uv) { value = readF32At(bytes, offset); offset += sizeof(float); }
+                }
+                std::array<float, 3> normal{};
+                for (float& value : normal) { value = readF32At(bytes, offset); offset += sizeof(float); }
+
+                const uint32_t base = static_cast<uint32_t>(mesh.vertices.size());
+                for (PropVertex& vertex : vertices)
+                {
+                    vertex.normal = normal;
+                    mesh.vertices.push_back(vertex);
+                }
+                mesh.indices.push_back(base + 0u);
+                mesh.indices.push_back(base + 1u);
+                mesh.indices.push_back(base + 2u);
+                mesh.indices.push_back(base + 3u);
+            }
+            return mesh;
         }
 
         std::vector<uint8_t> lz4EncodeLiteralBlock(const std::vector<uint8_t>& raw)
@@ -1457,10 +2550,11 @@ namespace dolbuto
         cleanupSwapchain();
         destroyTexture(terrainTextureArray_);
         destroyTexture(fluidTextureArray_);
-        destroyTexture(fluidNormalTexture_);
         destroyTexture(playerTexture_);
         destroyTexture(font_);
         destroyTexture(crosshair_);
+        destroyTexture(climatePrecipitationOverlay_);
+        destroyTexture(climateTemperatureOverlay_);
         destroyTexture(moon_);
         destroyTexture(sun_);
 
@@ -1582,7 +2676,8 @@ namespace dolbuto
         bool showPlayer,
         DVec3 playerPosition,
         float playerYaw,
-        bool terrainWireframe)
+        bool terrainWireframe,
+        int climateOverlayMode)
     {
         const auto frameStart = std::chrono::steady_clock::now();
         frameChunkUpdateMs_ = 0.0;
@@ -1670,8 +2765,9 @@ namespace dolbuto
         {
             updatePlayerMesh(playerPositionFloat, playerYaw);
         }
+        ensureClimateOverlayTexture(climateOverlayMode);
 
-        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPositionFloat, fpsText, debugTextVisible, screenshotBuffer, showPlayer, terrainWireframe);
+        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPositionFloat, fpsText, debugTextVisible, screenshotBuffer, showPlayer, terrainWireframe, climateOverlayMode);
 
         VkSemaphore waitSemaphores[] = {imageAvailableSemaphores_[currentFrame_]};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -1858,6 +2954,56 @@ namespace dolbuto
             ", z: " + std::to_string(wrapBlockCoordinate(selectedBlockZ_)) + ")";
     }
 
+    std::string Renderer::climateText(DVec3 position) const
+    {
+        const int blockX = blockCoordinateXz(position.x);
+        const int blockZ = blockCoordinateXz(position.z);
+        const int chunkX = floorDiv(blockX, ChunkSizeX);
+        const int chunkZ = floorDiv(blockZ, ChunkSizeZ);
+        const int localX = positiveModulo(blockX, ChunkSizeX);
+        const int localZ = positiveModulo(blockZ, ChunkSizeZ);
+        const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
+
+        float temperature = 0.0f;
+        float precipitation = 0.0f;
+        const auto chunkIt = runtimeChunks_.find(chunkKey(chunkX, chunkZ));
+        if (chunkIt != runtimeChunks_.end() && chunkIt->second.data)
+        {
+            const ChunkData& data = *chunkIt->second.data;
+            temperature = decodeClimateValue(data.temperature[column]);
+            precipitation = decodeClimateValue(data.precipitation[column]);
+        }
+        else
+        {
+            const int wrappedX = wrapBlockCoordinate(blockX);
+            const int wrappedZ = wrapBlockCoordinate(blockZ);
+            const float temperatureNoise = sampleTileableClimateNoise(
+                wrappedX,
+                wrappedZ,
+                temperatureNoiseFeatureScale_,
+                temperatureNoiseSimplexScale_,
+                temperatureNoiseOctaveCount_,
+                temperatureNoiseLacunarity_,
+                temperatureNoiseGain_,
+                TemperatureNoiseSeed);
+            const float precipitationNoise = sampleTileableClimateNoise(
+                wrappedX,
+                wrappedZ,
+                precipitationNoiseFeatureScale_,
+                precipitationNoiseSimplexScale_,
+                precipitationNoiseOctaveCount_,
+                precipitationNoiseLacunarity_,
+                precipitationNoiseGain_,
+                PrecipitationNoiseSeed);
+            temperature = temperatureAtWrapped(wrappedZ, temperatureNoise);
+            precipitation = precipitationAtNoise(precipitationNoise);
+        }
+
+        std::ostringstream text;
+        text << "CLIMATE: T[" << std::fixed << std::setprecision(3) << temperature << "] P[" << precipitation << "]";
+        return text.str();
+    }
+
     void Renderer::createInstance()
     {
         uint32_t extensionCount = 0;
@@ -1926,6 +3072,10 @@ namespace dolbuto
         vulkanText_ = "VULKAN: " + formatVersion(properties.apiVersion);
         driverText_ = "DRIVER: " + formatVersion(properties.driverVersion);
         timestampPeriod_ = properties.limits.timestampPeriod;
+        log::info("CPU: " + cpuText_);
+        log::info("GPU: " + gpuText_);
+        log::info(vulkanText_);
+        log::info(driverText_);
         const bool memoryProperties2Supported =
             vkGetInstanceProcAddr(instance_, "vkGetPhysicalDeviceMemoryProperties2") != nullptr ||
             vkGetInstanceProcAddr(instance_, "vkGetPhysicalDeviceMemoryProperties2KHR") != nullptr;
@@ -2540,16 +3690,13 @@ namespace dolbuto
         pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         pushRange.offset = 0;
         pushRange.size = sizeof(TerrainPush);
-        static_assert(sizeof(TerrainPush) == sizeof(float) * 48);
+        static_assert(sizeof(TerrainPush) == sizeof(float) * 24);
 
         VkPipelineLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        std::array<VkDescriptorSetLayout, 5> terrainSetLayouts = {
+        std::array<VkDescriptorSetLayout, 2> terrainSetLayouts = {
             descriptorSetLayout_,
-            terrainVertexDescriptorSetLayout_,
-            descriptorSetLayout_,
-            descriptorSetLayout_,
-            descriptorSetLayout_
+            terrainVertexDescriptorSetLayout_
         };
         layoutInfo.setLayoutCount = static_cast<uint32_t>(terrainSetLayouts.size());
         layoutInfo.pSetLayouts = terrainSetLayouts.data();
@@ -2938,6 +4085,10 @@ namespace dolbuto
             {
                 return BlockRenderType::Cross;
             }
+            if (value == "prop")
+            {
+                return BlockRenderType::Prop;
+            }
             return BlockRenderType::None;
         };
         auto parseFaceOcclusion = [](const std::string& value)
@@ -3009,7 +4160,56 @@ namespace dolbuto
             {
                 layers.faces[1] = layerForTexture(it->second);
             }
+            if (!definition.propTexture.empty())
+            {
+                layers.faces.fill(layerForTexture(definition.propTexture));
+            }
             blockTextureLayers_[definition.id] = layers;
+        }
+
+        const std::filesystem::path propModelDirectory = assetDir / "textures" / "block" / "model";
+        std::unordered_set<std::string> checkedPropModels;
+        for (const ParsedBlockDefinition& definition : blockDefinitions)
+        {
+            if (definition.renderType == "prop" && !definition.propModel.empty() && checkedPropModels.insert(definition.propModel).second)
+            {
+                ensurePropModelBinary(propModelDirectory, definition.propModel);
+            }
+        }
+        propMeshesByBlock_.clear();
+        for (const ParsedBlockDefinition& definition : blockDefinitions)
+        {
+            if (definition.renderType != "prop" || definition.propModel.empty())
+            {
+                continue;
+            }
+
+            const std::filesystem::path dpmPath = propModelDirectory / (definition.propModel + ".dpm");
+            PropMeshData loadedMesh = loadDpmMesh(dpmPath);
+            if (loadedMesh.vertices.empty() || loadedMesh.indices.empty())
+            {
+                log::warn("Prop model dpm could not be loaded: " + dpmPath.string());
+                continue;
+            }
+            PropMesh mesh{};
+            mesh.quads.reserve((loadedMesh.vertices.size() / 4u) * DpmQuadRenderFloatCount);
+            for (size_t vertexOffset = 0; vertexOffset + 3u < loadedMesh.vertices.size(); vertexOffset += 4u)
+            {
+                for (size_t vertexIndex = 0; vertexIndex < 4u; ++vertexIndex)
+                {
+                    const PropVertex& vertex = loadedMesh.vertices[vertexOffset + vertexIndex];
+                    mesh.quads.push_back(vertex.position[0]);
+                    mesh.quads.push_back(vertex.position[1]);
+                    mesh.quads.push_back(vertex.position[2]);
+                }
+                for (size_t vertexIndex = 0; vertexIndex < 4u; ++vertexIndex)
+                {
+                    const PropVertex& vertex = loadedMesh.vertices[vertexOffset + vertexIndex];
+                    mesh.quads.push_back(vertex.uv[0]);
+                    mesh.quads.push_back(vertex.uv[1]);
+                }
+            }
+            propMeshesByBlock_[definition.id] = std::move(mesh);
         }
 
         if (textureNames.empty())
@@ -3025,7 +4225,6 @@ namespace dolbuto
         }
         terrainTextureArray_ = createTextureArray(texturePaths);
         fluidTextureArray_ = createTextureArray({fluidTextureDir + "water.png"});
-        fluidNormalTexture_ = createTexture(fluidTextureDir + "water_normal.jpg", VK_FORMAT_R8G8B8A8_UNORM);
     }
 
     void Renderer::createFont()
@@ -3180,6 +4379,17 @@ namespace dolbuto
         terrainDomainWarpFrequency_ = DefaultTerrainDomainWarpFrequency;
         terrainDomainWarpOctaveCount_ = DefaultTerrainDomainWarpOctaveCount;
         terrainDomainWarpGain_ = DefaultTerrainDomainWarpGain;
+        temperatureNoiseStrength_ = DefaultTemperatureNoiseStrength;
+        temperatureNoiseFeatureScale_ = DefaultTemperatureNoiseFeatureScale;
+        temperatureNoiseOctaveCount_ = DefaultTemperatureNoiseOctaveCount;
+        temperatureNoiseLacunarity_ = DefaultTemperatureNoiseLacunarity;
+        temperatureNoiseGain_ = DefaultTemperatureNoiseGain;
+        temperatureNoiseSimplexScale_ = DefaultTemperatureNoiseSimplexScale;
+        precipitationNoiseFeatureScale_ = DefaultPrecipitationNoiseFeatureScale;
+        precipitationNoiseOctaveCount_ = DefaultPrecipitationNoiseOctaveCount;
+        precipitationNoiseLacunarity_ = DefaultPrecipitationNoiseLacunarity;
+        precipitationNoiseGain_ = DefaultPrecipitationNoiseGain;
+        precipitationNoiseSimplexScale_ = DefaultPrecipitationNoiseSimplexScale;
         seaLevel_ = DefaultSeaLevel;
 
         const std::filesystem::path path = configDirectory() / "world.json";
@@ -3196,6 +4406,9 @@ namespace dolbuto
         const std::string terrain = jsonObjectField(text, "terrain").value_or("{}");
         const std::string terrainDomainWarp = jsonObjectField(terrain, "domainWarp").value_or("{}");
         const std::string terrainBaseNoise = jsonObjectField(terrain, "baseNoise").value_or("{}");
+        const std::string climate = jsonObjectField(text, "climate").value_or("{}");
+        const std::string temperature = jsonObjectField(climate, "temperature").value_or("{}");
+        const std::string precipitation = jsonObjectField(climate, "precipitation").value_or("{}");
         if (const std::optional<int> value = jsonIntField(terrain, "seaLevel"); value.has_value())
         {
             seaLevel_ = std::clamp(*value, 0, ChunkSizeY - 1);
@@ -3261,27 +4474,55 @@ namespace dolbuto
         {
             terrainDomainWarpGain_ = *value;
         }
+        if (const std::optional<float> value = jsonFloatField(temperature, "noiseStrength"); value.has_value() && *value >= 0.0f)
+        {
+            temperatureNoiseStrength_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(temperature, "noiseFeatureScale"); value.has_value() && *value > 0.0f)
+        {
+            temperatureNoiseFeatureScale_ = *value;
+        }
+        if (const std::optional<int> value = jsonIntField(temperature, "noiseOctaveCount"); value.has_value())
+        {
+            temperatureNoiseOctaveCount_ = std::clamp(*value, 1, 16);
+        }
+        if (const std::optional<float> value = jsonFloatField(temperature, "noiseLacunarity"); value.has_value() && *value > 0.0f)
+        {
+            temperatureNoiseLacunarity_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(temperature, "noiseGain"); value.has_value() && *value >= 0.0f)
+        {
+            temperatureNoiseGain_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(temperature, "noiseSimplexScale"); value.has_value() && *value > 0.0f)
+        {
+            temperatureNoiseSimplexScale_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(precipitation, "featureScale"); value.has_value() && *value > 0.0f)
+        {
+            precipitationNoiseFeatureScale_ = *value;
+        }
+        if (const std::optional<int> value = jsonIntField(precipitation, "octaveCount"); value.has_value())
+        {
+            precipitationNoiseOctaveCount_ = std::clamp(*value, 1, 16);
+        }
+        if (const std::optional<float> value = jsonFloatField(precipitation, "lacunarity"); value.has_value() && *value > 0.0f)
+        {
+            precipitationNoiseLacunarity_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(precipitation, "gain"); value.has_value() && *value >= 0.0f)
+        {
+            precipitationNoiseGain_ = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(precipitation, "simplexScale"); value.has_value() && *value > 0.0f)
+        {
+            precipitationNoiseSimplexScale_ = *value;
+        }
     }
 
     void Renderer::loadRenderConfig()
     {
-        fluidWaterBaseAlpha_ = DefaultFluidWaterBaseAlpha;
-        fluidWaterEdgeAlpha_ = DefaultFluidWaterEdgeAlpha;
-        fluidWaterFresnelPower_ = DefaultFluidWaterFresnelPower;
-        fluidWaterNormalScale_ = DefaultFluidWaterNormalScale;
-        fluidWaterNormalTiling_ = DefaultFluidWaterNormalTiling;
-        fluidWaterNormalSpeed_ = DefaultFluidWaterNormalSpeed;
-        fluidWaterSsrEnabled_ = DefaultFluidWaterSsrEnabled;
-        fluidWaterSsrStrength_ = DefaultFluidWaterSsrStrength;
-        fluidWaterSsrMaxSteps_ = DefaultFluidWaterSsrMaxSteps;
-        fluidWaterSsrStepSize_ = DefaultFluidWaterSsrStepSize;
-        fluidWaterSsrThickness_ = DefaultFluidWaterSsrThickness;
-        fluidWaterSsrMaxDistance_ = DefaultFluidWaterSsrMaxDistance;
-        fluidWaterSsrEdgeFade_ = DefaultFluidWaterSsrEdgeFade;
-        fluidWaterSsrFallbackStrength_ = DefaultFluidWaterSsrFallbackStrength;
-        fluidWaterSsrFallbackR_ = DefaultFluidWaterSsrFallbackR;
-        fluidWaterSsrFallbackG_ = DefaultFluidWaterSsrFallbackG;
-        fluidWaterSsrFallbackB_ = DefaultFluidWaterSsrFallbackB;
+        fluidWaterAlpha_ = DefaultFluidWaterAlpha;
 
         const std::filesystem::path path = configDirectory() / "render.json";
         std::ifstream file(path);
@@ -3295,69 +4536,10 @@ namespace dolbuto
         const std::string text = contents.str();
         const std::string fluid = jsonObjectField(text, "fluid").value_or("{}");
         const std::string water = jsonObjectField(fluid, "water").value_or("{}");
-        const std::string ssr = jsonObjectField(water, "ssr").value_or("{}");
 
-        if (const std::optional<float> value = jsonFloatField(water, "baseAlpha"); value.has_value())
+        if (const std::optional<float> value = jsonFloatField(water, "alpha"); value.has_value())
         {
-            fluidWaterBaseAlpha_ = std::clamp(*value, 0.0f, 1.0f);
-        }
-        if (const std::optional<float> value = jsonFloatField(water, "edgeAlpha"); value.has_value())
-        {
-            fluidWaterEdgeAlpha_ = std::clamp(*value, 0.0f, 1.0f);
-        }
-        if (const std::optional<float> value = jsonFloatField(water, "fresnelPower"); value.has_value())
-        {
-            fluidWaterFresnelPower_ = std::max(0.0f, *value);
-        }
-        if (const std::optional<float> value = jsonFloatField(water, "normalScale"); value.has_value())
-        {
-            fluidWaterNormalScale_ = std::max(0.0f, *value);
-        }
-        if (const std::optional<float> value = jsonFloatField(water, "normalTiling"); value.has_value() && *value > 0.0f)
-        {
-            fluidWaterNormalTiling_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(water, "normalSpeed"); value.has_value() && *value >= 0.0f)
-        {
-            fluidWaterNormalSpeed_ = *value;
-        }
-        if (const std::optional<bool> value = jsonBoolField(ssr, "enabled"); value.has_value())
-        {
-            fluidWaterSsrEnabled_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(ssr, "strength"); value.has_value())
-        {
-            fluidWaterSsrStrength_ = std::clamp(*value, 0.0f, 1.0f);
-        }
-        if (const std::optional<int> value = jsonIntField(ssr, "maxSteps"); value.has_value())
-        {
-            fluidWaterSsrMaxSteps_ = std::clamp(*value, 1, 128);
-        }
-        if (const std::optional<float> value = jsonFloatField(ssr, "stepSize"); value.has_value() && *value > 0.0f)
-        {
-            fluidWaterSsrStepSize_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(ssr, "thickness"); value.has_value() && *value >= 0.0f)
-        {
-            fluidWaterSsrThickness_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(ssr, "maxDistance"); value.has_value() && *value > 0.0f)
-        {
-            fluidWaterSsrMaxDistance_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(ssr, "edgeFade"); value.has_value())
-        {
-            fluidWaterSsrEdgeFade_ = std::clamp(*value, 0.0f, 0.5f);
-        }
-        if (const std::optional<float> value = jsonFloatField(ssr, "fallbackStrength"); value.has_value())
-        {
-            fluidWaterSsrFallbackStrength_ = std::clamp(*value, 0.0f, 1.0f);
-        }
-        if (const std::optional<std::array<float, 3>> value = jsonFloat3Field(ssr, "fallbackColor"); value.has_value())
-        {
-            fluidWaterSsrFallbackR_ = std::clamp((*value)[0], 0.0f, 1.0f);
-            fluidWaterSsrFallbackG_ = std::clamp((*value)[1], 0.0f, 1.0f);
-            fluidWaterSsrFallbackB_ = std::clamp((*value)[2], 0.0f, 1.0f);
+            fluidWaterAlpha_ = std::clamp(*value, 0.0f, 1.0f);
         }
     }
 
@@ -4607,6 +5789,9 @@ namespace dolbuto
                 fluids = &value.fluids;
             }
 
+            const std::array<uint8_t, ChunkColumnCount>* temperature = value.chunkData ? &value.chunkData->temperature : &value.temperature;
+            const std::array<uint8_t, ChunkColumnCount>* precipitation = value.chunkData ? &value.chunkData->precipitation : &value.precipitation;
+
             auto writeRuns = [&](const std::vector<uint16_t>* values)
             {
                 if (!value.hasData || !values || values->empty())
@@ -4642,6 +5827,11 @@ namespace dolbuto
 
             writeRuns(blocks);
             writeRuns(fluids);
+            if (value.hasData)
+            {
+                payload.insert(payload.end(), temperature->begin(), temperature->end());
+                payload.insert(payload.end(), precipitation->begin(), precipitation->end());
+            }
 
             for (const FeatureWriteListPtr& slot : value.incomingFeatureSlots)
             {
@@ -4727,6 +5917,18 @@ namespace dolbuto
                     if (value.fluids.size() != ChunkBlockCount)
                     {
                         return std::nullopt;
+                    }
+                }
+
+                if (value.hasData)
+                {
+                    for (uint8_t& item : value.temperature)
+                    {
+                        item = readU8(payload, offset);
+                    }
+                    for (uint8_t& item : value.precipitation)
+                    {
+                        item = readU8(payload, offset);
                     }
                 }
 
@@ -5161,6 +6363,18 @@ namespace dolbuto
                 }
             }
 
+            if (snapshot.hasData)
+            {
+                for (uint8_t& item : snapshot.temperature)
+                {
+                    item = readU8(payload, offset);
+                }
+                for (uint8_t& item : snapshot.precipitation)
+                {
+                    item = readU8(payload, offset);
+                }
+            }
+
             for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
             {
                 if (featureCounts[slot] == 0)
@@ -5227,6 +6441,8 @@ namespace dolbuto
                 data->chunkZ = snapshot.chunkZ;
                 data->blocks = snapshot.blocks;
                 data->fluids = snapshot.fluids;
+                data->temperature = snapshot.temperature;
+                data->precipitation = snapshot.precipitation;
             }
             if (data->fluids.size() != ChunkBlockCount)
             {
@@ -5278,6 +6494,7 @@ namespace dolbuto
         chunk->blocks.assign(ChunkBlockCount, BlockAir);
         chunk->fluids.assign(ChunkBlockCount, FluidNone);
         chunk->emptySubchunks.fill(true);
+        populateChunkClimate(*chunk);
 
         std::array<int, Renderer::ChunkColumnCount> heights = buildChunkHeightmap(chunkX, chunkZ);
         int maxHeight = 0;
@@ -5383,11 +6600,28 @@ namespace dolbuto
                 const size_t plantIndex = static_cast<size_t>((height * ChunkSizeZ + localZ) * ChunkSizeX + localX);
                 if (topIndex < chunk->blocks.size() &&
                     plantIndex < chunk->blocks.size() &&
-                    chunk->blocks[topIndex] == BlockGrass &&
-                    worldRandom8(worldXStart + localX, height, worldZStart + localZ, PlantPlacementSalt) < PlantPlacementThreshold)
+                    chunk->blocks[topIndex] == BlockGrass)
                 {
-                    chunk->blocks[plantIndex] = BlockPlant;
-                    chunk->emptySubchunks[static_cast<size_t>(height / SubchunkSize)] = false;
+                    const uint8_t placement = worldRandom8(worldXStart + localX, height, worldZStart + localZ, PlantPlacementSalt);
+                    uint16_t placedBlock = BlockAir;
+                    if (placement <= PlantPlacementMax)
+                    {
+                        placedBlock = BlockPlant;
+                    }
+                    else if (placement <= StonePlacementMax)
+                    {
+                        placedBlock = BlockStoneProp;
+                    }
+                    else if (placement <= BranchPlacementMax)
+                    {
+                        placedBlock = BlockBranchProp;
+                    }
+
+                    if (placedBlock != BlockAir)
+                    {
+                        chunk->blocks[plantIndex] = placedBlock;
+                        chunk->emptySubchunks[static_cast<size_t>(height / SubchunkSize)] = false;
+                    }
                 }
             }
         }
@@ -6386,6 +7620,60 @@ namespace dolbuto
                 {x0, y0, z1, 1.0f, 1.0f, 1.0f});
         };
 
+        auto appendPropBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block)
+        {
+            const auto meshIt = propMeshesByBlock_.find(block);
+            if (meshIt == propMeshesByBlock_.end())
+            {
+                return;
+            }
+
+            const PropMesh& mesh = meshIt->second;
+            const uint32_t textureLayer = blockFaceTextureLayer(block, 0);
+            const float mipDistanceScale = blockDefinition(block).mipDistanceScale;
+            const float originX = static_cast<float>(x) - 0.5f;
+            const float originY = static_cast<float>(y);
+            const float originZ = static_cast<float>(z) - 0.5f;
+
+            for (size_t offset = 0; offset + DpmQuadRenderFloatCount <= mesh.quads.size(); offset += DpmQuadRenderFloatCount)
+            {
+                std::array<TerrainVertex, 4> quad{};
+                size_t cursor = offset;
+                for (TerrainVertex& vertex : quad)
+                {
+                    vertex.x = originX + mesh.quads[cursor++];
+                    vertex.y = originY + mesh.quads[cursor++];
+                    vertex.z = originZ + mesh.quads[cursor++];
+                    vertex.ao = 1.0f;
+                    vertex.textureLayer = static_cast<float>(textureLayer);
+                    vertex.mipDistanceScale = mipDistanceScale;
+                }
+                for (TerrainVertex& vertex : quad)
+                {
+                    vertex.u = mesh.quads[cursor++];
+                    vertex.v = mesh.quads[cursor++];
+                }
+
+                const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
+                buildData.vertices.push_back(quad[0]);
+                buildData.vertices.push_back(quad[1]);
+                buildData.vertices.push_back(quad[2]);
+                buildData.vertices.push_back(quad[3]);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 1);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex + 3);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex + 1);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 3);
+                buildData.indices.push_back(baseIndex + 2);
+            }
+        };
+
         auto faceSignature = [&](uint16_t block, int x, int y, int z, int face) -> uint64_t
         {
             const uint32_t mipSignature = static_cast<uint32_t>(std::clamp(
@@ -6591,6 +7879,10 @@ namespace dolbuto
                     {
                         appendCrossBlock(result, worldXStart + localX, y, worldZStart + localZ, blockFaceTextureLayer(block, 0), blockDefinition(block).mipDistanceScale);
                     }
+                    else if (blockDefinition(block).renderType == BlockRenderType::Prop)
+                    {
+                        appendPropBlock(result, worldXStart + localX, y, worldZStart + localZ, block);
+                    }
                 }
             }
         }
@@ -6689,6 +7981,19 @@ namespace dolbuto
             return block != BlockAir && blockDefinition(block).faceOcclusion == BlockFaceOcclusion::Opaque;
         };
 
+        auto fluidRenderHeight = [&](int localX, int y, int localZ, uint16_t fluid)
+        {
+            if (fluidId(fluid) != FluidWater)
+            {
+                return 0.0f;
+            }
+            if (fluidId(fluidAt(localX, y + 1, localZ)) == FluidWater)
+            {
+                return 1.0f;
+            }
+            return fluidSurfaceHeight(fluidAmount(fluid));
+        };
+
         auto appendQuad = [&](TerrainVertex a, TerrainVertex b, TerrainVertex c, TerrainVertex d)
         {
             a.textureLayer = 0.0f;
@@ -6769,7 +8074,7 @@ namespace dolbuto
                         continue;
                     }
 
-                    const float height = fluidHeight(amount);
+                    const float height = fluidRenderHeight(localX, y, localZ, fluid);
                     if (fluidId(fluidAt(localX, y + 1, localZ)) != FluidWater && !blockOccludesFluid(blockAt(localX, y + 1, localZ)))
                     {
                         appendFluidFace(localX, y, localZ, 0, 0.0f, height);
@@ -6790,7 +8095,7 @@ namespace dolbuto
                         }
 
                         const uint16_t neighborFluid = fluidAt(neighborX, y, neighborZ);
-                        const float neighborHeight = fluidId(neighborFluid) == FluidWater ? fluidHeight(fluidAmount(neighborFluid)) : 0.0f;
+                        const float neighborHeight = fluidRenderHeight(neighborX, y, neighborZ, neighborFluid);
                         if (neighborHeight >= height)
                         {
                             continue;
@@ -7118,7 +8423,7 @@ namespace dolbuto
     {
         auto encodeSignedFixed = [](float value) -> uint32_t
         {
-            const int32_t fixed = static_cast<int32_t>(std::lround(value * 16.0f));
+            const int32_t fixed = static_cast<int32_t>(std::lround(value * TerrainPositionPackScale));
             const uint32_t magnitude = fixed < 0 ? static_cast<uint32_t>(-fixed) : static_cast<uint32_t>(fixed);
             return (magnitude << 1u) | (fixed < 0 ? 1u : 0u);
         };
@@ -7163,12 +8468,12 @@ namespace dolbuto
         packed.p0x = encodeSignedFixed(a.x);
         packed.p0y = encodeSignedFixed(a.y);
         packed.p0z = encodeSignedFixed(a.z);
-        packed.edgeUxy = packI16Pair(quantizeSigned(edgeUx, 16.0f), quantizeSigned(edgeUy, 16.0f));
-        packed.edgeUzVx = packI16Pair(quantizeSigned(edgeUz, 16.0f), quantizeSigned(edgeVx, 16.0f));
-        packed.edgeVyz = packI16Pair(quantizeSigned(edgeVy, 16.0f), quantizeSigned(edgeVz, 16.0f));
-        packed.uv0 = packI16Pair(quantizeSigned(a.u, 4.0f), quantizeSigned(a.v, 4.0f));
-        packed.uvU = packI16Pair(quantizeSigned(b.u - a.u, 4.0f), quantizeSigned(b.v - a.v, 4.0f));
-        packed.uvV = packI16Pair(quantizeSigned(d.u - a.u, 4.0f), quantizeSigned(d.v - a.v, 4.0f));
+        packed.edgeUxy = packI16Pair(quantizeSigned(edgeUx, TerrainPositionPackScale), quantizeSigned(edgeUy, TerrainPositionPackScale));
+        packed.edgeUzVx = packI16Pair(quantizeSigned(edgeUz, TerrainPositionPackScale), quantizeSigned(edgeVx, TerrainPositionPackScale));
+        packed.edgeVyz = packI16Pair(quantizeSigned(edgeVy, TerrainPositionPackScale), quantizeSigned(edgeVz, TerrainPositionPackScale));
+        packed.uv0 = packI16Pair(quantizeSigned(a.u, TerrainUvPackScale), quantizeSigned(a.v, TerrainUvPackScale));
+        packed.uvU = packI16Pair(quantizeSigned(b.u - a.u, TerrainUvPackScale), quantizeSigned(b.v - a.v, TerrainUvPackScale));
+        packed.uvV = packI16Pair(quantizeSigned(d.u - a.u, TerrainUvPackScale), quantizeSigned(d.v - a.v, TerrainUvPackScale));
         const uint32_t textureLayer = quantizeUnsigned(a.textureLayer, 1.0f, 0xFF);
         const uint32_t mipDistanceScale = quantizeUnsigned(a.mipDistanceScale, 16.0f, 0x3FF);
         packed.material = textureLayer |
@@ -8722,7 +10027,7 @@ namespace dolbuto
         vkFreeCommandBuffers(device_, commandPool_, 1, &commandBuffer);
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -8787,6 +10092,7 @@ namespace dolbuto
         {
             drawPlayer(commandBuffer, camera, cameraPosition);
         }
+        drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe, false, true, imageIndex);
         vkCmdEndRenderPass(commandBuffer);
 
         VkRenderPassBeginInfo renderPassInfo{};
@@ -8804,9 +10110,7 @@ namespace dolbuto
         sceneRect.halfWidth = 1.0f;
         sceneRect.halfHeight = 1.0f;
         drawSprite(commandBuffer, sceneColorTargets_[imageIndex], sceneRect, {0.0f, 1.0f, 1.0f, -1.0f});
-
-        drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe, false, true, imageIndex);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+        drawClimateOverlay(commandBuffer, climateOverlayMode);
 
         const float crosshairPixels = 32.0f;
         SpriteRect crosshairRect{};
@@ -8961,34 +10265,7 @@ namespace dolbuto
         push.cameraPosition[1] = cameraPosition.y;
         push.cameraPosition[2] = cameraPosition.z;
         push.cameraPosition[3] = static_cast<float>(glfwGetTime());
-        push.fluidWaterParams[0] = fluidWaterBaseAlpha_;
-        push.fluidWaterParams[1] = fluidWaterEdgeAlpha_;
-        push.fluidWaterParams[2] = fluidWaterFresnelPower_;
-        push.fluidWaterParams[3] = 0.0f;
-        push.fluidWaterNormalParams[0] = fluidWaterNormalTiling_;
-        push.fluidWaterNormalParams[1] = 0.0f;
-        push.fluidWaterNormalParams[2] = fluidWaterNormalScale_;
-        push.fluidWaterNormalParams[3] = 0.0f;
-        push.fluidWaterNormalSpeed[0] = fluidWaterNormalSpeed_;
-        push.fluidWaterNormalSpeed[1] = 0.0f;
-        push.fluidWaterNormalSpeed[2] = 0.0f;
-        push.fluidWaterNormalSpeed[3] = 0.0f;
-        push.ssrParams[0] = fluidWaterSsrEnabled_ ? 1.0f : 0.0f;
-        push.ssrParams[1] = fluidWaterSsrStrength_;
-        push.ssrParams[2] = fluidWaterSsrMaxDistance_;
-        push.ssrParams[3] = fluidWaterSsrEdgeFade_;
-        push.ssrMarchParams[0] = static_cast<float>(fluidWaterSsrMaxSteps_);
-        push.ssrMarchParams[1] = fluidWaterSsrStepSize_;
-        push.ssrMarchParams[2] = fluidWaterSsrThickness_;
-        push.ssrMarchParams[3] = fluidWaterSsrFallbackStrength_;
-        push.ssrFallbackColor[0] = fluidWaterSsrFallbackR_;
-        push.ssrFallbackColor[1] = fluidWaterSsrFallbackG_;
-        push.ssrFallbackColor[2] = fluidWaterSsrFallbackB_;
-        push.ssrFallbackColor[3] = 1.0f;
-        push.ssrDepthParams[0] = TerrainNearPlane;
-        push.ssrDepthParams[1] = TerrainFarPlane;
-        push.ssrDepthParams[2] = 0.0f;
-        push.ssrDepthParams[3] = 0.0f;
+        push.fluidWaterParams[0] = fluidWaterAlpha_;
 
         uint32_t visibleDrawCount = 0;
         uint32_t visibleFaceCount = 0;
@@ -9034,9 +10311,6 @@ namespace dolbuto
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, fluidPipeline_);
             vkCmdPushConstants(commandBuffer, terrainPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 0, 1, &fluidTextureArray_.descriptorSet, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 2, 1, &fluidNormalTexture_.descriptorSet, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 3, 1, &sceneColorTargets_[sceneImageIndex].descriptorSet, 0, nullptr);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout_, 4, 1, &sceneDepthTargets_[sceneImageIndex].descriptorSet, 0, nullptr);
             for (const auto& entry : terrainChunks_)
             {
                 const ChunkRenderData& chunk = entry.second;
@@ -9384,6 +10658,311 @@ namespace dolbuto
     void Renderer::drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv, Color color) const
     {
         drawSpriteDescriptor(commandBuffer, texture.descriptorSet, rect, uv, color);
+    }
+
+    void Renderer::ensureClimateOverlayTexture(int mode)
+    {
+        if (mode == 1 && !climateTemperatureOverlayReady_)
+        {
+            const std::vector<unsigned char> pixels = buildClimateOverlayPixels(mode);
+            climateTemperatureOverlay_ = createTextureFromRgba(pixels.data(), ClimateOverlaySize, ClimateOverlaySize, VK_FORMAT_R8G8B8A8_SRGB);
+            climateTemperatureOverlayReady_ = true;
+        }
+        else if (mode == 2 && !climatePrecipitationOverlayReady_)
+        {
+            const std::vector<unsigned char> pixels = buildClimateOverlayPixels(mode);
+            climatePrecipitationOverlay_ = createTextureFromRgba(pixels.data(), ClimateOverlaySize, ClimateOverlaySize, VK_FORMAT_R8G8B8A8_SRGB);
+            climatePrecipitationOverlayReady_ = true;
+        }
+    }
+
+    std::vector<unsigned char> Renderer::buildClimateOverlayPixels(int mode) const
+    {
+        std::vector<unsigned char> pixels(static_cast<size_t>(ClimateOverlaySize) * static_cast<size_t>(ClimateOverlaySize) * 4u, 255u);
+        auto writePixel = [&](int x, int y, float r, float g, float b)
+        {
+            const size_t index = (static_cast<size_t>(y) * ClimateOverlaySize + static_cast<size_t>(x)) * 4u;
+            pixels[index + 0u] = static_cast<unsigned char>(std::clamp(std::lround(r * 255.0f), 0l, 255l));
+            pixels[index + 1u] = static_cast<unsigned char>(std::clamp(std::lround(g * 255.0f), 0l, 255l));
+            pixels[index + 2u] = static_cast<unsigned char>(std::clamp(std::lround(b * 255.0f), 0l, 255l));
+        };
+
+        if (mode == 1)
+        {
+            const std::vector<float> noise = buildTileableClimateNoise(
+                temperatureNoiseFeatureScale_,
+                temperatureNoiseSimplexScale_,
+                temperatureNoiseOctaveCount_,
+                temperatureNoiseLacunarity_,
+                temperatureNoiseGain_,
+                TemperatureNoiseSeed);
+            for (int y = 0; y < ClimateOverlaySize; ++y)
+            {
+                const int worldZ = (y * WorldSizeBlocks) / ClimateOverlaySize;
+                for (int x = 0; x < ClimateOverlaySize; ++x)
+                {
+                    const int worldX = (x * WorldSizeBlocks) / ClimateOverlaySize;
+                    const size_t index = static_cast<size_t>(y) * ClimateOverlaySize + static_cast<size_t>(x);
+                    const float temperature = temperatureAtWrapped(worldZ, index < noise.size() ? noise[index] : 0.0f);
+                    writePixel(x, y, temperature, 0.0f, 1.0f - temperature);
+                }
+            }
+            return pixels;
+        }
+
+        const std::vector<float> noise = buildTileableClimateNoise(
+            precipitationNoiseFeatureScale_,
+            precipitationNoiseSimplexScale_,
+            precipitationNoiseOctaveCount_,
+            precipitationNoiseLacunarity_,
+            precipitationNoiseGain_,
+            PrecipitationNoiseSeed);
+        if (noise.empty())
+        {
+            return pixels;
+        }
+
+        for (int y = 0; y < ClimateOverlaySize; ++y)
+        {
+            for (int x = 0; x < ClimateOverlaySize; ++x)
+            {
+                const size_t index = static_cast<size_t>(y) * ClimateOverlaySize + static_cast<size_t>(x);
+                const float precipitation = precipitationAtNoise(noise[index]);
+                const float gray = 0.45f;
+                writePixel(x, y, gray * (1.0f - precipitation), gray * (1.0f - precipitation) + 0.35f * precipitation, gray * (1.0f - precipitation) + precipitation);
+            }
+        }
+
+        return pixels;
+    }
+
+    std::vector<float> Renderer::buildTileableClimateNoise(float featureScale, float simplexScale, int octaveCount, float lacunarity, float gain, int seed) const
+    {
+        auto generator = terrainNoiseGenerator(simplexScale, octaveCount, lacunarity, gain);
+        if (!generator)
+        {
+            return {};
+        }
+
+        constexpr float TwoPi = 6.28318530718f;
+        const float angleScale = TwoPi / static_cast<float>(TerrainTilePeriod);
+        const float radius = static_cast<float>(TerrainTilePeriod) / (TwoPi * featureScale);
+        const size_t sampleCount = static_cast<size_t>(ClimateOverlaySize) * static_cast<size_t>(ClimateOverlaySize);
+        std::vector<float> xPositions(sampleCount);
+        std::vector<float> yPositions(sampleCount);
+        std::vector<float> zPositions(sampleCount);
+        std::vector<float> wPositions(sampleCount);
+        std::vector<float> noise(sampleCount);
+
+        for (int y = 0; y < ClimateOverlaySize; ++y)
+        {
+            const int worldZ = (y * WorldSizeBlocks) / ClimateOverlaySize;
+            const float zAngle = static_cast<float>(positiveModulo(worldZ, TerrainTilePeriod)) * angleScale;
+            const float zCos = std::cos(zAngle) * radius;
+            const float zSin = std::sin(zAngle) * radius;
+            for (int x = 0; x < ClimateOverlaySize; ++x)
+            {
+                const int worldX = (x * WorldSizeBlocks) / ClimateOverlaySize;
+                const float xAngle = static_cast<float>(positiveModulo(worldX, TerrainTilePeriod)) * angleScale;
+                const size_t index = static_cast<size_t>(y) * ClimateOverlaySize + static_cast<size_t>(x);
+                xPositions[index] = std::cos(xAngle) * radius;
+                yPositions[index] = zCos;
+                zPositions[index] = std::sin(xAngle) * radius;
+                wPositions[index] = zSin;
+            }
+        }
+
+        generator->GenPositionArray4D(
+            noise.data(),
+            static_cast<int>(noise.size()),
+            xPositions.data(),
+            yPositions.data(),
+            zPositions.data(),
+            wPositions.data(),
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            seed);
+
+        return noise;
+    }
+
+    std::array<float, Renderer::ChunkColumnCount> Renderer::buildChunkTileableClimateNoise(
+        int chunkX,
+        int chunkZ,
+        float featureScale,
+        float simplexScale,
+        int octaveCount,
+        float lacunarity,
+        float gain,
+        int seed) const
+    {
+        std::array<float, Renderer::ChunkColumnCount> noise{};
+        auto generator = terrainNoiseGenerator(simplexScale, octaveCount, lacunarity, gain);
+        if (!generator)
+        {
+            return noise;
+        }
+
+        constexpr float TwoPi = 6.28318530718f;
+        const float angleScale = TwoPi / static_cast<float>(TerrainTilePeriod);
+        const float radius = static_cast<float>(TerrainTilePeriod) / (TwoPi * featureScale);
+        std::array<float, ChunkColumnCount> xPositions{};
+        std::array<float, ChunkColumnCount> yPositions{};
+        std::array<float, ChunkColumnCount> zPositions{};
+        std::array<float, ChunkColumnCount> wPositions{};
+
+        const int worldXStart = chunkX * ChunkSizeX;
+        const int worldZStart = chunkZ * ChunkSizeZ;
+        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+        {
+            const float zAngle = static_cast<float>(positiveModulo(worldZStart + localZ, TerrainTilePeriod)) * angleScale;
+            const float zCos = std::cos(zAngle) * radius;
+            const float zSin = std::sin(zAngle) * radius;
+            for (int localX = 0; localX < ChunkSizeX; ++localX)
+            {
+                const float xAngle = static_cast<float>(positiveModulo(worldXStart + localX, TerrainTilePeriod)) * angleScale;
+                const size_t index = static_cast<size_t>(localZ * ChunkSizeX + localX);
+                xPositions[index] = std::cos(xAngle) * radius;
+                yPositions[index] = zCos;
+                zPositions[index] = std::sin(xAngle) * radius;
+                wPositions[index] = zSin;
+            }
+        }
+
+        generator->GenPositionArray4D(
+            noise.data(),
+            static_cast<int>(noise.size()),
+            xPositions.data(),
+            yPositions.data(),
+            zPositions.data(),
+            wPositions.data(),
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            seed);
+
+        return noise;
+    }
+
+    float Renderer::sampleTileableClimateNoise(
+        int wrappedX,
+        int wrappedZ,
+        float featureScale,
+        float simplexScale,
+        int octaveCount,
+        float lacunarity,
+        float gain,
+        int seed) const
+    {
+        auto generator = terrainNoiseGenerator(simplexScale, octaveCount, lacunarity, gain);
+        if (!generator)
+        {
+            return 0.0f;
+        }
+
+        constexpr float TwoPi = 6.28318530718f;
+        const float angleScale = TwoPi / static_cast<float>(TerrainTilePeriod);
+        const float radius = static_cast<float>(TerrainTilePeriod) / (TwoPi * featureScale);
+        const float xAngle = static_cast<float>(positiveModulo(wrappedX, TerrainTilePeriod)) * angleScale;
+        const float zAngle = static_cast<float>(positiveModulo(wrappedZ, TerrainTilePeriod)) * angleScale;
+        float xPosition = std::cos(xAngle) * radius;
+        float yPosition = std::cos(zAngle) * radius;
+        float zPosition = std::sin(xAngle) * radius;
+        float wPosition = std::sin(zAngle) * radius;
+        float noise = 0.0f;
+
+        generator->GenPositionArray4D(
+            &noise,
+            1,
+            &xPosition,
+            &yPosition,
+            &zPosition,
+            &wPosition,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            seed);
+
+        return noise;
+    }
+
+    void Renderer::populateChunkClimate(ChunkData& chunk) const
+    {
+        const std::array<float, ChunkColumnCount> temperatureNoise = buildChunkTileableClimateNoise(
+            chunk.chunkX,
+            chunk.chunkZ,
+            temperatureNoiseFeatureScale_,
+            temperatureNoiseSimplexScale_,
+            temperatureNoiseOctaveCount_,
+            temperatureNoiseLacunarity_,
+            temperatureNoiseGain_,
+            TemperatureNoiseSeed);
+        const std::array<float, ChunkColumnCount> precipitationNoise = buildChunkTileableClimateNoise(
+            chunk.chunkX,
+            chunk.chunkZ,
+            precipitationNoiseFeatureScale_,
+            precipitationNoiseSimplexScale_,
+            precipitationNoiseOctaveCount_,
+            precipitationNoiseLacunarity_,
+            precipitationNoiseGain_,
+            PrecipitationNoiseSeed);
+
+        const int worldZStart = chunk.chunkZ * ChunkSizeZ;
+        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+        {
+            const int wrappedZ = wrapBlockCoordinate(worldZStart + localZ);
+            for (int localX = 0; localX < ChunkSizeX; ++localX)
+            {
+                const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
+                chunk.temperature[column] = encodeClimateValue(temperatureAtWrapped(wrappedZ, temperatureNoise[column]));
+                chunk.precipitation[column] = encodeClimateValue(precipitationAtNoise(precipitationNoise[column]));
+            }
+        }
+    }
+
+    float Renderer::baseTemperatureAtWrappedZ(int wrappedZ) const
+    {
+        const float normalizedZ = static_cast<float>(positiveModulo(wrappedZ, WorldSizeBlocks)) / static_cast<float>(WorldSizeBlocks);
+        return std::clamp(1.0f - std::abs(normalizedZ * 2.0f - 1.0f), 0.0f, 1.0f);
+    }
+
+    float Renderer::temperatureAtWrapped(int wrappedZ, float noise) const
+    {
+        const float base = baseTemperatureAtWrappedZ(wrappedZ);
+        const float midLatitudeMask = 1.0f - std::abs(base * 2.0f - 1.0f);
+        return std::clamp(base + noise * temperatureNoiseStrength_ * midLatitudeMask, 0.0f, 1.0f);
+    }
+
+    float Renderer::precipitationAtNoise(float noise) const
+    {
+        return std::clamp(noise * 0.5f + 0.5f, 0.0f, 1.0f);
+    }
+
+    void Renderer::drawClimateOverlay(VkCommandBuffer commandBuffer, int mode) const
+    {
+        const Texture* texture = nullptr;
+        if (mode == 1 && climateTemperatureOverlayReady_)
+        {
+            texture = &climateTemperatureOverlay_;
+        }
+        else if (mode == 2 && climatePrecipitationOverlayReady_)
+        {
+            texture = &climatePrecipitationOverlay_;
+        }
+        if (texture == nullptr)
+        {
+            return;
+        }
+
+        const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
+        SpriteRect rect{};
+        rect.halfHeight = 0.82f;
+        rect.halfWidth = std::min(0.92f, rect.halfHeight / std::max(aspect, 0.001f));
+        drawSprite(commandBuffer, *texture, rect, {}, {1.0f, 1.0f, 1.0f, 1.0f});
     }
 
     void Renderer::drawSpriteDescriptor(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, SpriteRect rect, UvRect uv, Color color) const

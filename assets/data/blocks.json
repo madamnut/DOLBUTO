@@ -169,6 +169,38 @@
     }
   },
   {
+    "id": 20000,
+    "name": "stone",
+    "renderType": "prop",
+    "directional": false,
+    "mipDistanceScale": 1.0,
+    "collision": false,
+    "ao": false,
+    "faceOcclusion": "none",
+    "sameBlockFaceCulling": false,
+    "alphaMode": "opaque",
+    "prop": {
+      "model": "stone",
+      "texture": "rock"
+    }
+  },
+  {
+    "id": 20001,
+    "name": "branch",
+    "renderType": "prop",
+    "directional": false,
+    "mipDistanceScale": 1.0,
+    "collision": false,
+    "ao": false,
+    "faceOcclusion": "none",
+    "sameBlockFaceCulling": false,
+    "alphaMode": "opaque",
+    "prop": {
+      "model": "branch",
+      "texture": "trunk_side"
+    }
+  },
+  {
     "id": 65535,
     "name": "bedrock",
     "renderType": "cube",

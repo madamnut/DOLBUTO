@@ -97,6 +97,8 @@ add_executable(DOLBUTO
     src/app/Application.h
     src/camera/Camera.cpp
     src/camera/Camera.h
+    src/platform/Log.cpp
+    src/platform/Log.h
     src/platform/RuntimePaths.cpp
     src/platform/RuntimePaths.h
     src/renderer/Renderer.cpp
@@ -121,6 +123,7 @@ target_compile_definitions(DOLBUTO
         DOLBUTO_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config"
         DOLBUTO_WORLD_DIR="${CMAKE_CURRENT_SOURCE_DIR}/saves/world"
         DOLBUTO_SHADER_DIR="${SHADER_OUTPUT_DIR}"
+        DOLBUTO_LOG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/logs"
 )
 
 target_link_libraries(DOLBUTO

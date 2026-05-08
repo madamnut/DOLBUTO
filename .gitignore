@@ -28,6 +28,7 @@ compile_commands.json
 
 # Runtime world saves
 saves/
+logs/
 
 # Local references
 ref/
