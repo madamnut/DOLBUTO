@@ -106,3 +106,22 @@ Runtime chunk data keeps climate as per-column arrays alongside block and fluid 
 - Fluids: `uint16_t` vector for `16 x 512 x 16` packed fluid values.
 - Temperature: `uint8_t[256]`, indexed by `localZ * 16 + localX`.
 - Precipitation: `uint8_t[256]`, indexed by `localZ * 16 + localX`.
+
+## Game Scene Unload
+
+Returning from pause to the lobby unloads the game scene instead of keeping loaded world state alive.
+
+The unload path:
+
+```text
+stop terrain workers
+enqueue all runtime chunks for save
+drain save worker
+wait for Vulkan device idle
+destroy loaded and retired terrain meshes
+clear runtime chunks, desired sets, requested job sets, and unload queues
+reset terrain load request
+```
+
+The renderer itself remains alive because the lobby still uses renderer-owned swapchain, sprite textures, and font resources.
+Starting a later game scene starts terrain and save workers again.

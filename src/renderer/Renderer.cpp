@@ -4,10 +4,12 @@
 #include "platform/Log.h"
 #include "platform/RuntimePaths.h"
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #include <FastNoise/FastNoise.h>
 #include <stb_image.h>
 #include <stb_image_write.h>
-#include <stb_truetype.h>
 
 #include <algorithm>
 #include <array>
@@ -95,6 +97,9 @@ namespace dolbuto
         constexpr int PrecipitationNoiseSeed = 2401;
         constexpr int ClimateOverlaySize = 1024;
         constexpr float DefaultFluidWaterAlpha = 0.8f;
+        constexpr float MenuButtonWidthPixels = 240.0f;
+        constexpr float MenuButtonHeightPixels = 56.0f;
+        constexpr float LobbyBackgroundTilePixels = 96.0f;
         constexpr float TerrainNearPlane = 0.1f;
         constexpr float TerrainFarPlane = 4000.0f;
         constexpr double PeakProfilerStartupDelaySeconds = 5.0;
@@ -2533,9 +2538,6 @@ namespace dolbuto
         loadWorldConfig();
         loadRenderConfig();
         loadHeightLut();
-        startSaveWorker();
-        startTerrainWorkers();
-        requestTerrainLoad(loadedCenterGroupChunkX_, loadedCenterGroupChunkZ_);
         createCommandBuffers();
         createSyncObjects();
     }
@@ -2552,6 +2554,9 @@ namespace dolbuto
         destroyTexture(fluidTextureArray_);
         destroyTexture(playerTexture_);
         destroyTexture(font_);
+        destroyTexture(white_);
+        destroyTexture(lobbyTitle_);
+        destroyTexture(lobbyBackground_);
         destroyTexture(crosshair_);
         destroyTexture(climatePrecipitationOverlay_);
         destroyTexture(climateTemperatureOverlay_);
@@ -2677,7 +2682,9 @@ namespace dolbuto
         DVec3 playerPosition,
         float playerYaw,
         bool terrainWireframe,
-        int climateOverlayMode)
+        int climateOverlayMode,
+        int menuOverlayMode,
+        bool worldUpdateEnabled)
     {
         const auto frameStart = std::chrono::steady_clock::now();
         frameChunkUpdateMs_ = 0.0;
@@ -2726,11 +2733,14 @@ namespace dolbuto
                 lastGpuFrameMs_ = static_cast<double>(timestamps[1] - timestamps[0]) * static_cast<double>(timestampPeriod_) / 1000000.0;
             }
         }
-        const auto chunkUpdateStart = std::chrono::steady_clock::now();
-        updateLoadedChunks(playerPosition);
-        const auto chunkUpdateEnd = std::chrono::steady_clock::now();
-        frameChunkUpdateMs_ += std::chrono::duration<double, std::milli>(chunkUpdateEnd - chunkUpdateStart).count();
-        processCompletedTerrainJobs();
+        if (worldUpdateEnabled)
+        {
+            const auto chunkUpdateStart = std::chrono::steady_clock::now();
+            updateLoadedChunks(playerPosition);
+            const auto chunkUpdateEnd = std::chrono::steady_clock::now();
+            frameChunkUpdateMs_ += std::chrono::duration<double, std::milli>(chunkUpdateEnd - chunkUpdateStart).count();
+            processCompletedTerrainJobs();
+        }
         const auto cpuStart = std::chrono::steady_clock::now();
 
         uint32_t imageIndex = 0;
@@ -2767,7 +2777,7 @@ namespace dolbuto
         }
         ensureClimateOverlayTexture(climateOverlayMode);
 
-        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPositionFloat, fpsText, debugTextVisible, screenshotBuffer, showPlayer, terrainWireframe, climateOverlayMode);
+        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPositionFloat, fpsText, debugTextVisible, screenshotBuffer, showPlayer, terrainWireframe, climateOverlayMode, menuOverlayMode);
 
         VkSemaphore waitSemaphores[] = {imageAvailableSemaphores_[currentFrame_]};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -4053,6 +4063,10 @@ namespace dolbuto
         sun_ = createTexture((assetDir / "textures" / "sky" / "Sun.png").string());
         moon_ = createTexture((assetDir / "textures" / "sky" / "Moon.png").string());
         crosshair_ = createTexture((assetDir / "textures" / "ui" / "Crosshair.png").string());
+        const std::array<unsigned char, 4> whitePixel = {255u, 255u, 255u, 255u};
+        white_ = createTextureFromRgba(whitePixel.data(), 1, 1);
+        lobbyBackground_ = createTexture((assetDir / "textures" / "block" / "rock.png").string());
+        lobbyTitle_ = createTexture((assetDir / "textures" / "ui" / "Title.png").string());
         playerTexture_ = createTextureArray({(assetDir / "textures" / "character" / "Character.png").string()});
 
         const std::vector<char> blockDefinitionData = readFile((assetDir / "data" / "blocks.json").string());
@@ -4230,23 +4244,85 @@ namespace dolbuto
     void Renderer::createFont()
     {
         std::vector<char> fontData = readFile((assetDirectory() / "fonts" / "VCR_OSD_MONO.ttf").string());
-        std::vector<unsigned char> alpha(FontAtlasSize * FontAtlasSize);
 
-        const int bakeResult = stbtt_BakeFontBitmap(
-            reinterpret_cast<const unsigned char*>(fontData.data()),
-            0,
-            FontPixelHeight,
-            alpha.data(),
-            FontAtlasSize,
-            FontAtlasSize,
-            32,
-            static_cast<int>(bakedChars_.size()),
-            bakedChars_.data());
-
-        if (bakeResult <= 0)
+        FT_Library library = nullptr;
+        if (FT_Init_FreeType(&library) != 0)
         {
-            throw std::runtime_error("Failed to bake debug font atlas.");
+            throw std::runtime_error("Failed to initialize FreeType.");
         }
+
+        FT_Face face = nullptr;
+        if (FT_New_Memory_Face(
+                library,
+                reinterpret_cast<const FT_Byte*>(fontData.data()),
+                static_cast<FT_Long>(fontData.size()),
+                0,
+                &face) != 0)
+        {
+            FT_Done_FreeType(library);
+            throw std::runtime_error("Failed to load debug font face.");
+        }
+
+        if (FT_Set_Pixel_Sizes(face, 0, static_cast<FT_UInt>(FontPixelHeight)) != 0)
+        {
+            FT_Done_Face(face);
+            FT_Done_FreeType(library);
+            throw std::runtime_error("Failed to set debug font pixel size.");
+        }
+
+        std::vector<unsigned char> alpha(FontAtlasSize * FontAtlasSize);
+        int penX = 1;
+        int penY = 1;
+        int rowHeight = 0;
+
+        for (char character = 32; character <= 126; ++character)
+        {
+            if (FT_Load_Char(face, static_cast<FT_ULong>(character), FT_LOAD_RENDER) != 0)
+            {
+                FT_Done_Face(face);
+                FT_Done_FreeType(library);
+                throw std::runtime_error("Failed to render debug font glyph.");
+            }
+
+            const FT_GlyphSlot glyph = face->glyph;
+            const FT_Bitmap& bitmap = glyph->bitmap;
+            const int glyphWidth = static_cast<int>(bitmap.width);
+            const int glyphHeight = static_cast<int>(bitmap.rows);
+            if (penX + glyphWidth + 1 >= FontAtlasSize)
+            {
+                penX = 1;
+                penY += rowHeight + 1;
+                rowHeight = 0;
+            }
+            if (penY + glyphHeight + 1 >= FontAtlasSize)
+            {
+                FT_Done_Face(face);
+                FT_Done_FreeType(library);
+                throw std::runtime_error("Debug font atlas is too small.");
+            }
+
+            FontCharacter& fontCharacter = fontCharacters_[static_cast<size_t>(character - 32)];
+            fontCharacter.x0 = penX;
+            fontCharacter.y0 = penY;
+            fontCharacter.x1 = penX + glyphWidth;
+            fontCharacter.y1 = penY + glyphHeight;
+            fontCharacter.xOffset = static_cast<float>(glyph->bitmap_left);
+            fontCharacter.yOffset = -static_cast<float>(glyph->bitmap_top);
+            fontCharacter.advance = static_cast<float>(glyph->advance.x) / 64.0f;
+
+            for (int row = 0; row < glyphHeight; ++row)
+            {
+                const unsigned char* source = bitmap.buffer + static_cast<size_t>(row) * static_cast<size_t>(std::abs(bitmap.pitch));
+                unsigned char* destination = alpha.data() + static_cast<size_t>(penY + row) * FontAtlasSize + static_cast<size_t>(penX);
+                std::memcpy(destination, source, static_cast<size_t>(glyphWidth));
+            }
+
+            penX += glyphWidth + 1;
+            rowHeight = std::max(rowHeight, glyphHeight);
+        }
+
+        FT_Done_Face(face);
+        FT_Done_FreeType(library);
 
         std::vector<unsigned char> rgba(FontAtlasSize * FontAtlasSize * 4);
         for (int i = 0; i < FontAtlasSize * FontAtlasSize; ++i)
@@ -4588,11 +4664,12 @@ namespace dolbuto
     {
         const int centerGroupChunkX = centerGroupCoordinate(chunkCoordinate(playerPosition.x));
         const int centerGroupChunkZ = centerGroupCoordinate(chunkCoordinate(playerPosition.z));
-        if (centerGroupChunkX == loadedCenterGroupChunkX_ && centerGroupChunkZ == loadedCenterGroupChunkZ_)
+        if (terrainLoadRequested_ && centerGroupChunkX == loadedCenterGroupChunkX_ && centerGroupChunkZ == loadedCenterGroupChunkZ_)
         {
             return;
         }
 
+        terrainLoadRequested_ = true;
         loadedCenterGroupChunkX_ = centerGroupChunkX;
         loadedCenterGroupChunkZ_ = centerGroupChunkZ;
 
@@ -5737,6 +5814,44 @@ namespace dolbuto
         {
             enqueueSaveSnapshot(makeSaveSnapshot(entry.second));
         }
+    }
+
+    void Renderer::loadGameScene()
+    {
+        if (gameSceneLoaded_)
+        {
+            return;
+        }
+
+        log::info("Loading game scene.");
+        terrainLoadRequested_ = false;
+        startSaveWorker();
+        startTerrainWorkers();
+        gameSceneLoaded_ = true;
+        log::info("Game scene loaded.");
+    }
+
+    void Renderer::unloadGameScene()
+    {
+        if (!gameSceneLoaded_)
+        {
+            return;
+        }
+
+        log::info("Unloading game scene.");
+        stopTerrainWorkers();
+        enqueueSaveAllRuntimeChunks();
+        stopSaveWorker();
+        vkDeviceWaitIdle(device_);
+        destroyAllTerrainChunks();
+        terrainLoadRequested_ = false;
+        loadedChunkDiameter_ = 0;
+        loadedCenterGroupChunkX_ = 0;
+        loadedCenterGroupChunkZ_ = 0;
+        updateTerrainStats();
+        debugTextBatchDirty_ = true;
+        gameSceneLoaded_ = false;
+        log::info("Game scene unloaded.");
     }
 
     void Renderer::saveChunkSnapshot(const SaveChunkSnapshot& snapshot)
@@ -10027,7 +10142,7 @@ namespace dolbuto
         vkFreeCommandBuffers(device_, commandPool_, 1, &commandBuffer);
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -10087,8 +10202,11 @@ namespace dolbuto
         }
 
         drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe, true, false, imageIndex);
-        drawBlockSelection(commandBuffer, camera, cameraPosition);
-        if (showPlayer)
+        if (menuOverlayMode == 0)
+        {
+            drawBlockSelection(commandBuffer, camera, cameraPosition);
+        }
+        if (showPlayer && menuOverlayMode == 0)
         {
             drawPlayer(commandBuffer, camera, cameraPosition);
         }
@@ -10112,17 +10230,26 @@ namespace dolbuto
         drawSprite(commandBuffer, sceneColorTargets_[imageIndex], sceneRect, {0.0f, 1.0f, 1.0f, -1.0f});
         drawClimateOverlay(commandBuffer, climateOverlayMode);
 
-        const float crosshairPixels = 32.0f;
-        SpriteRect crosshairRect{};
-        crosshairRect.halfWidth = crosshairPixels / static_cast<float>(swapchainExtent_.width);
-        crosshairRect.halfHeight = crosshairPixels / static_cast<float>(swapchainExtent_.height);
-        drawSprite(commandBuffer, crosshair_, crosshairRect);
+        if (menuOverlayMode == 0)
+        {
+            if (cachedMenuOverlayMode_ != 0)
+            {
+                cachedMenuOverlayMode_ = 0;
+                debugTextBufferDirty_ = true;
+            }
+            const float crosshairPixels = 32.0f;
+            SpriteRect crosshairRect{};
+            crosshairRect.halfWidth = crosshairPixels / static_cast<float>(swapchainExtent_.width);
+            crosshairRect.halfHeight = crosshairPixels / static_cast<float>(swapchainExtent_.height);
+            drawSprite(commandBuffer, crosshair_, crosshairRect);
+        }
 
         if (debugTextVisible)
         {
             updateDebugTextBatch(fpsText);
             drawTextBatch(commandBuffer, debugTextBatch_);
         }
+        drawMenuOverlay(commandBuffer, menuOverlayMode);
 
         vkCmdEndRenderPass(commandBuffer);
 
@@ -10965,6 +11092,55 @@ namespace dolbuto
         drawSprite(commandBuffer, *texture, rect, {}, {1.0f, 1.0f, 1.0f, 1.0f});
     }
 
+    void Renderer::drawMenuOverlay(VkCommandBuffer commandBuffer, int menuOverlayMode)
+    {
+        if (menuOverlayMode == 0)
+        {
+            return;
+        }
+
+        auto rectFromPixels = [&](float centerX, float centerY, float width, float height)
+        {
+            SpriteRect rect{};
+            rect.centerX = centerX / static_cast<float>(swapchainExtent_.width) * 2.0f - 1.0f;
+            rect.centerY = centerY / static_cast<float>(swapchainExtent_.height) * 2.0f - 1.0f;
+            rect.halfWidth = width / static_cast<float>(swapchainExtent_.width);
+            rect.halfHeight = height / static_cast<float>(swapchainExtent_.height);
+            return rect;
+        };
+
+        const float width = static_cast<float>(swapchainExtent_.width);
+        const float height = static_cast<float>(swapchainExtent_.height);
+        const SpriteRect fullScreenRect = rectFromPixels(width * 0.5f, height * 0.5f, width, height);
+        if (menuOverlayMode == 1)
+        {
+            const UvRect tiledUv{0.0f, height / LobbyBackgroundTilePixels, width / LobbyBackgroundTilePixels, -height / LobbyBackgroundTilePixels};
+            drawSprite(commandBuffer, lobbyBackground_, fullScreenRect, tiledUv, {1.0f, 1.0f, 1.0f, 1.0f});
+        }
+
+        const SpriteRect dimRect = rectFromPixels(width * 0.5f, height * 0.5f, width, height);
+        drawSprite(commandBuffer, white_, dimRect, {}, {0.02f, 0.03f, 0.04f, 0.62f});
+
+        if (menuOverlayMode == 1 && lobbyTitle_.width > 0 && lobbyTitle_.height > 0)
+        {
+            const float titleWidth = std::min(width * 0.58f, static_cast<float>(lobbyTitle_.width) * 2.0f);
+            const float titleHeight = titleWidth * static_cast<float>(lobbyTitle_.height) / static_cast<float>(lobbyTitle_.width);
+            const SpriteRect titleRect = rectFromPixels(width * 0.5f, height * 0.22f, titleWidth, titleHeight);
+            drawSprite(commandBuffer, lobbyTitle_, titleRect, {0.0f, 1.0f, 1.0f, -1.0f});
+        }
+
+        const float firstButtonY = menuOverlayMode == 1 ? height * 0.45f : height * 0.46f;
+        const float secondButtonY = menuOverlayMode == 1 ? height * 0.56f : height * 0.57f;
+        const SpriteRect firstButton = rectFromPixels(width * 0.5f, firstButtonY, MenuButtonWidthPixels, MenuButtonHeightPixels);
+        const SpriteRect secondButton = rectFromPixels(width * 0.5f, secondButtonY, MenuButtonWidthPixels, MenuButtonHeightPixels);
+        drawSprite(commandBuffer, white_, firstButton, {}, {0.12f, 0.18f, 0.22f, 0.92f});
+        drawSprite(commandBuffer, white_, secondButton, {}, {0.08f, 0.11f, 0.14f, 0.92f});
+
+        buildMenuTextBatch(menuOverlayMode);
+        debugTextBufferDirty_ = true;
+        drawTextBatch(commandBuffer, menuTextBatch_);
+    }
+
     void Renderer::drawSpriteDescriptor(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, SpriteRect rect, UvRect uv, Color color) const
     {
         SpritePush push{};
@@ -11060,6 +11236,38 @@ namespace dolbuto
 
         debugTextBatchDirty_ = false;
         debugTextBufferDirty_ = true;
+    }
+
+    void Renderer::buildMenuTextBatch(int menuOverlayMode)
+    {
+        if (cachedMenuOverlayMode_ == menuOverlayMode &&
+            cachedMenuExtent_.width == swapchainExtent_.width &&
+            cachedMenuExtent_.height == swapchainExtent_.height)
+        {
+            return;
+        }
+
+        cachedMenuOverlayMode_ = menuOverlayMode;
+        cachedMenuExtent_ = swapchainExtent_;
+        menuTextBatch_.outline.clear();
+        menuTextBatch_.fill.clear();
+        menuTextBatch_.outline.reserve(1024);
+        menuTextBatch_.fill.reserve(512);
+
+        const float width = static_cast<float>(swapchainExtent_.width);
+        const float height = static_cast<float>(swapchainExtent_.height);
+        const float centerX = width * 0.5f;
+
+        if (menuOverlayMode == 1)
+        {
+            addText(menuTextBatch_, "START", centerX - measureText("START") * 0.5f, height * 0.45f + 6.0f, false);
+            addText(menuTextBatch_, "EXIT", centerX - measureText("EXIT") * 0.5f, height * 0.56f + 6.0f, false);
+        }
+        else if (menuOverlayMode == 2)
+        {
+            addText(menuTextBatch_, "RESUME", centerX - measureText("RESUME") * 0.5f, height * 0.46f + 6.0f, false);
+            addText(menuTextBatch_, "EXIT", centerX - measureText("EXIT") * 0.5f, height * 0.57f + 6.0f, false);
+        }
     }
 
     void Renderer::updatePerformanceText(double cpuFrameMs)
@@ -11247,6 +11455,10 @@ namespace dolbuto
     void Renderer::drawTextBatch(VkCommandBuffer commandBuffer, const TextBatch& batch)
     {
         const size_t totalVertices = batch.outline.size() + batch.fill.size();
+        if (totalVertices == 0)
+        {
+            return;
+        }
         if (totalVertices > MaxTextVertices)
         {
             return;
@@ -11256,21 +11468,18 @@ namespace dolbuto
         const VkDeviceSize fillSize = sizeof(TextVertex) * batch.fill.size();
         const VkDeviceSize fillOffset = outlineSize;
 
-        if (debugTextBufferDirty_)
+        void* data = nullptr;
+        vkMapMemory(device_, textVertexMemory_, 0, outlineSize + fillSize, 0, &data);
+        if (outlineSize > 0)
         {
-            void* data = nullptr;
-            vkMapMemory(device_, textVertexMemory_, 0, outlineSize + fillSize, 0, &data);
-            if (outlineSize > 0)
-            {
-                std::memcpy(data, batch.outline.data(), static_cast<size_t>(outlineSize));
-            }
-            if (fillSize > 0)
-            {
-                std::memcpy(static_cast<char*>(data) + fillOffset, batch.fill.data(), static_cast<size_t>(fillSize));
-            }
-            vkUnmapMemory(device_, textVertexMemory_);
-            debugTextBufferDirty_ = false;
+            std::memcpy(data, batch.outline.data(), static_cast<size_t>(outlineSize));
         }
+        if (fillSize > 0)
+        {
+            std::memcpy(static_cast<char*>(data) + fillOffset, batch.fill.data(), static_cast<size_t>(fillSize));
+        }
+        vkUnmapMemory(device_, textVertexMemory_);
+        debugTextBufferDirty_ = false;
 
         drawTextVertices(commandBuffer, batch.outline, {0.0f, 0.0f, 0.0f, 1.0f}, 0);
         drawTextVertices(commandBuffer, batch.fill, {1.0f, 1.0f, 1.0f, 1.0f}, fillOffset);
@@ -11305,23 +11514,23 @@ namespace dolbuto
 
     Renderer::Glyph Renderer::makeGlyph(char character, float x, float y) const
     {
-        const stbtt_bakedchar& baked = bakedChars_[static_cast<size_t>(character - 32)];
+        const FontCharacter& fontCharacter = fontCharacters_[static_cast<size_t>(character - 32)];
 
-        const float x0 = x + baked.xoff;
-        const float y0 = y + baked.yoff;
-        const float x1 = x0 + static_cast<float>(baked.x1 - baked.x0);
-        const float y1 = y0 + static_cast<float>(baked.y1 - baked.y0);
+        const float x0 = x + fontCharacter.xOffset;
+        const float y0 = y + fontCharacter.yOffset;
+        const float x1 = x0 + static_cast<float>(fontCharacter.x1 - fontCharacter.x0);
+        const float y1 = y0 + static_cast<float>(fontCharacter.y1 - fontCharacter.y0);
 
         Glyph glyph{};
         glyph.rect.centerX = ((x0 + x1) * 0.5f / static_cast<float>(swapchainExtent_.width)) * 2.0f - 1.0f;
         glyph.rect.centerY = ((y0 + y1) * 0.5f / static_cast<float>(swapchainExtent_.height)) * 2.0f - 1.0f;
         glyph.rect.halfWidth = (x1 - x0) / static_cast<float>(swapchainExtent_.width);
         glyph.rect.halfHeight = (y1 - y0) / static_cast<float>(swapchainExtent_.height);
-        glyph.uv.x = static_cast<float>(baked.x0) / static_cast<float>(FontAtlasSize);
-        glyph.uv.y = static_cast<float>(baked.y0) / static_cast<float>(FontAtlasSize);
-        glyph.uv.width = static_cast<float>(baked.x1 - baked.x0) / static_cast<float>(FontAtlasSize);
-        glyph.uv.height = static_cast<float>(baked.y1 - baked.y0) / static_cast<float>(FontAtlasSize);
-        glyph.advance = baked.xadvance;
+        glyph.uv.x = static_cast<float>(fontCharacter.x0) / static_cast<float>(FontAtlasSize);
+        glyph.uv.y = static_cast<float>(fontCharacter.y0) / static_cast<float>(FontAtlasSize);
+        glyph.uv.width = static_cast<float>(fontCharacter.x1 - fontCharacter.x0) / static_cast<float>(FontAtlasSize);
+        glyph.uv.height = static_cast<float>(fontCharacter.y1 - fontCharacter.y0) / static_cast<float>(FontAtlasSize);
+        glyph.advance = fontCharacter.advance;
         return glyph;
     }
 
@@ -11335,7 +11544,7 @@ namespace dolbuto
                 continue;
             }
 
-            width += bakedChars_[static_cast<size_t>(character - 32)].xadvance;
+            width += fontCharacters_[static_cast<size_t>(character - 32)].advance;
         }
         return width;
     }

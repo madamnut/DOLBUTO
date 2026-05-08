@@ -4,7 +4,6 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#include <stb_truetype.h>
 
 #include <array>
 #include <atomic>
@@ -45,13 +44,17 @@ namespace dolbuto
             DVec3 playerPosition,
             float playerYaw,
             bool terrainWireframe,
-            int climateOverlayMode);
+            int climateOverlayMode,
+            int menuOverlayMode,
+            bool worldUpdateEnabled);
         void setFramebufferResized();
         bool playerColliderIntersectsTerrain(DVec3 playerPosition) const;
         void updateBlockSelection(DVec3 origin, Vec3 direction);
         bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock);
         std::string selectedBlockText() const;
         std::string climateText(DVec3 position) const;
+        void loadGameScene();
+        void unloadGameScene();
         void resetPeakProfiler();
 
     private:
@@ -117,6 +120,17 @@ namespace dolbuto
         {
             SpriteRect rect;
             UvRect uv;
+            float advance = 0.0f;
+        };
+
+        struct FontCharacter
+        {
+            int x0 = 0;
+            int y0 = 0;
+            int x1 = 0;
+            int y1 = 0;
+            float xOffset = 0.0f;
+            float yOffset = 0.0f;
             float advance = 0.0f;
         };
 
@@ -522,7 +536,7 @@ namespace dolbuto
         VkCommandBuffer beginSingleTimeCommands() const;
         void endSingleTimeCommands(VkCommandBuffer commandBuffer) const;
 
-        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode);
+        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode);
         void copySwapchainImageToBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VkBuffer buffer) const;
         void saveScreenshot(VkDeviceMemory memory, VkDeviceSize size) const;
         void updatePlayerMesh(Vec3 playerPosition, float playerYaw);
@@ -541,6 +555,7 @@ namespace dolbuto
         void drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const;
         void drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
         void drawSpriteDescriptor(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
+        void drawMenuOverlay(VkCommandBuffer commandBuffer, int menuOverlayMode);
         void ensureClimateOverlayTexture(int mode);
         std::vector<unsigned char> buildClimateOverlayPixels(int mode) const;
         std::vector<float> buildTileableClimateNoise(float featureScale, float simplexScale, int octaveCount, float lacunarity, float gain, int seed) const;
@@ -553,6 +568,7 @@ namespace dolbuto
         void drawClimateOverlay(VkCommandBuffer commandBuffer, int mode) const;
         std::string_view resolutionText();
         void updateDebugTextBatch(std::string_view fpsText);
+        void buildMenuTextBatch(int menuOverlayMode);
         void updatePerformanceText(double cpuFrameMs);
         void updatePeakProfiler(double frameMs);
         void updatePeakProfilerText();
@@ -617,6 +633,9 @@ namespace dolbuto
         std::string cachedFpsText_;
         VkExtent2D lastResolutionExtent_{};
         TextBatch debugTextBatch_;
+        TextBatch menuTextBatch_;
+        int cachedMenuOverlayMode_ = -1;
+        VkExtent2D cachedMenuExtent_{};
         bool debugTextBatchDirty_ = true;
         bool debugTextBufferDirty_ = true;
         VkDevice device_ = VK_NULL_HANDLE;
@@ -698,6 +717,8 @@ namespace dolbuto
         int loadedChunkDiameter_ = 0;
         int loadedCenterGroupChunkX_ = 0;
         int loadedCenterGroupChunkZ_ = 0;
+        bool terrainLoadRequested_ = false;
+        bool gameSceneLoaded_ = false;
         std::atomic<uint64_t> terrainGeneration_{0};
         int loadOrderDiameter_ = 0;
         std::vector<ChunkOffset> loadOrder_;
@@ -749,6 +770,9 @@ namespace dolbuto
         Texture sun_;
         Texture moon_;
         Texture crosshair_;
+        Texture white_;
+        Texture lobbyBackground_;
+        Texture lobbyTitle_;
         Texture climateTemperatureOverlay_;
         Texture climatePrecipitationOverlay_;
         bool climateTemperatureOverlayReady_ = false;
@@ -763,7 +787,7 @@ namespace dolbuto
         std::vector<BlockDefinition> blockDefinitions_;
         std::vector<BlockTextureLayers> blockTextureLayers_;
         std::unordered_map<uint16_t, PropMesh> propMeshesByBlock_;
-        std::array<stbtt_bakedchar, 95> bakedChars_{};
+        std::array<FontCharacter, 95> fontCharacters_{};
 
         std::vector<VkSemaphore> imageAvailableSemaphores_;
         std::vector<VkSemaphore> renderFinishedSemaphores_;

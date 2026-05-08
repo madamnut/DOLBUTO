@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(DOLBUTO LANGUAGES CXX)
+project(DOLBUTO LANGUAGES C CXX)
 
 if(WIN32)
     enable_language(RC)
@@ -20,6 +20,27 @@ set(FASTSIMD_TESTS OFF CACHE BOOL "" FORCE)
 get_filename_component(DOLBUTO_FASTSIMD_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/FastSIMD" REALPATH)
 set(FastSIMD_SOURCE_DIR "${DOLBUTO_FASTSIMD_SOURCE_DIR}" CACHE PATH "" FORCE)
 add_subdirectory(external/FastNoise2)
+
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+set(FT_ENABLE_ERROR_STRINGS OFF CACHE BOOL "" FORCE)
+add_subdirectory(third_party/freetype-2.14.2 EXCLUDE_FROM_ALL)
+if(NOT TARGET Freetype::Freetype)
+    add_library(Freetype::Freetype ALIAS freetype)
+endif()
+
+set(RMLUI_SAMPLES OFF CACHE BOOL "" FORCE)
+set(RMLUI_LUA_BINDINGS OFF CACHE BOOL "" FORCE)
+set(RMLUI_LOTTIE_PLUGIN OFF CACHE BOOL "" FORCE)
+set(RMLUI_SVG_PLUGIN OFF CACHE BOOL "" FORCE)
+set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
+set(RMLUI_PRECOMPILED_HEADERS OFF CACHE BOOL "" FORCE)
+set(RMLUI_COMPILER_OPTIONS OFF CACHE BOOL "" FORCE)
+add_subdirectory(third_party/RmlUi EXCLUDE_FROM_ALL)
 
 if(NOT Vulkan_GLSLC_EXECUTABLE)
     find_program(Vulkan_GLSLC_EXECUTABLE glslc REQUIRED)
@@ -105,7 +126,6 @@ add_executable(DOLBUTO
     src/renderer/Renderer.h
     src/third_party/stb_image.cpp
     src/third_party/stb_image_write.cpp
-    src/third_party/stb_truetype.cpp
 )
 
 add_dependencies(DOLBUTO DOLBUTOShaders)
@@ -130,6 +150,8 @@ target_link_libraries(DOLBUTO
     PRIVATE
         Vulkan::Vulkan
         FastNoise
+        Freetype::Freetype
+        RmlUi::Core
         "${GLFW_IMPORT_LIB}"
 )
 

@@ -42,6 +42,12 @@ namespace dolbuto
         constexpr double DefaultGravity = 32.0;
         constexpr double WorldSizeBlocks = 65536.0;
         constexpr size_t PlayerStateFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t);
+        constexpr float MenuButtonWidth = 240.0f;
+        constexpr float MenuButtonHeight = 56.0f;
+        constexpr float LobbyStartButtonY = 0.45f;
+        constexpr float LobbyExitButtonY = 0.56f;
+        constexpr float PauseResumeButtonY = 0.46f;
+        constexpr float PauseExitButtonY = 0.57f;
 
         std::optional<double> jsonDoubleField(const std::string& object, const std::string& key)
         {
@@ -175,6 +181,16 @@ namespace dolbuto
             return {forward.x, -forward.y, forward.z};
         }
 
+        bool pointInButton(double x, double y, int width, int height, float centerYRatio)
+        {
+            const double centerX = static_cast<double>(width) * 0.5;
+            const double centerY = static_cast<double>(height) * static_cast<double>(centerYRatio);
+            return x >= centerX - MenuButtonWidth * 0.5 &&
+                x <= centerX + MenuButtonWidth * 0.5 &&
+                y >= centerY - MenuButtonHeight * 0.5 &&
+                y <= centerY + MenuButtonHeight * 0.5;
+        }
+
         std::filesystem::path playerStatePath()
         {
             return worldDirectory() / "player.dat";
@@ -284,6 +300,7 @@ namespace dolbuto
         loadPlayerState();
         initWindow();
         renderer_ = std::make_unique<Renderer>(window_);
+        setScreen(AppScreen::Lobby);
         fpsSampleStart_ = std::chrono::steady_clock::now();
         lastFrameTime_ = fpsSampleStart_;
     }
@@ -310,19 +327,27 @@ namespace dolbuto
             lastFrameTime_ = now;
 
             physicsAccumulator_ += std::min(delta.count(), MaxPhysicsFrameTime);
-            while (physicsAccumulator_ >= FixedPhysicsTimestep)
+            while (screen_ == AppScreen::Game && physicsAccumulator_ >= FixedPhysicsTimestep)
             {
                 previousPlayerPosition_ = playerPosition_;
                 updatePlayer(FixedPhysicsTimestep);
                 physicsAccumulator_ -= FixedPhysicsTimestep;
             }
+            if (screen_ != AppScreen::Game)
+            {
+                physicsAccumulator_ = 0.0;
+                previousPlayerPosition_ = playerPosition_;
+            }
 
             const double physicsAlpha = std::clamp(physicsAccumulator_ / FixedPhysicsTimestep, 0.0, 1.0);
             const DVec3 renderPlayerPosition = interpolatedPlayerPosition(physicsAlpha);
             const DVec3 eyePosition{renderPlayerPosition.x, renderPlayerPosition.y + EyeHeight, renderPlayerPosition.z};
-            renderer_->updateBlockSelection(
-                {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
-                renderViewDirection(camera_));
+            if (screen_ == AppScreen::Game)
+            {
+                renderer_->updateBlockSelection(
+                    {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
+                    renderViewDirection(camera_));
+            }
             updateDebugText();
             Camera renderCamera = camera_;
             DVec3 renderCameraPosition = eyePosition;
@@ -349,7 +374,9 @@ namespace dolbuto
                 showPlayer = true;
             }
 
-            renderer_->drawFrame(renderCamera, renderCameraPosition, debugText_.data(), debugTextVisible_, screenshotRequested_, showPlayer, renderPlayerPosition, camera_.yaw(), terrainWireframe_, climateOverlayMode_);
+            const int menuOverlayMode = screen_ == AppScreen::Lobby ? 1 : (screen_ == AppScreen::Pause ? 2 : 0);
+            const bool worldUpdateEnabled = screen_ != AppScreen::Lobby;
+            renderer_->drawFrame(renderCamera, renderCameraPosition, debugText_.data(), debugTextVisible_, screenshotRequested_, showPlayer, renderPlayerPosition, camera_.yaw(), terrainWireframe_, climateOverlayMode_, menuOverlayMode, worldUpdateEnabled);
             screenshotRequested_ = false;
         }
     }
@@ -401,7 +428,7 @@ namespace dolbuto
         glfwSetKeyCallback(window_, [](GLFWwindow* window, int key, int, int action, int)
         {
             auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-            if (key == GLFW_KEY_SPACE && app != nullptr)
+            if (key == GLFW_KEY_SPACE && app != nullptr && app->screen_ == Application::AppScreen::Game)
             {
                 if (action == GLFW_PRESS)
                 {
@@ -416,7 +443,14 @@ namespace dolbuto
 
             if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
             {
-                glfwSetWindowShouldClose(window, GLFW_TRUE);
+                if (app != nullptr && app->screen_ == Application::AppScreen::Game)
+                {
+                    app->setScreen(Application::AppScreen::Pause);
+                }
+                else if (app != nullptr && app->screen_ == Application::AppScreen::Pause)
+                {
+                    app->setScreen(Application::AppScreen::Game);
+                }
             }
             else if (key == GLFW_KEY_F11 && action == GLFW_PRESS && app != nullptr)
             {
@@ -444,10 +478,13 @@ namespace dolbuto
             }
             else if (key == GLFW_KEY_F && action == GLFW_PRESS && app != nullptr)
             {
-                app->moveMode_ = app->moveMode_ == MoveMode::Fly ? MoveMode::Ground : MoveMode::Fly;
-                app->verticalVelocity_ = 0.0;
-                app->grounded_ = false;
-                app->jumpPressed_ = false;
+                if (app->screen_ == Application::AppScreen::Game)
+                {
+                    app->moveMode_ = app->moveMode_ == MoveMode::Fly ? MoveMode::Ground : MoveMode::Fly;
+                    app->verticalVelocity_ = 0.0;
+                    app->grounded_ = false;
+                    app->jumpPressed_ = false;
+                }
             }
             else if (key == GLFW_KEY_R && action == GLFW_PRESS && app != nullptr && app->renderer_ != nullptr)
             {
@@ -460,6 +497,15 @@ namespace dolbuto
             auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
             if (app == nullptr || action != GLFW_PRESS)
             {
+                return;
+            }
+
+            if (app->screen_ != Application::AppScreen::Game)
+            {
+                double x = 0.0;
+                double y = 0.0;
+                glfwGetCursorPos(window, &x, &y);
+                app->handleMenuClick(x, y);
                 return;
             }
 
@@ -494,7 +540,7 @@ namespace dolbuto
             }
         });
 
-        setMouseCaptured(true);
+        setMouseCaptured(false);
     }
 
     void Application::setWindowIcon()
@@ -532,7 +578,7 @@ namespace dolbuto
 
     void Application::handleMouse(double x, double y)
     {
-        if (!mouseCaptured_)
+        if (!mouseCaptured_ || screen_ != AppScreen::Game)
         {
             return;
         }
@@ -579,6 +625,74 @@ namespace dolbuto
         mouseCaptured_ = captured;
         firstMouse_ = true;
         glfwSetInputMode(window_, GLFW_CURSOR, captured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+    }
+
+    void Application::handleMenuClick(double x, double y)
+    {
+        int width = WindowWidth;
+        int height = WindowHeight;
+        glfwGetWindowSize(window_, &width, &height);
+
+        if (screen_ == AppScreen::Lobby)
+        {
+            if (pointInButton(x, y, width, height, LobbyStartButtonY))
+            {
+                enterGameScene();
+            }
+            else if (pointInButton(x, y, width, height, LobbyExitButtonY))
+            {
+                glfwSetWindowShouldClose(window_, GLFW_TRUE);
+            }
+        }
+        else if (screen_ == AppScreen::Pause)
+        {
+            if (pointInButton(x, y, width, height, PauseResumeButtonY))
+            {
+                setScreen(AppScreen::Game);
+            }
+            else if (pointInButton(x, y, width, height, PauseExitButtonY))
+            {
+                returnToLobbyScene();
+            }
+        }
+    }
+
+    void Application::setScreen(AppScreen screen)
+    {
+        screen_ = screen;
+        jumpHeld_ = false;
+        jumpPressed_ = false;
+        if (screen_ == AppScreen::Game)
+        {
+            setMouseCaptured(true);
+        }
+        else
+        {
+            setMouseCaptured(false);
+        }
+    }
+
+    void Application::enterGameScene()
+    {
+        if (renderer_ != nullptr)
+        {
+            renderer_->loadGameScene();
+        }
+        setScreen(AppScreen::Game);
+    }
+
+    void Application::returnToLobbyScene()
+    {
+        savePlayerState();
+        if (renderer_ != nullptr)
+        {
+            renderer_->unloadGameScene();
+        }
+        previousPlayerPosition_ = playerPosition_;
+        physicsAccumulator_ = 0.0;
+        verticalVelocity_ = 0.0;
+        grounded_ = false;
+        setScreen(AppScreen::Lobby);
     }
 
     void Application::cycleViewMode()

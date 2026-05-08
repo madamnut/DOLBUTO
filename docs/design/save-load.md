@@ -128,3 +128,9 @@ double verticalVelocity
 ```
 
 Total size is 41 bytes. X/Z are saved as wrapped world coordinates.
+
+## Game Scene Save Boundary
+
+Pause `EXIT` uses the same save boundary for the game scene before returning to the lobby.
+Player state is saved first, terrain workers are stopped, all runtime chunks are enqueued for saving, and the save worker is drained before loaded terrain data is destroyed.
+The save worker remains stopped while the lobby scene is active and is started again by the next game scene.

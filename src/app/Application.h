@@ -37,12 +37,23 @@ namespace dolbuto
             Ground
         };
 
+        enum class AppScreen
+        {
+            Lobby,
+            Game,
+            Pause
+        };
+
         void initWindow();
         void shutdownWindow();
         void setWindowIcon();
         void handleMouse(double x, double y);
+        void handleMenuClick(double x, double y);
         void toggleFullscreen();
         void setMouseCaptured(bool captured);
+        void setScreen(AppScreen screen);
+        void enterGameScene();
+        void returnToLobbyScene();
         void cycleViewMode();
         void loadMovementConfig();
         void loadPlayerState();
@@ -60,6 +71,7 @@ namespace dolbuto
         int climateOverlayMode_ = 0;
         bool screenshotRequested_ = false;
         bool mouseCaptured_ = true;
+        AppScreen screen_ = AppScreen::Lobby;
         ViewMode viewMode_ = ViewMode::FirstPerson;
         MoveMode moveMode_ = MoveMode::Fly;
         DVec3 playerPosition_{0.0, 300.0, 0.0};
