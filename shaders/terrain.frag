@@ -18,7 +18,7 @@ layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    float cameraDistance = distance(pushData.cameraPosition.xyz, fragWorldPosition);
+    float cameraDistance = length(fragWorldPosition);
     float mipLevel = fragMipDistanceScale > 0.0 ? clamp(floor(cameraDistance / (64.0 * fragMipDistanceScale)), 0.0, 5.0) : 0.0;
     vec4 color = textureLod(terrainTexture, vec3(fragUv, fragTextureLayer), mipLevel);
     if (color.a < 0.5)

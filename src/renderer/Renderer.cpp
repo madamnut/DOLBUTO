@@ -144,6 +144,9 @@ namespace dolbuto
         constexpr uint32_t BlockBreakParticleCount = 24;
         constexpr float BlockBreakParticleGravity = 22.0f;
         constexpr float BlockBreakParticleDrag = 0.92f;
+        constexpr float BlockBreakPower = 1.0f;
+        constexpr float BlockMiningParticleInterval = 0.12f;
+        constexpr size_t BlockBreakingStageCount = 10;
         constexpr float DroppedItemGravity = 32.0f;
         constexpr float DroppedItemDrag = 0.94f;
         constexpr float DroppedItemSize = 0.68f;
@@ -279,6 +282,7 @@ namespace dolbuto
             std::string alphaMode = "opaque";
             float alphaCutoff = 0.5f;
             float mipDistanceScale = 1.0f;
+            float hardness = -1.0f;
             bool randomOffset = false;
             std::unordered_map<std::string, std::string> textures;
             std::string propModel;
@@ -1017,6 +1021,10 @@ namespace dolbuto
                 if (const std::optional<float> mipDistanceScale = jsonFloatField(object, "mipDistanceScale"); mipDistanceScale.has_value())
                 {
                     definition.mipDistanceScale = std::max(0.0f, *mipDistanceScale);
+                }
+                if (const std::optional<float> hardness = jsonFloatField(object, "hardness"); hardness.has_value())
+                {
+                    definition.hardness = *hardness;
                 }
                 if (const std::optional<bool> randomOffset = jsonBoolField(object, "randomOffset"); randomOffset.has_value())
                 {
@@ -3199,23 +3207,76 @@ namespace dolbuto
             return false;
         }
 
-        const uint16_t destroyedBlock = placeRock ? BlockAir : blockAtWorld(hit.blockX, hit.blockY, hit.blockZ);
-        const bool changed = placeRock
-            ? setBlockAtWorld(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ, BlockRock)
-            : setBlockAtWorld(hit.blockX, hit.blockY, hit.blockZ, BlockAir);
+        if (!placeRock)
+        {
+            return breakBlockAtHit(hit);
+        }
+
+        const bool changed = setBlockAtWorld(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ, BlockRock);
         if (changed)
         {
-            const int changedX = placeRock ? hit.previousBlockX : hit.blockX;
-            const int changedY = placeRock ? hit.previousBlockY : hit.blockY;
-            const int changedZ = placeRock ? hit.previousBlockZ : hit.blockZ;
-            if (!placeRock && destroyedBlock != BlockAir)
-            {
-                spawnBlockBreakParticles(changedX, changedY, changedZ, destroyedBlock);
-                spawnBlockDrops(changedX, changedY, changedZ, destroyedBlock);
-            }
-            rebuildEditedChunkMeshes(changedX, changedY, changedZ);
+            rebuildEditedChunkMeshes(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ);
         }
         return changed;
+    }
+
+    void Renderer::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3, float deltaSeconds)
+    {
+        if (!breaking || deltaSeconds <= 0.0f)
+        {
+            resetBlockBreaking();
+            return;
+        }
+
+        BlockRaycastHit hit{};
+        if (!raycastBlock(origin, direction, hit))
+        {
+            resetBlockBreaking();
+            return;
+        }
+
+        const uint16_t block = blockAtWorld(hit.blockX, hit.blockY, hit.blockZ);
+        const BlockDefinition& definition = blockDefinition(block);
+        if (block == BlockAir || definition.renderType == BlockRenderType::None || definition.hardness < 0.0f)
+        {
+            resetBlockBreaking();
+            return;
+        }
+
+        if (definition.hardness <= 0.0f)
+        {
+            breakBlockAtHit(hit);
+            resetBlockBreaking();
+            return;
+        }
+
+        if (!blockBreaking_.active ||
+            blockBreaking_.x != hit.blockX ||
+            blockBreaking_.y != hit.blockY ||
+            blockBreaking_.z != hit.blockZ ||
+            blockBreaking_.block != block)
+        {
+            blockBreaking_ = {};
+            blockBreaking_.active = true;
+            blockBreaking_.x = hit.blockX;
+            blockBreaking_.y = hit.blockY;
+            blockBreaking_.z = hit.blockZ;
+            blockBreaking_.block = block;
+        }
+
+        blockBreaking_.progress = std::min(1.0f, blockBreaking_.progress + deltaSeconds * BlockBreakPower / definition.hardness);
+        blockBreaking_.particleTimer += deltaSeconds;
+        if (blockBreaking_.particleTimer >= BlockMiningParticleInterval)
+        {
+            blockBreaking_.particleTimer = 0.0f;
+            spawnBlockMiningParticle(hit, block);
+        }
+
+        if (blockBreaking_.progress >= 1.0f)
+        {
+            breakBlockAtHit(hit);
+            resetBlockBreaking();
+        }
     }
 
     bool Renderer::pickupDroppedItemInView(DVec3 origin, Vec3 direction)
@@ -4899,6 +4960,7 @@ namespace dolbuto
             blockDefinition.alphaMode = parseAlphaMode(definition.alphaMode);
             blockDefinition.alphaCutoff = definition.alphaCutoff;
             blockDefinition.mipDistanceScale = definition.mipDistanceScale;
+            blockDefinition.hardness = definition.hardness;
             blockDefinition.randomOffset = definition.randomOffset;
             for (size_t dropIndex = 0; dropIndex < definition.dropItemKeys.size(); ++dropIndex)
             {
@@ -4957,6 +5019,11 @@ namespace dolbuto
                 layers.faces.fill(layerForTexture(definition.propTexture));
             }
             blockTextureLayers_[definition.id] = layers;
+        }
+
+        for (size_t i = 0; i < blockBreakingTextureLayers_.size(); ++i)
+        {
+            blockBreakingTextureLayers_[i] = layerForTexture("breaking/destroy_stage_" + std::to_string(i));
         }
 
         const std::filesystem::path propModelDirectory = assetDir / "textures" / "block" / "model";
@@ -6660,6 +6727,7 @@ namespace dolbuto
         activeWorldSeed_ = worldSeed;
         activeWorldSeedSalt_ = static_cast<int>((worldSeed ^ (worldSeed >> 32u)) & 0x7fffffffu);
         blockBreakParticles_.clear();
+        resetBlockBreaking();
         droppedItems_.clear();
         playerInventorySlots_.fill(ItemStack{});
         inventoryCursorStack_ = {};
@@ -6702,6 +6770,7 @@ namespace dolbuto
         }
         terrainLoadRequested_ = false;
         blockBreakParticles_.clear();
+        resetBlockBreaking();
         droppedItems_.clear();
         playerInventorySlots_.fill(ItemStack{});
         inventoryCursorStack_ = {};
@@ -12564,9 +12633,9 @@ namespace dolbuto
 
         const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
         const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
-        const Mat4 view = viewMatrix(camera, cameraPosition);
+        const Mat4 view = viewMatrix(camera, {});
         const Mat4 mvp = multiply(projection, view);
-        const Frustum frustum = makeFrustum(camera, cameraPosition, aspect);
+        const Frustum frustum = makeFrustum(camera, {}, aspect);
 
         TerrainPush push{};
         std::memcpy(push.mvp, mvp.m, sizeof(push.mvp));
@@ -12588,10 +12657,10 @@ namespace dolbuto
             for (const auto& entry : terrainChunks_)
             {
                 const ChunkRenderData& chunk = entry.second;
-                const float minX = static_cast<float>(chunk.chunkX * ChunkSizeX) - 0.5f;
-                const float maxX = static_cast<float>(chunk.chunkX * ChunkSizeX + ChunkSizeX) - 0.5f;
-                const float minZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ) - 0.5f;
-                const float maxZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ + ChunkSizeZ) - 0.5f;
+                const float minX = static_cast<float>(chunk.chunkX * ChunkSizeX) - 0.5f - cameraPosition.x;
+                const float maxX = static_cast<float>(chunk.chunkX * ChunkSizeX + ChunkSizeX) - 0.5f - cameraPosition.x;
+                const float minZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ) - 0.5f - cameraPosition.z;
+                const float maxZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ + ChunkSizeZ) - 0.5f - cameraPosition.z;
                 for (size_t subchunkY = 0; subchunkY < chunk.rockSubchunks.size(); ++subchunkY)
                 {
                     const TerrainMesh& mesh = chunk.rockSubchunks[subchunkY];
@@ -12600,7 +12669,7 @@ namespace dolbuto
                         continue;
                     }
 
-                    const float minY = static_cast<float>(subchunkY * SubchunkSize);
+                    const float minY = static_cast<float>(subchunkY * SubchunkSize) - cameraPosition.y;
                     const float maxY = minY + static_cast<float>(SubchunkSize);
                     if (!aabbIntersectsFrustum(frustum, {minX, minY, minZ}, {maxX, maxY, maxZ}))
                     {
@@ -12623,10 +12692,10 @@ namespace dolbuto
             for (const auto& entry : terrainChunks_)
             {
                 const ChunkRenderData& chunk = entry.second;
-                const float minX = static_cast<float>(chunk.chunkX * ChunkSizeX) - 0.5f;
-                const float maxX = static_cast<float>(chunk.chunkX * ChunkSizeX + ChunkSizeX) - 0.5f;
-                const float minZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ) - 0.5f;
-                const float maxZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ + ChunkSizeZ) - 0.5f;
+                const float minX = static_cast<float>(chunk.chunkX * ChunkSizeX) - 0.5f - cameraPosition.x;
+                const float maxX = static_cast<float>(chunk.chunkX * ChunkSizeX + ChunkSizeX) - 0.5f - cameraPosition.x;
+                const float minZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ) - 0.5f - cameraPosition.z;
+                const float maxZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ + ChunkSizeZ) - 0.5f - cameraPosition.z;
                 for (size_t subchunkY = 0; subchunkY < chunk.fluidSubchunks.size(); ++subchunkY)
                 {
                     const TerrainMesh& mesh = chunk.fluidSubchunks[subchunkY];
@@ -12635,7 +12704,7 @@ namespace dolbuto
                         continue;
                     }
 
-                    const float minY = static_cast<float>(subchunkY * SubchunkSize);
+                    const float minY = static_cast<float>(subchunkY * SubchunkSize) - cameraPosition.y;
                     const float maxY = minY + static_cast<float>(SubchunkSize + 1);
                     if (!aabbIntersectsFrustum(frustum, {minX, minY, minZ}, {maxX, maxY, maxZ}))
                     {
@@ -12783,6 +12852,31 @@ namespace dolbuto
         return chunkIt->second.data->blocks[index];
     }
 
+    bool Renderer::breakBlockAtHit(const BlockRaycastHit& hit)
+    {
+        const uint16_t destroyedBlock = blockAtWorld(hit.blockX, hit.blockY, hit.blockZ);
+        if (destroyedBlock == BlockAir || blockDefinition(destroyedBlock).hardness < 0.0f)
+        {
+            return false;
+        }
+
+        const bool changed = setBlockAtWorld(hit.blockX, hit.blockY, hit.blockZ, BlockAir);
+        if (!changed)
+        {
+            return false;
+        }
+
+        spawnBlockBreakParticles(hit.blockX, hit.blockY, hit.blockZ, destroyedBlock);
+        spawnBlockDrops(hit.blockX, hit.blockY, hit.blockZ, destroyedBlock);
+        rebuildEditedChunkMeshes(hit.blockX, hit.blockY, hit.blockZ);
+        return true;
+    }
+
+    void Renderer::resetBlockBreaking()
+    {
+        blockBreaking_ = {};
+    }
+
     bool Renderer::terrainCellBlocksPlayer(int x, int y, int z) const
     {
         if (y < 0)
@@ -12824,6 +12918,26 @@ namespace dolbuto
         return blockTextureLayers_[block].faces[static_cast<size_t>(face)];
     }
 
+    uint32_t Renderer::blockFaceTextureLayerForHit(uint16_t block, const BlockRaycastHit& hit) const
+    {
+        const int dx = hit.previousBlockX - hit.blockX;
+        const int dy = hit.previousBlockY - hit.blockY;
+        const int dz = hit.previousBlockZ - hit.blockZ;
+        if (dy > 0)
+        {
+            return blockFaceTextureLayer(block, 0);
+        }
+        if (dy < 0)
+        {
+            return blockFaceTextureLayer(block, 1);
+        }
+        if (dx != 0 || dz != 0)
+        {
+            return blockFaceTextureLayer(block, 2);
+        }
+        return blockFaceTextureLayer(block, 0);
+    }
+
     bool Renderer::blockUsesCubeMesh(uint16_t block) const
     {
         return blockDefinition(block).renderType == BlockRenderType::Cube;
@@ -12854,7 +12968,7 @@ namespace dolbuto
     {
         const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
         const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
-        const Mat4 view = viewMatrix(camera, cameraPosition);
+        const Mat4 view = viewMatrix(camera, {});
         const Mat4 mvp = multiply(projection, view);
 
         TerrainPush push{};
@@ -12924,6 +13038,65 @@ namespace dolbuto
         }
     }
 
+    void Renderer::spawnBlockMiningParticle(const BlockRaycastHit& hit, uint16_t block)
+    {
+        const BlockDefinition& definition = blockDefinition(block);
+        if (definition.renderType == BlockRenderType::None)
+        {
+            return;
+        }
+
+        if (blockBreakParticles_.size() + 1u > MaxBlockBreakParticles)
+        {
+            blockBreakParticles_.erase(blockBreakParticles_.begin());
+        }
+
+        static thread_local std::mt19937 random{std::random_device{}()};
+        std::uniform_real_distribution<float> unit(0.0f, 1.0f);
+        std::uniform_real_distribution<float> signedUnit(-1.0f, 1.0f);
+
+        Vec3 normal{
+            static_cast<float>(hit.previousBlockX - hit.blockX),
+            static_cast<float>(hit.previousBlockY - hit.blockY),
+            static_cast<float>(hit.previousBlockZ - hit.blockZ)
+        };
+        if (normal.x == 0.0f && normal.y == 0.0f && normal.z == 0.0f)
+        {
+            normal = {0.0f, 1.0f, 0.0f};
+        }
+        normal = normalize(normal);
+
+        Vec3 tangentA = std::abs(normal.y) > 0.5f ? Vec3{1.0f, 0.0f, 0.0f} : Vec3{0.0f, 1.0f, 0.0f};
+        Vec3 tangentB = normalize(cross(normal, tangentA));
+        tangentA = normalize(cross(tangentB, normal));
+
+        const float localA = signedUnit(random) * 0.42f;
+        const float localB = signedUnit(random) * 0.42f;
+        const int tileX = static_cast<int>(unit(random) * 4.0f) & 3;
+        const int tileY = static_cast<int>(unit(random) * 4.0f) & 3;
+        constexpr float TileSize = 0.25f;
+
+        BlockBreakParticle particle{};
+        particle.position = {
+            static_cast<float>(hit.blockX) + normal.x * 0.51f + tangentA.x * localA + tangentB.x * localB,
+            static_cast<float>(hit.blockY) + 0.5f + normal.y * 0.51f + tangentA.y * localA + tangentB.y * localB,
+            static_cast<float>(hit.blockZ) + normal.z * 0.51f + tangentA.z * localA + tangentB.z * localB
+        };
+        particle.velocity = {
+            normal.x * 1.6f + signedUnit(random) * 0.35f,
+            normal.y * 1.6f + 1.0f + unit(random) * 0.8f,
+            normal.z * 1.6f + signedUnit(random) * 0.35f
+        };
+        particle.lifetime = 0.28f + unit(random) * 0.18f;
+        particle.size = 0.08f + unit(random) * 0.04f;
+        particle.textureLayer = blockFaceTextureLayerForHit(block, hit);
+        particle.u0 = static_cast<float>(tileX) * TileSize;
+        particle.v0 = static_cast<float>(tileY) * TileSize;
+        particle.u1 = particle.u0 + TileSize;
+        particle.v1 = particle.v0 + TileSize;
+        blockBreakParticles_.push_back(particle);
+    }
+
     void Renderer::updateBlockBreakParticles()
     {
         const double now = glfwGetTime();
@@ -12980,43 +13153,91 @@ namespace dolbuto
     void Renderer::drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition)
     {
         updateBlockBreakParticles();
-        if (blockBreakParticles_.empty() || particlePipeline_ == VK_NULL_HANDLE || particleVertexBuffer_ == VK_NULL_HANDLE || particleIndexBuffer_ == VK_NULL_HANDLE)
+        const bool drawBreakingOverlay = blockBreaking_.active &&
+            blockBreaking_.progress > 0.0f &&
+            blockBreaking_.progress < 1.0f &&
+            blockDefinition(blockBreaking_.block).renderType == BlockRenderType::Cube;
+        if ((!drawBreakingOverlay && blockBreakParticles_.empty()) ||
+            particlePipeline_ == VK_NULL_HANDLE ||
+            particleVertexBuffer_ == VK_NULL_HANDLE ||
+            particleIndexBuffer_ == VK_NULL_HANDLE)
         {
             return;
         }
 
-        const size_t particleCount = std::min(blockBreakParticles_.size(), MaxBlockBreakParticles);
         std::vector<TerrainVertex> vertices;
         std::vector<uint32_t> indices;
-        vertices.reserve(particleCount * 4u);
-        indices.reserve(particleCount * 6u);
+        vertices.reserve(MaxBlockBreakParticles * 4u);
+        indices.reserve(MaxBlockBreakParticles * 6u);
 
-        const Vec3 cameraRight = camera.right();
-        const Vec3 right{-cameraRight.x, -cameraRight.y, -cameraRight.z};
-        const Vec3 forward = camera.forward();
-        const Vec3 terrainForward{forward.x, -forward.y, forward.z};
-        const Vec3 up = normalize(cross(terrainForward, right));
-        for (size_t i = 0; i < particleCount; ++i)
+        auto appendQuad = [&](const std::array<Vec3, 4>& positions, float u0, float v0, float u1, float v1, float ao, uint32_t textureLayer, float mipDistanceScale)
         {
-            const BlockBreakParticle& particle = blockBreakParticles_[i];
-            const float half = particle.size * 0.5f;
-            const Vec3 rightOffset{right.x * half, right.y * half, right.z * half};
-            const Vec3 upOffset{up.x * half, up.y * half, up.z * half};
-            const float layer = static_cast<float>(particle.textureLayer);
-            const float ao = std::clamp(1.0f - particle.age / particle.lifetime * 0.25f, 0.75f, 1.0f);
+            if (vertices.size() + 4u > MaxBlockBreakParticles * 4u)
+            {
+                return;
+            }
+
             const uint32_t baseIndex = static_cast<uint32_t>(vertices.size());
-
-            vertices.push_back({particle.position.x - rightOffset.x - upOffset.x, particle.position.y - rightOffset.y - upOffset.y, particle.position.z - rightOffset.z - upOffset.z, particle.u0, particle.v1, ao, layer, 1.0f});
-            vertices.push_back({particle.position.x - rightOffset.x + upOffset.x, particle.position.y - rightOffset.y + upOffset.y, particle.position.z - rightOffset.z + upOffset.z, particle.u0, particle.v0, ao, layer, 1.0f});
-            vertices.push_back({particle.position.x + rightOffset.x + upOffset.x, particle.position.y + rightOffset.y + upOffset.y, particle.position.z + rightOffset.z + upOffset.z, particle.u1, particle.v0, ao, layer, 1.0f});
-            vertices.push_back({particle.position.x + rightOffset.x - upOffset.x, particle.position.y + rightOffset.y - upOffset.y, particle.position.z + rightOffset.z - upOffset.z, particle.u1, particle.v1, ao, layer, 1.0f});
-
+            const float layer = static_cast<float>(textureLayer);
+            vertices.push_back({positions[0].x, positions[0].y, positions[0].z, u0, v1, ao, layer, mipDistanceScale});
+            vertices.push_back({positions[1].x, positions[1].y, positions[1].z, u0, v0, ao, layer, mipDistanceScale});
+            vertices.push_back({positions[2].x, positions[2].y, positions[2].z, u1, v0, ao, layer, mipDistanceScale});
+            vertices.push_back({positions[3].x, positions[3].y, positions[3].z, u1, v1, ao, layer, mipDistanceScale});
             indices.push_back(baseIndex);
             indices.push_back(baseIndex + 1u);
             indices.push_back(baseIndex + 2u);
             indices.push_back(baseIndex);
             indices.push_back(baseIndex + 2u);
             indices.push_back(baseIndex + 3u);
+        };
+
+        if (drawBreakingOverlay)
+        {
+            const size_t stage = std::min(
+                blockBreakingTextureLayers_.size() - 1u,
+                static_cast<size_t>(std::floor(blockBreaking_.progress * static_cast<float>(BlockBreakingStageCount))));
+            const uint32_t layer = blockBreakingTextureLayers_[stage];
+            constexpr float Expand = 0.006f;
+            const float minX = static_cast<float>(blockBreaking_.x) - 0.5f - Expand;
+            const float maxX = static_cast<float>(blockBreaking_.x) + 0.5f + Expand;
+            const float minY = static_cast<float>(blockBreaking_.y) - Expand;
+            const float maxY = static_cast<float>(blockBreaking_.y + 1) + Expand;
+            const float minZ = static_cast<float>(blockBreaking_.z) - 0.5f - Expand;
+            const float maxZ = static_cast<float>(blockBreaking_.z) + 0.5f + Expand;
+            appendQuad({Vec3{minX, maxY, minZ}, Vec3{minX, maxY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, maxY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f);
+            appendQuad({Vec3{minX, minY, maxZ}, Vec3{minX, minY, minZ}, Vec3{maxX, minY, minZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f);
+            appendQuad({Vec3{minX, minY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, maxY, minZ}, Vec3{minX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f);
+            appendQuad({Vec3{maxX, minY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f);
+            appendQuad({Vec3{minX, minY, minZ}, Vec3{minX, maxY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f);
+            appendQuad({Vec3{maxX, minY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f);
+        }
+
+        const Vec3 cameraRight = camera.right();
+        const Vec3 right{-cameraRight.x, -cameraRight.y, -cameraRight.z};
+        const Vec3 forward = camera.forward();
+        const Vec3 terrainForward{forward.x, -forward.y, forward.z};
+        const Vec3 up = normalize(cross(terrainForward, right));
+        const size_t remainingQuads = MaxBlockBreakParticles - std::min(MaxBlockBreakParticles, vertices.size() / 4u);
+        const size_t particleCount = std::min(blockBreakParticles_.size(), remainingQuads);
+        for (size_t i = 0; i < particleCount; ++i)
+        {
+            const BlockBreakParticle& particle = blockBreakParticles_[i];
+            const float half = particle.size * 0.5f;
+            const Vec3 rightOffset{right.x * half, right.y * half, right.z * half};
+            const Vec3 upOffset{up.x * half, up.y * half, up.z * half};
+            const float ao = std::clamp(1.0f - particle.age / particle.lifetime * 0.25f, 0.75f, 1.0f);
+            appendQuad({
+                Vec3{particle.position.x - rightOffset.x - upOffset.x, particle.position.y - rightOffset.y - upOffset.y, particle.position.z - rightOffset.z - upOffset.z},
+                Vec3{particle.position.x - rightOffset.x + upOffset.x, particle.position.y - rightOffset.y + upOffset.y, particle.position.z - rightOffset.z + upOffset.z},
+                Vec3{particle.position.x + rightOffset.x + upOffset.x, particle.position.y + rightOffset.y + upOffset.y, particle.position.z + rightOffset.z + upOffset.z},
+                Vec3{particle.position.x + rightOffset.x - upOffset.x, particle.position.y + rightOffset.y - upOffset.y, particle.position.z + rightOffset.z - upOffset.z}},
+                particle.u0,
+                particle.v0,
+                particle.u1,
+                particle.v1,
+                ao,
+                particle.textureLayer,
+                1.0f);
         }
 
         const VkDeviceSize vertexBytes = sizeof(TerrainVertex) * vertices.size();
@@ -13047,7 +13268,7 @@ namespace dolbuto
 
         const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
         const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
-        const Mat4 view = viewMatrix(camera, cameraPosition);
+        const Mat4 view = viewMatrix(camera, {});
         const Mat4 mvp = multiply(projection, view);
 
         TerrainPush push{};
@@ -13768,7 +13989,7 @@ namespace dolbuto
 
         const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
         const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
-        const Mat4 view = viewMatrix(camera, cameraPosition);
+        const Mat4 view = viewMatrix(camera, {});
         const Mat4 mvp = multiply(projection, view);
 
         TerrainPush push{};
@@ -13865,7 +14086,7 @@ namespace dolbuto
 
         const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
         const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
-        const Mat4 view = viewMatrix(camera, cameraPosition);
+        const Mat4 view = viewMatrix(camera, {});
         const Mat4 mvp = multiply(projection, view);
 
         TerrainPush push{};

@@ -10,5 +10,5 @@ layout(location = 0) in vec3 inPosition;
 
 void main()
 {
-    gl_Position = pushData.mvp * vec4(inPosition, 1.0);
+    gl_Position = pushData.mvp * vec4(inPosition - pushData.cameraPosition.xyz, 1.0);
 }

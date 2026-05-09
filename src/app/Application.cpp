@@ -496,11 +496,29 @@ namespace dolbuto
             {
                 previousPlayerPosition_ = playerPosition_;
                 updatePlayer(FixedPhysicsTimestep, screen_ == AppScreen::Game);
+                if (renderer_ != nullptr)
+                {
+                    renderer_->updateBlockBreaking(
+                        {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
+                        renderViewDirection(camera_),
+                        screen_ == AppScreen::Game && mouseCaptured_ && breakHeld_,
+                        playerPosition_,
+                        static_cast<float>(FixedPhysicsTimestep));
+                }
                 ++worldTicks_;
                 physicsAccumulator_ -= FixedPhysicsTimestep;
             }
             if (!gameSimulationActive)
             {
+                if (renderer_ != nullptr)
+                {
+                    renderer_->updateBlockBreaking(
+                        {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
+                        renderViewDirection(camera_),
+                        false,
+                        playerPosition_,
+                        static_cast<float>(FixedPhysicsTimestep));
+                }
                 physicsAccumulator_ = 0.0;
                 previousPlayerPosition_ = playerPosition_;
             }
@@ -731,6 +749,21 @@ namespace dolbuto
                 return;
             }
 
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
+            {
+                app->breakHeld_ = false;
+                if (app->renderer_ != nullptr)
+                {
+                    app->renderer_->updateBlockBreaking(
+                        {app->playerPosition_.x, app->playerPosition_.y + EyeHeight, app->playerPosition_.z},
+                        renderViewDirection(app->camera_),
+                        false,
+                        app->playerPosition_,
+                        static_cast<float>(FixedPhysicsTimestep));
+                }
+                return;
+            }
+
             if (action != GLFW_PRESS)
             {
                 return;
@@ -742,13 +775,9 @@ namespace dolbuto
             }
             else if (button == GLFW_MOUSE_BUTTON_LEFT)
             {
-                if (app->mouseCaptured_ && app->renderer_ != nullptr)
+                if (app->mouseCaptured_)
                 {
-                    app->renderer_->editBlockInView(
-                        {app->playerPosition_.x, app->playerPosition_.y + EyeHeight, app->playerPosition_.z},
-                        renderViewDirection(app->camera_),
-                        false,
-                        app->playerPosition_);
+                    app->breakHeld_ = true;
                 }
                 app->setMouseCaptured(true);
             }
@@ -963,6 +992,16 @@ namespace dolbuto
         }
         jumpHeld_ = false;
         jumpPressed_ = false;
+        breakHeld_ = false;
+        if (renderer_ != nullptr)
+        {
+            renderer_->updateBlockBreaking(
+                {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
+                renderViewDirection(camera_),
+                false,
+                playerPosition_,
+                static_cast<float>(FixedPhysicsTimestep));
+        }
         if (screen_ == AppScreen::Game)
         {
             setMouseCaptured(true);

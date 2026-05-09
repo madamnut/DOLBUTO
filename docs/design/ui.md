@@ -81,6 +81,7 @@ Pause:
 
 Lobby `START` opens the world selection screen.
 Lobby `EXIT` closes the program.
+The lobby title image is rendered at `1040 x 280` pixels, centered over the `520px` lobby stack by a negative left margin.
 World Select opens an existing world by double-clicking a world row or navigates to the new world creation screen.
 The world list is a taller scrollable list with a visible draggable scrollbar, mouse wheel scrolling, row hover feedback, and double-click activation.
 World Select `NEW WORLD` opens the new world creation screen.

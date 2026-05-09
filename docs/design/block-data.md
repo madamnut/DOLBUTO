@@ -14,6 +14,45 @@ Block definitions include a `drops` array.
 Drop entries are authored with item keys and resolved to item ids at load time.
 The item and drop-table draft is documented in [[item-data]].
 
+## Hardness
+
+Block definitions include a `hardness` number for block breaking.
+Fluid definitions do not use `hardness`.
+
+- `hardness < 0`: unbreakable
+- `hardness = 0`: instant break
+- `hardness > 0`: progress-based breaking
+- Current hand `breakPower` is `1.0`.
+- Progress uses `progress += deltaSeconds * breakPower / hardness`.
+- Therefore `hardness` is roughly the number of seconds needed to break the block by hand.
+
+Current initial values:
+
+```text
+air      -1.0
+bedrock  -1.0
+plant     0.0
+stone     0.0
+branch    0.0
+leaves    0.5
+mud       0.7
+clay      0.8
+sand      1.0
+dirt      1.3
+grass     1.5
+sandstone 4.0
+trunk     4.0
+rock      5.0
+```
+
+Block breaking overlay textures are stored as block-rendering assets:
+
+```text
+assets/textures/block/breaking/destroy_stage_0.png
+...
+assets/textures/block/breaking/destroy_stage_9.png
+```
+
 ## Random Offset
 
 `randomOffset` is a boolean block-data flag for `cross` and `prop` render types.

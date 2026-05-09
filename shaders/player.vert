@@ -20,10 +20,11 @@ layout(location = 4) flat out float fragMipDistanceScale;
 
 void main()
 {
-    gl_Position = pushData.mvp * vec4(inPosition, 1.0);
+    vec3 relativePosition = inPosition - pushData.cameraPosition.xyz;
+    gl_Position = pushData.mvp * vec4(relativePosition, 1.0);
     fragUv = inUv;
     fragAo = inAo;
-    fragWorldPosition = inPosition;
+    fragWorldPosition = relativePosition;
     fragTextureLayer = inTextureLayer;
     fragMipDistanceScale = inMipDistanceScale;
 }

@@ -219,7 +219,7 @@ body {
 
 .lobby-stack {
     top: 50%;
-    margin-top: -148px;
+    margin-top: -218px;
 }
 
 .pause-stack {
@@ -229,8 +229,9 @@ body {
 
 .title {
     display: block;
-    width: 520px;
-    height: 140px;
+    width: 1040px;
+    height: 280px;
+    margin-left: -260px;
     margin-bottom: 28px;
 }
 

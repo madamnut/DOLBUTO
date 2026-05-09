@@ -119,6 +119,7 @@ namespace dolbuto
         bool grounded_ = false;
         bool jumpHeld_ = false;
         bool jumpPressed_ = false;
+        bool breakHeld_ = false;
         double physicsAccumulator_ = 0.0;
         std::chrono::steady_clock::time_point lastFrameTime_{};
         int windowedX_ = 0;

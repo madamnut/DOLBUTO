@@ -49,6 +49,33 @@
 - mip 전환은 shader에서 카메라 거리 기준으로 처리한다.
 - `mipDistanceScale = 1.0`일 때 64블록 단위로 mip 단계가 바뀐다.
 
+## Camera-Relative Rendering
+
+World, player, chunk, and save coordinates remain in world space.
+Scene rendering uses camera-relative coordinates before projection to reduce float precision jitter at large wrapped X/Z values.
+
+- CPU gameplay coordinates remain `double` where already used.
+- Terrain mesh vertices remain stored in world coordinates.
+- Terrain, player, particle, dropped-item, and selection vertex shaders subtract `cameraPosition.xyz` from each world-space vertex.
+- Scene view matrices use the camera rotation with translation set to zero.
+- Terrain frustum culling tests chunk AABBs after subtracting the render camera position.
+- Fragment mip distance uses the length of the camera-relative position instead of `distance(camera, worldPosition)`.
+
+## Block Breaking Overlay
+
+Block breaking crack textures are world-rendering overlays, not UI assets.
+They are stored under:
+
+```text
+assets/textures/block/breaking/destroy_stage_0.png
+...
+assets/textures/block/breaking/destroy_stage_9.png
+```
+
+When the player holds block break, the selected cube block renders one of the ten overlay stages according to current break progress.
+The overlay is emitted as block-space quads using the terrain texture array and forces mip level 0.
+While breaking, small block-textured particles spawn from the hit face at a fixed interval.
+
 ## Prop Rendering
 
 `renderType = "prop"` blocks are rendered inside the normal terrain mesh path.

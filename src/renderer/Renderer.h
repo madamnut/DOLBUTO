@@ -66,6 +66,7 @@ namespace dolbuto
         void setFramebufferResized();
         bool playerColliderIntersectsTerrain(DVec3 playerPosition) const;
         void updateBlockSelection(DVec3 origin, Vec3 direction);
+        void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds);
         bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition);
         bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
         std::string selectedBlockText() const;
@@ -396,6 +397,7 @@ namespace dolbuto
             BlockAlphaMode alphaMode = BlockAlphaMode::Opaque;
             float alphaCutoff = 0.5f;
             float mipDistanceScale = 1.0f;
+            float hardness = -1.0f;
             bool randomOffset = false;
             std::vector<BlockDrop> drops;
         };
@@ -555,6 +557,17 @@ namespace dolbuto
             int previousBlockZ = 0;
         };
 
+        struct BlockBreakingState
+        {
+            bool active = false;
+            int x = 0;
+            int y = 0;
+            int z = 0;
+            uint16_t block = 0;
+            float progress = 0.0f;
+            float particleTimer = 0.0f;
+        };
+
         void createInstance();
         void createSurface();
         void pickPhysicalDevice();
@@ -693,14 +706,18 @@ namespace dolbuto
         const BlockDefinition& blockDefinition(uint16_t block) const;
         bool raycastBlock(DVec3 origin, Vec3 direction, BlockRaycastHit& hit) const;
         uint16_t blockAtWorld(int x, int y, int z) const;
+        bool breakBlockAtHit(const BlockRaycastHit& hit);
+        void resetBlockBreaking();
         bool terrainCellBlocksPlayer(int x, int y, int z) const;
         uint32_t blockFaceTextureLayer(uint16_t block, int face) const;
+        uint32_t blockFaceTextureLayerForHit(uint16_t block, const BlockRaycastHit& hit) const;
         bool blockUsesCubeMesh(uint16_t block) const;
         bool blockContributesAo(uint16_t block) const;
         bool neighborCullsFace(uint16_t block, uint16_t neighbor) const;
         void drawBlockSelection(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition);
         void drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const;
         void spawnBlockBreakParticles(int x, int y, int z, uint16_t block);
+        void spawnBlockMiningParticle(const BlockRaycastHit& hit, uint16_t block);
         void updateBlockBreakParticles();
         void drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition);
         void spawnBlockDrops(int x, int y, int z, uint16_t block);
@@ -889,6 +906,7 @@ namespace dolbuto
         std::vector<TerrainVertex> playerLocalVertices_;
         std::vector<uint32_t> playerIndices_;
         std::vector<BlockBreakParticle> blockBreakParticles_;
+        BlockBreakingState blockBreaking_;
         std::vector<DroppedItem> droppedItems_;
         double lastParticleUpdateTime_ = 0.0;
         double lastDroppedItemUpdateTime_ = 0.0;
@@ -1015,6 +1033,7 @@ namespace dolbuto
         std::vector<VkFramebuffer> sceneFramebuffers_;
         std::vector<BlockDefinition> blockDefinitions_;
         std::vector<BlockTextureLayers> blockTextureLayers_;
+        std::array<uint32_t, 10> blockBreakingTextureLayers_{};
         std::vector<ItemDefinition> itemDefinitions_;
         std::vector<ItemSpriteMesh> itemSpriteMeshes_;
         std::unordered_map<std::string, uint16_t> itemIdByKey_;

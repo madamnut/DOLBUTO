@@ -93,13 +93,14 @@ void main()
     vec2 uvEdgeV = vec2(float(lowI16(uvV)) / 256.0, float(highI16(uvV)) / 256.0);
 
     vec3 position = origin + edgeU * useU + edgeV * useV;
+    vec3 relativePosition = position - pushData.cameraPosition.xyz;
     vec2 uv = uvOrigin + uvEdgeU * useU + uvEdgeV * useV;
     uint aoIndex = (material >> (18u + corner * 2u)) & 0x3u;
 
-    gl_Position = pushData.mvp * vec4(position, 1.0);
+    gl_Position = pushData.mvp * vec4(relativePosition, 1.0);
     fragUv = uv;
     fragAo = decodeAo(aoIndex);
-    fragWorldPosition = position;
+    fragWorldPosition = relativePosition;
     fragTextureLayer = float(material & 0xFFu);
     fragMipDistanceScale = float((material >> 8u) & 0x3FFu) / 16.0;
     fragNormal = normalize(cross(edgeU, edgeV));
