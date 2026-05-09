@@ -5,6 +5,10 @@
 <body>
     <div class="screen inventory-screen">
         <img class="inventory-image" src="../textures/ui/player/Inventory.png"/>
+        <div id="inventory-items" class="inventory-items"></div>
+        <div id="inventory-debug-slots" class="inventory-items"></div>
+        <div id="item-tooltip" class="item-tooltip ui-hidden"></div>
+        <div id="inventory-cursor-item" class="cursor-item-layer ui-hidden"></div>
     </div>
 </body>
 </rml>

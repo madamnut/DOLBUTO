@@ -144,10 +144,15 @@ namespace dolbuto
         constexpr uint32_t BlockBreakParticleCount = 24;
         constexpr float BlockBreakParticleGravity = 22.0f;
         constexpr float BlockBreakParticleDrag = 0.92f;
-        constexpr float DroppedItemGravity = 20.0f;
+        constexpr float DroppedItemGravity = 32.0f;
         constexpr float DroppedItemDrag = 0.94f;
         constexpr float DroppedItemSize = 0.68f;
         constexpr float DroppedItemThickness = 0.05f;
+        constexpr float DroppedItemTickSeconds = 1.0f / 20.0f;
+        constexpr float DroppedItemMaxFrameSeconds = 0.25f;
+        constexpr float DroppedItemCollisionRadius = 0.22f;
+        constexpr float DroppedItemWallBounce = 0.25f;
+        constexpr float DroppedItemWallFriction = 0.65f;
         constexpr float DroppedItemPickupBaseSpeed = 7.0f;
         constexpr float DroppedItemPickupAcceleration = 256.0f;
         constexpr float DroppedItemPickupMaxSpeed = 52.0f;
@@ -291,8 +296,11 @@ namespace dolbuto
             std::string name = "None";
             uint16_t stackSize = 0;
             std::string texture = "none";
-            std::string droppedRender = "sprite";
-            std::string heldRender = "sprite";
+            std::string slotTexture = "none";
+            std::string droppedTexture = "none";
+            std::string heldTexture = "none";
+            std::string droppedRender = "extruded_sprite";
+            std::string heldRender = "extruded_sprite";
         };
 
         std::optional<std::string> jsonStringField(const std::string& object, const std::string& key)
@@ -901,8 +909,22 @@ namespace dolbuto
                 {
                     definition.texture = *texture;
                 }
+                if (const std::optional<std::string> slotTexture = jsonStringField(object, "slotTexture"); slotTexture.has_value())
+                {
+                    definition.slotTexture = *slotTexture;
+                }
                 if (const std::optional<std::string> render = jsonObjectField(object, "render"); render.has_value())
                 {
+                    if (const std::optional<std::string> type = jsonStringField(*render, "type"); type.has_value())
+                    {
+                        definition.droppedRender = *type;
+                        definition.heldRender = *type;
+                    }
+                    if (const std::optional<std::string> texture = jsonStringField(*render, "texture"); texture.has_value())
+                    {
+                        definition.droppedTexture = *texture;
+                        definition.heldTexture = *texture;
+                    }
                     if (const std::optional<std::string> dropped = jsonStringField(*render, "dropped"); dropped.has_value())
                     {
                         definition.droppedRender = *dropped;
@@ -910,6 +932,28 @@ namespace dolbuto
                     if (const std::optional<std::string> held = jsonStringField(*render, "held"); held.has_value())
                     {
                         definition.heldRender = *held;
+                    }
+                }
+                if (const std::optional<std::string> droppedRender = jsonObjectField(object, "droppedRender"); droppedRender.has_value())
+                {
+                    if (const std::optional<std::string> type = jsonStringField(*droppedRender, "type"); type.has_value())
+                    {
+                        definition.droppedRender = *type;
+                    }
+                    if (const std::optional<std::string> texture = jsonStringField(*droppedRender, "texture"); texture.has_value())
+                    {
+                        definition.droppedTexture = *texture;
+                    }
+                }
+                if (const std::optional<std::string> heldRender = jsonObjectField(object, "heldRender"); heldRender.has_value())
+                {
+                    if (const std::optional<std::string> type = jsonStringField(*heldRender, "type"); type.has_value())
+                    {
+                        definition.heldRender = *type;
+                    }
+                    if (const std::optional<std::string> texture = jsonStringField(*heldRender, "texture"); texture.has_value())
+                    {
+                        definition.heldTexture = *texture;
                     }
                 }
 
@@ -3187,8 +3231,88 @@ namespace dolbuto
         item.collectAge = 0.0f;
         item.grounded = false;
         item.velocity = {};
-        item.spin = 0.0f;
+        item.previousPosition = item.position;
+        item.renderSpinX = 8.0f;
+        item.renderSpin = 8.0f;
+        item.renderSpinZ = 8.0f;
         return true;
+    }
+
+    uint16_t Renderer::addItemToPlayerInventory(ItemStack stack)
+    {
+        if (stack.itemId == 0 || stack.count == 0 || static_cast<size_t>(stack.itemId) >= itemDefinitions_.size())
+        {
+            return stack.count;
+        }
+
+        const uint16_t maxStack = itemDefinitions_[stack.itemId].stackSize;
+        if (maxStack == 0)
+        {
+            return stack.count;
+        }
+
+        addItemToInventoryRange(stack, 0, playerInventorySlots_.size());
+        updateInventoryUi();
+        return stack.count;
+    }
+
+    uint16_t Renderer::addItemToInventoryRange(ItemStack& stack, size_t begin, size_t end)
+    {
+        if (stack.itemId == 0 || stack.count == 0 || static_cast<size_t>(stack.itemId) >= itemDefinitions_.size())
+        {
+            return stack.count;
+        }
+
+        end = std::min(end, playerInventorySlots_.size());
+        if (begin >= end)
+        {
+            return stack.count;
+        }
+
+        const uint16_t maxStack = itemDefinitions_[stack.itemId].stackSize;
+        if (maxStack == 0)
+        {
+            return stack.count;
+        }
+
+        for (size_t i = begin; i < end && stack.count > 0; ++i)
+        {
+            ItemStack& slot = playerInventorySlots_[i];
+            if (!inventoryStackCanMerge(slot, stack))
+            {
+                continue;
+            }
+
+            const uint16_t available = static_cast<uint16_t>(maxStack - slot.count);
+            const uint16_t moved = std::min(available, stack.count);
+            slot.count = static_cast<uint16_t>(slot.count + moved);
+            stack.count = static_cast<uint16_t>(stack.count - moved);
+        }
+
+        for (size_t i = begin; i < end && stack.count > 0; ++i)
+        {
+            ItemStack& slot = playerInventorySlots_[i];
+            if (slot.itemId != 0 || slot.count != 0)
+            {
+                continue;
+            }
+
+            const uint16_t moved = std::min(maxStack, stack.count);
+            slot.itemId = stack.itemId;
+            slot.count = moved;
+            stack.count = static_cast<uint16_t>(stack.count - moved);
+        }
+
+        return stack.count;
+    }
+
+    bool Renderer::inventoryStackCanMerge(const ItemStack& slot, const ItemStack& stack) const
+    {
+        if (slot.itemId == 0 || stack.itemId == 0 || slot.itemId != stack.itemId || static_cast<size_t>(slot.itemId) >= itemDefinitions_.size())
+        {
+            return false;
+        }
+        return slot.count < itemDefinitions_[slot.itemId].stackSize;
     }
 
     bool Renderer::blockIntersectsPlayerCollider(int x, int y, int z, uint16_t block, DVec3 playerPosition) const
@@ -4648,8 +4772,11 @@ namespace dolbuto
 
         auto parseItemRenderType = [](const std::string& value)
         {
-            (void)value;
-            return ItemRenderType::Sprite;
+            if (value == "extruded_sprite" || value == "sprite")
+            {
+                return ItemRenderType::ExtrudedSprite;
+            }
+            throw std::runtime_error("Unknown item render type: " + value);
         };
 
         itemDefinitions_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
@@ -4672,16 +4799,26 @@ namespace dolbuto
         };
         for (const ParsedItemDefinition& definition : itemDefinitions)
         {
+            const std::string droppedTexture = definition.droppedTexture != "none" ? definition.droppedTexture : definition.texture;
+            const std::string heldTexture = definition.heldTexture != "none" ? definition.heldTexture : droppedTexture;
+            const std::string slotTexture = definition.slotTexture != "none" ? definition.slotTexture : droppedTexture;
             ItemDefinition itemDefinition{};
             itemDefinition.key = definition.key;
             itemDefinition.name = definition.name;
+            itemDefinition.slotTexture = slotTexture;
+            itemDefinition.droppedTexture = droppedTexture;
+            itemDefinition.heldTexture = heldTexture;
             itemDefinition.stackSize = definition.stackSize;
             itemDefinition.droppedRender = parseItemRenderType(definition.droppedRender);
             itemDefinition.heldRender = parseItemRenderType(definition.heldRender);
-            if (definition.texture != "none")
+            if (droppedTexture != "none")
             {
-                itemDefinition.textureLayer = layerForItemTexture(definition.texture);
-                itemSpriteMeshes_[definition.id] = buildItemSpriteMesh(std::filesystem::path(itemTextureDir) / (definition.texture + ".png"));
+                itemDefinition.droppedTextureLayer = layerForItemTexture(droppedTexture);
+                itemSpriteMeshes_[definition.id] = buildItemSpriteMesh(std::filesystem::path(itemTextureDir) / (droppedTexture + ".png"));
+            }
+            if (heldTexture != "none")
+            {
+                itemDefinition.heldTextureLayer = layerForItemTexture(heldTexture);
             }
             itemDefinitions_[definition.id] = itemDefinition;
             if (!definition.key.empty())
@@ -6524,8 +6661,14 @@ namespace dolbuto
         activeWorldSeedSalt_ = static_cast<int>((worldSeed ^ (worldSeed >> 32u)) & 0x7fffffffu);
         blockBreakParticles_.clear();
         droppedItems_.clear();
+        playerInventorySlots_.fill(ItemStack{});
+        inventoryCursorStack_ = {};
+        updateInventoryUi();
+        updateInventoryDebugSlots();
         lastParticleUpdateTime_ = glfwGetTime();
         lastDroppedItemUpdateTime_ = glfwGetTime();
+        droppedItemTickAccumulator_ = 0.0f;
+        droppedItemRenderAlpha_ = 0.0f;
         climateTemperatureOverlayReady_ = false;
         climatePrecipitationOverlayReady_ = false;
         terrainLoadRequested_ = false;
@@ -6560,8 +6703,14 @@ namespace dolbuto
         terrainLoadRequested_ = false;
         blockBreakParticles_.clear();
         droppedItems_.clear();
+        playerInventorySlots_.fill(ItemStack{});
+        inventoryCursorStack_ = {};
+        updateInventoryUi();
+        updateInventoryDebugSlots();
         lastParticleUpdateTime_ = 0.0;
         lastDroppedItemUpdateTime_ = 0.0;
+        droppedItemTickAccumulator_ = 0.0f;
+        droppedItemRenderAlpha_ = 0.0f;
         loadedChunkDiameter_ = 0;
         loadedCenterGroupChunkX_ = 0;
         loadedCenterGroupChunkZ_ = 0;
@@ -9728,6 +9877,8 @@ namespace dolbuto
         attachRmlUiEvents(rmlPauseDocument_);
 
         updateHotbarScopeClass();
+        updateInventoryUi();
+        updateInventoryDebugSlots();
         setRmlUiDocument(0);
     }
 
@@ -9810,6 +9961,11 @@ namespace dolbuto
             return;
         }
 
+        if (activeRmlMenuOverlayMode_ == 5 && menuOverlayMode != 5)
+        {
+            closeInventoryInteraction();
+        }
+
         activeRmlMenuOverlayMode_ = menuOverlayMode;
         if (rmlLobbyDocument_ != nullptr)
         {
@@ -9857,9 +10013,16 @@ namespace dolbuto
 
     void Renderer::uiMouseMove(double x, double y)
     {
+        rmlMouseX_ = x;
+        rmlMouseY_ = y;
         if (rmlContext_ != nullptr)
         {
             rmlContext_->ProcessMouseMove(static_cast<int>(std::round(x)), static_cast<int>(std::round(y)), currentRmlKeyModifiers());
+        }
+        if (activeRmlMenuOverlayMode_ == 5)
+        {
+            updateItemTooltipUi();
+            updateInventoryCursorUi();
         }
     }
 
@@ -9883,6 +10046,13 @@ namespace dolbuto
         if (pressed)
         {
             rmlContext_->ProcessMouseButtonDown(rmlButton, rmlKeyModifiersFromGlfw(modifiers));
+            if (activeRmlMenuOverlayMode_ == 5 && (button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT))
+            {
+                if (const std::optional<size_t> slot = inventorySlotAt(rmlMouseX_, rmlMouseY_); slot.has_value())
+                {
+                    handleInventorySlotClick(*slot, button, modifiers);
+                }
+            }
         }
         else
         {
@@ -9921,6 +10091,10 @@ namespace dolbuto
 
         if (pressed)
         {
+            if (activeRmlMenuOverlayMode_ == 5 && ((key >= GLFW_KEY_0 && key <= GLFW_KEY_9)))
+            {
+                handleInventoryHotbarSwapKey(key);
+            }
             rmlContext_->ProcessKeyDown(identifier, rmlKeyModifiersFromGlfw(modifiers));
         }
         else
@@ -9961,6 +10135,560 @@ namespace dolbuto
         }
 
         scope->SetAttribute("class", Rml::String("hotbar-scope hotbar-slot-") + std::to_string(hotbarSelectedSlot_));
+    }
+
+    std::string Renderer::inventoryDebugSlotRml(size_t slotIndex, bool inventorySlot) const
+    {
+        int sourceX = 0;
+        int sourceY = 0;
+        if (inventorySlot)
+        {
+            constexpr int Padding = 4;
+            constexpr int Step = 17;
+            constexpr int HotbarY = 77;
+            const int col = static_cast<int>(slotIndex % 10u);
+            sourceX = Padding + col * Step;
+            if (slotIndex < 10u)
+            {
+                sourceY = HotbarY;
+            }
+            else
+            {
+                const int group = static_cast<int>(slotIndex / 10u);
+                sourceY = Padding + (4 - group) * Step;
+            }
+        }
+        else
+        {
+            constexpr int HotbarStartX = 3;
+            constexpr int HotbarStartY = 3;
+            constexpr int Step = 17;
+            sourceX = HotbarStartX + static_cast<int>(slotIndex) * Step;
+            sourceY = HotbarStartY;
+        }
+
+        constexpr int Scale = 4;
+        const int hotbarOffsetX = inventorySlot ? 0 : 4;
+        const int hotbarOffsetY = inventorySlot ? 0 : 4;
+        const int left = sourceX * Scale + hotbarOffsetX;
+        const int top = sourceY * Scale + hotbarOffsetY;
+
+        std::string rml;
+        rml += "<div class=\"slot-debug\" style=\"left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px;\">";
+        rml += std::to_string(slotIndex);
+        rml += "</div>";
+        return rml;
+    }
+
+    void Renderer::updateInventoryDebugSlots()
+    {
+        if (rmlHudDocument_ != nullptr)
+        {
+            if (Rml::Element* hotbarItems = rmlHudDocument_->GetElementById("hotbar-debug-slots"))
+            {
+                hotbarItems->SetAttribute("class", inventoryDebugSlotsVisible_ ? "hotbar-items" : "hotbar-items ui-hidden");
+                std::string rml;
+                if (inventoryDebugSlotsVisible_)
+                {
+                    for (size_t i = 0; i < 10u; ++i)
+                    {
+                        rml += inventoryDebugSlotRml(i, false);
+                    }
+                }
+                hotbarItems->SetInnerRML(rml);
+            }
+        }
+
+        if (rmlInventoryDocument_ != nullptr)
+        {
+            if (Rml::Element* inventoryItems = rmlInventoryDocument_->GetElementById("inventory-debug-slots"))
+            {
+                inventoryItems->SetAttribute("class", inventoryDebugSlotsVisible_ ? "inventory-items" : "inventory-items ui-hidden");
+                std::string rml;
+                if (inventoryDebugSlotsVisible_)
+                {
+                    for (size_t i = 0; i < 50u; ++i)
+                    {
+                        rml += inventoryDebugSlotRml(i, true);
+                    }
+                }
+                inventoryItems->SetInnerRML(rml);
+            }
+        }
+    }
+
+    std::optional<size_t> Renderer::inventorySlotAt(double x, double y) const
+    {
+        if (swapchainExtent_.width == 0 || swapchainExtent_.height == 0)
+        {
+            return std::nullopt;
+        }
+
+        const int panelLeft = static_cast<int>(swapchainExtent_.width) / 2 - 354;
+        const int panelTop = static_cast<int>(swapchainExtent_.height) - 388;
+        const int localX = static_cast<int>(std::floor(x)) - panelLeft;
+        const int localY = static_cast<int>(std::floor(y)) - panelTop;
+        if (localX < 0 || localY < 0 || localX >= 708 || localY >= 388)
+        {
+            return std::nullopt;
+        }
+
+        constexpr int Scale = 4;
+        constexpr int SlotSize = 64;
+        constexpr int Padding = 4;
+        constexpr int Step = 17;
+        constexpr int HotbarY = 77;
+        for (size_t slotIndex = 0; slotIndex < playerInventorySlots_.size(); ++slotIndex)
+        {
+            const int col = static_cast<int>(slotIndex % 10u);
+            const int sourceX = Padding + col * Step;
+            int sourceY = HotbarY;
+            if (slotIndex >= 10u)
+            {
+                const int group = static_cast<int>(slotIndex / 10u);
+                sourceY = Padding + (4 - group) * Step;
+            }
+
+            const int left = sourceX * Scale;
+            const int top = sourceY * Scale;
+            if (localX >= left && localX < left + SlotSize && localY >= top && localY < top + SlotSize)
+            {
+                return slotIndex;
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    void Renderer::handleInventorySlotClick(size_t slotIndex, int button, int modifiers)
+    {
+        if (slotIndex >= playerInventorySlots_.size())
+        {
+            return;
+        }
+
+        ItemStack& slot = playerInventorySlots_[slotIndex];
+        const bool shift = (modifiers & GLFW_MOD_SHIFT) != 0;
+        if (shift && inventoryCursorStack_.itemId == 0 && slot.itemId != 0 && slot.count != 0)
+        {
+            ItemStack moving = slot;
+            slot = {};
+            if (slotIndex < 10u)
+            {
+                addItemToInventoryRange(moving, 10, playerInventorySlots_.size());
+            }
+            else
+            {
+                addItemToInventoryRange(moving, 0, 10);
+            }
+            slot = moving.count == 0 ? ItemStack{} : moving;
+            updateInventoryUi();
+            updateItemTooltipUi();
+            return;
+        }
+
+        if (button == GLFW_MOUSE_BUTTON_LEFT)
+        {
+            if (inventoryCursorStack_.itemId == 0 || inventoryCursorStack_.count == 0)
+            {
+                inventoryCursorStack_ = slot;
+                slot = {};
+            }
+            else if (slot.itemId == 0 || slot.count == 0)
+            {
+                slot = inventoryCursorStack_;
+                inventoryCursorStack_ = {};
+            }
+            else if (inventoryStackCanMerge(slot, inventoryCursorStack_))
+            {
+                const uint16_t maxStack = itemDefinitions_[slot.itemId].stackSize;
+                const uint16_t moved = std::min(static_cast<uint16_t>(maxStack - slot.count), inventoryCursorStack_.count);
+                slot.count = static_cast<uint16_t>(slot.count + moved);
+                inventoryCursorStack_.count = static_cast<uint16_t>(inventoryCursorStack_.count - moved);
+                if (inventoryCursorStack_.count == 0)
+                {
+                    inventoryCursorStack_ = {};
+                }
+            }
+            else
+            {
+                std::swap(slot, inventoryCursorStack_);
+            }
+        }
+        else if (button == GLFW_MOUSE_BUTTON_RIGHT)
+        {
+            if (inventoryCursorStack_.itemId == 0 || inventoryCursorStack_.count == 0)
+            {
+                if (slot.itemId != 0 && slot.count != 0)
+                {
+                    const uint16_t taken = static_cast<uint16_t>((slot.count + 1u) / 2u);
+                    inventoryCursorStack_.itemId = slot.itemId;
+                    inventoryCursorStack_.count = taken;
+                    slot.count = static_cast<uint16_t>(slot.count - taken);
+                    if (slot.count == 0)
+                    {
+                        slot = {};
+                    }
+                }
+            }
+            else if (slot.itemId == 0 || slot.count == 0)
+            {
+                slot.itemId = inventoryCursorStack_.itemId;
+                slot.count = 1;
+                inventoryCursorStack_.count = static_cast<uint16_t>(inventoryCursorStack_.count - 1u);
+                if (inventoryCursorStack_.count == 0)
+                {
+                    inventoryCursorStack_ = {};
+                }
+            }
+            else if (inventoryStackCanMerge(slot, inventoryCursorStack_))
+            {
+                slot.count = static_cast<uint16_t>(slot.count + 1u);
+                inventoryCursorStack_.count = static_cast<uint16_t>(inventoryCursorStack_.count - 1u);
+                if (inventoryCursorStack_.count == 0)
+                {
+                    inventoryCursorStack_ = {};
+                }
+            }
+        }
+
+        updateInventoryUi();
+        updateItemTooltipUi();
+    }
+
+    void Renderer::handleInventoryHotbarSwapKey(int key)
+    {
+        if (inventoryCursorStack_.itemId != 0 || inventoryCursorStack_.count != 0)
+        {
+            return;
+        }
+
+        int hotbarSlot = -1;
+        if (key >= GLFW_KEY_1 && key <= GLFW_KEY_9)
+        {
+            hotbarSlot = key - GLFW_KEY_1;
+        }
+        else if (key == GLFW_KEY_0)
+        {
+            hotbarSlot = 9;
+        }
+        if (hotbarSlot < 0)
+        {
+            return;
+        }
+
+        const std::optional<size_t> hoveredSlot = inventorySlotAt(rmlMouseX_, rmlMouseY_);
+        if (!hoveredSlot.has_value() || *hoveredSlot == static_cast<size_t>(hotbarSlot))
+        {
+            return;
+        }
+
+        std::swap(playerInventorySlots_[*hoveredSlot], playerInventorySlots_[static_cast<size_t>(hotbarSlot)]);
+        updateInventoryUi();
+        updateItemTooltipUi();
+    }
+
+    void Renderer::closeInventoryInteraction()
+    {
+        if (inventoryCursorStack_.itemId != 0 && inventoryCursorStack_.count != 0)
+        {
+            const uint16_t remaining = addItemToPlayerInventory(inventoryCursorStack_);
+            if (remaining == 0)
+            {
+                inventoryCursorStack_ = {};
+            }
+            else
+            {
+                inventoryCursorStack_.count = remaining;
+            }
+        }
+        updateItemTooltipUi();
+        updateInventoryCursorUi();
+    }
+
+    std::string Renderer::itemStackContentRml(const ItemStack& stack, int itemLeft, int itemTop) const
+    {
+        if (stack.itemId == 0 || stack.count == 0 || static_cast<size_t>(stack.itemId) >= itemDefinitions_.size())
+        {
+            return {};
+        }
+
+        const ItemDefinition& definition = itemDefinitions_[stack.itemId];
+        if (definition.slotTexture.empty() || definition.slotTexture == "none")
+        {
+            return {};
+        }
+
+        constexpr int SlotSize = 64;
+        constexpr int CountBoxWidth = 48;
+        constexpr int CountRightInset = 2;
+        const int countLeft = itemLeft + SlotSize - CountBoxWidth - CountRightInset;
+        const int countTop = itemTop + 40;
+        const std::string src = "../textures/item/" + definition.slotTexture + ".png";
+
+        std::string rml;
+        rml += "<img class=\"slot-item\" src=\"" + escapeRml(src) + "\" style=\"left: " + std::to_string(itemLeft) + "px; top: " + std::to_string(itemTop) + "px;\"/>";
+        if (stack.count > 1)
+        {
+            rml += "<div class=\"slot-count\" style=\"left: " + std::to_string(countLeft) + "px; top: " + std::to_string(countTop) + "px;\">";
+            rml += std::to_string(stack.count);
+            rml += "</div>";
+        }
+        return rml;
+    }
+
+    std::string Renderer::itemTooltipRml(const ItemStack& stack) const
+    {
+        if (stack.itemId == 0 || stack.count == 0 || static_cast<size_t>(stack.itemId) >= itemDefinitions_.size())
+        {
+            return {};
+        }
+
+        const ItemDefinition& definition = itemDefinitions_[stack.itemId];
+        if (definition.key.empty() || definition.key == "none")
+        {
+            return {};
+        }
+
+        auto renderTypeText = [](ItemRenderType type)
+        {
+            switch (type)
+            {
+            case ItemRenderType::ExtrudedSprite:
+                return "extruded_sprite";
+            }
+            return "unknown";
+        };
+
+        std::string rml;
+        rml += "<div class=\"item-tooltip-title\">" + escapeRml(definition.name) + "</div>";
+        auto line = [&](std::string_view key, const std::string& value)
+        {
+            rml += "<div class=\"item-tooltip-line\">" + std::string(key) + ": " + escapeRml(value) + "</div>";
+        };
+        line("ID", std::to_string(stack.itemId));
+        line("KEY", definition.key);
+        line("COUNT", std::to_string(stack.count) + " / " + std::to_string(definition.stackSize));
+        line("STACK_SIZE", std::to_string(definition.stackSize));
+        line("SLOT_TEXTURE", definition.slotTexture);
+        line("DROPPED_RENDER", renderTypeText(definition.droppedRender));
+        line("DROPPED_TEXTURE", definition.droppedTexture);
+        line("HELD_RENDER", renderTypeText(definition.heldRender));
+        line("HELD_TEXTURE", definition.heldTexture);
+        return rml;
+    }
+
+    std::string Renderer::itemSlotImageRml(size_t slotIndex, bool inventorySlot) const
+    {
+        if (slotIndex >= playerInventorySlots_.size())
+        {
+            return {};
+        }
+
+        int sourceX = 0;
+        int sourceY = 0;
+        if (inventorySlot)
+        {
+            constexpr int Padding = 4;
+            constexpr int Step = 17;
+            constexpr int HotbarY = 77;
+            const int col = static_cast<int>(slotIndex % 10u);
+            sourceX = Padding + col * Step;
+            if (slotIndex < 10u)
+            {
+                sourceY = HotbarY;
+            }
+            else
+            {
+                const int group = static_cast<int>(slotIndex / 10u);
+                sourceY = Padding + (4 - group) * Step;
+            }
+        }
+        else
+        {
+            constexpr int HotbarStartX = 3;
+            constexpr int HotbarStartY = 3;
+            constexpr int Step = 17;
+            sourceX = HotbarStartX + static_cast<int>(slotIndex) * Step;
+            sourceY = HotbarStartY;
+        }
+
+        constexpr int Scale = 4;
+        const int hotbarOffsetX = inventorySlot ? 0 : 4;
+        const int hotbarOffsetY = inventorySlot ? 0 : 4;
+        const int left = sourceX * Scale + hotbarOffsetX;
+        const int top = sourceY * Scale + hotbarOffsetY;
+
+        std::string rml;
+        if (!inventorySlot)
+        {
+            rml += "<div class=\"hotbar-slot-background\" style=\"left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px;\"></div>";
+        }
+        else
+        {
+            rml += "<div class=\"inventory-slot-cell\" style=\"left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px;\">";
+        }
+
+        const ItemStack& stack = playerInventorySlots_[slotIndex];
+        const int itemLeft = inventorySlot ? 0 : left;
+        const int itemTop = inventorySlot ? 0 : top;
+        rml += itemStackContentRml(stack, itemLeft, itemTop);
+        if (inventorySlot)
+        {
+            rml += "</div>";
+        }
+        return rml;
+    }
+
+    void Renderer::updateInventoryUi()
+    {
+        if (rmlHudDocument_ != nullptr)
+        {
+            if (Rml::Element* hotbarItems = rmlHudDocument_->GetElementById("hotbar-items"))
+            {
+                std::string rml;
+                for (size_t i = 0; i < 10u; ++i)
+                {
+                    rml += itemSlotImageRml(i, false);
+                }
+                hotbarItems->SetInnerRML(rml);
+            }
+        }
+
+        if (rmlInventoryDocument_ != nullptr)
+        {
+            if (Rml::Element* inventoryItems = rmlInventoryDocument_->GetElementById("inventory-items"))
+            {
+                std::string rml;
+                for (size_t i = 0; i < playerInventorySlots_.size(); ++i)
+                {
+                    rml += itemSlotImageRml(i, true);
+                }
+                inventoryItems->SetInnerRML(rml);
+            }
+        }
+        updateInventoryCursorUi();
+    }
+
+    void Renderer::updateInventoryCursorUi()
+    {
+        if (rmlInventoryDocument_ == nullptr)
+        {
+            return;
+        }
+
+        Rml::Element* cursor = rmlInventoryDocument_->GetElementById("inventory-cursor-item");
+        if (cursor == nullptr)
+        {
+            return;
+        }
+
+        if (inventoryCursorStack_.itemId == 0 || inventoryCursorStack_.count == 0)
+        {
+            cursor->SetAttribute("class", "cursor-item-layer ui-hidden");
+            cursor->SetInnerRML("");
+            return;
+        }
+
+        cursor->SetAttribute("class", "cursor-item-layer");
+        const int left = static_cast<int>(std::round(rmlMouseX_)) - 32;
+        const int top = static_cast<int>(std::round(rmlMouseY_)) - 32;
+        cursor->SetInnerRML(itemStackContentRml(inventoryCursorStack_, left, top));
+    }
+
+    void Renderer::updateItemTooltipUi()
+    {
+        if (rmlInventoryDocument_ == nullptr)
+        {
+            return;
+        }
+
+        Rml::Element* tooltip = rmlInventoryDocument_->GetElementById("item-tooltip");
+        if (tooltip == nullptr)
+        {
+            return;
+        }
+
+        if (inventoryCursorStack_.itemId != 0 && inventoryCursorStack_.count != 0)
+        {
+            tooltip->SetAttribute("class", "item-tooltip ui-hidden");
+            tooltip->SetInnerRML("");
+            return;
+        }
+
+        const std::optional<size_t> hoveredSlot = inventorySlotAt(rmlMouseX_, rmlMouseY_);
+        if (!hoveredSlot.has_value())
+        {
+            tooltip->SetAttribute("class", "item-tooltip ui-hidden");
+            tooltip->SetInnerRML("");
+            return;
+        }
+
+        const ItemStack& stack = playerInventorySlots_[*hoveredSlot];
+        const std::string rml = itemTooltipRml(stack);
+        if (rml.empty())
+        {
+            tooltip->SetAttribute("class", "item-tooltip ui-hidden");
+            tooltip->SetInnerRML("");
+            return;
+        }
+
+        constexpr int Padding = 10;
+        constexpr int TitleHeight = 22;
+        constexpr int TitleMargin = 4;
+        constexpr int LineHeight = 18;
+        constexpr int LineCount = 9;
+        constexpr int MinWidth = 180;
+        constexpr int MaxWidth = 520;
+        constexpr int TitleCharWidth = 12;
+        constexpr int LineCharWidth = 8;
+        constexpr int Height = Padding * 2 + TitleHeight + TitleMargin + LineHeight * LineCount;
+        constexpr int MouseOffset = 16;
+        auto renderTypeText = [](ItemRenderType type)
+        {
+            switch (type)
+            {
+            case ItemRenderType::ExtrudedSprite:
+                return "extruded_sprite";
+            }
+            return "unknown";
+        };
+        auto lineText = [](std::string_view key, const std::string& value)
+        {
+            return std::string(key) + ": " + value;
+        };
+
+        const ItemDefinition& definition = itemDefinitions_[stack.itemId];
+        int contentWidth = static_cast<int>(definition.name.size()) * TitleCharWidth;
+        contentWidth = std::max(contentWidth, static_cast<int>(lineText("ID", std::to_string(stack.itemId)).size()) * LineCharWidth);
+        contentWidth = std::max(contentWidth, static_cast<int>(lineText("KEY", definition.key).size()) * LineCharWidth);
+        contentWidth = std::max(contentWidth, static_cast<int>(lineText("COUNT", std::to_string(stack.count) + " / " + std::to_string(definition.stackSize)).size()) * LineCharWidth);
+        contentWidth = std::max(contentWidth, static_cast<int>(lineText("STACK_SIZE", std::to_string(definition.stackSize)).size()) * LineCharWidth);
+        contentWidth = std::max(contentWidth, static_cast<int>(lineText("SLOT_TEXTURE", definition.slotTexture).size()) * LineCharWidth);
+        contentWidth = std::max(contentWidth, static_cast<int>(lineText("DROPPED_RENDER", renderTypeText(definition.droppedRender)).size()) * LineCharWidth);
+        contentWidth = std::max(contentWidth, static_cast<int>(lineText("DROPPED_TEXTURE", definition.droppedTexture).size()) * LineCharWidth);
+        contentWidth = std::max(contentWidth, static_cast<int>(lineText("HELD_RENDER", renderTypeText(definition.heldRender)).size()) * LineCharWidth);
+        contentWidth = std::max(contentWidth, static_cast<int>(lineText("HELD_TEXTURE", definition.heldTexture).size()) * LineCharWidth);
+        const int Width = std::clamp(contentWidth + Padding * 2, MinWidth, MaxWidth);
+
+        int left = static_cast<int>(std::round(rmlMouseX_)) + MouseOffset;
+        int top = static_cast<int>(std::round(rmlMouseY_)) + MouseOffset;
+        const int screenWidth = static_cast<int>(swapchainExtent_.width);
+        const int screenHeight = static_cast<int>(swapchainExtent_.height);
+        if (left + Width > screenWidth)
+        {
+            left = static_cast<int>(std::round(rmlMouseX_)) - Width - MouseOffset;
+        }
+        if (top + Height > screenHeight)
+        {
+            top = static_cast<int>(std::round(rmlMouseY_)) - Height - MouseOffset;
+        }
+        left = std::clamp(left, 0, std::max(0, screenWidth - Width));
+        top = std::clamp(top, 0, std::max(0, screenHeight - Height));
+
+        tooltip->SetAttribute("class", "item-tooltip");
+        tooltip->SetAttribute("style", "left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px; width: " + std::to_string(Width) + "px; height: " + std::to_string(Height) + "px;");
+        tooltip->SetInnerRML(rml);
     }
 
     void Renderer::setWorldList(const std::vector<WorldListItem>& worlds)
@@ -12350,9 +13078,11 @@ namespace dolbuto
         {
             return static_cast<float>(hash) / static_cast<float>(std::numeric_limits<uint32_t>::max());
         };
-        auto randomRange = [&](uint32_t hash, float minValue, float maxValue)
+        static thread_local std::mt19937 runtimeDropRandom{std::random_device{}()};
+        auto randomRange = [&](float minValue, float maxValue)
         {
-            return minValue + (maxValue - minValue) * unitRandom(hash);
+            std::uniform_real_distribution<float> distribution(minValue, maxValue);
+            return distribution(runtimeDropRandom);
         };
 
         for (size_t dropIndex = 0; dropIndex < definition.drops.size(); ++dropIndex)
@@ -12376,22 +13106,38 @@ namespace dolbuto
                 droppedItems_.erase(droppedItems_.begin());
             }
 
-            const uint32_t velocityHash = worldRandomHash(x, y, z, BlockDropSalt ^ (static_cast<uint32_t>(dropIndex) + 1u) * 0x85EBCA6Bu);
             DroppedItem item{};
             item.position = {
-                static_cast<float>(x) + randomRange(velocityHash, -0.08f, 0.08f),
-                static_cast<float>(y) + 0.55f,
-                static_cast<float>(z) + randomRange(velocityHash >> 8u, -0.08f, 0.08f)
+                static_cast<float>(x) + randomRange(-0.18f, 0.18f),
+                static_cast<float>(y) + 0.5f + randomRange(-0.08f, 0.12f),
+                static_cast<float>(z) + randomRange(-0.18f, 0.18f)
             };
+            item.previousPosition = item.position;
             item.velocity = {
-                randomRange(velocityHash >> 16u, -1.2f, 1.2f),
-                randomRange(velocityHash >> 4u, 2.0f, 3.4f),
-                randomRange(velocityHash >> 24u, -1.2f, 1.2f)
+                randomRange(-1.5f, 1.5f),
+                randomRange(2.0f, 3.5f),
+                randomRange(-1.5f, 1.5f)
             };
-            item.itemId = drop.itemId;
-            item.count = count;
-            item.rotation = randomRange(velocityHash ^ 0xB5297A4Du, 0.0f, 6.2831853f);
-            item.spin = randomRange(velocityHash ^ 0x68E31DA4u, -2.2f, 2.2f);
+            item.stack.itemId = drop.itemId;
+            item.stack.count = count;
+            item.renderRotationX = randomRange(0.0f, 6.2831853f);
+            item.renderRotation = randomRange(0.0f, 6.2831853f);
+            item.renderRotationZ = randomRange(0.0f, 6.2831853f);
+            item.renderSpinX = randomRange(-8.0f, 8.0f);
+            item.renderSpin = randomRange(-8.0f, 8.0f);
+            item.renderSpinZ = randomRange(-8.0f, 8.0f);
+            if (std::abs(item.renderSpinX) < 2.0f)
+            {
+                item.renderSpinX = item.renderSpinX < 0.0f ? -2.0f : 2.0f;
+            }
+            if (std::abs(item.renderSpin) < 2.0f)
+            {
+                item.renderSpin = item.renderSpin < 0.0f ? -2.0f : 2.0f;
+            }
+            if (std::abs(item.renderSpinZ) < 2.0f)
+            {
+                item.renderSpinZ = item.renderSpinZ < 0.0f ? -2.0f : 2.0f;
+            }
             droppedItems_.push_back(item);
         }
     }
@@ -12410,11 +13156,10 @@ namespace dolbuto
         auto rayIntersectsAabb = [&](const DroppedItem& item, double& hitDistance)
         {
             const double halfWidth = static_cast<double>(DroppedItemSize) * 0.5;
-            const double halfHeight = static_cast<double>(DroppedItemThickness) * 0.5;
             const double minX = static_cast<double>(item.position.x) - halfWidth;
             const double maxX = static_cast<double>(item.position.x) + halfWidth;
-            const double minY = static_cast<double>(item.position.y) - halfHeight;
-            const double maxY = static_cast<double>(item.position.y) + halfHeight;
+            const double minY = static_cast<double>(item.position.y);
+            const double maxY = static_cast<double>(item.position.y) + static_cast<double>(DroppedItemThickness);
             const double minZ = static_cast<double>(item.position.z) - halfWidth;
             const double maxZ = static_cast<double>(item.position.z) + halfWidth;
 
@@ -12454,7 +13199,7 @@ namespace dolbuto
         for (size_t i = 0; i < droppedItems_.size(); ++i)
         {
             const DroppedItem& item = droppedItems_[i];
-            if (item.itemId == 0 || item.collecting)
+            if (item.stack.itemId == 0 || item.stack.count == 0 || item.collecting)
             {
                 continue;
             }
@@ -12476,12 +13221,11 @@ namespace dolbuto
         constexpr float PlayerHalfWidth = 0.3f;
         constexpr float PlayerHeight = 1.75f;
         const float itemHalfWidth = DroppedItemSize * 0.5f;
-        const float itemHalfHeight = DroppedItemThickness * 0.5f;
 
         return item.position.x + itemHalfWidth >= playerPosition.x - PlayerHalfWidth &&
             item.position.x - itemHalfWidth <= playerPosition.x + PlayerHalfWidth &&
-            item.position.y + itemHalfHeight >= playerPosition.y &&
-            item.position.y - itemHalfHeight <= playerPosition.y + PlayerHeight &&
+            item.position.y + DroppedItemThickness >= playerPosition.y &&
+            item.position.y <= playerPosition.y + PlayerHeight &&
             item.position.z + itemHalfWidth >= playerPosition.z - PlayerHalfWidth &&
             item.position.z - itemHalfWidth <= playerPosition.z + PlayerHalfWidth;
     }
@@ -12492,20 +13236,76 @@ namespace dolbuto
         if (lastDroppedItemUpdateTime_ <= 0.0)
         {
             lastDroppedItemUpdateTime_ = now;
+            droppedItemRenderAlpha_ = 0.0f;
             return;
         }
 
-        const float dt = static_cast<float>(std::clamp(now - lastDroppedItemUpdateTime_, 0.0, 0.05));
+        const float frameDt = static_cast<float>(std::clamp(now - lastDroppedItemUpdateTime_, 0.0, static_cast<double>(DroppedItemMaxFrameSeconds)));
         lastDroppedItemUpdateTime_ = now;
+        if (frameDt <= 0.0f)
+        {
+            droppedItemRenderAlpha_ = 0.0f;
+            return;
+        }
+        if (droppedItems_.empty())
+        {
+            droppedItemTickAccumulator_ = 0.0f;
+            droppedItemRenderAlpha_ = 0.0f;
+            return;
+        }
+
+        for (DroppedItem& item : droppedItems_)
+        {
+            if (!item.grounded || item.collecting)
+            {
+                item.renderRotationX += item.renderSpinX * frameDt;
+                item.renderRotation += item.renderSpin * frameDt;
+                item.renderRotationZ += item.renderSpinZ * frameDt;
+            }
+            else
+            {
+                item.renderRotationX = 0.0f;
+                item.renderRotationZ = 0.0f;
+            }
+        }
+
+        droppedItemTickAccumulator_ += frameDt;
+        while (droppedItemTickAccumulator_ >= DroppedItemTickSeconds)
+        {
+            updateDroppedItemsTick(playerPosition, DroppedItemTickSeconds);
+            droppedItemTickAccumulator_ -= DroppedItemTickSeconds;
+        }
+        droppedItemRenderAlpha_ = std::clamp(droppedItemTickAccumulator_ / DroppedItemTickSeconds, 0.0f, 1.0f);
+    }
+
+    void Renderer::updateDroppedItemsTick(Vec3 playerPosition, float dt)
+    {
         if (dt <= 0.0f || droppedItems_.empty())
         {
             return;
         }
 
+        constexpr float GroundProbeEpsilon = 0.01f;
+        constexpr float WallProbeHeight = 0.08f;
         const float drag = std::pow(DroppedItemDrag, dt * 60.0f);
+
+        auto solidAt = [&](float x, float y, float z)
+        {
+            return terrainCellBlocksPlayer(blockCoordinateXz(x), blockCoordinateY(y), blockCoordinateXz(z));
+        };
+        auto supportedByGround = [&](const DroppedItem& item)
+        {
+            return solidAt(item.position.x, item.position.y - GroundProbeEpsilon, item.position.z);
+        };
+        auto sideBlocked = [&](float x, float y, float z)
+        {
+            return solidAt(x, y + WallProbeHeight, z);
+        };
+
         for (size_t i = 0; i < droppedItems_.size();)
         {
             DroppedItem& item = droppedItems_[i];
+            item.previousPosition = item.position;
             item.age += dt;
             if (item.collecting)
             {
@@ -12527,7 +13327,21 @@ namespace dolbuto
                 const float travel = speed * dt;
                 if (distance <= travel || droppedItemTouchesPlayerCollider(item, playerPosition))
                 {
-                    droppedItems_.erase(droppedItems_.begin() + static_cast<std::ptrdiff_t>(i));
+                    const uint16_t remaining = addItemToPlayerInventory(item.stack);
+                    if (remaining == 0)
+                    {
+                        droppedItems_.erase(droppedItems_.begin() + static_cast<std::ptrdiff_t>(i));
+                        continue;
+                    }
+
+                    item.stack.count = remaining;
+                    item.collecting = false;
+                    item.collectAge = 0.0f;
+                    item.velocity = {};
+                    item.renderSpinX = 5.0f;
+                    item.renderSpin = 5.0f;
+                    item.renderSpinZ = 5.0f;
+                    ++i;
                     continue;
                 }
 
@@ -12536,41 +13350,107 @@ namespace dolbuto
                 item.position.y += toTarget.y * scale;
                 item.position.z += toTarget.z * scale;
                 item.velocity = {};
-                item.rotation += 8.0f * dt;
                 ++i;
                 continue;
             }
 
             if (item.grounded)
             {
-                item.velocity = {};
-                item.spin = 0.0f;
-                ++i;
-                continue;
+                if (supportedByGround(item))
+                {
+                    item.velocity = {};
+                    item.renderSpinX = 0.0f;
+                    item.renderSpin = 0.0f;
+                    item.renderSpinZ = 0.0f;
+                    ++i;
+                    continue;
+                }
+
+                item.grounded = false;
+                item.velocity.y = std::min(item.velocity.y, 0.0f);
+                if (item.renderSpinX == 0.0f)
+                {
+                    item.renderSpinX = 5.0f;
+                }
+                if (item.renderSpin == 0.0f)
+                {
+                    item.renderSpin = 5.0f;
+                }
+                if (item.renderSpinZ == 0.0f)
+                {
+                    item.renderSpinZ = 5.0f;
+                }
             }
 
-            item.rotation += item.spin * dt;
             item.velocity.x *= drag;
             item.velocity.z *= drag;
-            item.velocity.y = item.velocity.y * drag - DroppedItemGravity * dt;
-            const float previousY = item.position.y;
-            item.position.x += item.velocity.x * dt;
-            item.position.y += item.velocity.y * dt;
-            item.position.z += item.velocity.z * dt;
+            item.velocity.y -= DroppedItemGravity * dt;
 
-            constexpr float HalfHeight = DroppedItemThickness * 0.5f;
-            const int groundX = blockCoordinateXz(item.position.x);
-            const int groundY = blockCoordinateY(item.position.y - HalfHeight);
-            const int groundZ = blockCoordinateXz(item.position.z);
-            if (item.velocity.y < 0.0f &&
-                item.position.y <= previousY &&
-                terrainCellBlocksPlayer(groundX, groundY, groundZ))
+            if (item.velocity.x != 0.0f)
             {
-                item.position.y = static_cast<float>(groundY + 1) + HalfHeight;
-                item.velocity = {};
-                item.rotation = 0.0f;
-                item.spin = 0.0f;
-                item.grounded = true;
+                const float nextX = item.position.x + item.velocity.x * dt;
+                const float probeX = nextX + (item.velocity.x > 0.0f ? DroppedItemCollisionRadius : -DroppedItemCollisionRadius);
+                if (sideBlocked(probeX, item.position.y, item.position.z))
+                {
+                    item.velocity.x = -item.velocity.x * DroppedItemWallBounce;
+                    item.velocity.z *= DroppedItemWallFriction;
+                }
+                else
+                {
+                    item.position.x = nextX;
+                }
+            }
+
+            if (item.velocity.z != 0.0f)
+            {
+                const float nextZ = item.position.z + item.velocity.z * dt;
+                const float probeZ = nextZ + (item.velocity.z > 0.0f ? DroppedItemCollisionRadius : -DroppedItemCollisionRadius);
+                if (sideBlocked(item.position.x, item.position.y, probeZ))
+                {
+                    item.velocity.z = -item.velocity.z * DroppedItemWallBounce;
+                    item.velocity.x *= DroppedItemWallFriction;
+                }
+                else
+                {
+                    item.position.z = nextZ;
+                }
+            }
+
+            const float currentY = item.position.y;
+            const float nextY = currentY + item.velocity.y * dt;
+            bool landed = false;
+            if (item.velocity.y < 0.0f)
+            {
+                const int startY = blockCoordinateY(currentY - GroundProbeEpsilon);
+                const int endY = blockCoordinateY(nextY - GroundProbeEpsilon);
+                for (int groundY = startY; groundY >= endY; --groundY)
+                {
+                    if (!terrainCellBlocksPlayer(blockCoordinateXz(item.position.x), groundY, blockCoordinateXz(item.position.z)))
+                    {
+                        continue;
+                    }
+
+                    item.position.y = static_cast<float>(groundY + 1);
+                    item.velocity = {};
+                    item.renderRotationX = 0.0f;
+                    item.renderRotation = std::fmod(item.renderRotation, 6.2831853f);
+                    if (item.renderRotation < 0.0f)
+                    {
+                        item.renderRotation += 6.2831853f;
+                    }
+                    item.renderRotationZ = 0.0f;
+                    item.renderSpinX = 0.0f;
+                    item.renderSpin = 0.0f;
+                    item.renderSpinZ = 0.0f;
+                    item.grounded = true;
+                    landed = true;
+                    break;
+                }
+            }
+
+            if (!landed)
+            {
+                item.position.y = nextY;
             }
             ++i;
         }
@@ -12786,41 +13666,70 @@ namespace dolbuto
         for (size_t i = 0; i < itemCount; ++i)
         {
             const DroppedItem& item = droppedItems_[i];
-            if (item.itemId == 0 || static_cast<size_t>(item.itemId) >= itemDefinitions_.size())
+            if (item.stack.itemId == 0 || item.stack.count == 0 || static_cast<size_t>(item.stack.itemId) >= itemDefinitions_.size())
             {
                 continue;
             }
 
-            const ItemDefinition& definition = itemDefinitions_[item.itemId];
-            if (definition.droppedRender != ItemRenderType::Sprite)
+            const ItemDefinition& definition = itemDefinitions_[item.stack.itemId];
+            if (definition.droppedRender != ItemRenderType::ExtrudedSprite)
             {
                 continue;
             }
-            if (static_cast<size_t>(item.itemId) >= itemSpriteMeshes_.size() || itemSpriteMeshes_[item.itemId].quads.empty())
+            if (static_cast<size_t>(item.stack.itemId) >= itemSpriteMeshes_.size() || itemSpriteMeshes_[item.stack.itemId].quads.empty())
             {
                 continue;
             }
 
-            const float half = DroppedItemSize * 0.5f;
-            const float halfThickness = DroppedItemThickness * 0.5f;
-            const float cosR = std::cos(item.rotation);
-            const float sinR = std::sin(item.rotation);
-            const Vec3 itemRight{cosR, 0.0f, sinR};
-            const Vec3 itemDepth{-sinR, 0.0f, cosR};
-            const Vec3 center{item.position.x, item.position.y, item.position.z};
-            const float layer = static_cast<float>(definition.textureLayer);
+            const Vec3 interpolatedPosition{
+                item.previousPosition.x + (item.position.x - item.previousPosition.x) * droppedItemRenderAlpha_,
+                item.previousPosition.y + (item.position.y - item.previousPosition.y) * droppedItemRenderAlpha_,
+                item.previousPosition.z + (item.position.z - item.previousPosition.z) * droppedItemRenderAlpha_
+            };
+            const float cosX = std::cos(item.renderRotationX);
+            const float sinX = std::sin(item.renderRotationX);
+            const float cosY = std::cos(item.renderRotation);
+            const float sinY = std::sin(item.renderRotation);
+            const float cosZ = std::cos(item.renderRotationZ);
+            const float sinZ = std::sin(item.renderRotationZ);
+            const Vec3 center{
+                interpolatedPosition.x,
+                interpolatedPosition.y + DroppedItemThickness * 0.5f,
+                interpolatedPosition.z
+            };
+            const float layer = static_cast<float>(definition.droppedTextureLayer);
+            auto transformLocal = [&](const Vec3& local)
+            {
+                Vec3 value{
+                    local.x * DroppedItemSize,
+                    local.y * DroppedItemThickness,
+                    local.z * DroppedItemSize
+                };
 
-            for (const ItemSpriteQuad& quad : itemSpriteMeshes_[item.itemId].quads)
+                value = {
+                    value.x,
+                    value.y * cosX - value.z * sinX,
+                    value.y * sinX + value.z * cosX
+                };
+                value = {
+                    value.x * cosZ - value.y * sinZ,
+                    value.x * sinZ + value.y * cosZ,
+                    value.z
+                };
+                value = {
+                    value.x * cosY - value.z * sinY,
+                    value.y,
+                    value.x * sinY + value.z * cosY
+                };
+                return Vec3{center.x + value.x, center.y + value.y, center.z + value.z};
+            };
+
+            for (const ItemSpriteQuad& quad : itemSpriteMeshes_[item.stack.itemId].quads)
             {
                 std::array<Vec3, 4> worldPositions{};
                 for (size_t vertexIndex = 0; vertexIndex < quad.positions.size(); ++vertexIndex)
                 {
-                    const Vec3& local = quad.positions[vertexIndex];
-                    worldPositions[vertexIndex] = {
-                        center.x + itemRight.x * (local.x * DroppedItemSize) + itemDepth.x * (local.z * DroppedItemSize),
-                        center.y + local.y * DroppedItemThickness,
-                        center.z + itemRight.z * (local.x * DroppedItemSize) + itemDepth.z * (local.z * DroppedItemSize)
-                    };
+                    worldPositions[vertexIndex] = transformLocal(quad.positions[vertexIndex]);
                 }
                 appendQuad(worldPositions, quad.uvs, layer, quad.ao);
             }

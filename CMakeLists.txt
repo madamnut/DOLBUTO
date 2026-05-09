@@ -12,6 +12,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Vulkan REQUIRED)
 
+set(DOLBUTO_PREBUILT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/prebuilt")
+
+function(dolbuto_require_file path description)
+    if(NOT EXISTS "${path}")
+        message(FATAL_ERROR "${description} not found: ${path}")
+    endif()
+endfunction()
+
 set(FASTNOISE2_TOOLS OFF CACHE BOOL "" FORCE)
 set(FASTNOISE2_TESTS OFF CACHE BOOL "" FORCE)
 set(FASTNOISE2_UTILITY OFF CACHE BOOL "" FORCE)
@@ -21,48 +29,65 @@ get_filename_component(DOLBUTO_FASTSIMD_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/
 set(FastSIMD_SOURCE_DIR "${DOLBUTO_FASTSIMD_SOURCE_DIR}" CACHE PATH "" FORCE)
 add_subdirectory(external/FastNoise2)
 
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
-set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
-set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
-set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
-set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
-set(FT_ENABLE_ERROR_STRINGS OFF CACHE BOOL "" FORCE)
-add_subdirectory(third_party/freetype-2.14.2 EXCLUDE_FROM_ALL)
-if(NOT TARGET Freetype::Freetype)
-    add_library(Freetype::Freetype ALIAS freetype)
+set(FREETYPE_ROOT "${DOLBUTO_PREBUILT_DIR}/freetype")
+set(FREETYPE_INCLUDE_DIR "${FREETYPE_ROOT}/include/freetype2")
+set(FREETYPE_IMPORT_LIB "${FREETYPE_ROOT}/lib/freetype.lib")
+set(FREETYPE_DLL "${FREETYPE_ROOT}/bin/freetype.dll")
+dolbuto_require_file("${FREETYPE_IMPORT_LIB}" "FreeType import library")
+dolbuto_require_file("${FREETYPE_DLL}" "FreeType DLL")
+add_library(Freetype::Freetype SHARED IMPORTED GLOBAL)
+set_target_properties(Freetype::Freetype PROPERTIES
+    IMPORTED_IMPLIB "${FREETYPE_IMPORT_LIB}"
+    IMPORTED_LOCATION "${FREETYPE_DLL}"
+    INTERFACE_INCLUDE_DIRECTORIES "${FREETYPE_INCLUDE_DIR}"
+)
+
+set(RMLUI_ROOT "${DOLBUTO_PREBUILT_DIR}/rmlui")
+set(RMLUI_INCLUDE_DIR "${RMLUI_ROOT}/include")
+set(RMLUI_IMPORT_LIB "${RMLUI_ROOT}/lib/rmlui.lib")
+set(RMLUI_DLL "${RMLUI_ROOT}/bin/rmlui.dll")
+set(RMLUI_DEBUG_IMPORT_LIB "${RMLUI_ROOT}/debug/lib/rmlui.lib")
+set(RMLUI_DEBUG_DLL "${RMLUI_ROOT}/debug/bin/rmlui.dll")
+dolbuto_require_file("${RMLUI_IMPORT_LIB}" "RmlUi import library")
+dolbuto_require_file("${RMLUI_DLL}" "RmlUi DLL")
+add_library(RmlUi::Core SHARED IMPORTED GLOBAL)
+set_target_properties(RmlUi::Core PROPERTIES
+    IMPORTED_IMPLIB "${RMLUI_IMPORT_LIB}"
+    IMPORTED_LOCATION "${RMLUI_DLL}"
+    INTERFACE_INCLUDE_DIRECTORIES "${RMLUI_INCLUDE_DIR}"
+)
+if(EXISTS "${RMLUI_DEBUG_IMPORT_LIB}" AND EXISTS "${RMLUI_DEBUG_DLL}")
+    set_property(TARGET RmlUi::Core APPEND PROPERTY IMPORTED_CONFIGURATIONS DEBUG)
+    set_target_properties(RmlUi::Core PROPERTIES
+        IMPORTED_IMPLIB_DEBUG "${RMLUI_DEBUG_IMPORT_LIB}"
+        IMPORTED_LOCATION_DEBUG "${RMLUI_DEBUG_DLL}"
+    )
+else()
+    message(WARNING "RmlUi Debug prebuilt not found. Debug builds may not run correctly with the Release RmlUi DLL: ${RMLUI_DEBUG_DLL}")
 endif()
 
-set(RMLUI_SAMPLES OFF CACHE BOOL "" FORCE)
-set(RMLUI_LUA_BINDINGS OFF CACHE BOOL "" FORCE)
-set(RMLUI_LOTTIE_PLUGIN OFF CACHE BOOL "" FORCE)
-set(RMLUI_SVG_PLUGIN OFF CACHE BOOL "" FORCE)
-set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
-set(RMLUI_PRECOMPILED_HEADERS OFF CACHE BOOL "" FORCE)
-set(RMLUI_COMPILER_OPTIONS OFF CACHE BOOL "" FORCE)
-add_subdirectory(third_party/RmlUi EXCLUDE_FROM_ALL)
+set(OPENAL_ROOT "${DOLBUTO_PREBUILT_DIR}/openal-soft")
+set(OPENAL_INCLUDE_DIR "${OPENAL_ROOT}/include")
+set(OPENAL_IMPORT_LIB "${OPENAL_ROOT}/lib/OpenAL32.lib")
+set(OPENAL_DLL "${OPENAL_ROOT}/bin/OpenAL32.dll")
+dolbuto_require_file("${OPENAL_IMPORT_LIB}" "OpenAL Soft import library")
+dolbuto_require_file("${OPENAL_DLL}" "OpenAL Soft DLL")
+add_library(OpenAL::OpenAL SHARED IMPORTED GLOBAL)
+set_target_properties(OpenAL::OpenAL PROPERTIES
+    IMPORTED_IMPLIB "${OPENAL_IMPORT_LIB}"
+    IMPORTED_LOCATION "${OPENAL_DLL}"
+    INTERFACE_INCLUDE_DIRECTORIES "${OPENAL_INCLUDE_DIR}"
+)
 
 if(NOT Vulkan_GLSLC_EXECUTABLE)
     find_program(Vulkan_GLSLC_EXECUTABLE glslc REQUIRED)
 endif()
 
-set(GLFW_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/external/glfw/glfw-3.4.bin.WIN64")
+set(GLFW_ROOT "${DOLBUTO_PREBUILT_DIR}/glfw")
 set(GLFW_INCLUDE_DIR "${GLFW_ROOT}/include")
 
-if(MSVC_VERSION GREATER_EQUAL 1930)
-    set(GLFW_LIB_DIR "${GLFW_ROOT}/lib-vc2022")
-elseif(MSVC_VERSION GREATER_EQUAL 1920)
-    set(GLFW_LIB_DIR "${GLFW_ROOT}/lib-vc2019")
-elseif(MSVC_VERSION GREATER_EQUAL 1910)
-    set(GLFW_LIB_DIR "${GLFW_ROOT}/lib-vc2017")
-elseif(MSVC_VERSION GREATER_EQUAL 1900)
-    set(GLFW_LIB_DIR "${GLFW_ROOT}/lib-vc2015")
-else()
-    message(FATAL_ERROR "Unsupported MSVC version for bundled GLFW binaries.")
-endif()
-
-set(GLFW_IMPORT_LIB "${GLFW_LIB_DIR}/glfw3dll.lib")
-set(GLFW_DLL "${GLFW_LIB_DIR}/glfw3.dll")
+set(GLFW_IMPORT_LIB "${GLFW_ROOT}/lib/glfw3dll.lib")
+set(GLFW_DLL "${GLFW_ROOT}/bin/glfw3.dll")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 set(DOLBUTO_WINDOWS_RESOURCE)
@@ -83,6 +108,13 @@ endif()
 if(NOT EXISTS "${GLFW_DLL}")
     message(FATAL_ERROR "GLFW DLL not found: ${GLFW_DLL}")
 endif()
+
+set(DOLBUTO_RUNTIME_DLLS
+    "${GLFW_DLL}"
+    "${FREETYPE_DLL}"
+    "$<TARGET_FILE:RmlUi::Core>"
+    "${OPENAL_DLL}"
+)
 
 set(SHADER_SOURCES
     shaders/sprite.vert
@@ -154,6 +186,7 @@ target_link_libraries(DOLBUTO
         FastNoise
         Freetype::Freetype
         RmlUi::Core
+        OpenAL::OpenAL
         "${GLFW_IMPORT_LIB}"
 )
 
@@ -170,9 +203,7 @@ if(WIN32 AND MSVC)
 endif()
 
 add_custom_command(TARGET DOLBUTO POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${GLFW_DLL}"
-        "$<TARGET_FILE_DIR:DOLBUTO>"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DOLBUTO_RUNTIME_DLLS} "$<TARGET_FILE_DIR:DOLBUTO>"
 )
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
@@ -191,7 +222,7 @@ add_custom_target(DOLBUTOPortable
     COMMAND ${CMAKE_COMMAND} -E make_directory "${DOLBUTO_PORTABLE_DIR}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${DOLBUTO_PORTABLE_DIR}/saves"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:DOLBUTO>" "${DOLBUTO_PORTABLE_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${GLFW_DLL}" "${DOLBUTO_PORTABLE_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DOLBUTO_RUNTIME_DLLS} "${DOLBUTO_PORTABLE_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets" "${DOLBUTO_PORTABLE_DIR}/assets"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/config" "${DOLBUTO_PORTABLE_DIR}/config"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${SHADER_OUTPUT_DIR}" "${DOLBUTO_PORTABLE_DIR}/shaders"

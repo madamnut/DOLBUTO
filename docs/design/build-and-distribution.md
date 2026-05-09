@@ -11,6 +11,78 @@
 - `DOLBUTOShaders`: Vulkan 셰이더 컴파일 타깃
 - `DOLBUTOPortable`: 포터블 배포 폴더 생성 타깃
 
+## Third-Party Prebuilt Libraries
+
+Third-party libraries that are not expected to be modified are linked as prebuilt binaries.
+Game builds should not compile these third-party sources:
+
+```text
+third_party/prebuilt/
+  glfw/
+    include/
+    lib/glfw3dll.lib
+    bin/glfw3.dll
+    licenses/LICENSE.md
+  freetype/
+    include/freetype2/
+    lib/freetype.lib
+    bin/freetype.dll
+    licenses/LICENSE.TXT
+  rmlui/
+    include/RmlUi/
+    lib/rmlui.lib
+    bin/rmlui.dll
+    licenses/LICENSE.txt
+  openal-soft/
+    include/AL/
+    lib/OpenAL32.lib
+    bin/OpenAL32.dll
+    licenses/COPYING
+```
+
+Current policy:
+
+- GLFW uses the official Windows x64 prebuilt package.
+- FreeType is built once as a shared Release library with optional compression/shaping dependencies disabled.
+- RmlUi is built once as a shared Release library with the FreeType font engine, no samples, no Lua, no Lottie, and no SVG plugin.
+- OpenAL Soft uses the official Windows x64 binary package.
+- If the OpenAL Soft binary package provides `soft_oal.dll`, copy the x64 DLL as `OpenAL32.dll` so the app-local DLL is used.
+- If a third-party version, compile option, runtime option, or architecture changes, rebuild that library outside the normal game build and replace only the files under `third_party/prebuilt`.
+
+Reference build options for one-time local prebuild generation:
+
+```text
+FreeType:
+  BUILD_SHARED_LIBS=ON
+  CMAKE_BUILD_TYPE=Release
+  FT_DISABLE_ZLIB=ON
+  FT_DISABLE_BZIP2=ON
+  FT_DISABLE_PNG=ON
+  FT_DISABLE_HARFBUZZ=ON
+  FT_DISABLE_BROTLI=ON
+  FT_ENABLE_ERROR_STRINGS=OFF
+
+RmlUi:
+  BUILD_SHARED_LIBS=ON
+  CMAKE_BUILD_TYPE=Release
+  RMLUI_SAMPLES=OFF
+  RMLUI_LUA_BINDINGS=OFF
+  RMLUI_LOTTIE_PLUGIN=OFF
+  RMLUI_SVG_PLUGIN=OFF
+  RMLUI_FONT_ENGINE=freetype
+  RMLUI_PRECOMPILED_HEADERS=OFF
+  RMLUI_COMPILER_OPTIONS=OFF
+```
+
+The runtime DLLs copied next to `DOLBUTO.exe` are:
+
+```text
+glfw3.dll
+freetype.dll
+rmlui.dll
+OpenAL32.dll
+```
+
 ## Debug 빌드
 
 Debug 빌드는 개발 편의성을 우선한다.

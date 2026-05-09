@@ -100,6 +100,27 @@ Inventory keeps the game scene, debug text, and hotbar rendered behind a semi-tr
 The in-game HUD is a RmlUi document shown during the normal game screen and inventory screen, and currently contains only the bottom-center hotbar shell.
 The hotbar and inventory sprites use the same 4x pixel scale so their slot sizes match; the hotbar selection scope is offset by 3 source pixels from the hotbar left and bottom edges.
 Hotbar slots are selected left to right with `1` through `9`, then `0`; the current selection scope uses a 17 source-pixel step between slots at 4x scale.
+The runtime inventory has 50 item slots.
+Slot `0` through `9` are the hotbar and are shown in both the HUD and the bottom row of the inventory screen.
+The inventory screen uses ten columns and five rows; the bottom row is slots `0` through `9`, then rows above are `10` through `19`, `20` through `29`, `30` through `39`, and `40` through `49`.
+Inventory slot icons are placed from source-pixel coordinates at 4x scale.
+The inventory sprite uses a 4 source-pixel outer padding, 16x16 source-pixel item slots, 1 source-pixel spacing between slots, and a 6 source-pixel gap between the hotbar row and the row above it.
+Item stack count text uses a 24px font size and is placed inside each 64x64 slot with a 40px top offset, a 20px text box height, and a 48px right-aligned text box inset 2px from the slot's right edge.
+Hotbar item slots always render a semi-transparent black background behind the item icon.
+Inventory item slots are transparent by default and render a semi-transparent black background only while hovered; item icons and stack counts render above that hover background.
+The debug slot overlay renders gray rectangles with red `0` through `49` slot indices when enabled, but is disabled by default and hidden from RmlUi hit testing while disabled.
+Inventory interaction uses a transient cursor slot. The cursor slot is not part of the 50 saved inventory slots and is returned to the runtime inventory when the inventory screen closes.
+Inventory left click picks up a full stack, places a full cursor stack, merges matching stacks up to the item stack limit, or swaps different stacks.
+Inventory right click picks up half a stack when the cursor is empty, places one item from the cursor into an empty slot, or adds one item to a matching non-full stack.
+Shift-click moves the clicked stack to the opposite inventory area: hotbar slots move to the main inventory and main inventory slots move to the hotbar.
+While the inventory is open, number keys `1` through `9` and `0` swap the hovered slot with the matching hotbar slot when the cursor slot is empty.
+Inventory item tooltips use `assets/textures/ui/Tooltip.png` as a RmlUi `ninepatch` decorator.
+The tooltip spritesheet uses a 16x16 outer sprite and a 6px border, so the inner stretch rectangle is `6px 6px 4px 4px`.
+Tooltips appear only when the inventory is open, the cursor stack is empty, and the mouse hovers an item slot.
+Tooltips display the item name plus debug fields for id, key, count, stack size, slot texture, dropped render, dropped texture, held render, and held texture.
+The tooltip background image is alpha-multiplied through RCSS `image-color` so the 9patch background is semi-transparent even when the source PNG is opaque.
+Tooltip width is computed from the longest displayed text line, with a minimum width of 180px and maximum width of 520px.
+Tooltip placement starts at the mouse position plus 16px and flips/clamps horizontally and vertically so it never extends outside the current framebuffer.
 The first game frame after leaving the lobby forces the initial terrain load even when the player remains in the default center chunk group.
 
 The lobby and game scene lifetimes are separated.

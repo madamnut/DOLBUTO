@@ -81,6 +81,7 @@ namespace dolbuto
         void uiMouseWheel(double yOffset);
         void uiTextInput(unsigned int codepoint);
         void uiKey(int key, bool pressed, int modifiers);
+        void closeInventoryInteraction();
         bool rmlUiAvailable() const;
         std::optional<std::string> consumeUiAction();
 
@@ -234,15 +235,25 @@ namespace dolbuto
             float v1 = 1.0f;
         };
 
-        struct DroppedItem
+        struct ItemStack
         {
-            Vec3 position{};
-            Vec3 velocity{};
             uint16_t itemId = 0;
             uint16_t count = 0;
+        };
+
+        struct DroppedItem
+        {
+            Vec3 previousPosition{};
+            Vec3 position{};
+            Vec3 velocity{};
+            ItemStack stack{};
             float age = 0.0f;
-            float rotation = 0.0f;
-            float spin = 0.0f;
+            float renderRotationX = 0.0f;
+            float renderRotation = 0.0f;
+            float renderRotationZ = 0.0f;
+            float renderSpinX = 0.0f;
+            float renderSpin = 0.0f;
+            float renderSpinZ = 0.0f;
             bool grounded = false;
             bool collecting = false;
             float collectAge = 0.0f;
@@ -326,7 +337,7 @@ namespace dolbuto
 
         enum class ItemRenderType : uint8_t
         {
-            Sprite
+            ExtrudedSprite
         };
 
         struct BlockDrop
@@ -341,10 +352,14 @@ namespace dolbuto
         {
             std::string key = "none";
             std::string name = "None";
+            std::string slotTexture = "none";
+            std::string droppedTexture = "none";
+            std::string heldTexture = "none";
             uint16_t stackSize = 0;
-            uint32_t textureLayer = 0;
-            ItemRenderType droppedRender = ItemRenderType::Sprite;
-            ItemRenderType heldRender = ItemRenderType::Sprite;
+            uint32_t droppedTextureLayer = 0;
+            uint32_t heldTextureLayer = 0;
+            ItemRenderType droppedRender = ItemRenderType::ExtrudedSprite;
+            ItemRenderType heldRender = ItemRenderType::ExtrudedSprite;
         };
 
         enum class BlockRenderType : uint8_t
@@ -692,7 +707,22 @@ namespace dolbuto
         bool raycastDroppedItem(DVec3 origin, Vec3 direction, size_t& itemIndex) const;
         bool droppedItemTouchesPlayerCollider(const DroppedItem& item, Vec3 playerPosition) const;
         void updateDroppedItems(Vec3 playerPosition);
+        void updateDroppedItemsTick(Vec3 playerPosition, float dt);
         void drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition);
+        void updateInventoryDebugSlots();
+        std::string inventoryDebugSlotRml(size_t slotIndex, bool inventorySlot) const;
+        uint16_t addItemToPlayerInventory(ItemStack stack);
+        uint16_t addItemToInventoryRange(ItemStack& stack, size_t begin, size_t end);
+        bool inventoryStackCanMerge(const ItemStack& slot, const ItemStack& stack) const;
+        std::optional<size_t> inventorySlotAt(double x, double y) const;
+        void handleInventorySlotClick(size_t slotIndex, int button, int modifiers);
+        void handleInventoryHotbarSwapKey(int key);
+        void updateInventoryCursorUi();
+        void updateItemTooltipUi();
+        std::string itemTooltipRml(const ItemStack& stack) const;
+        void updateInventoryUi();
+        std::string itemSlotImageRml(size_t slotIndex, bool inventorySlot) const;
+        std::string itemStackContentRml(const ItemStack& stack, int itemLeft, int itemTop) const;
         ItemSpriteMesh buildItemSpriteMesh(const std::filesystem::path& path) const;
         void drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
         void drawSpriteDescriptor(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
@@ -862,6 +892,8 @@ namespace dolbuto
         std::vector<DroppedItem> droppedItems_;
         double lastParticleUpdateTime_ = 0.0;
         double lastDroppedItemUpdateTime_ = 0.0;
+        float droppedItemTickAccumulator_ = 0.0f;
+        float droppedItemRenderAlpha_ = 0.0f;
         int loadGridScale_ = 0;
         int terrainWorkerCount_ = 4;
         int maxTerrainUploadChunksPerFrame_ = 8;
@@ -986,6 +1018,11 @@ namespace dolbuto
         std::vector<ItemDefinition> itemDefinitions_;
         std::vector<ItemSpriteMesh> itemSpriteMeshes_;
         std::unordered_map<std::string, uint16_t> itemIdByKey_;
+        std::array<ItemStack, 50> playerInventorySlots_{};
+        ItemStack inventoryCursorStack_{};
+        double rmlMouseX_ = 0.0;
+        double rmlMouseY_ = 0.0;
+        bool inventoryDebugSlotsVisible_ = false;
         std::unordered_map<uint16_t, PropMesh> propMeshesByBlock_;
         std::array<FontCharacter, 95> fontCharacters_{};
 

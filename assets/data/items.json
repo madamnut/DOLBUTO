@@ -1,145 +1,223 @@
 [
-  {
-    "id": 0,
-    "key": "none",
-    "name": "None",
-    "stackSize": 0,
-    "texture": "none",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
+    {
+        "id": 0,
+        "key": "none",
+        "name": "None",
+        "stackSize": 0,
+        "slotTexture": "none",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "none"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "none"
+        },
+        "tags": [],
+        "actions": {}
+    },
+    {
+        "id": 1,
+        "key": "rock_chunk",
+        "name": "Rock Chunk",
+        "stackSize": 99,
+        "slotTexture": "rock_chunk",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "rock_chunk"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "rock_chunk"
+        },
+        "tags": [],
+        "actions": {}
+    },
+    {
+        "id": 2,
+        "key": "dirt_pile",
+        "name": "Dirt Pile",
+        "stackSize": 99,
+        "slotTexture": "dirt_pile",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "dirt_pile"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "dirt_pile"
+        },
+        "tags": [],
+        "actions": {}
+    },
+    {
+        "id": 3,
+        "key": "sand_pile",
+        "name": "Sand Pile",
+        "stackSize": 99,
+        "slotTexture": "sand_pile",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "sand_pile"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "sand_pile"
+        },
+        "tags": [],
+        "actions": {}
+    },
+    {
+        "id": 4,
+        "key": "plant",
+        "name": "Plant",
+        "stackSize": 99,
+        "slotTexture": "plant",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "plant"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "plant"
+        },
+        "tags": [],
+        "actions": {}
+    },
+    {
+        "id": 5,
+        "key": "plant_fiber",
+        "name": "Plant Fiber",
+        "stackSize": 99,
+        "slotTexture": "plant_fiber",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "plant_fiber"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "plant_fiber"
+        },
+        "tags": [],
+        "actions": {}
+    },
+    {
+        "id": 6,
+        "key": "plant_twine",
+        "name": "Plant Twine",
+        "stackSize": 99,
+        "slotTexture": "plant_twine",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "plant_twine"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "plant_twine"
+        },
+        "tags": [],
+        "actions": {}
+    },
+    {
+        "id": 7,
+        "key": "seed",
+        "name": "Seed",
+        "stackSize": 99,
+        "slotTexture": "seed",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "seed"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "seed"
+        },
+        "tags": [],
+        "actions": {}
+    },
+    {
+        "id": 8,
+        "key": "grass_scrap",
+        "name": "Grass Scrap",
+        "stackSize": 99,
+        "slotTexture": "grass_scrap",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "grass_scrap"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "grass_scrap"
+        },
+        "tags": [],
+        "actions": {}
+    },
+    {
+        "id": 9,
+        "key": "branch",
+        "name": "Branch",
+        "stackSize": 99,
+        "slotTexture": "branch",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "branch"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "branch"
+        },
+        "tags": [],
+        "actions": {}
+    },
+    {
+        "id": 10,
+        "key": "bough",
+        "name": "Bough",
+        "stackSize": 99,
+        "slotTexture": "bough",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "bough"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "bough"
+        },
+        "tags": [],
+        "actions": {}
+    },
+    {
+        "id": 11,
+        "key": "bark_strip",
+        "name": "Bark Strip",
+        "stackSize": 99,
+        "slotTexture": "bark_strip",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "bark_strip"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "bark_strip"
+        },
+        "tags": [],
+        "actions": {}
+    },
+    {
+        "id": 12,
+        "key": "leaf",
+        "name": "Leaf",
+        "stackSize": 99,
+        "slotTexture": "leaf",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "leaf"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "leaf"
+        },
+        "tags": [],
+        "actions": {}
     }
-  },
-  {
-    "id": 1,
-    "key": "rock_chunk",
-    "name": "Rock Chunk",
-    "stackSize": 99,
-    "texture": "rock_chunk",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
-    }
-  },
-  {
-    "id": 2,
-    "key": "dirt_pile",
-    "name": "Dirt Pile",
-    "stackSize": 99,
-    "texture": "dirt_pile",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
-    }
-  },
-  {
-    "id": 3,
-    "key": "sand_pile",
-    "name": "Sand Pile",
-    "stackSize": 99,
-    "texture": "sand_pile",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
-    }
-  },
-  {
-    "id": 4,
-    "key": "plant",
-    "name": "Plant",
-    "stackSize": 99,
-    "texture": "plant",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
-    }
-  },
-  {
-    "id": 5,
-    "key": "plant_fiber",
-    "name": "Plant Fiber",
-    "stackSize": 99,
-    "texture": "plant_fiber",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
-    }
-  },
-  {
-    "id": 6,
-    "key": "plant_twine",
-    "name": "Plant Twine",
-    "stackSize": 99,
-    "texture": "plant_twine",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
-    }
-  },
-  {
-    "id": 7,
-    "key": "seed",
-    "name": "Seed",
-    "stackSize": 99,
-    "texture": "seed",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
-    }
-  },
-  {
-    "id": 8,
-    "key": "grass_scrap",
-    "name": "Grass Scrap",
-    "stackSize": 99,
-    "texture": "grass_scrap",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
-    }
-  },
-  {
-    "id": 9,
-    "key": "branch",
-    "name": "Branch",
-    "stackSize": 99,
-    "texture": "branch",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
-    }
-  },
-  {
-    "id": 10,
-    "key": "bough",
-    "name": "Bough",
-    "stackSize": 99,
-    "texture": "bough",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
-    }
-  },
-  {
-    "id": 11,
-    "key": "bark_strip",
-    "name": "Bark Strip",
-    "stackSize": 99,
-    "texture": "bark_strip",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
-    }
-  },
-  {
-    "id": 12,
-    "key": "leaf",
-    "name": "Leaf",
-    "stackSize": 99,
-    "texture": "leaf",
-    "render": {
-      "dropped": "sprite",
-      "held": "sprite"
-    }
-  }
 ]
