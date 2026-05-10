@@ -2,7 +2,8 @@
 
 This document defines the current item data and block drop format.
 Runtime item loading, block drop spawning, key-triggered dropped-item pickup, and pickup insertion into the runtime player inventory are implemented.
-Inventory saving and held-item rendering are not implemented yet.
+Inventory saving is implemented in `player.dat`.
+Held-item rendering is not implemented yet.
 
 ## Definition File
 
@@ -197,11 +198,13 @@ Blocks with no item drops still define an empty `drops` array.
 
 When a block is broken, each drop entry rolls `chance` first.
 If it succeeds, the final count is a uniform integer random value from `min` to `max`, inclusive.
-Spawned dropped items are runtime-only entities for now and are cleared when the game scene unloads.
+Spawned dropped items are chunk-owned `WorldEntity` entries with `type = DroppedItem`.
 Pressing `F` while looking at a dropped item within the normal 8-block interaction range marks it for pickup.
 The item accelerates toward the player collider center at half player height.
 When its dropped-item bounds touch the player collider, it is inserted into the runtime player inventory if space is available.
 If insertion fails, the dropped item remains in the world with the remaining count.
+Dropped item entities are saved in the owning chunk payload with `entityId`, local position, velocity, grounded flag, `itemId`, and `count`.
+Pickup-in-progress state and render-only rotation/spin are not saved.
 
 ## Runtime Inventory
 
@@ -215,7 +218,7 @@ Pickup insertion currently:
 - merges into existing matching stacks across all 50 slots
 - fills matching stacks in slot index order `0` through `49`
 - fills empty slots in slot index order `0` through `49`
-- does not save inventory data yet
+- saves the 50 runtime slots in `saves/<world-name>/player.dat`
 
 Inventory UI manipulation uses a transient cursor `ItemStack`.
 The cursor stack is not saved and is returned to the runtime inventory when the inventory screen closes.

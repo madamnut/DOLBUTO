@@ -107,6 +107,32 @@ Chunk payloads store climate immediately after block/fluid RLE data and before i
 - Values are encoded `0~255` and decoded as `0.0~1.0`.
 - Fluids remain a separate packed `uint16_t` array in runtime and save data.
 
+## Chunk Entity Payload Data
+
+Chunk payloads also store chunk-owned world entities after incoming feature writes and before the chunk revision.
+
+```text
+uint16 entityCount
+repeat entityCount:
+  uint16 type          // 1 = DroppedItem
+  uint64 entityId
+  float localX
+  float y
+  float localZ
+  float velocityX
+  float velocityY
+  float velocityZ
+  uint8 flags          // bit 0 = grounded
+  if type == DroppedItem:
+    uint16 itemId
+    uint16 count
+uint64 revision
+```
+
+Entity positions are saved as local chunk X/Z plus world Y.
+Dropped item rotation, spin, age, and pickup-in-progress state are runtime-only and are not saved.
+Entity-only changes use a runtime dirty serial instead of terrain revision increments, because terrain revision is also used for mesh validity.
+
 ## Player State
 
 Player state is stored separately from region chunk data.
@@ -125,9 +151,14 @@ float yaw
 float pitch
 uint8 moveMode        // 0 = fly, 1 = ground
 double verticalVelocity
+repeat 50:
+  uint16 itemId
+  uint16 count
 ```
 
-Total size is 41 bytes. X/Z are saved as wrapped world coordinates.
+Total size is 241 bytes. X/Z are saved as wrapped world coordinates.
+Inventory slots `0~49` are saved after movement state.
+The transient inventory cursor stack is not saved.
 
 ## Game Scene Save Boundary
 

@@ -107,6 +107,20 @@ Runtime chunk data keeps climate as per-column arrays alongside block and fluid 
 - Temperature: `uint8_t[256]`, indexed by `localZ * 16 + localX`.
 - Precipitation: `uint8_t[256]`, indexed by `localZ * 16 + localX`.
 
+## Chunk Entity Data
+
+Runtime chunk data owns a `WorldEntity` array.
+The current entity type is `DroppedItem`.
+
+- `entityId`: unique runtime/save identity for a world entity
+- `type`: entity payload type
+- `position`, `previousPosition`, `velocity`: runtime movement state
+- `flags`: compact common state such as grounded
+- dropped-item payload: `itemId` and `count`
+
+Entities move with their owner chunk.
+If an entity crosses a chunk boundary while both chunks are loaded, ownership is transferred to the target chunk.
+
 ## Game Scene Unload
 
 Returning from pause to the lobby unloads the game scene instead of keeping loaded world state alive.

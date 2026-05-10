@@ -160,6 +160,7 @@ namespace dolbuto
         constexpr float DroppedItemPickupAcceleration = 256.0f;
         constexpr float DroppedItemPickupMaxSpeed = 52.0f;
         constexpr size_t MaxDroppedItemRenderQuads = MaxDroppedItems * 256u;
+        constexpr uint8_t WorldEntityFlagGrounded = 1u << 0u;
         constexpr uint32_t BlockDropSalt = 0xD90210A5u;
         constexpr uint32_t BedrockHeightSalt = 0xBEEFBEDu;
         constexpr uint32_t TopFaceRotationSalt = 0x51A7E001u;
@@ -1461,6 +1462,17 @@ namespace dolbuto
             {
                 std::memcpy(&value, bytes.data() + offset, sizeof(value));
             }
+            return value;
+        }
+
+        float readF32(const std::vector<uint8_t>& bytes, size_t& offset)
+        {
+            if (offset + sizeof(float) > bytes.size())
+            {
+                throw std::runtime_error("Chunk payload read overflow.");
+            }
+            const float value = readF32At(bytes, offset);
+            offset += sizeof(float);
             return value;
         }
 
@@ -3281,21 +3293,29 @@ namespace dolbuto
 
     bool Renderer::pickupDroppedItemInView(DVec3 origin, Vec3 direction)
     {
-        size_t itemIndex = 0;
-        if (!raycastDroppedItem(origin, direction, itemIndex))
+        WorldEntityHandle itemHandle{};
+        if (!raycastDroppedItem(origin, direction, itemHandle))
         {
             return false;
         }
 
-        DroppedItem& item = droppedItems_[itemIndex];
+        auto chunkIt = runtimeChunks_.find(itemHandle.chunkKey);
+        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data ||
+            itemHandle.index >= chunkIt->second.data->entities.size())
+        {
+            return false;
+        }
+
+        WorldEntity& item = chunkIt->second.data->entities[itemHandle.index];
         item.collecting = true;
         item.collectAge = 0.0f;
-        item.grounded = false;
+        setWorldEntityGrounded(item, false);
         item.velocity = {};
         item.previousPosition = item.position;
         item.renderSpinX = 8.0f;
         item.renderSpin = 8.0f;
         item.renderSpinZ = 8.0f;
+        markRuntimeChunkDataDirty(chunkIt->second);
         return true;
     }
 
@@ -3315,6 +3335,45 @@ namespace dolbuto
         addItemToInventoryRange(stack, 0, playerInventorySlots_.size());
         updateInventoryUi();
         return stack.count;
+    }
+
+    std::array<Renderer::InventorySlot, 50> Renderer::inventorySnapshot() const
+    {
+        std::array<InventorySlot, 50> slots{};
+        for (size_t i = 0; i < slots.size() && i < playerInventorySlots_.size(); ++i)
+        {
+            slots[i].itemId = playerInventorySlots_[i].itemId;
+            slots[i].count = playerInventorySlots_[i].count;
+        }
+        return slots;
+    }
+
+    void Renderer::setInventorySnapshot(const std::array<InventorySlot, 50>& slots)
+    {
+        playerInventorySlots_.fill(ItemStack{});
+        for (size_t i = 0; i < slots.size() && i < playerInventorySlots_.size(); ++i)
+        {
+            const InventorySlot& source = slots[i];
+            if (source.itemId == 0 || source.count == 0 || static_cast<size_t>(source.itemId) >= itemDefinitions_.size())
+            {
+                continue;
+            }
+
+            const uint16_t maxStack = itemDefinitions_[source.itemId].stackSize;
+            if (maxStack == 0)
+            {
+                continue;
+            }
+
+            playerInventorySlots_[i].itemId = source.itemId;
+            playerInventorySlots_[i].count = std::min(source.count, maxStack);
+        }
+
+        inventoryCursorStack_ = {};
+        updateInventoryUi();
+        updateInventoryDebugSlots();
+        updateInventoryCursorUi();
+        updateItemTooltipUi();
     }
 
     uint16_t Renderer::addItemToInventoryRange(ItemStack& stack, size_t begin, size_t end)
@@ -5873,6 +5932,7 @@ namespace dolbuto
                     if (pendingIt != pendingSaveSnapshots_.end() &&
                         pendingIt->second.hasData == snapshot.hasData &&
                         pendingIt->second.revision == snapshot.revision &&
+                        pendingIt->second.dataDirtySerial == snapshot.dataDirtySerial &&
                         pendingIt->second.genState == snapshot.genState)
                     {
                         pendingSaveSnapshots_.erase(pendingIt);
@@ -5886,7 +5946,10 @@ namespace dolbuto
                         runtimeIt->second.data->revision == snapshot.revision)
                     {
                         runtimeIt->second.hasSavedBacking = true;
-                        runtimeIt->second.dataDirtyForSave = false;
+                        if (runtimeIt->second.dataDirtySerial == snapshot.dataDirtySerial)
+                        {
+                            runtimeIt->second.dataDirtyForSave = false;
+                        }
                     }
                     saveChunkDoneCount_.fetch_add(1, std::memory_order_relaxed);
                 }
@@ -6015,6 +6078,16 @@ namespace dolbuto
                 std::lock_guard<std::mutex> lock(terrainJobMutex_);
                 completedChunkMeshes_.push_back(std::move(mesh));
             }
+        }
+    }
+
+    void Renderer::markRuntimeChunkDataDirty(RuntimeChunk& chunk)
+    {
+        chunk.dataDirtyForSave = true;
+        ++chunk.dataDirtySerial;
+        if (chunk.dataDirtySerial == 0)
+        {
+            chunk.dataDirtySerial = 1;
         }
     }
 
@@ -6227,7 +6300,7 @@ namespace dolbuto
             renderData.revision = mesh.revision;
             renderData.chunkX = mesh.chunkX;
             renderData.chunkZ = mesh.chunkZ;
-            createChunkTerrainBuffers(mesh.rockSubchunks, renderData.rockSubchunks);
+            createChunkTerrainBuffers(mesh.solidSubchunks, renderData.solidSubchunks);
             createChunkTerrainBuffers(mesh.fluidSubchunks, renderData.fluidSubchunks);
             runtimeIt->second.genState = ChunkGenState::Meshed;
             const auto uploadEnd = std::chrono::steady_clock::now();
@@ -6596,6 +6669,7 @@ namespace dolbuto
             snapshot.revision = chunk.data->revision;
             snapshot.hasSavedBacking = chunk.hasSavedBacking;
             snapshot.forceSave = chunk.dataDirtyForSave || !chunk.hasSavedBacking;
+            snapshot.dataDirtySerial = chunk.dataDirtySerial;
             snapshot.chunkData = chunk.data;
         }
         if (snapshot.genState != ChunkGenState::Full)
@@ -6651,7 +6725,7 @@ namespace dolbuto
             {
                 std::lock_guard<std::mutex> lock(savedChunkMutex_);
                 const auto savedIt = savedCleanRevisions_.find(key);
-                if (savedIt != savedCleanRevisions_.end() && savedIt->second == snapshot.revision)
+                if (!snapshot.forceSave && savedIt != savedCleanRevisions_.end() && savedIt->second == snapshot.revision)
                 {
                     recordEnqueueMs();
                     return;
@@ -6728,7 +6802,7 @@ namespace dolbuto
         activeWorldSeedSalt_ = static_cast<int>((worldSeed ^ (worldSeed >> 32u)) & 0x7fffffffu);
         blockBreakParticles_.clear();
         resetBlockBreaking();
-        droppedItems_.clear();
+        nextWorldEntityId_ = 1;
         playerInventorySlots_.fill(ItemStack{});
         inventoryCursorStack_ = {};
         updateInventoryUi();
@@ -6771,7 +6845,7 @@ namespace dolbuto
         terrainLoadRequested_ = false;
         blockBreakParticles_.clear();
         resetBlockBreaking();
-        droppedItems_.clear();
+        nextWorldEntityId_ = 1;
         playerInventorySlots_.fill(ItemStack{});
         inventoryCursorStack_ = {};
         updateInventoryUi();
@@ -6904,6 +6978,40 @@ namespace dolbuto
                     ++written;
                 }
             }
+
+            const std::vector<WorldEntity>* entities = value.chunkData ? &value.chunkData->entities : &value.entities;
+            const size_t maxEntityCount = std::min<size_t>(entities ? entities->size() : 0, std::numeric_limits<uint16_t>::max());
+            const size_t entityCountOffset = payload.size();
+            writeU16(payload, 0);
+            uint16_t writtenEntities = 0;
+            const float worldXStart = static_cast<float>(value.chunkX * ChunkSizeX);
+            const float worldZStart = static_cast<float>(value.chunkZ * ChunkSizeZ);
+            for (size_t i = 0; entities && i < maxEntityCount; ++i)
+            {
+                const WorldEntity& entity = (*entities)[i];
+                if (entity.type != WorldEntityType::DroppedItem ||
+                    entity.entityId == 0 ||
+                    entity.droppedItem.stack.itemId == 0 ||
+                    entity.droppedItem.stack.count == 0)
+                {
+                    continue;
+                }
+
+                writeU16(payload, static_cast<uint16_t>(entity.type));
+                writeU64(payload, entity.entityId);
+                writeF32(payload, std::clamp(entity.position.x - worldXStart, 0.0f, static_cast<float>(ChunkSizeX) - 0.0001f));
+                writeF32(payload, entity.position.y);
+                writeF32(payload, std::clamp(entity.position.z - worldZStart, 0.0f, static_cast<float>(ChunkSizeZ) - 0.0001f));
+                writeF32(payload, entity.velocity.x);
+                writeF32(payload, entity.velocity.y);
+                writeF32(payload, entity.velocity.z);
+                writeU8(payload, static_cast<uint8_t>(entity.flags & WorldEntityFlagGrounded));
+                writeU16(payload, entity.droppedItem.stack.itemId);
+                writeU16(payload, entity.droppedItem.stack.count);
+                ++writtenEntities;
+            }
+            payload[entityCountOffset] = static_cast<uint8_t>(writtenEntities & 0xFFu);
+            payload[entityCountOffset + 1] = static_cast<uint8_t>((writtenEntities >> 8u) & 0xFFu);
             writeU64(payload, value.revision);
             return payload;
         };
@@ -7000,6 +7108,45 @@ namespace dolbuto
                         writes->push_back(write);
                     }
                     value.incomingFeatureSlots[slot] = std::move(writes);
+                }
+                if (offset + 8 != payload.size() && offset + 2 <= payload.size())
+                {
+                    const uint16_t entityCount = readU16(payload, offset);
+                    value.entities.reserve(entityCount);
+                    const float worldXStart = static_cast<float>(chunkX * ChunkSizeX);
+                    const float worldZStart = static_cast<float>(chunkZ * ChunkSizeZ);
+                    for (uint16_t i = 0; i < entityCount; ++i)
+                    {
+                        WorldEntity entity{};
+                        entity.type = static_cast<WorldEntityType>(readU16(payload, offset));
+                        entity.entityId = readU64(payload, offset);
+                        const float localX = readF32(payload, offset);
+                        const float y = readF32(payload, offset);
+                        const float localZ = readF32(payload, offset);
+                        entity.position = {
+                            worldXStart + std::clamp(localX, 0.0f, static_cast<float>(ChunkSizeX) - 0.0001f),
+                            y,
+                            worldZStart + std::clamp(localZ, 0.0f, static_cast<float>(ChunkSizeZ) - 0.0001f)
+                        };
+                        entity.previousPosition = entity.position;
+                        entity.velocity.x = readF32(payload, offset);
+                        entity.velocity.y = readF32(payload, offset);
+                        entity.velocity.z = readF32(payload, offset);
+                        entity.flags = static_cast<uint8_t>(readU8(payload, offset) & WorldEntityFlagGrounded);
+
+                        if (entity.type != WorldEntityType::DroppedItem)
+                        {
+                            return std::nullopt;
+                        }
+                        entity.droppedItem.stack.itemId = readU16(payload, offset);
+                        entity.droppedItem.stack.count = readU16(payload, offset);
+                        if (entity.entityId != 0 &&
+                            entity.droppedItem.stack.itemId != 0 &&
+                            entity.droppedItem.stack.count != 0)
+                        {
+                            value.entities.push_back(entity);
+                        }
+                    }
                 }
                 if (offset + 8 <= payload.size())
                 {
@@ -7445,6 +7592,45 @@ namespace dolbuto
                 }
                 snapshot.incomingFeatureSlots[slot] = std::move(writes);
             }
+            if (offset + 8 != payload.size() && offset + 2 <= payload.size())
+            {
+                const uint16_t entityCount = readU16(payload, offset);
+                snapshot.entities.reserve(entityCount);
+                const float worldXStart = static_cast<float>(chunkX * ChunkSizeX);
+                const float worldZStart = static_cast<float>(chunkZ * ChunkSizeZ);
+                for (uint16_t i = 0; i < entityCount; ++i)
+                {
+                    WorldEntity entity{};
+                    entity.type = static_cast<WorldEntityType>(readU16(payload, offset));
+                    entity.entityId = readU64(payload, offset);
+                    const float localX = readF32(payload, offset);
+                    const float y = readF32(payload, offset);
+                    const float localZ = readF32(payload, offset);
+                    entity.position = {
+                        worldXStart + std::clamp(localX, 0.0f, static_cast<float>(ChunkSizeX) - 0.0001f),
+                        y,
+                        worldZStart + std::clamp(localZ, 0.0f, static_cast<float>(ChunkSizeZ) - 0.0001f)
+                    };
+                    entity.previousPosition = entity.position;
+                    entity.velocity.x = readF32(payload, offset);
+                    entity.velocity.y = readF32(payload, offset);
+                    entity.velocity.z = readF32(payload, offset);
+                    entity.flags = static_cast<uint8_t>(readU8(payload, offset) & WorldEntityFlagGrounded);
+
+                    if (entity.type != WorldEntityType::DroppedItem)
+                    {
+                        return loadMiss();
+                    }
+                    entity.droppedItem.stack.itemId = readU16(payload, offset);
+                    entity.droppedItem.stack.count = readU16(payload, offset);
+                    if (entity.entityId != 0 &&
+                        entity.droppedItem.stack.itemId != 0 &&
+                        entity.droppedItem.stack.count != 0)
+                    {
+                        snapshot.entities.push_back(entity);
+                    }
+                }
+            }
             if (offset + 8 <= payload.size())
             {
                 snapshot.revision = readU64(payload, offset);
@@ -7498,10 +7684,40 @@ namespace dolbuto
             {
                 data->fluids.assign(ChunkBlockCount, FluidNone);
             }
+            if (!snapshot.chunkData)
+            {
+                data->entities = snapshot.entities;
+            }
             data->generation = generation;
             data->revision = snapshot.revision;
             data->chunkX = snapshot.chunkX;
             data->chunkZ = snapshot.chunkZ;
+            for (WorldEntity& entity : data->entities)
+            {
+                if (entity.entityId == 0)
+                {
+                    entity.entityId = allocateWorldEntityId();
+                }
+                nextWorldEntityId_ = std::max(nextWorldEntityId_, entity.entityId + 1u);
+                entity.previousPosition = entity.position;
+                entity.collecting = false;
+                entity.collectAge = 0.0f;
+                if (worldEntityGrounded(entity))
+                {
+                    entity.renderRotationX = 0.0f;
+                    entity.renderRotation = std::fmod(entity.renderRotation, 6.2831853f);
+                    entity.renderRotationZ = 0.0f;
+                    entity.renderSpinX = 0.0f;
+                    entity.renderSpin = 0.0f;
+                    entity.renderSpinZ = 0.0f;
+                }
+                else
+                {
+                    entity.renderSpinX = entity.renderSpinX == 0.0f ? 5.0f : entity.renderSpinX;
+                    entity.renderSpin = entity.renderSpin == 0.0f ? 5.0f : entity.renderSpin;
+                    entity.renderSpinZ = entity.renderSpinZ == 0.0f ? 5.0f : entity.renderSpinZ;
+                }
+            }
             data->emptySubchunks.fill(true);
             for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
             {
@@ -8054,7 +8270,7 @@ namespace dolbuto
 
         chunk->blocks[index] = block;
         ++chunk->revision;
-        chunkIt->second.dataDirtyForSave = true;
+        markRuntimeChunkDataDirty(chunkIt->second);
         updateChunkEmptySubchunk(chunk, y / SubchunkSize);
         return true;
     }
@@ -8118,11 +8334,11 @@ namespace dolbuto
             return;
         }
 
-        TerrainMesh& targetMesh = renderData.rockSubchunks[static_cast<size_t>(subchunkY)];
+        TerrainMesh& targetMesh = renderData.solidSubchunks[static_cast<size_t>(subchunkY)];
         if (targetMesh.vertexBuffer != VK_NULL_HANDLE || targetMesh.indexBuffer != VK_NULL_HANDLE)
         {
             ChunkRenderData retired{};
-            retired.rockSubchunks[static_cast<size_t>(subchunkY)] = std::move(targetMesh);
+            retired.solidSubchunks[static_cast<size_t>(subchunkY)] = std::move(targetMesh);
             targetMesh = {};
             retiredTerrainChunks_.push_back(RetiredChunkRenderData{
                 static_cast<uint32_t>(MaxFramesInFlight + 1),
@@ -9256,7 +9472,7 @@ namespace dolbuto
 
         for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
         {
-            result.rockSubchunks[static_cast<size_t>(subchunkY)] = buildSubchunkMesh(chunk, subchunkY, blockAt);
+            result.solidSubchunks[static_cast<size_t>(subchunkY)] = buildSubchunkMesh(chunk, subchunkY, blockAt);
             result.fluidSubchunks[static_cast<size_t>(subchunkY)] = buildFluidSubchunkMesh(chunks, subchunkY);
         }
         return result;
@@ -9275,7 +9491,7 @@ namespace dolbuto
             return false;
         }
 
-        for (const TerrainMesh& mesh : renderIt->second.rockSubchunks)
+        for (const TerrainMesh& mesh : renderIt->second.solidSubchunks)
         {
             if (mesh.indexCount > 0)
             {
@@ -9294,7 +9510,7 @@ namespace dolbuto
 
     void Renderer::destroyChunkRenderData(Renderer::ChunkRenderData& chunk)
     {
-        for (TerrainMesh& mesh : chunk.rockSubchunks)
+        for (TerrainMesh& mesh : chunk.solidSubchunks)
         {
             destroyTerrainMesh(mesh);
         }
@@ -9334,7 +9550,7 @@ namespace dolbuto
 
         for (const auto& entry : terrainChunks_)
         {
-            for (const TerrainMesh& mesh : entry.second.rockSubchunks)
+            for (const TerrainMesh& mesh : entry.second.solidSubchunks)
             {
                 if (mesh.indexCount == 0)
                 {
@@ -12661,9 +12877,9 @@ namespace dolbuto
                 const float maxX = static_cast<float>(chunk.chunkX * ChunkSizeX + ChunkSizeX) - 0.5f - cameraPosition.x;
                 const float minZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ) - 0.5f - cameraPosition.z;
                 const float maxZ = static_cast<float>(chunk.chunkZ * ChunkSizeZ + ChunkSizeZ) - 0.5f - cameraPosition.z;
-                for (size_t subchunkY = 0; subchunkY < chunk.rockSubchunks.size(); ++subchunkY)
+                for (size_t subchunkY = 0; subchunkY < chunk.solidSubchunks.size(); ++subchunkY)
                 {
-                    const TerrainMesh& mesh = chunk.rockSubchunks[subchunkY];
+                    const TerrainMesh& mesh = chunk.solidSubchunks[subchunkY];
                     if (mesh.indexCount == 0)
                     {
                         continue;
@@ -13287,6 +13503,105 @@ namespace dolbuto
         vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
     }
 
+    uint64_t Renderer::allocateWorldEntityId()
+    {
+        if (nextWorldEntityId_ == 0)
+        {
+            nextWorldEntityId_ = 1;
+        }
+        return nextWorldEntityId_++;
+    }
+
+    uint64_t Renderer::entityChunkKey(const WorldEntity& entity) const
+    {
+        const int chunkX = floorDiv(blockCoordinateXz(entity.position.x), ChunkSizeX);
+        const int chunkZ = floorDiv(blockCoordinateXz(entity.position.z), ChunkSizeZ);
+        return chunkKey(chunkX, chunkZ);
+    }
+
+    Renderer::RuntimeChunk* Renderer::runtimeChunkForEntity(const WorldEntity& entity)
+    {
+        const uint64_t key = entityChunkKey(entity);
+        auto chunkIt = runtimeChunks_.find(key);
+        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data)
+        {
+            return nullptr;
+        }
+        return &chunkIt->second;
+    }
+
+    const Renderer::RuntimeChunk* Renderer::runtimeChunkForEntity(const WorldEntity& entity) const
+    {
+        const uint64_t key = entityChunkKey(entity);
+        auto chunkIt = runtimeChunks_.find(key);
+        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data)
+        {
+            return nullptr;
+        }
+        return &chunkIt->second;
+    }
+
+    bool Renderer::addWorldEntity(WorldEntity entity)
+    {
+        RuntimeChunk* chunk = runtimeChunkForEntity(entity);
+        if (chunk == nullptr || !chunk->data)
+        {
+            return false;
+        }
+
+        if (chunk->data->entities.size() >= MaxDroppedItems)
+        {
+            chunk->data->entities.erase(chunk->data->entities.begin());
+        }
+        if (entity.entityId == 0)
+        {
+            entity.entityId = allocateWorldEntityId();
+        }
+        chunk->data->entities.push_back(std::move(entity));
+        markRuntimeChunkDataDirty(*chunk);
+        return true;
+    }
+
+    size_t Renderer::loadedDroppedItemCount() const
+    {
+        size_t count = 0;
+        for (const auto& entry : runtimeChunks_)
+        {
+            const RuntimeChunk& chunk = entry.second;
+            if (!chunk.data)
+            {
+                continue;
+            }
+            for (const WorldEntity& entity : chunk.data->entities)
+            {
+                if (entity.type == WorldEntityType::DroppedItem &&
+                    entity.droppedItem.stack.itemId != 0 &&
+                    entity.droppedItem.stack.count != 0)
+                {
+                    ++count;
+                }
+            }
+        }
+        return count;
+    }
+
+    bool Renderer::worldEntityGrounded(const WorldEntity& entity) const
+    {
+        return (entity.flags & WorldEntityFlagGrounded) != 0;
+    }
+
+    void Renderer::setWorldEntityGrounded(WorldEntity& entity, bool grounded) const
+    {
+        if (grounded)
+        {
+            entity.flags = static_cast<uint8_t>(entity.flags | WorldEntityFlagGrounded);
+        }
+        else
+        {
+            entity.flags = static_cast<uint8_t>(entity.flags & ~WorldEntityFlagGrounded);
+        }
+    }
+
     void Renderer::spawnBlockDrops(int x, int y, int z, uint16_t block)
     {
         const BlockDefinition& definition = blockDefinition(block);
@@ -13322,12 +13637,9 @@ namespace dolbuto
                 continue;
             }
 
-            if (droppedItems_.size() >= MaxDroppedItems)
-            {
-                droppedItems_.erase(droppedItems_.begin());
-            }
-
-            DroppedItem item{};
+            WorldEntity item{};
+            item.entityId = allocateWorldEntityId();
+            item.type = WorldEntityType::DroppedItem;
             item.position = {
                 static_cast<float>(x) + randomRange(-0.18f, 0.18f),
                 static_cast<float>(y) + 0.5f + randomRange(-0.08f, 0.12f),
@@ -13339,8 +13651,8 @@ namespace dolbuto
                 randomRange(2.0f, 3.5f),
                 randomRange(-1.5f, 1.5f)
             };
-            item.stack.itemId = drop.itemId;
-            item.stack.count = count;
+            item.droppedItem.stack.itemId = drop.itemId;
+            item.droppedItem.stack.count = count;
             item.renderRotationX = randomRange(0.0f, 6.2831853f);
             item.renderRotation = randomRange(0.0f, 6.2831853f);
             item.renderRotationZ = randomRange(0.0f, 6.2831853f);
@@ -13359,11 +13671,11 @@ namespace dolbuto
             {
                 item.renderSpinZ = item.renderSpinZ < 0.0f ? -2.0f : 2.0f;
             }
-            droppedItems_.push_back(item);
+            addWorldEntity(std::move(item));
         }
     }
 
-    bool Renderer::raycastDroppedItem(DVec3 origin, Vec3 direction, size_t& itemIndex) const
+    bool Renderer::raycastDroppedItem(DVec3 origin, Vec3 direction, WorldEntityHandle& itemHandle) const
     {
         constexpr double MaxInteractionDistance = 8.0;
         constexpr double Epsilon = 0.000001;
@@ -13374,7 +13686,7 @@ namespace dolbuto
             return false;
         }
 
-        auto rayIntersectsAabb = [&](const DroppedItem& item, double& hitDistance)
+        auto rayIntersectsAabb = [&](const WorldEntity& item, double& hitDistance)
         {
             const double halfWidth = static_cast<double>(DroppedItemSize) * 0.5;
             const double minX = static_cast<double>(item.position.x) - halfWidth;
@@ -13417,27 +13729,39 @@ namespace dolbuto
 
         bool found = false;
         double bestDistance = MaxInteractionDistance;
-        for (size_t i = 0; i < droppedItems_.size(); ++i)
+        for (const auto& entry : runtimeChunks_)
         {
-            const DroppedItem& item = droppedItems_[i];
-            if (item.stack.itemId == 0 || item.stack.count == 0 || item.collecting)
+            const RuntimeChunk& chunk = entry.second;
+            if (!chunk.data)
             {
                 continue;
             }
-
-            double hitDistance = 0.0;
-            if (rayIntersectsAabb(item, hitDistance) && hitDistance <= bestDistance)
+            for (size_t i = 0; i < chunk.data->entities.size(); ++i)
             {
-                bestDistance = hitDistance;
-                itemIndex = i;
-                found = true;
+                const WorldEntity& item = chunk.data->entities[i];
+                if (item.type != WorldEntityType::DroppedItem ||
+                    item.droppedItem.stack.itemId == 0 ||
+                    item.droppedItem.stack.count == 0 ||
+                    item.collecting)
+                {
+                    continue;
+                }
+
+                double hitDistance = 0.0;
+                if (rayIntersectsAabb(item, hitDistance) && hitDistance <= bestDistance)
+                {
+                    bestDistance = hitDistance;
+                    itemHandle.chunkKey = entry.first;
+                    itemHandle.index = i;
+                    found = true;
+                }
             }
         }
 
         return found;
     }
 
-    bool Renderer::droppedItemTouchesPlayerCollider(const DroppedItem& item, Vec3 playerPosition) const
+    bool Renderer::droppedItemTouchesPlayerCollider(const WorldEntity& item, Vec3 playerPosition) const
     {
         constexpr float PlayerHalfWidth = 0.3f;
         constexpr float PlayerHeight = 1.75f;
@@ -13468,25 +13792,37 @@ namespace dolbuto
             droppedItemRenderAlpha_ = 0.0f;
             return;
         }
-        if (droppedItems_.empty())
+        if (loadedDroppedItemCount() == 0)
         {
             droppedItemTickAccumulator_ = 0.0f;
             droppedItemRenderAlpha_ = 0.0f;
             return;
         }
 
-        for (DroppedItem& item : droppedItems_)
+        for (auto& entry : runtimeChunks_)
         {
-            if (!item.grounded || item.collecting)
+            RuntimeChunk& chunk = entry.second;
+            if (!chunk.data)
             {
-                item.renderRotationX += item.renderSpinX * frameDt;
-                item.renderRotation += item.renderSpin * frameDt;
-                item.renderRotationZ += item.renderSpinZ * frameDt;
+                continue;
             }
-            else
+            for (WorldEntity& item : chunk.data->entities)
             {
-                item.renderRotationX = 0.0f;
-                item.renderRotationZ = 0.0f;
+                if (item.type != WorldEntityType::DroppedItem)
+                {
+                    continue;
+                }
+                if (!worldEntityGrounded(item) || item.collecting)
+                {
+                    item.renderRotationX += item.renderSpinX * frameDt;
+                    item.renderRotation += item.renderSpin * frameDt;
+                    item.renderRotationZ += item.renderSpinZ * frameDt;
+                }
+                else
+                {
+                    item.renderRotationX = 0.0f;
+                    item.renderRotationZ = 0.0f;
+                }
             }
         }
 
@@ -13501,7 +13837,7 @@ namespace dolbuto
 
     void Renderer::updateDroppedItemsTick(Vec3 playerPosition, float dt)
     {
-        if (dt <= 0.0f || droppedItems_.empty())
+        if (dt <= 0.0f || loadedDroppedItemCount() == 0)
         {
             return;
         }
@@ -13514,7 +13850,7 @@ namespace dolbuto
         {
             return terrainCellBlocksPlayer(blockCoordinateXz(x), blockCoordinateY(y), blockCoordinateXz(z));
         };
-        auto supportedByGround = [&](const DroppedItem& item)
+        auto supportedByGround = [&](const WorldEntity& item)
         {
             return solidAt(item.position.x, item.position.y - GroundProbeEpsilon, item.position.z);
         };
@@ -13523,9 +13859,30 @@ namespace dolbuto
             return solidAt(x, y + WallProbeHeight, z);
         };
 
-        for (size_t i = 0; i < droppedItems_.size();)
+        struct EntityMove
         {
-            DroppedItem& item = droppedItems_[i];
+            uint64_t targetKey = 0;
+            WorldEntity entity;
+        };
+        std::vector<EntityMove> moves;
+
+        for (auto& entry : runtimeChunks_)
+        {
+            RuntimeChunk& chunk = entry.second;
+            if (!chunk.data)
+            {
+                continue;
+            }
+
+            for (size_t i = 0; i < chunk.data->entities.size();)
+            {
+            WorldEntity& item = chunk.data->entities[i];
+            if (item.type != WorldEntityType::DroppedItem)
+            {
+                ++i;
+                continue;
+            }
+            const uint64_t originalOwnerKey = entry.first;
             item.previousPosition = item.position;
             item.age += dt;
             if (item.collecting)
@@ -13548,132 +13905,164 @@ namespace dolbuto
                 const float travel = speed * dt;
                 if (distance <= travel || droppedItemTouchesPlayerCollider(item, playerPosition))
                 {
-                    const uint16_t remaining = addItemToPlayerInventory(item.stack);
+                    const uint16_t remaining = addItemToPlayerInventory(item.droppedItem.stack);
                     if (remaining == 0)
                     {
-                        droppedItems_.erase(droppedItems_.begin() + static_cast<std::ptrdiff_t>(i));
+                        chunk.data->entities.erase(chunk.data->entities.begin() + static_cast<std::ptrdiff_t>(i));
+                        markRuntimeChunkDataDirty(chunk);
                         continue;
                     }
 
-                    item.stack.count = remaining;
+                    item.droppedItem.stack.count = remaining;
                     item.collecting = false;
                     item.collectAge = 0.0f;
                     item.velocity = {};
                     item.renderSpinX = 5.0f;
                     item.renderSpin = 5.0f;
                     item.renderSpinZ = 5.0f;
-                    ++i;
-                    continue;
-                }
-
-                const float scale = travel / std::max(distance, 0.0001f);
-                item.position.x += toTarget.x * scale;
-                item.position.y += toTarget.y * scale;
-                item.position.z += toTarget.z * scale;
-                item.velocity = {};
-                ++i;
-                continue;
-            }
-
-            if (item.grounded)
-            {
-                if (supportedByGround(item))
-                {
-                    item.velocity = {};
-                    item.renderSpinX = 0.0f;
-                    item.renderSpin = 0.0f;
-                    item.renderSpinZ = 0.0f;
-                    ++i;
-                    continue;
-                }
-
-                item.grounded = false;
-                item.velocity.y = std::min(item.velocity.y, 0.0f);
-                if (item.renderSpinX == 0.0f)
-                {
-                    item.renderSpinX = 5.0f;
-                }
-                if (item.renderSpin == 0.0f)
-                {
-                    item.renderSpin = 5.0f;
-                }
-                if (item.renderSpinZ == 0.0f)
-                {
-                    item.renderSpinZ = 5.0f;
-                }
-            }
-
-            item.velocity.x *= drag;
-            item.velocity.z *= drag;
-            item.velocity.y -= DroppedItemGravity * dt;
-
-            if (item.velocity.x != 0.0f)
-            {
-                const float nextX = item.position.x + item.velocity.x * dt;
-                const float probeX = nextX + (item.velocity.x > 0.0f ? DroppedItemCollisionRadius : -DroppedItemCollisionRadius);
-                if (sideBlocked(probeX, item.position.y, item.position.z))
-                {
-                    item.velocity.x = -item.velocity.x * DroppedItemWallBounce;
-                    item.velocity.z *= DroppedItemWallFriction;
                 }
                 else
                 {
-                    item.position.x = nextX;
-                }
-            }
-
-            if (item.velocity.z != 0.0f)
-            {
-                const float nextZ = item.position.z + item.velocity.z * dt;
-                const float probeZ = nextZ + (item.velocity.z > 0.0f ? DroppedItemCollisionRadius : -DroppedItemCollisionRadius);
-                if (sideBlocked(item.position.x, item.position.y, probeZ))
-                {
-                    item.velocity.z = -item.velocity.z * DroppedItemWallBounce;
-                    item.velocity.x *= DroppedItemWallFriction;
-                }
-                else
-                {
-                    item.position.z = nextZ;
-                }
-            }
-
-            const float currentY = item.position.y;
-            const float nextY = currentY + item.velocity.y * dt;
-            bool landed = false;
-            if (item.velocity.y < 0.0f)
-            {
-                const int startY = blockCoordinateY(currentY - GroundProbeEpsilon);
-                const int endY = blockCoordinateY(nextY - GroundProbeEpsilon);
-                for (int groundY = startY; groundY >= endY; --groundY)
-                {
-                    if (!terrainCellBlocksPlayer(blockCoordinateXz(item.position.x), groundY, blockCoordinateXz(item.position.z)))
-                    {
-                        continue;
-                    }
-
-                    item.position.y = static_cast<float>(groundY + 1);
+                    const float scale = travel / std::max(distance, 0.0001f);
+                    item.position.x += toTarget.x * scale;
+                    item.position.y += toTarget.y * scale;
+                    item.position.z += toTarget.z * scale;
                     item.velocity = {};
-                    item.renderRotationX = 0.0f;
-                    item.renderRotation = std::fmod(item.renderRotation, 6.2831853f);
-                    if (item.renderRotation < 0.0f)
+                }
+                markRuntimeChunkDataDirty(chunk);
+            }
+            else
+            {
+                if (worldEntityGrounded(item))
+                {
+                    if (supportedByGround(item))
                     {
-                        item.renderRotation += 6.2831853f;
+                        item.velocity = {};
+                        item.renderSpinX = 0.0f;
+                        item.renderSpin = 0.0f;
+                        item.renderSpinZ = 0.0f;
                     }
-                    item.renderRotationZ = 0.0f;
-                    item.renderSpinX = 0.0f;
-                    item.renderSpin = 0.0f;
-                    item.renderSpinZ = 0.0f;
-                    item.grounded = true;
-                    landed = true;
-                    break;
+                    else
+                    {
+                        setWorldEntityGrounded(item, false);
+                        item.velocity.y = std::min(item.velocity.y, 0.0f);
+                        if (item.renderSpinX == 0.0f)
+                        {
+                            item.renderSpinX = 5.0f;
+                        }
+                        if (item.renderSpin == 0.0f)
+                        {
+                            item.renderSpin = 5.0f;
+                        }
+                        if (item.renderSpinZ == 0.0f)
+                        {
+                            item.renderSpinZ = 5.0f;
+                        }
+                        markRuntimeChunkDataDirty(chunk);
+                    }
+                }
+
+                if (!worldEntityGrounded(item))
+                {
+                    item.velocity.x *= drag;
+                    item.velocity.z *= drag;
+                    item.velocity.y -= DroppedItemGravity * dt;
+
+                    if (item.velocity.x != 0.0f)
+                    {
+                        const float nextX = item.position.x + item.velocity.x * dt;
+                        const float probeX = nextX + (item.velocity.x > 0.0f ? DroppedItemCollisionRadius : -DroppedItemCollisionRadius);
+                        if (sideBlocked(probeX, item.position.y, item.position.z))
+                        {
+                            item.velocity.x = -item.velocity.x * DroppedItemWallBounce;
+                            item.velocity.z *= DroppedItemWallFriction;
+                        }
+                        else
+                        {
+                            item.position.x = nextX;
+                        }
+                    }
+
+                    if (item.velocity.z != 0.0f)
+                    {
+                        const float nextZ = item.position.z + item.velocity.z * dt;
+                        const float probeZ = nextZ + (item.velocity.z > 0.0f ? DroppedItemCollisionRadius : -DroppedItemCollisionRadius);
+                        if (sideBlocked(item.position.x, item.position.y, probeZ))
+                        {
+                            item.velocity.z = -item.velocity.z * DroppedItemWallBounce;
+                            item.velocity.x *= DroppedItemWallFriction;
+                        }
+                        else
+                        {
+                            item.position.z = nextZ;
+                        }
+                    }
+
+                    const float currentY = item.position.y;
+                    const float nextY = currentY + item.velocity.y * dt;
+                    bool landed = false;
+                    if (item.velocity.y < 0.0f)
+                    {
+                        const int startY = blockCoordinateY(currentY - GroundProbeEpsilon);
+                        const int endY = blockCoordinateY(nextY - GroundProbeEpsilon);
+                        for (int groundY = startY; groundY >= endY; --groundY)
+                        {
+                            if (!terrainCellBlocksPlayer(blockCoordinateXz(item.position.x), groundY, blockCoordinateXz(item.position.z)))
+                            {
+                                continue;
+                            }
+
+                            item.position.y = static_cast<float>(groundY + 1);
+                            item.velocity = {};
+                            item.renderRotationX = 0.0f;
+                            item.renderRotation = std::fmod(item.renderRotation, 6.2831853f);
+                            if (item.renderRotation < 0.0f)
+                            {
+                                item.renderRotation += 6.2831853f;
+                            }
+                            item.renderRotationZ = 0.0f;
+                            item.renderSpinX = 0.0f;
+                            item.renderSpin = 0.0f;
+                            item.renderSpinZ = 0.0f;
+                            setWorldEntityGrounded(item, true);
+                            landed = true;
+                            break;
+                        }
+                    }
+
+                    if (!landed)
+                    {
+                        item.position.y = nextY;
+                    }
+                    markRuntimeChunkDataDirty(chunk);
                 }
             }
 
-            if (!landed)
+            const uint64_t targetOwnerKey = entityChunkKey(item);
+            if (targetOwnerKey != originalOwnerKey)
             {
-                item.position.y = nextY;
+                auto targetIt = runtimeChunks_.find(targetOwnerKey);
+                if (targetIt != runtimeChunks_.end() && targetIt->second.data)
+                {
+                    moves.push_back(EntityMove{targetOwnerKey, item});
+                    chunk.data->entities.erase(chunk.data->entities.begin() + static_cast<std::ptrdiff_t>(i));
+                    markRuntimeChunkDataDirty(chunk);
+                    continue;
+                }
             }
             ++i;
+            }
+        }
+
+        for (EntityMove& move : moves)
+        {
+            auto targetIt = runtimeChunks_.find(move.targetKey);
+            if (targetIt == runtimeChunks_.end() || !targetIt->second.data)
+            {
+                continue;
+            }
+            targetIt->second.data->entities.push_back(std::move(move.entity));
+            markRuntimeChunkDataDirty(targetIt->second);
         }
     }
 
@@ -13840,7 +14229,7 @@ namespace dolbuto
     void Renderer::drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition)
     {
         updateDroppedItems(playerPosition);
-        if (droppedItems_.empty() ||
+        if (loadedDroppedItemCount() == 0 ||
             itemPipeline_ == VK_NULL_HANDLE ||
             droppedItemVertexBuffer_ == VK_NULL_HANDLE ||
             droppedItemIndexBuffer_ == VK_NULL_HANDLE ||
@@ -13849,7 +14238,7 @@ namespace dolbuto
             return;
         }
 
-        const size_t itemCount = std::min(droppedItems_.size(), MaxDroppedItems);
+        const size_t itemCount = std::min(loadedDroppedItemCount(), MaxDroppedItems);
         std::vector<TerrainVertex> vertices;
         std::vector<uint32_t> indices;
         vertices.reserve(std::min<size_t>(itemCount * 64u * 4u, MaxDroppedItemRenderQuads * 4u));
@@ -13884,75 +14273,93 @@ namespace dolbuto
             indices.push_back(baseIndex + 3u);
         };
 
-        for (size_t i = 0; i < itemCount; ++i)
+        size_t renderedItems = 0;
+        for (const auto& entry : runtimeChunks_)
         {
-            const DroppedItem& item = droppedItems_[i];
-            if (item.stack.itemId == 0 || item.stack.count == 0 || static_cast<size_t>(item.stack.itemId) >= itemDefinitions_.size())
+            const RuntimeChunk& chunk = entry.second;
+            if (!chunk.data)
             {
                 continue;
             }
 
-            const ItemDefinition& definition = itemDefinitions_[item.stack.itemId];
-            if (definition.droppedRender != ItemRenderType::ExtrudedSprite)
+            for (const WorldEntity& item : chunk.data->entities)
             {
-                continue;
-            }
-            if (static_cast<size_t>(item.stack.itemId) >= itemSpriteMeshes_.size() || itemSpriteMeshes_[item.stack.itemId].quads.empty())
-            {
-                continue;
-            }
-
-            const Vec3 interpolatedPosition{
-                item.previousPosition.x + (item.position.x - item.previousPosition.x) * droppedItemRenderAlpha_,
-                item.previousPosition.y + (item.position.y - item.previousPosition.y) * droppedItemRenderAlpha_,
-                item.previousPosition.z + (item.position.z - item.previousPosition.z) * droppedItemRenderAlpha_
-            };
-            const float cosX = std::cos(item.renderRotationX);
-            const float sinX = std::sin(item.renderRotationX);
-            const float cosY = std::cos(item.renderRotation);
-            const float sinY = std::sin(item.renderRotation);
-            const float cosZ = std::cos(item.renderRotationZ);
-            const float sinZ = std::sin(item.renderRotationZ);
-            const Vec3 center{
-                interpolatedPosition.x,
-                interpolatedPosition.y + DroppedItemThickness * 0.5f,
-                interpolatedPosition.z
-            };
-            const float layer = static_cast<float>(definition.droppedTextureLayer);
-            auto transformLocal = [&](const Vec3& local)
-            {
-                Vec3 value{
-                    local.x * DroppedItemSize,
-                    local.y * DroppedItemThickness,
-                    local.z * DroppedItemSize
-                };
-
-                value = {
-                    value.x,
-                    value.y * cosX - value.z * sinX,
-                    value.y * sinX + value.z * cosX
-                };
-                value = {
-                    value.x * cosZ - value.y * sinZ,
-                    value.x * sinZ + value.y * cosZ,
-                    value.z
-                };
-                value = {
-                    value.x * cosY - value.z * sinY,
-                    value.y,
-                    value.x * sinY + value.z * cosY
-                };
-                return Vec3{center.x + value.x, center.y + value.y, center.z + value.z};
-            };
-
-            for (const ItemSpriteQuad& quad : itemSpriteMeshes_[item.stack.itemId].quads)
-            {
-                std::array<Vec3, 4> worldPositions{};
-                for (size_t vertexIndex = 0; vertexIndex < quad.positions.size(); ++vertexIndex)
+                if (renderedItems >= itemCount)
                 {
-                    worldPositions[vertexIndex] = transformLocal(quad.positions[vertexIndex]);
+                    break;
                 }
-                appendQuad(worldPositions, quad.uvs, layer, quad.ao);
+                if (item.type != WorldEntityType::DroppedItem ||
+                    item.droppedItem.stack.itemId == 0 ||
+                    item.droppedItem.stack.count == 0 ||
+                    static_cast<size_t>(item.droppedItem.stack.itemId) >= itemDefinitions_.size())
+                {
+                    continue;
+                }
+
+                const ItemDefinition& definition = itemDefinitions_[item.droppedItem.stack.itemId];
+                if (definition.droppedRender != ItemRenderType::ExtrudedSprite)
+                {
+                    continue;
+                }
+                if (static_cast<size_t>(item.droppedItem.stack.itemId) >= itemSpriteMeshes_.size() ||
+                    itemSpriteMeshes_[item.droppedItem.stack.itemId].quads.empty())
+                {
+                    continue;
+                }
+
+                const Vec3 interpolatedPosition{
+                    item.previousPosition.x + (item.position.x - item.previousPosition.x) * droppedItemRenderAlpha_,
+                    item.previousPosition.y + (item.position.y - item.previousPosition.y) * droppedItemRenderAlpha_,
+                    item.previousPosition.z + (item.position.z - item.previousPosition.z) * droppedItemRenderAlpha_
+                };
+                const float cosX = std::cos(item.renderRotationX);
+                const float sinX = std::sin(item.renderRotationX);
+                const float cosY = std::cos(item.renderRotation);
+                const float sinY = std::sin(item.renderRotation);
+                const float cosZ = std::cos(item.renderRotationZ);
+                const float sinZ = std::sin(item.renderRotationZ);
+                const Vec3 center{
+                    interpolatedPosition.x,
+                    interpolatedPosition.y + DroppedItemThickness * 0.5f,
+                    interpolatedPosition.z
+                };
+                const float layer = static_cast<float>(definition.droppedTextureLayer);
+                auto transformLocal = [&](const Vec3& local)
+                {
+                    Vec3 value{
+                        local.x * DroppedItemSize,
+                        local.y * DroppedItemThickness,
+                        local.z * DroppedItemSize
+                    };
+
+                    value = {
+                        value.x,
+                        value.y * cosX - value.z * sinX,
+                        value.y * sinX + value.z * cosX
+                    };
+                    value = {
+                        value.x * cosZ - value.y * sinZ,
+                        value.x * sinZ + value.y * cosZ,
+                        value.z
+                    };
+                    value = {
+                        value.x * cosY - value.z * sinY,
+                        value.y,
+                        value.x * sinY + value.z * cosY
+                    };
+                    return Vec3{center.x + value.x, center.y + value.y, center.z + value.z};
+                };
+
+                for (const ItemSpriteQuad& quad : itemSpriteMeshes_[item.droppedItem.stack.itemId].quads)
+                {
+                    std::array<Vec3, 4> worldPositions{};
+                    for (size_t vertexIndex = 0; vertexIndex < quad.positions.size(); ++vertexIndex)
+                    {
+                        worldPositions[vertexIndex] = transformLocal(quad.positions[vertexIndex]);
+                    }
+                    appendQuad(worldPositions, quad.uvs, layer, quad.ao);
+                }
+                ++renderedItems;
             }
         }
 

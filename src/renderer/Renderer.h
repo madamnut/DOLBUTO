@@ -48,6 +48,12 @@ namespace dolbuto
             std::string lastPlayedText;
         };
 
+        struct InventorySlot
+        {
+            uint16_t itemId = 0;
+            uint16_t count = 0;
+        };
+
         void drawFrame(
             const Camera& camera,
             DVec3 cameraPosition,
@@ -76,6 +82,8 @@ namespace dolbuto
         void resetPeakProfiler();
         void setWorldList(const std::vector<WorldListItem>& worlds);
         void setHotbarSelectedSlot(int slot);
+        std::array<InventorySlot, 50> inventorySnapshot() const;
+        void setInventorySnapshot(const std::array<InventorySlot, 50>& slots);
         std::string uiInputValue(std::string_view id) const;
         void uiMouseMove(double x, double y);
         void uiMouseButton(int button, bool pressed, int modifiers);
@@ -242,12 +250,26 @@ namespace dolbuto
             uint16_t count = 0;
         };
 
-        struct DroppedItem
+        enum class WorldEntityType : uint16_t
         {
+            None = 0,
+            DroppedItem = 1
+        };
+
+        struct DroppedItemEntityData
+        {
+            ItemStack stack{};
+        };
+
+        struct WorldEntity
+        {
+            uint64_t entityId = 0;
+            WorldEntityType type = WorldEntityType::None;
             Vec3 previousPosition{};
             Vec3 position{};
             Vec3 velocity{};
-            ItemStack stack{};
+            uint8_t flags = 0;
+            DroppedItemEntityData droppedItem{};
             float age = 0.0f;
             float renderRotationX = 0.0f;
             float renderRotation = 0.0f;
@@ -255,7 +277,6 @@ namespace dolbuto
             float renderSpinX = 0.0f;
             float renderSpin = 0.0f;
             float renderSpinZ = 0.0f;
-            bool grounded = false;
             bool collecting = false;
             float collectAge = 0.0f;
         };
@@ -418,6 +439,7 @@ namespace dolbuto
             std::vector<uint16_t> fluids;
             std::array<uint8_t, ChunkColumnCount> temperature{};
             std::array<uint8_t, ChunkColumnCount> precipitation{};
+            std::vector<WorldEntity> entities;
             std::array<bool, SubchunkCount> emptySubchunks{};
         };
 
@@ -474,7 +496,7 @@ namespace dolbuto
             uint64_t revision = 0;
             int chunkX = 0;
             int chunkZ = 0;
-            std::array<TerrainBuildData, SubchunkCount> rockSubchunks;
+            std::array<TerrainBuildData, SubchunkCount> solidSubchunks;
             std::array<TerrainBuildData, SubchunkCount> fluidSubchunks;
         };
 
@@ -498,6 +520,7 @@ namespace dolbuto
             uint64_t meshQueuedTicket = 0;
             bool hasSavedBacking = false;
             bool dataDirtyForSave = false;
+            uint64_t dataDirtySerial = 0;
         };
 
         struct SaveChunkSnapshot
@@ -509,13 +532,21 @@ namespace dolbuto
             bool hasData = false;
             bool forceSave = false;
             bool hasSavedBacking = false;
+            uint64_t dataDirtySerial = 0;
             std::shared_ptr<const ChunkData> chunkData;
             std::vector<uint16_t> blocks;
             std::vector<uint16_t> fluids;
             std::array<uint8_t, ChunkColumnCount> temperature{};
             std::array<uint8_t, ChunkColumnCount> precipitation{};
+            std::vector<WorldEntity> entities;
             std::array<FeatureWriteListPtr, FeatureNeighborCount> incomingFeatureSlots{};
             uint8_t incomingFeatureMask = 0;
+        };
+
+        struct WorldEntityHandle
+        {
+            uint64_t chunkKey = 0;
+            size_t index = 0;
         };
 
         struct RegionChunkEntry
@@ -537,7 +568,7 @@ namespace dolbuto
             uint64_t revision = 0;
             int chunkX = 0;
             int chunkZ = 0;
-            std::array<TerrainMesh, SubchunkCount> rockSubchunks;
+            std::array<TerrainMesh, SubchunkCount> solidSubchunks;
             std::array<TerrainMesh, SubchunkCount> fluidSubchunks;
         };
 
@@ -624,6 +655,7 @@ namespace dolbuto
         uint32_t processPendingTerrainUnloads();
         void processRetiredTerrainChunks();
         RuntimeChunk& ensureRuntimeChunk(int chunkX, int chunkZ, uint64_t generation);
+        void markRuntimeChunkDataDirty(RuntimeChunk& chunk);
         void wantRender(int chunkX, int chunkZ, uint32_t priority);
         void wantMesh(int chunkX, int chunkZ, uint32_t priority);
         void wantFull(int chunkX, int chunkZ, uint32_t priority);
@@ -721,8 +753,16 @@ namespace dolbuto
         void updateBlockBreakParticles();
         void drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition);
         void spawnBlockDrops(int x, int y, int z, uint16_t block);
-        bool raycastDroppedItem(DVec3 origin, Vec3 direction, size_t& itemIndex) const;
-        bool droppedItemTouchesPlayerCollider(const DroppedItem& item, Vec3 playerPosition) const;
+        uint64_t allocateWorldEntityId();
+        uint64_t entityChunkKey(const WorldEntity& entity) const;
+        RuntimeChunk* runtimeChunkForEntity(const WorldEntity& entity);
+        const RuntimeChunk* runtimeChunkForEntity(const WorldEntity& entity) const;
+        bool addWorldEntity(WorldEntity entity);
+        size_t loadedDroppedItemCount() const;
+        bool worldEntityGrounded(const WorldEntity& entity) const;
+        void setWorldEntityGrounded(WorldEntity& entity, bool grounded) const;
+        bool raycastDroppedItem(DVec3 origin, Vec3 direction, WorldEntityHandle& itemHandle) const;
+        bool droppedItemTouchesPlayerCollider(const WorldEntity& item, Vec3 playerPosition) const;
         void updateDroppedItems(Vec3 playerPosition);
         void updateDroppedItemsTick(Vec3 playerPosition, float dt);
         void drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition);
@@ -907,7 +947,7 @@ namespace dolbuto
         std::vector<uint32_t> playerIndices_;
         std::vector<BlockBreakParticle> blockBreakParticles_;
         BlockBreakingState blockBreaking_;
-        std::vector<DroppedItem> droppedItems_;
+        uint64_t nextWorldEntityId_ = 1;
         double lastParticleUpdateTime_ = 0.0;
         double lastDroppedItemUpdateTime_ = 0.0;
         float droppedItemTickAccumulator_ = 0.0f;

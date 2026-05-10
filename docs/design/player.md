@@ -94,6 +94,8 @@ Player state is loaded from and saved to `saves/world/player.dat`.
 - `yaw` and `pitch` restore the camera view.
 - `moveMode` stores `0 = fly`, `1 = ground`.
 - `verticalVelocity` restores jump/fall momentum for ground movement.
+- The 50 runtime inventory slots are saved after movement state as `uint16 itemId` and `uint16 count` pairs.
+- The transient inventory cursor stack is not saved.
 - Interpolation state is not saved; on load, previous position is set to the loaded position.
 
 Related document: [[save-load]]

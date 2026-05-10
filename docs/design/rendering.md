@@ -107,6 +107,9 @@ While breaking, small block-textured particles spawn from the hit face at a fixe
 Fluids are rendered as separate subchunk meshes from block terrain.
 The current rendered fluid is `water`.
 
+The non-fluid terrain mesh is named `solidSubchunks`.
+Here `solid` means the fluid-opposite terrain path and includes cube blocks, `cross` blocks, and `prop` blocks.
+
 - Texture: `assets/textures/fluid/water.png`
 - Runtime config: `config/render.json` -> `fluid.water.alpha`
 - Manual fluid mip textures: not used yet

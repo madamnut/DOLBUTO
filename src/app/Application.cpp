@@ -11,6 +11,7 @@
 #include <stb_image.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdint>
 #include <cmath>
@@ -44,7 +45,10 @@ namespace dolbuto
         constexpr double DefaultJumpSpeed = 8.4;
         constexpr double DefaultGravity = 32.0;
         constexpr double WorldSizeBlocks = 65536.0;
-        constexpr size_t PlayerStateFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t);
+        constexpr size_t PlayerInventorySlotCount = 50;
+        constexpr size_t PlayerStateBaseFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t);
+        constexpr size_t PlayerInventoryFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 2u;
+        constexpr size_t PlayerStateFileSize = PlayerStateBaseFileSize + PlayerInventoryFileSize;
         constexpr size_t WorldStateFileSize = sizeof(uint64_t) * 4u;
         constexpr uint64_t TicksPerMinute = 20;
         constexpr uint64_t MinutesPerHour = 60;
@@ -313,6 +317,14 @@ namespace dolbuto
             bytes.push_back(value);
         }
 
+        void writeU16(std::vector<uint8_t>& bytes, uint16_t value)
+        {
+            for (int i = 0; i < 2; ++i)
+            {
+                bytes.push_back(static_cast<uint8_t>((value >> (i * 8)) & 0xFFu));
+            }
+        }
+
         void writeU32(std::vector<uint8_t>& bytes, uint32_t value)
         {
             for (int i = 0; i < 4; ++i)
@@ -350,6 +362,21 @@ namespace dolbuto
                 throw std::runtime_error("Player state read overflow.");
             }
             return bytes[offset++];
+        }
+
+        uint16_t readU16(const std::vector<uint8_t>& bytes, size_t& offset)
+        {
+            if (offset + 2u > bytes.size())
+            {
+                throw std::runtime_error("Player state read overflow.");
+            }
+            uint16_t value = 0;
+            for (int i = 0; i < 2; ++i)
+            {
+                value |= static_cast<uint16_t>(bytes[offset + static_cast<size_t>(i)] << (i * 8));
+            }
+            offset += 2u;
+            return value;
         }
 
         uint32_t readU32(const std::vector<uint8_t>& bytes, size_t& offset)
@@ -420,6 +447,10 @@ namespace dolbuto
     {
         if (hasSelectedWorld_)
         {
+            if (renderer_ != nullptr)
+            {
+                renderer_->closeInventoryInteraction();
+            }
             saveWorldState();
             savePlayerState();
         }
@@ -1023,11 +1054,11 @@ namespace dolbuto
         loadWorldState();
         saveWorldState();
         resetPlayerRuntimeState();
-        loadPlayerState();
         if (renderer_ != nullptr)
         {
             renderer_->loadGameScene(selectedWorldDirectory_, worldSeed_);
         }
+        loadPlayerState();
         setScreen(AppScreen::Game);
     }
 
@@ -1188,6 +1219,10 @@ namespace dolbuto
 
     void Application::returnToLobbyScene()
     {
+        if (renderer_ != nullptr)
+        {
+            renderer_->closeInventoryInteraction();
+        }
         saveWorldState();
         savePlayerState();
         if (renderer_ != nullptr)
@@ -1367,6 +1402,12 @@ namespace dolbuto
             const float pitch = readF32(bytes, offset);
             const uint8_t moveMode = readU8(bytes, offset);
             const double verticalVelocity = readF64(bytes, offset);
+            std::array<Renderer::InventorySlot, PlayerInventorySlotCount> inventorySlots{};
+            for (Renderer::InventorySlot& slot : inventorySlots)
+            {
+                slot.itemId = readU16(bytes, offset);
+                slot.count = readU16(bytes, offset);
+            }
 
             if (!std::isfinite(x) ||
                 !std::isfinite(y) ||
@@ -1390,6 +1431,10 @@ namespace dolbuto
             jumpHeld_ = false;
             jumpPressed_ = false;
             physicsAccumulator_ = 0.0;
+            if (renderer_ != nullptr)
+            {
+                renderer_->setInventorySnapshot(inventorySlots);
+            }
             log::info("Player state loaded.");
         }
         catch (...)
@@ -1419,6 +1464,14 @@ namespace dolbuto
             writeF32(bytes, camera_.pitch());
             writeU8(bytes, static_cast<uint8_t>(moveMode_ == MoveMode::Fly ? 0u : 1u));
             writeF64(bytes, verticalVelocity_);
+            const std::array<Renderer::InventorySlot, PlayerInventorySlotCount> inventorySlots = renderer_ != nullptr
+                ? renderer_->inventorySnapshot()
+                : std::array<Renderer::InventorySlot, PlayerInventorySlotCount>{};
+            for (const Renderer::InventorySlot& slot : inventorySlots)
+            {
+                writeU16(bytes, slot.itemId);
+                writeU16(bytes, slot.count);
+            }
 
             std::ofstream file(playerStatePath(), std::ios::binary | std::ios::trunc);
             if (!file.is_open())
