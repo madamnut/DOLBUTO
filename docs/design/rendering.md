@@ -119,6 +119,7 @@ Here `solid` means the fluid-opposite terrain path and includes cube blocks, `cr
 
 Block terrain, block selection, and player mesh are drawn first, then fluid meshes are drawn in the same scene pass.
 Internal fluid faces are skipped when an adjacent fluid reaches the same or greater height.
+Fluid mesh generation skips subchunks whose `fluidSubchunkCounts` value is `0`.
 Fluid rendering uses a separate `fluidPipeline_` with alpha blending enabled and depth write disabled.
 The normal terrain pipeline remains non-blended for opaque/cutout block rendering.
 Fluids keep depth testing enabled so blocks, cutout terrain, selection outlines, and the player can occlude them through the scene depth buffer.

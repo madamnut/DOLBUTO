@@ -111,7 +111,6 @@ namespace dolbuto
         constexpr float LobbyBackgroundTilePixels = 96.0f;
         constexpr float TerrainNearPlane = 0.1f;
         constexpr float TerrainFarPlane = 4000.0f;
-        constexpr double PeakProfilerStartupDelaySeconds = 5.0;
         constexpr float HeightLutNoiseMin = -2.0f;
         constexpr float HeightLutNoiseMax = 2.0f;
         constexpr uint32_t HeightLutVersion = 1;
@@ -2500,6 +2499,13 @@ namespace dolbuto
             return text.str();
         }
 
+        std::string formatBracketMs(const char* label, double milliseconds)
+        {
+            std::ostringstream text;
+            text << label << "[" << std::fixed << std::setprecision(3) << milliseconds << "]";
+            return text.str();
+        }
+
         bool deviceExtensionAvailable(VkPhysicalDevice device, const char* extensionName)
         {
             uint32_t extensionCount = 0;
@@ -2974,6 +2980,7 @@ namespace dolbuto
         bool terrainWireframe,
         int climateOverlayMode,
         int menuOverlayMode,
+        bool hudVisible,
         bool worldUpdateEnabled,
         bool gameSceneRenderEnabled,
         uint64_t worldTicks)
@@ -2985,6 +2992,7 @@ namespace dolbuto
         frameUnloadMs_ = 0.0;
         frameRetireMs_ = 0.0;
         frameSaveEnqueueMs_ = 0.0;
+        frameGridScanMs_ = 0.0;
         frameEnsureRuntimeMs_ = 0.0;
         frameWantRenderMs_ = 0.0;
         frameRenderDetachMs_ = 0.0;
@@ -3069,7 +3077,7 @@ namespace dolbuto
         }
         ensureClimateOverlayTexture(climateOverlayMode);
 
-        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPositionFloat, playerPositionFloat, fpsText, debugTextVisible, screenshotBuffer, showPlayer, terrainWireframe, climateOverlayMode, menuOverlayMode, gameSceneRenderEnabled, worldTicks);
+        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPositionFloat, playerPositionFloat, fpsText, debugTextVisible, screenshotBuffer, showPlayer, terrainWireframe, climateOverlayMode, menuOverlayMode, hudVisible, gameSceneRenderEnabled, worldTicks);
 
         VkSemaphore waitSemaphores[] = {imageAvailableSemaphores_[currentFrame_]};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -3146,6 +3154,7 @@ namespace dolbuto
         peakUnloadMs_ = 0.0;
         peakRetireMs_ = 0.0;
         peakSaveEnqueueMs_ = 0.0;
+        peakGridScanMs_ = 0.0;
         peakEnsureRuntimeMs_ = 0.0;
         peakWantRenderMs_ = 0.0;
         peakRenderDetachMs_ = 0.0;
@@ -3162,10 +3171,9 @@ namespace dolbuto
         peakEnsureLoadMs_ = 0.0;
         peakEnsureCreateMs_ = 0.0;
         peakEnsureDataTouchMs_ = 0.0;
-        if (peakProfilerSamplingStarted_)
-        {
-            peakProfilerStatusText_ = "PEAK SAMPLE: ON";
-        }
+        peakProfilerSamplingStarted_ = true;
+        peakProfilerStartTime_ = std::chrono::steady_clock::now();
+        peakProfilerStatusText_ = "PEAK SAMPLE: ON";
         updatePeakProfilerText();
     }
 
@@ -5720,6 +5728,7 @@ namespace dolbuto
         const auto wantRenderEnd = std::chrono::steady_clock::now();
         frameWantRenderMs_ += std::chrono::duration<double, std::milli>(wantRenderEnd - wantRenderStart).count();
         const auto gridEnd = std::chrono::steady_clock::now();
+        frameGridScanMs_ += std::chrono::duration<double, std::milli>(gridEnd - gridStart).count();
 
         const auto renderDetachStart = std::chrono::steady_clock::now();
         for (auto it = terrainChunks_.begin(); it != terrainChunks_.end();)
@@ -7684,6 +7693,7 @@ namespace dolbuto
             {
                 data->fluids.assign(ChunkBlockCount, FluidNone);
             }
+            rebuildChunkDerivedCaches(*data);
             if (!snapshot.chunkData)
             {
                 data->entities = snapshot.entities;
@@ -7718,29 +7728,6 @@ namespace dolbuto
                     entity.renderSpinZ = entity.renderSpinZ == 0.0f ? 5.0f : entity.renderSpinZ;
                 }
             }
-            data->emptySubchunks.fill(true);
-            for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
-            {
-                const int yStart = subchunkY * SubchunkSize;
-                const int yEnd = yStart + SubchunkSize;
-                bool empty = true;
-                for (int y = yStart; y < yEnd && empty; ++y)
-                {
-                    for (int z = 0; z < ChunkSizeZ && empty; ++z)
-                    {
-                        for (int x = 0; x < ChunkSizeX; ++x)
-                        {
-                            const size_t index = static_cast<size_t>((y * ChunkSizeZ + z) * ChunkSizeX + x);
-                            if (data->blocks[index] != BlockAir)
-                            {
-                                empty = false;
-                                break;
-                            }
-                        }
-                    }
-                }
-                data->emptySubchunks[static_cast<size_t>(subchunkY)] = empty;
-            }
             chunk.data = std::move(data);
         }
 
@@ -7759,14 +7746,28 @@ namespace dolbuto
         chunk->chunkZ = chunkZ;
         chunk->blocks.assign(ChunkBlockCount, BlockAir);
         chunk->fluids.assign(ChunkBlockCount, FluidNone);
+        chunk->fluidSubchunkCounts.fill(0);
         chunk->emptySubchunks.fill(true);
         populateChunkClimate(*chunk);
 
         std::array<int, Renderer::ChunkColumnCount> heights = buildChunkHeightmap(chunkX, chunkZ);
+        std::array<int, Renderer::ChunkColumnCount> terrainTopY{};
+        std::array<int, Renderer::ChunkColumnCount> bedrockHeights{};
+        terrainTopY.fill(-1);
         int maxHeight = 0;
-        for (int height : heights)
+        int minHeight = ChunkSizeY;
+        for (size_t column = 0; column < heights.size(); ++column)
         {
+            const int localX = static_cast<int>(column % ChunkSizeX);
+            const int localZ = static_cast<int>(column / ChunkSizeX);
+            const int height = heights[column];
+            bedrockHeights[column] = bedrockHeightAt(chunkX * ChunkSizeX + localX, chunkZ * ChunkSizeZ + localZ);
             maxHeight = std::max(maxHeight, height);
+            minHeight = std::min(minHeight, height);
+            if (height > 0)
+            {
+                terrainTopY[column] = std::min(height - 1, ChunkSizeY - 1);
+            }
         }
 
         const int solidHeightLimit = std::min(maxHeight, ChunkSizeY);
@@ -7779,24 +7780,36 @@ namespace dolbuto
         constexpr size_t BlocksPerLayer = ChunkSizeX * ChunkSizeZ;
         const int worldXStart = chunkX * ChunkSizeX;
         const int worldZStart = chunkZ * ChunkSizeZ;
+        const int commonSolidHeight = std::clamp(minHeight, 0, solidHeightLimit);
         for (int y = 0; y < solidHeightLimit; ++y)
         {
             uint16_t* layer = chunk->blocks.data() + static_cast<size_t>(y) * BlocksPerLayer;
+            if (y < commonSolidHeight)
+            {
+                std::fill(layer, layer + BlocksPerLayer, BlockRock);
+                continue;
+            }
+
             for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
             {
                 for (int localX = 0; localX < ChunkSizeX; ++localX)
                 {
                     const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                    layer[column] = baseTerrainBlockForColumn(worldXStart + localX, y, worldZStart + localZ, heights[column]);
+                    if (y < heights[column])
+                    {
+                        layer[column] = BlockRock;
+                    }
                 }
             }
         }
 
         constexpr uint16_t FullWater = packFluid(FluidWater, FluidFullAmount);
         const int seaY = std::clamp(seaLevel_, 0, ChunkSizeY - 1);
-        for (int y = 0; y <= seaY; ++y)
+        const int waterStartY = std::clamp(minHeight, 0, seaY + 1);
+        for (int y = waterStartY; y <= seaY; ++y)
         {
             uint16_t* fluidLayer = chunk->fluids.data() + static_cast<size_t>(y) * BlocksPerLayer;
+            uint16_t& fluidSubchunkCount = chunk->fluidSubchunkCounts[static_cast<size_t>(y / SubchunkSize)];
             for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
             {
                 for (int localX = 0; localX < ChunkSizeX; ++localX)
@@ -7805,6 +7818,7 @@ namespace dolbuto
                     if (y >= heights[column])
                     {
                         fluidLayer[column] = FullWater;
+                        ++fluidSubchunkCount;
                     }
                 }
             }
@@ -7815,8 +7829,32 @@ namespace dolbuto
             for (int localX = 0; localX < ChunkSizeX; ++localX)
             {
                 const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                const int height = heights[column];
-                const int surfaceY = height - 1;
+                const int bedrockHeight = bedrockHeights[column];
+                for (int y = 0; y < bedrockHeight && y < ChunkSizeY; ++y)
+                {
+                    const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+                    chunk->blocks[index] = BlockBedrock;
+                    chunk->emptySubchunks[static_cast<size_t>(y / SubchunkSize)] = false;
+                    uint16_t& fluid = chunk->fluids[index];
+                    if (fluidId(fluid) != FluidNone && fluidAmount(fluid) != 0)
+                    {
+                        fluid = FluidNone;
+                        uint16_t& count = chunk->fluidSubchunkCounts[static_cast<size_t>(y / SubchunkSize)];
+                        if (count > 0)
+                        {
+                            --count;
+                        }
+                    }
+                }
+            }
+        }
+
+        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+        {
+            for (int localX = 0; localX < ChunkSizeX; ++localX)
+            {
+                const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
+                const int surfaceY = terrainTopY[column];
                 if (surfaceY < 0 || surfaceY >= ChunkSizeY)
                 {
                     continue;
@@ -7828,14 +7866,15 @@ namespace dolbuto
                     continue;
                 }
 
-                const bool waterAbove = height >= 0 && height < ChunkSizeY &&
-                    chunk->fluids[static_cast<size_t>((height * ChunkSizeZ + localZ) * ChunkSizeX + localX)] != FluidNone;
+                const int aboveY = surfaceY + 1;
+                const bool waterAbove = aboveY >= 0 && aboveY < ChunkSizeY &&
+                    chunk->fluids[static_cast<size_t>((aboveY * ChunkSizeZ + localZ) * ChunkSizeX + localX)] != FluidNone;
                 const uint16_t surfaceBlock = waterAbove ? BlockSand : BlockGrass;
                 const uint16_t subsurfaceBlock = waterAbove ? BlockSand : BlockDirt;
                 chunk->blocks[surfaceIndex] = surfaceBlock;
 
-                const int bedrockHeight = bedrockHeightAt(worldXStart + localX, worldZStart + localZ);
-                const int subsurfaceStartY = std::max(bedrockHeight, height - 5);
+                const int bedrockHeight = bedrockHeights[column];
+                const int subsurfaceStartY = std::max(bedrockHeight, surfaceY - 4);
                 for (int y = subsurfaceStartY; y < surfaceY; ++y)
                 {
                     if (y < 0 || y >= ChunkSizeY)
@@ -7856,19 +7895,20 @@ namespace dolbuto
             for (int localX = 0; localX < ChunkSizeX; ++localX)
             {
                 const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                const int height = heights[column];
-                if (height <= 0 || height >= ChunkSizeY)
+                const int surfaceY = terrainTopY[column];
+                const int placeY = surfaceY + 1;
+                if (surfaceY < 0 || placeY >= ChunkSizeY)
                 {
                     continue;
                 }
 
-                const size_t topIndex = static_cast<size_t>(((height - 1) * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-                const size_t plantIndex = static_cast<size_t>((height * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+                const size_t topIndex = static_cast<size_t>((surfaceY * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+                const size_t plantIndex = static_cast<size_t>((placeY * ChunkSizeZ + localZ) * ChunkSizeX + localX);
                 if (topIndex < chunk->blocks.size() &&
                     plantIndex < chunk->blocks.size() &&
                     chunk->blocks[topIndex] == BlockGrass)
                 {
-                    const uint8_t placement = worldRandom8(worldXStart + localX, height, worldZStart + localZ, PlantPlacementSalt);
+                    const uint8_t placement = worldRandom8(worldXStart + localX, placeY, worldZStart + localZ, PlantPlacementSalt);
                     uint16_t placedBlock = BlockAir;
                     if (placement <= PlantPlacementMax)
                     {
@@ -7886,7 +7926,7 @@ namespace dolbuto
                     if (placedBlock != BlockAir)
                     {
                         chunk->blocks[plantIndex] = placedBlock;
-                        chunk->emptySubchunks[static_cast<size_t>(height / SubchunkSize)] = false;
+                        chunk->emptySubchunks[static_cast<size_t>(placeY / SubchunkSize)] = false;
                     }
                 }
             }
@@ -8302,6 +8342,47 @@ namespace dolbuto
         }
 
         chunk->emptySubchunks[static_cast<size_t>(subchunkY)] = empty;
+    }
+
+    void Renderer::rebuildChunkDerivedCaches(ChunkData& chunk) const
+    {
+        chunk.emptySubchunks.fill(true);
+        chunk.fluidSubchunkCounts.fill(0);
+        if (chunk.blocks.size() != ChunkBlockCount)
+        {
+            return;
+        }
+        if (chunk.fluids.size() != ChunkBlockCount)
+        {
+            chunk.fluids.assign(ChunkBlockCount, FluidNone);
+        }
+
+        constexpr size_t BlocksPerLayer = ChunkSizeX * ChunkSizeZ;
+        for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
+        {
+            bool empty = true;
+            uint16_t fluidCount = 0;
+            const int yStart = subchunkY * SubchunkSize;
+            const int yEnd = yStart + SubchunkSize;
+            for (int y = yStart; y < yEnd; ++y)
+            {
+                const size_t layerOffset = static_cast<size_t>(y) * BlocksPerLayer;
+                for (size_t column = 0; column < BlocksPerLayer; ++column)
+                {
+                    const size_t index = layerOffset + column;
+                    if (chunk.blocks[index] != BlockAir)
+                    {
+                        empty = false;
+                    }
+                    if (fluidId(chunk.fluids[index]) != FluidNone && fluidAmount(chunk.fluids[index]) != 0)
+                    {
+                        ++fluidCount;
+                    }
+                }
+            }
+            chunk.emptySubchunks[static_cast<size_t>(subchunkY)] = empty;
+            chunk.fluidSubchunkCounts[static_cast<size_t>(subchunkY)] = fluidCount;
+        }
     }
 
     void Renderer::rebuildSubchunkMeshNow(int chunkX, int chunkZ, int subchunkY)
@@ -9473,7 +9554,10 @@ namespace dolbuto
         for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
         {
             result.solidSubchunks[static_cast<size_t>(subchunkY)] = buildSubchunkMesh(chunk, subchunkY, blockAt);
-            result.fluidSubchunks[static_cast<size_t>(subchunkY)] = buildFluidSubchunkMesh(chunks, subchunkY);
+            if (chunk->fluidSubchunkCounts[static_cast<size_t>(subchunkY)] > 0)
+            {
+                result.fluidSubchunks[static_cast<size_t>(subchunkY)] = buildFluidSubchunkMesh(chunks, subchunkY);
+            }
         }
         return result;
     }
@@ -10278,14 +10362,15 @@ namespace dolbuto
         }
     }
 
-    bool Renderer::renderRmlUi(VkCommandBuffer commandBuffer, int menuOverlayMode)
+    bool Renderer::renderRmlUi(VkCommandBuffer commandBuffer, int menuOverlayMode, bool hudVisible)
     {
         if (!rmlInitialized_ || rmlContext_ == nullptr)
         {
             return false;
         }
 
-        setRmlUiDocument(menuOverlayMode);
+        const int effectiveMenuOverlayMode = hudVisible ? menuOverlayMode : (menuOverlayMode == 0 ? -1 : menuOverlayMode);
+        setRmlUiDocument(effectiveMenuOverlayMode);
         rmlContext_->SetDimensions(Rml::Vector2i(static_cast<int>(swapchainExtent_.width), static_cast<int>(swapchainExtent_.height)));
         rmlContext_->Update();
         rmlUiVertexOffset_ = 0;
@@ -12587,7 +12672,7 @@ namespace dolbuto
         vkFreeCommandBuffers(device_, commandPool_, 1, &commandBuffer);
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool gameSceneRenderEnabled, uint64_t worldTicks)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, uint64_t worldTicks)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -12694,7 +12779,7 @@ namespace dolbuto
             drawClimateOverlay(commandBuffer, climateOverlayMode);
         }
 
-        if (gameSceneRenderEnabled && menuOverlayMode == 0)
+        if (gameSceneRenderEnabled && menuOverlayMode == 0 && hudVisible)
         {
             if (cachedMenuOverlayMode_ != 0)
             {
@@ -12713,7 +12798,7 @@ namespace dolbuto
             updateDebugTextBatch(fpsText);
             drawTextBatch(commandBuffer, debugTextBatch_);
         }
-        if (!renderRmlUi(commandBuffer, menuOverlayMode))
+        if (!renderRmlUi(commandBuffer, menuOverlayMode, hudVisible))
         {
             drawMenuOverlay(commandBuffer, menuOverlayMode);
         }
@@ -14951,29 +15036,11 @@ namespace dolbuto
         addText(debugTextBatch_, terrainDrawText_, rightX, 222.0f, true);
         addText(debugTextBatch_, terrainFaceText_, rightX, 244.0f, true);
         addText(debugTextBatch_, terrainVertexText_, rightX, 266.0f, true);
-        addText(debugTextBatch_, peakProfilerStatusText_, rightX, static_cast<float>(swapchainExtent_.height) - 242.0f, true);
-        addText(debugTextBatch_, peakFrameText_, rightX, static_cast<float>(swapchainExtent_.height) - 220.0f, true);
-        addText(debugTextBatch_, peakUpdateText_, rightX, static_cast<float>(swapchainExtent_.height) - 198.0f, true);
-        addText(debugTextBatch_, peakEnsureRuntimeText_, rightX, static_cast<float>(swapchainExtent_.height) - 176.0f, true);
-        addText(debugTextBatch_, peakWantRenderText_, rightX, static_cast<float>(swapchainExtent_.height) - 154.0f, true);
-        addText(debugTextBatch_, peakEnsureKeyText_, rightX, static_cast<float>(swapchainExtent_.height) - 132.0f, true);
-        addText(debugTextBatch_, peakEnsureMarkText_, rightX, static_cast<float>(swapchainExtent_.height) - 110.0f, true);
-        addText(debugTextBatch_, peakEnsureFindText_, rightX, static_cast<float>(swapchainExtent_.height) - 88.0f, true);
-        addText(debugTextBatch_, peakEnsureLoadText_, rightX, static_cast<float>(swapchainExtent_.height) - 66.0f, true);
-        addText(debugTextBatch_, peakEnsureCreateText_, rightX, static_cast<float>(swapchainExtent_.height) - 44.0f, true);
-        addText(debugTextBatch_, peakEnsureDataTouchText_, rightX, static_cast<float>(swapchainExtent_.height) - 22.0f, true);
-        addText(debugTextBatch_, dataQueueText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 264.0f, false);
-        addText(debugTextBatch_, finalizeQueueText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 242.0f, false);
-        addText(debugTextBatch_, meshQueueText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 220.0f, false);
-        addText(debugTextBatch_, dataDoneText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 198.0f, false);
-        addText(debugTextBatch_, meshDoneText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 176.0f, false);
-        addText(debugTextBatch_, saveQueueText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 154.0f, false);
-        addText(debugTextBatch_, saveDoneText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 132.0f, false);
-        addText(debugTextBatch_, loadText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 110.0f, false);
-        addText(debugTextBatch_, uploadText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 88.0f, false);
-        addText(debugTextBatch_, unloadText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 66.0f, false);
-        addText(debugTextBatch_, retiredText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 44.0f, false);
-        addText(debugTextBatch_, jobMainText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 22.0f, false);
+        addText(debugTextBatch_, chunkPeakFrameText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 110.0f, false);
+        addText(debugTextBatch_, chunkPeakRequestText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 88.0f, false);
+        addText(debugTextBatch_, chunkPeakEnsureText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 66.0f, false);
+        addText(debugTextBatch_, chunkPeakWantText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 44.0f, false);
+        addText(debugTextBatch_, chunkPeakMeshRequestText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 22.0f, false);
 
         debugTextBatchDirty_ = false;
         debugTextBufferDirty_ = true;
@@ -15064,21 +15131,9 @@ namespace dolbuto
         if (peakProfilerStartTime_ == std::chrono::steady_clock::time_point{})
         {
             peakProfilerStartTime_ = now;
-            peakProfilerStatusText_ = "PEAK SAMPLE: WAIT 5S";
-            debugTextBatchDirty_ = true;
-            return;
-        }
-
-        const std::chrono::duration<double> elapsed = now - peakProfilerStartTime_;
-        if (!peakProfilerSamplingStarted_)
-        {
-            if (elapsed.count() < PeakProfilerStartupDelaySeconds)
-            {
-                return;
-            }
-
             peakProfilerSamplingStarted_ = true;
             peakProfilerStatusText_ = "PEAK SAMPLE: ON";
+            debugTextBatchDirty_ = true;
             updatePeakProfilerText();
         }
 
@@ -15099,8 +15154,11 @@ namespace dolbuto
         updatePeak(frameUnloadMs_, peakUnloadMs_);
         updatePeak(frameRetireMs_, peakRetireMs_);
         updatePeak(frameSaveEnqueueMs_, peakSaveEnqueueMs_);
+        updatePeak(frameGridScanMs_, peakGridScanMs_);
         updatePeak(frameEnsureRuntimeMs_, peakEnsureRuntimeMs_);
         updatePeak(frameWantRenderMs_, peakWantRenderMs_);
+        updatePeak(frameRenderDetachMs_, peakRenderDetachMs_);
+        updatePeak(frameUnloadScanMs_, peakUnloadScanMs_);
         updatePeak(frameWantEnsureMs_, peakWantEnsureMs_);
         updatePeak(frameWantInsertMs_, peakWantInsertMs_);
         updatePeak(frameWantReadyMs_, peakWantReadyMs_);
@@ -15132,6 +15190,37 @@ namespace dolbuto
         peakEnsureLoadText_ = formatProfileMs("PEAK ENSURE LOAD", peakEnsureLoadMs_);
         peakEnsureCreateText_ = formatProfileMs("PEAK ENSURE CREATE", peakEnsureCreateMs_);
         peakEnsureDataTouchText_ = formatProfileMs("PEAK ENSURE DATA TOUCH", peakEnsureDataTouchMs_);
+        chunkPeakFrameText_ =
+            "CHUNK PEAK FRAME: " +
+            formatBracketMs("UPDATE", peakChunkUpdateMs_) + " " +
+            formatBracketMs("JOB", peakJobMainMs_) + " " +
+            formatBracketMs("UPLOAD", peakUploadMs_) + " " +
+            formatBracketMs("UNLOAD", peakUnloadMs_);
+        chunkPeakRequestText_ =
+            "CHUNK PEAK REQUEST: " +
+            formatBracketMs("GRID", peakGridScanMs_) + " " +
+            formatBracketMs("ENSURE", peakEnsureRuntimeMs_) + " " +
+            formatBracketMs("WANT", peakWantRenderMs_) + " " +
+            formatBracketMs("DETACH", peakRenderDetachMs_) + " " +
+            formatBracketMs("SCAN", peakUnloadScanMs_);
+        chunkPeakEnsureText_ =
+            "CHUNK PEAK ENSURE: " +
+            formatBracketMs("KEY", peakEnsureKeyMs_) + " " +
+            formatBracketMs("MARK", peakEnsureMarkMs_) + " " +
+            formatBracketMs("FIND", peakEnsureFindMs_) + " " +
+            formatBracketMs("LOAD", peakEnsureLoadMs_) + " " +
+            formatBracketMs("CREATE", peakEnsureCreateMs_) + " " +
+            formatBracketMs("TOUCH", peakEnsureDataTouchMs_);
+        chunkPeakWantText_ =
+            "CHUNK PEAK WANT: " +
+            formatBracketMs("ENSURE", peakWantEnsureMs_) + " " +
+            formatBracketMs("INSERT", peakWantInsertMs_) + " " +
+            formatBracketMs("READY", peakWantReadyMs_) + " " +
+            formatBracketMs("DEPEND", peakWantDependMs_);
+        chunkPeakMeshRequestText_ =
+            "CHUNK PEAK MESHREQ: " +
+            formatBracketMs("READY", peakWantMeshReadyMs_) + " " +
+            formatBracketMs("DEPEND", peakWantMeshDependMs_);
         debugTextBatchDirty_ = true;
     }
 

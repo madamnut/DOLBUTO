@@ -593,7 +593,7 @@ namespace dolbuto
             const bool worldUpdateEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory;
             const bool gameSceneRenderEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory;
             const bool renderDebugText = (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory) && debugTextVisible_;
-            renderer_->drawFrame(renderCamera, renderCameraPosition, debugText_.data(), renderDebugText, screenshotRequested_, showPlayer, renderPlayerPosition, camera_.yaw(), terrainWireframe_, climateOverlayMode_, menuOverlayMode, worldUpdateEnabled, gameSceneRenderEnabled, worldTicks_);
+            renderer_->drawFrame(renderCamera, renderCameraPosition, debugText_.data(), renderDebugText, screenshotRequested_, showPlayer, renderPlayerPosition, camera_.yaw(), terrainWireframe_, climateOverlayMode_, menuOverlayMode, hudVisible_, worldUpdateEnabled, gameSceneRenderEnabled, worldTicks_);
             screenshotRequested_ = false;
         }
     }
@@ -689,6 +689,10 @@ namespace dolbuto
             else if (key == GLFW_KEY_F3 && action == GLFW_PRESS && app != nullptr)
             {
                 app->debugTextVisible_ = !app->debugTextVisible_;
+            }
+            else if (key == GLFW_KEY_F1 && action == GLFW_PRESS && app != nullptr)
+            {
+                app->hudVisible_ = !app->hudVisible_;
             }
             else if (key == GLFW_KEY_F2 && action == GLFW_PRESS && app != nullptr)
             {

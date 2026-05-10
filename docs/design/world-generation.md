@@ -144,6 +144,20 @@ Empty
 
 관련 문서: [[chunk-system]], [[block-data]], [[save-load]]
 
+## Chunk Fill Optimization
+
+Generated chunk data is filled in layer-major order because the runtime index is:
+
+```cpp
+index = (y * ChunkSizeZ + localZ) * ChunkSizeX + localX
+```
+
+Chunk generation caches `terrainTopY[256]` from the heightmap for surface and vegetation placement.
+It also caches `bedrockHeights[256]` so the bedrock pass and subsurface pass do not repeat the same column hash.
+The shared solid range below the minimum height is filled as whole layers.
+Above that range, only the height-varying layers branch per column.
+Water writes update `fluidSubchunkCounts[y / 16]`, and bedrock is applied after the base `rock / air / water` shape.
+
 ## Climate Chunk Data
 
 Climate is stored per X/Z column in runtime chunk data.

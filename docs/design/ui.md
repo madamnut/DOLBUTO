@@ -66,6 +66,7 @@ World Create:
 
 Game:
   bottom-center hotbar HUD
+  F1 -> hide/show hotbar HUD and crosshair
   1-9/0 or mouse wheel -> change selected hotbar slot
   E -> Inventory
   ESC -> Pause
@@ -99,6 +100,9 @@ Pause keeps the game scene rendered behind the pause overlay, but the upper-left
 Inventory keeps chunk loading and game simulation active while blocking only player input.
 Inventory keeps the game scene, debug text, and hotbar rendered behind a semi-transparent black overlay, and releases the mouse cursor.
 The in-game HUD is a RmlUi document shown during the normal game screen and inventory screen, and currently contains only the bottom-center hotbar shell.
+F1 toggles the normal game-screen HUD visibility.
+When hidden, the hotbar RmlUi document and native crosshair sprite are not rendered.
+Debug text, menus, pause UI, and inventory UI are not hidden by F1.
 The hotbar and inventory sprites use the same 4x pixel scale so their slot sizes match; the hotbar selection scope is offset by 3 source pixels from the hotbar left and bottom edges.
 Hotbar slots are selected left to right with `1` through `9`, then `0`; the current selection scope uses a 17 source-pixel step between slots at 4x scale.
 The runtime inventory has 50 item slots.

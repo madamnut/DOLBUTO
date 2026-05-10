@@ -66,6 +66,7 @@ namespace dolbuto
             bool terrainWireframe,
             int climateOverlayMode,
             int menuOverlayMode,
+            bool hudVisible,
             bool worldUpdateEnabled,
             bool gameSceneRenderEnabled,
             uint64_t worldTicks);
@@ -440,6 +441,7 @@ namespace dolbuto
             std::array<uint8_t, ChunkColumnCount> temperature{};
             std::array<uint8_t, ChunkColumnCount> precipitation{};
             std::vector<WorldEntity> entities;
+            std::array<uint16_t, SubchunkCount> fluidSubchunkCounts{};
             std::array<bool, SubchunkCount> emptySubchunks{};
         };
 
@@ -630,7 +632,7 @@ namespace dolbuto
         void createSelectionLineBuffer();
         void initializeRmlUi();
         void shutdownRmlUi();
-        bool renderRmlUi(VkCommandBuffer commandBuffer, int menuOverlayMode);
+        bool renderRmlUi(VkCommandBuffer commandBuffer, int menuOverlayMode, bool hudVisible);
         void setRmlUiDocument(int menuOverlayMode);
         void updateHotbarScopeClass();
         void attachRmlUiEvents(Rml::ElementDocument* document);
@@ -677,6 +679,7 @@ namespace dolbuto
         bool setBlockAtWorld(int x, int y, int z, uint16_t block);
         bool blockIntersectsPlayerCollider(int x, int y, int z, uint16_t block, DVec3 playerPosition) const;
         void updateChunkEmptySubchunk(const std::shared_ptr<ChunkData>& chunk, int subchunkY);
+        void rebuildChunkDerivedCaches(ChunkData& chunk) const;
         void rebuildSubchunkMeshNow(int chunkX, int chunkZ, int subchunkY);
         void rebuildEditedChunkMeshes(int blockX, int blockY, int blockZ);
         std::vector<uint16_t> buildMeshingBlocks(const std::shared_ptr<ChunkData>& chunk) const;
@@ -728,7 +731,7 @@ namespace dolbuto
         VkCommandBuffer beginSingleTimeCommands() const;
         void endSingleTimeCommands(VkCommandBuffer commandBuffer) const;
 
-        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool gameSceneRenderEnabled, uint64_t worldTicks);
+        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, uint64_t worldTicks);
         void copySwapchainImageToBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VkBuffer buffer) const;
         void saveScreenshot(VkDeviceMemory memory, VkDeviceSize size) const;
         void updatePlayerMesh(Vec3 playerPosition, float playerYaw);
@@ -866,6 +869,11 @@ namespace dolbuto
         std::string peakEnsureLoadText_ = "PEAK ENSURE LOAD: 000.000MS";
         std::string peakEnsureCreateText_ = "PEAK ENSURE CREATE: 000.000MS";
         std::string peakEnsureDataTouchText_ = "PEAK ENSURE DATA TOUCH: 000.000MS";
+        std::string chunkPeakFrameText_ = "CHUNK PEAK FRAME: UPDATE[0.000] JOB[0.000] UPLOAD[0.000] UNLOAD[0.000]";
+        std::string chunkPeakRequestText_ = "CHUNK PEAK REQUEST: GRID[0.000] ENSURE[0.000] WANT[0.000] DETACH[0.000] SCAN[0.000]";
+        std::string chunkPeakEnsureText_ = "CHUNK PEAK ENSURE: KEY[0.000] MARK[0.000] FIND[0.000] LOAD[0.000] CREATE[0.000] TOUCH[0.000]";
+        std::string chunkPeakWantText_ = "CHUNK PEAK WANT: ENSURE[0.000] INSERT[0.000] READY[0.000] DEPEND[0.000]";
+        std::string chunkPeakMeshRequestText_ = "CHUNK PEAK MESHREQ: READY[0.000] DEPEND[0.000]";
         std::chrono::steady_clock::time_point terrainDebugSampleTime_{};
         std::string chunkUpdateProfileText_ = "UPDATE TOTAL: ---.---MS";
         std::string worldBuildProfileText_ = "WORLD TOTAL: ---.---MS";
@@ -1102,6 +1110,7 @@ namespace dolbuto
         double frameUnloadMs_ = 0.0;
         double frameRetireMs_ = 0.0;
         double frameSaveEnqueueMs_ = 0.0;
+        double frameGridScanMs_ = 0.0;
         double frameEnsureRuntimeMs_ = 0.0;
         double frameWantRenderMs_ = 0.0;
         double frameRenderDetachMs_ = 0.0;
@@ -1125,6 +1134,7 @@ namespace dolbuto
         double peakUnloadMs_ = 0.0;
         double peakRetireMs_ = 0.0;
         double peakSaveEnqueueMs_ = 0.0;
+        double peakGridScanMs_ = 0.0;
         double peakEnsureRuntimeMs_ = 0.0;
         double peakWantRenderMs_ = 0.0;
         double peakRenderDetachMs_ = 0.0;

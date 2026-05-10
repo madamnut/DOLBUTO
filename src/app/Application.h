@@ -94,6 +94,7 @@ namespace dolbuto
         Camera camera_;
         bool fullscreen_ = false;
         bool debugTextVisible_ = true;
+        bool hudVisible_ = true;
         bool terrainWireframe_ = false;
         int climateOverlayMode_ = 0;
         int hotbarSelectedSlot_ = 0;

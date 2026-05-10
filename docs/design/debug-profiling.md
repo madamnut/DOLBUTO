@@ -101,3 +101,21 @@ logs/DOLBUTO_YYYYMMDD_HHMMSS_mmm.txt
 
 Both files receive the same log lines during a run. `Latest.txt` is replaced on the next run.
 Log lines include local time with milliseconds and a level such as `INFO`, `WARN`, `ERROR`, or `DEBUG`.
+
+## Lower Debug Text
+
+Lower-right peak profiler text is currently not displayed.
+Lower-left chunk loading diagnostics show resettable accumulated peak latency values in milliseconds.
+
+Pressing `R` resets every displayed chunk peak value to `0.000`.
+After reset, each value shows the maximum measured latency since that reset.
+
+Displayed groups:
+
+```text
+CHUNK PEAK FRAME: UPDATE[] JOB[] UPLOAD[] UNLOAD[]
+CHUNK PEAK REQUEST: GRID[] ENSURE[] WANT[] DETACH[] SCAN[]
+CHUNK PEAK ENSURE: KEY[] MARK[] FIND[] LOAD[] CREATE[] TOUCH[]
+CHUNK PEAK WANT: ENSURE[] INSERT[] READY[] DEPEND[]
+CHUNK PEAK MESHREQ: READY[] DEPEND[]
+```

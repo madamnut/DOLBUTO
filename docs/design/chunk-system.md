@@ -106,6 +106,12 @@ Runtime chunk data keeps climate as per-column arrays alongside block and fluid 
 - Fluids: `uint16_t` vector for `16 x 512 x 16` packed fluid values.
 - Temperature: `uint8_t[256]`, indexed by `localZ * 16 + localX`.
 - Precipitation: `uint8_t[256]`, indexed by `localZ * 16 + localX`.
+- Fluid subchunk counts: `uint16_t[32]`, one count per `16 x 16 x 16` subchunk.
+
+`fluidSubchunkCounts` is derived runtime data and is not stored in region files.
+Generated chunks fill it while writing water.
+Loaded chunks rebuild `emptySubchunks` and `fluidSubchunkCounts` together in one layer-major pass over `blocks` and `fluids`.
+Fluid mesh generation skips subchunks whose count is `0`.
 
 ## Chunk Entity Data
 
