@@ -523,6 +523,8 @@ namespace dolbuto
             bool hasSavedBacking = false;
             bool dataDirtyForSave = false;
             uint64_t dataDirtySerial = 0;
+            bool snapshotLoadRequested = false;
+            bool snapshotLoadFinished = false;
         };
 
         struct SaveChunkSnapshot
@@ -543,6 +545,21 @@ namespace dolbuto
             std::vector<WorldEntity> entities;
             std::array<FeatureWriteListPtr, FeatureNeighborCount> incomingFeatureSlots{};
             uint8_t incomingFeatureMask = 0;
+        };
+
+        struct ChunkLoadJob
+        {
+            int chunkX = 0;
+            int chunkZ = 0;
+            uint64_t generation = 0;
+        };
+
+        struct CompletedChunkLoad
+        {
+            int chunkX = 0;
+            int chunkZ = 0;
+            uint64_t generation = 0;
+            std::optional<SaveChunkSnapshot> snapshot;
         };
 
         struct WorldEntityHandle
@@ -648,6 +665,10 @@ namespace dolbuto
         void rebuildLoadOrderIfNeeded();
         void startTerrainWorkers();
         void stopTerrainWorkers();
+        void startChunkLoadWorker();
+        void stopChunkLoadWorker();
+        void chunkLoadWorkerLoop();
+        void enqueueChunkLoadJob(int chunkX, int chunkZ, uint64_t generation);
         void startSaveWorker();
         void stopSaveWorker();
         void saveWorkerLoop();
@@ -869,11 +890,13 @@ namespace dolbuto
         std::string peakEnsureLoadText_ = "PEAK ENSURE LOAD: 000.000MS";
         std::string peakEnsureCreateText_ = "PEAK ENSURE CREATE: 000.000MS";
         std::string peakEnsureDataTouchText_ = "PEAK ENSURE DATA TOUCH: 000.000MS";
-        std::string chunkPeakFrameText_ = "CHUNK PEAK FRAME: UPDATE[0.000] JOB[0.000] UPLOAD[0.000] UNLOAD[0.000]";
+        std::string chunkPeakFrameText_ = "CHUNK PEAK FRAME: TOTAL[0.000] UPDATE[0.000] JOB[0.000] UPLOAD[0.000] UNLOAD[0.000]";
         std::string chunkPeakRequestText_ = "CHUNK PEAK REQUEST: GRID[0.000] ENSURE[0.000] WANT[0.000] DETACH[0.000] SCAN[0.000]";
         std::string chunkPeakEnsureText_ = "CHUNK PEAK ENSURE: KEY[0.000] MARK[0.000] FIND[0.000] LOAD[0.000] CREATE[0.000] TOUCH[0.000]";
         std::string chunkPeakWantText_ = "CHUNK PEAK WANT: ENSURE[0.000] INSERT[0.000] READY[0.000] DEPEND[0.000]";
         std::string chunkPeakMeshRequestText_ = "CHUNK PEAK MESHREQ: READY[0.000] DEPEND[0.000]";
+        std::string chunkPeakEnsureCountText_ = "CHUNK PEAK ENSURE COUNT: CALL[0] HIT[0] MISS[0] SAVED[0] EMPTY[0]";
+        std::string chunkPeakRequestCountText_ = "CHUNK PEAK REQUEST COUNT: WANT[0] MESH[0] FULL[0] FEATURE[0]";
         std::chrono::steady_clock::time_point terrainDebugSampleTime_{};
         std::string chunkUpdateProfileText_ = "UPDATE TOTAL: ---.---MS";
         std::string worldBuildProfileText_ = "WORLD TOTAL: ---.---MS";
@@ -1010,6 +1033,7 @@ namespace dolbuto
         std::deque<uint64_t> pendingUnloadChunks_;
         std::deque<RetiredChunkRenderData> retiredTerrainChunks_;
         std::vector<std::thread> terrainWorkers_;
+        std::thread chunkLoadWorker_;
         std::thread saveWorker_;
         std::mutex terrainJobMutex_;
         std::condition_variable terrainJobCondition_;
@@ -1021,6 +1045,12 @@ namespace dolbuto
         std::deque<std::shared_ptr<ChunkData>> completedMergedChunks_;
         std::deque<CompletedChunkMesh> completedChunkMeshes_;
         bool stopTerrainWorkers_ = false;
+        std::mutex chunkLoadJobMutex_;
+        std::condition_variable chunkLoadJobCondition_;
+        std::deque<ChunkLoadJob> chunkLoadJobs_;
+        std::deque<CompletedChunkLoad> completedChunkLoads_;
+        std::unordered_set<uint64_t> requestedChunkLoads_;
+        bool stopChunkLoadWorker_ = false;
         std::mutex saveJobMutex_;
         std::condition_variable saveJobCondition_;
         std::deque<SaveChunkSnapshot> saveJobs_;
@@ -1034,6 +1064,7 @@ namespace dolbuto
         std::mutex savedChunkMutex_;
         std::unordered_map<uint64_t, uint64_t> savedCleanRevisions_;
         std::unordered_map<uint64_t, SaveChunkSnapshot> pendingSaveSnapshots_;
+        std::mutex regionIoMutex_;
         std::mutex regionHeaderCacheMutex_;
         std::unordered_map<uint64_t, RegionHeaderCache> regionHeaderCache_;
         std::array<uint16_t, 1024> heightLut_{};
@@ -1127,6 +1158,15 @@ namespace dolbuto
         double frameEnsureLoadMs_ = 0.0;
         double frameEnsureCreateMs_ = 0.0;
         double frameEnsureDataTouchMs_ = 0.0;
+        uint64_t frameEnsureCallCount_ = 0;
+        uint64_t frameEnsureHitCount_ = 0;
+        uint64_t frameEnsureMissCount_ = 0;
+        uint64_t frameEnsureSavedCount_ = 0;
+        uint64_t frameEnsureEmptyCount_ = 0;
+        uint64_t frameWantRenderCallCount_ = 0;
+        uint64_t frameWantMeshCallCount_ = 0;
+        uint64_t frameWantFullCallCount_ = 0;
+        uint64_t frameWantFeaturingCallCount_ = 0;
         double peakFrameMs_ = 0.0;
         double peakChunkUpdateMs_ = 0.0;
         double peakJobMainMs_ = 0.0;
@@ -1151,5 +1191,14 @@ namespace dolbuto
         double peakEnsureLoadMs_ = 0.0;
         double peakEnsureCreateMs_ = 0.0;
         double peakEnsureDataTouchMs_ = 0.0;
+        uint64_t peakEnsureCallCount_ = 0;
+        uint64_t peakEnsureHitCount_ = 0;
+        uint64_t peakEnsureMissCount_ = 0;
+        uint64_t peakEnsureSavedCount_ = 0;
+        uint64_t peakEnsureEmptyCount_ = 0;
+        uint64_t peakWantRenderCallCount_ = 0;
+        uint64_t peakWantMeshCallCount_ = 0;
+        uint64_t peakWantFullCallCount_ = 0;
+        uint64_t peakWantFeaturingCallCount_ = 0;
     };
 }

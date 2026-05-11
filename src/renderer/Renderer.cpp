@@ -2506,6 +2506,13 @@ namespace dolbuto
             return text.str();
         }
 
+        std::string formatBracketCount(const char* label, uint64_t count)
+        {
+            std::ostringstream text;
+            text << label << "[" << count << "]";
+            return text.str();
+        }
+
         bool deviceExtensionAvailable(VkPhysicalDevice device, const char* extensionName)
         {
             uint32_t extensionCount = 0;
@@ -2771,6 +2778,7 @@ namespace dolbuto
     Renderer::~Renderer()
     {
         stopTerrainWorkers();
+        stopChunkLoadWorker();
         enqueueSaveAllRuntimeChunks();
         stopSaveWorker();
         vkDeviceWaitIdle(device_);
@@ -3009,6 +3017,15 @@ namespace dolbuto
         frameEnsureLoadMs_ = 0.0;
         frameEnsureCreateMs_ = 0.0;
         frameEnsureDataTouchMs_ = 0.0;
+        frameEnsureCallCount_ = 0;
+        frameEnsureHitCount_ = 0;
+        frameEnsureMissCount_ = 0;
+        frameEnsureSavedCount_ = 0;
+        frameEnsureEmptyCount_ = 0;
+        frameWantRenderCallCount_ = 0;
+        frameWantMeshCallCount_ = 0;
+        frameWantFullCallCount_ = 0;
+        frameWantFeaturingCallCount_ = 0;
 
         const Vec3 cameraPositionFloat = toVec3(cameraPosition);
         const Vec3 playerPositionFloat = toVec3(playerPosition);
@@ -3171,6 +3188,15 @@ namespace dolbuto
         peakEnsureLoadMs_ = 0.0;
         peakEnsureCreateMs_ = 0.0;
         peakEnsureDataTouchMs_ = 0.0;
+        peakEnsureCallCount_ = 0;
+        peakEnsureHitCount_ = 0;
+        peakEnsureMissCount_ = 0;
+        peakEnsureSavedCount_ = 0;
+        peakEnsureEmptyCount_ = 0;
+        peakWantRenderCallCount_ = 0;
+        peakWantMeshCallCount_ = 0;
+        peakWantFullCallCount_ = 0;
+        peakWantFeaturingCallCount_ = 0;
         peakProfilerSamplingStarted_ = true;
         peakProfilerStartTime_ = std::chrono::steady_clock::now();
         peakProfilerStatusText_ = "PEAK SAMPLE: ON";
@@ -5884,6 +5910,85 @@ namespace dolbuto
         }
     }
 
+    void Renderer::startChunkLoadWorker()
+    {
+        stopChunkLoadWorker_ = false;
+        chunkLoadWorker_ = std::thread(&Renderer::chunkLoadWorkerLoop, this);
+    }
+
+    void Renderer::stopChunkLoadWorker()
+    {
+        {
+            std::lock_guard<std::mutex> lock(chunkLoadJobMutex_);
+            stopChunkLoadWorker_ = true;
+            chunkLoadJobs_.clear();
+        }
+        chunkLoadJobCondition_.notify_all();
+
+        if (chunkLoadWorker_.joinable())
+        {
+            chunkLoadWorker_.join();
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(chunkLoadJobMutex_);
+            completedChunkLoads_.clear();
+            requestedChunkLoads_.clear();
+        }
+    }
+
+    void Renderer::enqueueChunkLoadJob(int chunkX, int chunkZ, uint64_t generation)
+    {
+        const uint64_t key = chunkKey(chunkX, chunkZ);
+        {
+            std::lock_guard<std::mutex> lock(chunkLoadJobMutex_);
+            if (!requestedChunkLoads_.insert(key).second)
+            {
+                return;
+            }
+            chunkLoadJobs_.push_back(ChunkLoadJob{chunkX, chunkZ, generation});
+        }
+        chunkLoadJobCondition_.notify_one();
+    }
+
+    void Renderer::chunkLoadWorkerLoop()
+    {
+        for (;;)
+        {
+            ChunkLoadJob job{};
+            {
+                std::unique_lock<std::mutex> lock(chunkLoadJobMutex_);
+                chunkLoadJobCondition_.wait(lock, [this]
+                {
+                    return stopChunkLoadWorker_ || !chunkLoadJobs_.empty();
+                });
+
+                if (chunkLoadJobs_.empty())
+                {
+                    if (stopChunkLoadWorker_)
+                    {
+                        return;
+                    }
+                    continue;
+                }
+
+                job = chunkLoadJobs_.front();
+                chunkLoadJobs_.pop_front();
+            }
+
+            CompletedChunkLoad completed{};
+            completed.chunkX = job.chunkX;
+            completed.chunkZ = job.chunkZ;
+            completed.generation = job.generation;
+            completed.snapshot = loadChunkSnapshot(job.chunkX, job.chunkZ);
+
+            {
+                std::lock_guard<std::mutex> lock(chunkLoadJobMutex_);
+                completedChunkLoads_.push_back(std::move(completed));
+            }
+        }
+    }
+
     void Renderer::startSaveWorker()
     {
         stopSaveWorker_ = false;
@@ -6128,6 +6233,7 @@ namespace dolbuto
         std::vector<CompletedChunkData> completedChunks;
         std::vector<std::shared_ptr<ChunkData>> completedMergedChunks;
         std::vector<CompletedChunkMesh> completedMeshes;
+        std::vector<CompletedChunkLoad> completedLoads;
         size_t queuedFeatureJobCount = 0;
         size_t queuedFinalizeJobCount = 0;
         size_t queuedMeshJobCount = 0;
@@ -6196,6 +6302,98 @@ namespace dolbuto
                 completedMeshes.push_back(std::move(completedChunkMeshes_.front()));
                 completedChunkMeshes_.pop_front();
                 uploadedChunkCount = uploadChunkCount;
+            }
+        }
+        {
+            std::lock_guard<std::mutex> lock(chunkLoadJobMutex_);
+            while (!completedChunkLoads_.empty())
+            {
+                const uint64_t key = chunkKey(completedChunkLoads_.front().chunkX, completedChunkLoads_.front().chunkZ);
+                requestedChunkLoads_.erase(key);
+                completedLoads.push_back(std::move(completedChunkLoads_.front()));
+                completedChunkLoads_.pop_front();
+            }
+        }
+
+        for (CompletedChunkLoad& completed : completedLoads)
+        {
+            const uint64_t key = chunkKey(completed.chunkX, completed.chunkZ);
+            auto chunkIt = runtimeChunks_.find(key);
+            if (chunkIt == runtimeChunks_.end())
+            {
+                continue;
+            }
+
+            RuntimeChunk& existing = chunkIt->second;
+            existing.snapshotLoadRequested = false;
+            existing.snapshotLoadFinished = true;
+            if (desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
+            {
+                continue;
+            }
+
+            const uint64_t renderTicket = existing.renderTicket;
+            const uint64_t meshTicket = existing.meshTicket;
+            const uint64_t fullTicket = existing.fullTicket;
+            const uint64_t featuringTicket = existing.featuringTicket;
+            const uint32_t bestPriority = existing.bestPriority;
+            const std::array<FeatureWriteListPtr, FeatureNeighborCount> pendingIncomingFeatureSlots = existing.incomingFeatureSlots;
+            const uint8_t pendingIncomingFeatureMask = existing.incomingFeatureMask;
+            if (completed.snapshot)
+            {
+                RuntimeChunk loaded = runtimeChunkFromSnapshot(*completed.snapshot, generation);
+                if (pendingIncomingFeatureMask != 0)
+                {
+                    if ((loaded.genState == ChunkGenState::Full || loaded.genState == ChunkGenState::Meshed) && loaded.data)
+                    {
+                        if (applyFeatureWrites(loaded.data, pendingIncomingFeatureSlots))
+                        {
+                            loaded.genState = ChunkGenState::Full;
+                        }
+                    }
+                    else
+                    {
+                        for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
+                        {
+                            const uint8_t bit = static_cast<uint8_t>(1u << static_cast<uint32_t>(slot));
+                            if ((pendingIncomingFeatureMask & bit) != 0 && pendingIncomingFeatureSlots[slot] && !loaded.incomingFeatureSlots[slot])
+                            {
+                                loaded.incomingFeatureSlots[slot] = pendingIncomingFeatureSlots[slot];
+                                loaded.incomingFeatureMask |= bit;
+                            }
+                        }
+                    }
+                }
+                loaded.renderTicket = renderTicket;
+                loaded.meshTicket = meshTicket;
+                loaded.fullTicket = fullTicket;
+                loaded.featuringTicket = featuringTicket;
+                loaded.bestPriority = bestPriority;
+                loaded.snapshotLoadRequested = false;
+                loaded.snapshotLoadFinished = true;
+                chunkIt->second = std::move(loaded);
+                ++frameEnsureSavedCount_;
+            }
+            else
+            {
+                ++frameEnsureEmptyCount_;
+            }
+
+            if (desiredRenderChunks_.find(key) != desiredRenderChunks_.end())
+            {
+                wantRender(completed.chunkX, completed.chunkZ, bestPriority);
+            }
+            else if (meshTicket == generation)
+            {
+                wantMesh(completed.chunkX, completed.chunkZ, bestPriority);
+            }
+            else if (fullTicket == generation)
+            {
+                wantFull(completed.chunkX, completed.chunkZ, bestPriority);
+            }
+            else if (featuringTicket == generation)
+            {
+                wantFeaturing(completed.chunkX, completed.chunkZ, bestPriority);
             }
         }
 
@@ -6486,6 +6684,8 @@ namespace dolbuto
 
     Renderer::RuntimeChunk& Renderer::ensureRuntimeChunk(int chunkX, int chunkZ, uint64_t generation)
     {
+        ++frameEnsureCallCount_;
+
         const auto keyStart = std::chrono::steady_clock::now();
         const uint64_t key = chunkKey(chunkX, chunkZ);
         const auto keyEnd = std::chrono::steady_clock::now();
@@ -6503,31 +6703,32 @@ namespace dolbuto
         frameEnsureFindMs_ += std::chrono::duration<double, std::milli>(findEnd - findStart).count();
         if (chunkIt == runtimeChunks_.end())
         {
-            const auto loadStart = std::chrono::steady_clock::now();
-            std::optional<SaveChunkSnapshot> snapshot = loadChunkSnapshot(chunkX, chunkZ);
-            const auto loadEnd = std::chrono::steady_clock::now();
-            frameEnsureLoadMs_ += std::chrono::duration<double, std::milli>(loadEnd - loadStart).count();
-
+            ++frameEnsureMissCount_;
             const auto createStart = std::chrono::steady_clock::now();
-            if (snapshot)
-            {
-                chunkIt = runtimeChunks_.emplace(key, runtimeChunkFromSnapshot(*snapshot, generation)).first;
-            }
-            else
-            {
-                RuntimeChunk chunk{};
-                chunk.chunkX = chunkX;
-                chunk.chunkZ = chunkZ;
-                chunkIt = runtimeChunks_.emplace(key, std::move(chunk)).first;
-            }
+            RuntimeChunk chunk{};
+            chunk.chunkX = chunkX;
+            chunk.chunkZ = chunkZ;
+            chunk.snapshotLoadRequested = true;
+            chunk.snapshotLoadFinished = false;
+            chunkIt = runtimeChunks_.emplace(key, std::move(chunk)).first;
             const auto createEnd = std::chrono::steady_clock::now();
             frameEnsureCreateMs_ += std::chrono::duration<double, std::milli>(createEnd - createStart).count();
+            enqueueChunkLoadJob(chunkX, chunkZ, generation);
+        }
+        else
+        {
+            ++frameEnsureHitCount_;
         }
 
         RuntimeChunk& chunk = chunkIt->second;
         const auto touchStart = std::chrono::steady_clock::now();
         chunk.chunkX = chunkX;
         chunk.chunkZ = chunkZ;
+        if (!chunk.data && !chunk.snapshotLoadRequested && !chunk.snapshotLoadFinished)
+        {
+            chunk.snapshotLoadRequested = true;
+            enqueueChunkLoadJob(chunkX, chunkZ, generation);
+        }
         if (chunk.data)
         {
             chunk.data->generation = generation;
@@ -6539,6 +6740,7 @@ namespace dolbuto
 
     void Renderer::wantRender(int chunkX, int chunkZ, uint32_t priority)
     {
+        ++frameWantRenderCallCount_;
         const uint64_t generation = terrainGeneration_.load();
         const uint64_t key = chunkKey(chunkX, chunkZ);
         const auto ensureStart = std::chrono::steady_clock::now();
@@ -6571,6 +6773,7 @@ namespace dolbuto
 
     void Renderer::wantMesh(int chunkX, int chunkZ, uint32_t priority)
     {
+        ++frameWantMeshCallCount_;
         const uint64_t generation = terrainGeneration_.load();
         const uint64_t key = chunkKey(chunkX, chunkZ);
         RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
@@ -6596,6 +6799,7 @@ namespace dolbuto
 
     void Renderer::wantFull(int chunkX, int chunkZ, uint32_t priority)
     {
+        ++frameWantFullCallCount_;
         const uint64_t generation = terrainGeneration_.load();
         const uint64_t key = chunkKey(chunkX, chunkZ);
         RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
@@ -6627,11 +6831,16 @@ namespace dolbuto
 
     void Renderer::wantFeaturing(int chunkX, int chunkZ, uint32_t priority)
     {
+        ++frameWantFeaturingCallCount_;
         const uint64_t generation = terrainGeneration_.load();
         RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
         desiredFeatureChunks_.insert(chunkKey(chunkX, chunkZ));
         chunk.featuringTicket = generation;
         chunk.bestPriority = std::min(chunk.bestPriority, priority);
+        if (!chunk.data && chunk.snapshotLoadRequested && !chunk.snapshotLoadFinished)
+        {
+            return;
+        }
 
         if (chunk.outgoingPublishedTicket == generation &&
             (chunk.genState == ChunkGenState::Featuring ||
@@ -6824,6 +7033,7 @@ namespace dolbuto
         climatePrecipitationOverlayReady_ = false;
         terrainLoadRequested_ = false;
         startSaveWorker();
+        startChunkLoadWorker();
         startTerrainWorkers();
         gameSceneLoaded_ = true;
         log::info("Game scene loaded.");
@@ -6838,6 +7048,7 @@ namespace dolbuto
 
         log::info("Unloading game scene.");
         stopTerrainWorkers();
+        stopChunkLoadWorker();
         enqueueSaveAllRuntimeChunks();
         stopSaveWorker();
         vkDeviceWaitIdle(device_);
@@ -7216,6 +7427,7 @@ namespace dolbuto
         std::filesystem::create_directories(regionDirectory);
         const std::filesystem::path regionPath = regionDirectory / ("r." + std::to_string(regionX) + "." + std::to_string(regionZ) + ".region");
 
+        std::lock_guard<std::mutex> regionIoLock(regionIoMutex_);
         if (!std::filesystem::exists(regionPath))
         {
             std::ofstream createFile(regionPath, std::ios::binary);
@@ -7408,6 +7620,7 @@ namespace dolbuto
             }
         }
 
+        std::lock_guard<std::mutex> regionIoLock(regionIoMutex_);
         const int storageChunkX = wrapChunkCoordinate(chunkX);
         const int storageChunkZ = wrapChunkCoordinate(chunkZ);
         const int regionX = storageChunkX / RegionSizeChunks;
@@ -15036,11 +15249,13 @@ namespace dolbuto
         addText(debugTextBatch_, terrainDrawText_, rightX, 222.0f, true);
         addText(debugTextBatch_, terrainFaceText_, rightX, 244.0f, true);
         addText(debugTextBatch_, terrainVertexText_, rightX, 266.0f, true);
-        addText(debugTextBatch_, chunkPeakFrameText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 110.0f, false);
-        addText(debugTextBatch_, chunkPeakRequestText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 88.0f, false);
-        addText(debugTextBatch_, chunkPeakEnsureText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 66.0f, false);
-        addText(debugTextBatch_, chunkPeakWantText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 44.0f, false);
-        addText(debugTextBatch_, chunkPeakMeshRequestText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 22.0f, false);
+        addText(debugTextBatch_, chunkPeakFrameText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 154.0f, false);
+        addText(debugTextBatch_, chunkPeakRequestText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 132.0f, false);
+        addText(debugTextBatch_, chunkPeakEnsureText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 110.0f, false);
+        addText(debugTextBatch_, chunkPeakWantText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 88.0f, false);
+        addText(debugTextBatch_, chunkPeakMeshRequestText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 66.0f, false);
+        addText(debugTextBatch_, chunkPeakEnsureCountText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 44.0f, false);
+        addText(debugTextBatch_, chunkPeakRequestCountText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 22.0f, false);
 
         debugTextBatchDirty_ = false;
         debugTextBufferDirty_ = true;
@@ -15146,6 +15361,14 @@ namespace dolbuto
                 changed = true;
             }
         };
+        const auto updatePeakCount = [&](uint64_t value, uint64_t& peak)
+        {
+            if (value > peak)
+            {
+                peak = value;
+                changed = true;
+            }
+        };
 
         updatePeak(frameMs, peakFrameMs_);
         updatePeak(frameChunkUpdateMs_, peakChunkUpdateMs_);
@@ -15171,6 +15394,15 @@ namespace dolbuto
         updatePeak(frameEnsureLoadMs_, peakEnsureLoadMs_);
         updatePeak(frameEnsureCreateMs_, peakEnsureCreateMs_);
         updatePeak(frameEnsureDataTouchMs_, peakEnsureDataTouchMs_);
+        updatePeakCount(frameEnsureCallCount_, peakEnsureCallCount_);
+        updatePeakCount(frameEnsureHitCount_, peakEnsureHitCount_);
+        updatePeakCount(frameEnsureMissCount_, peakEnsureMissCount_);
+        updatePeakCount(frameEnsureSavedCount_, peakEnsureSavedCount_);
+        updatePeakCount(frameEnsureEmptyCount_, peakEnsureEmptyCount_);
+        updatePeakCount(frameWantRenderCallCount_, peakWantRenderCallCount_);
+        updatePeakCount(frameWantMeshCallCount_, peakWantMeshCallCount_);
+        updatePeakCount(frameWantFullCallCount_, peakWantFullCallCount_);
+        updatePeakCount(frameWantFeaturingCallCount_, peakWantFeaturingCallCount_);
 
         if (changed)
         {
@@ -15192,6 +15424,7 @@ namespace dolbuto
         peakEnsureDataTouchText_ = formatProfileMs("PEAK ENSURE DATA TOUCH", peakEnsureDataTouchMs_);
         chunkPeakFrameText_ =
             "CHUNK PEAK FRAME: " +
+            formatBracketMs("TOTAL", peakFrameMs_) + " " +
             formatBracketMs("UPDATE", peakChunkUpdateMs_) + " " +
             formatBracketMs("JOB", peakJobMainMs_) + " " +
             formatBracketMs("UPLOAD", peakUploadMs_) + " " +
@@ -15221,6 +15454,19 @@ namespace dolbuto
             "CHUNK PEAK MESHREQ: " +
             formatBracketMs("READY", peakWantMeshReadyMs_) + " " +
             formatBracketMs("DEPEND", peakWantMeshDependMs_);
+        chunkPeakEnsureCountText_ =
+            "CHUNK PEAK ENSURE COUNT: " +
+            formatBracketCount("CALL", peakEnsureCallCount_) + " " +
+            formatBracketCount("HIT", peakEnsureHitCount_) + " " +
+            formatBracketCount("MISS", peakEnsureMissCount_) + " " +
+            formatBracketCount("SAVED", peakEnsureSavedCount_) + " " +
+            formatBracketCount("EMPTY", peakEnsureEmptyCount_);
+        chunkPeakRequestCountText_ =
+            "CHUNK PEAK REQUEST COUNT: " +
+            formatBracketCount("WANT", peakWantRenderCallCount_) + " " +
+            formatBracketCount("MESH", peakWantMeshCallCount_) + " " +
+            formatBracketCount("FULL", peakWantFullCallCount_) + " " +
+            formatBracketCount("FEATURE", peakWantFeaturingCallCount_);
         debugTextBatchDirty_ = true;
     }
 

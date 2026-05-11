@@ -113,6 +113,18 @@ Generated chunks fill it while writing water.
 Loaded chunks rebuild `emptySubchunks` and `fluidSubchunkCounts` together in one layer-major pass over `blocks` and `fluids`.
 Fluid mesh generation skips subchunks whose count is `0`.
 
+## Async Snapshot Load
+
+Saved chunk snapshot reads are handled by a single chunk-load worker instead of the render thread.
+When `ensureRuntimeChunk` finds a missing runtime chunk, it inserts a runtime shell, marks snapshot loading as requested, enqueues a chunk load job, and returns immediately.
+
+The chunk-load worker calls `loadChunkSnapshot`.
+The main thread later installs completed snapshot loads during terrain job completion processing.
+If a snapshot exists, it is converted to runtime chunk data and the previous render/full/mesh/feature tickets are preserved.
+If no snapshot exists, the shell is marked as load-finished and normal generation requests can proceed.
+
+Region file read/write access is serialized by a region IO mutex so the chunk-load worker and save worker do not read and write region payload/header data at the same time.
+
 ## Chunk Entity Data
 
 Runtime chunk data owns a `WorldEntity` array.

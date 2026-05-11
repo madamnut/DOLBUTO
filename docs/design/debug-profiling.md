@@ -113,9 +113,18 @@ After reset, each value shows the maximum measured latency since that reset.
 Displayed groups:
 
 ```text
-CHUNK PEAK FRAME: UPDATE[] JOB[] UPLOAD[] UNLOAD[]
+CHUNK PEAK FRAME: TOTAL[] UPDATE[] JOB[] UPLOAD[] UNLOAD[]
 CHUNK PEAK REQUEST: GRID[] ENSURE[] WANT[] DETACH[] SCAN[]
 CHUNK PEAK ENSURE: KEY[] MARK[] FIND[] LOAD[] CREATE[] TOUCH[]
 CHUNK PEAK WANT: ENSURE[] INSERT[] READY[] DEPEND[]
 CHUNK PEAK MESHREQ: READY[] DEPEND[]
+CHUNK PEAK ENSURE COUNT: CALL[] HIT[] MISS[] SAVED[] EMPTY[]
+CHUNK PEAK REQUEST COUNT: WANT[] MESH[] FULL[] FEATURE[]
 ```
+
+The count lines show the maximum per-frame call counts since the last `R` reset.
+`HIT` means the runtime chunk already existed.
+`MISS` means a runtime chunk entry had to be created.
+`SAVED` means that miss was restored from a saved chunk snapshot.
+`EMPTY` means that miss created an empty runtime shell for generation.
+`TOTAL` is the whole CPU frame peak and is the closest displayed value to the in-game frame-time spike.
