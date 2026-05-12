@@ -1,4 +1,4 @@
-# 디버그와 프로파일링
+﻿# 디버그와 프로파일링
 
 ## 표시 토글
 
@@ -52,13 +52,13 @@ QUADS
 현재 확인하던 주요 항목:
 
 - 로드/저장 큐 상태
-- chunk load hit/miss
-- upload/unload budget
-- save done/failed
+- 청크 load hit/miss
+- upload/unload 예산
+- save done/failed 상태
 
-## 우하단 peak profiler
+## 우하단 피크 프로파일러
 
-우하단은 순간 스파이크 확인용 peak profiler다.
+우하단은 순간 스파이크 확인용 피크 프로파일러다.
 
 - 프로그램 시작 후 5초 뒤 샘플링 시작
 - 누적 최대값 유지
@@ -79,38 +79,39 @@ QUADS
 
 관련 문서: [[chunk-system]], [[rendering]], [[save-load]]
 
-## Climate Debug Text
+## 기후 디버그 텍스트
 
-The upper-left debug text shows sampled player-column climate as:
+좌상단 디버그 텍스트는 플레이어가 있는 칼럼에서 샘플링한 기후 값을 다음 형식으로 표시한다.
 
 ```text
 CLIMATE: T[0.000] P[0.000]
 ```
 
-`T` is temperature and `P` is precipitation, both decoded to `0.0~1.0`.
-F6 still cycles the full-screen climate overlay between off, temperature, and precipitation.
+`T`는 temperature, `P`는 precipitation이며 둘 다 `0.0~1.0`으로 디코딩한 값이다.
+F6은 전체 화면 기후 오버레이를 꺼짐, temperature, precipitation 순서로 계속 전환한다.
 
-## Runtime Logs
+## 런타임 로그
 
-The game creates text logs under `logs`.
+게임은 `logs` 아래에 텍스트 로그를 생성한다.
 
 ```text
 logs/Latest.txt
 logs/DOLBUTO_YYYYMMDD_HHMMSS_mmm.txt
 ```
 
-Both files receive the same log lines during a run. `Latest.txt` is replaced on the next run.
-Log lines include local time with milliseconds and a level such as `INFO`, `WARN`, `ERROR`, or `DEBUG`.
+실행 중 두 파일에는 같은 로그 줄이 기록된다.
+`Latest.txt`는 다음 실행 때 교체된다.
+로그 줄에는 millisecond 단위 로컬 시간과 `INFO`, `WARN`, `ERROR`, `DEBUG` 같은 레벨이 포함된다.
 
-## Lower Debug Text
+## 하단 디버그 텍스트
 
-Lower-right peak profiler text is currently not displayed.
-Lower-left chunk loading diagnostics show resettable accumulated peak latency values in milliseconds.
+우하단 피크 프로파일러 텍스트는 현재 표시하지 않는다.
+좌하단 청크 로딩 진단은 재설정 가능한 누적 피크 latency 값을 millisecond 단위로 표시한다.
 
-Pressing `R` resets every displayed chunk peak value to `0.000`.
-After reset, each value shows the maximum measured latency since that reset.
+`R`을 누르면 표시 중인 모든 청크 피크 값이 `0.000`으로 초기화된다.
+초기화 뒤 각 값은 그 이후 측정된 최대 latency를 표시한다.
 
-Displayed groups:
+표시 그룹은 다음과 같다.
 
 ```text
 CHUNK PEAK FRAME: TOTAL[] UPDATE[] JOB[] UPLOAD[] UNLOAD[]
@@ -122,9 +123,9 @@ CHUNK PEAK ENSURE COUNT: CALL[] HIT[] MISS[] SAVED[] EMPTY[]
 CHUNK PEAK REQUEST COUNT: WANT[] MESH[] FULL[] FEATURE[]
 ```
 
-The count lines show the maximum per-frame call counts since the last `R` reset.
-`HIT` means the runtime chunk already existed.
-`MISS` means a runtime chunk entry had to be created.
-`SAVED` means that miss was restored from a saved chunk snapshot.
-`EMPTY` means that miss created an empty runtime shell for generation.
-`TOTAL` is the whole CPU frame peak and is the closest displayed value to the in-game frame-time spike.
+count 줄은 마지막 `R` 초기화 이후 프레임당 호출 수의 최대값을 표시한다.
+`HIT`는 런타임 청크가 이미 있었다는 뜻이다.
+`MISS`는 런타임 청크 entry를 새로 만들어야 했다는 뜻이다.
+`SAVED`는 해당 miss가 저장된 청크 snapshot에서 복원되었다는 뜻이다.
+`EMPTY`는 해당 miss가 생성을 위한 빈 runtime shell을 만들었다는 뜻이다.
+`TOTAL`은 전체 CPU frame 피크이며, 인게임 frame-time spike에 가장 가까운 표시값이다.

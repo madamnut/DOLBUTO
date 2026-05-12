@@ -1,4 +1,4 @@
-# 청크 시스템
+﻿# 청크 시스템
 
 ## 단위
 
@@ -98,62 +98,62 @@ GPU 리소스 폐기는 한 프레임에 몰리지 않도록 budget을 둔다.
 
 관련 문서: [[world-generation]], [[save-load]], [[rendering]]
 
-## Chunk Column Data
+## 청크 칼럼 데이터
 
-Runtime chunk data keeps climate as per-column arrays alongside block and fluid arrays.
+런타임 청크 데이터는 블록 배열과 유체 배열 옆에 기후 값을 칼럼별 배열로 보관한다.
 
-- Blocks: `uint16_t` vector for `16 x 512 x 16` block ids.
-- Fluids: `uint16_t` vector for `16 x 512 x 16` packed fluid values.
-- Temperature: `uint8_t[256]`, indexed by `localZ * 16 + localX`.
-- Precipitation: `uint8_t[256]`, indexed by `localZ * 16 + localX`.
-- Fluid subchunk counts: `uint16_t[32]`, one count per `16 x 16 x 16` subchunk.
+- Blocks: `16 x 512 x 16` 블록 ID를 담는 `uint16_t` vector.
+- Fluids: `16 x 512 x 16` packed fluid 값을 담는 `uint16_t` vector.
+- Temperature: `uint8_t[256]`, `localZ * 16 + localX`로 인덱싱한다.
+- Precipitation: `uint8_t[256]`, `localZ * 16 + localX`로 인덱싱한다.
+- Fluid subchunk counts: `uint16_t[32]`, `16 x 16 x 16` subchunk마다 하나의 count를 가진다.
 
-`fluidSubchunkCounts` is derived runtime data and is not stored in region files.
-Generated chunks fill it while writing water.
-Loaded chunks rebuild `emptySubchunks` and `fluidSubchunkCounts` together in one layer-major pass over `blocks` and `fluids`.
-Fluid mesh generation skips subchunks whose count is `0`.
+`fluidSubchunkCounts`는 파생 런타임 데이터이며 region 파일에는 저장하지 않는다.
+생성된 청크는 물을 기록하면서 이 값을 채운다.
+로드된 청크는 `blocks`와 `fluids`를 layer-major 순서로 한 번 순회하면서 `emptySubchunks`와 `fluidSubchunkCounts`를 함께 재구축한다.
+유체 mesh 생성은 count가 `0`인 subchunk를 건너뛴다.
 
-## Async Snapshot Load
+## 비동기 스냅샷 로드
 
-Saved chunk snapshot reads are handled by a single chunk-load worker instead of the render thread.
-When `ensureRuntimeChunk` finds a missing runtime chunk, it inserts a runtime shell, marks snapshot loading as requested, enqueues a chunk load job, and returns immediately.
+저장된 청크 snapshot 읽기는 render thread가 아니라 단일 chunk-load worker가 처리한다.
+`ensureRuntimeChunk`가 없는 런타임 청크를 발견하면 runtime shell을 삽입하고, snapshot loading requested 상태를 표시하고, chunk load job을 큐에 넣은 뒤 즉시 반환한다.
 
-The chunk-load worker calls `loadChunkSnapshot`.
-The main thread later installs completed snapshot loads during terrain job completion processing.
-If a snapshot exists, it is converted to runtime chunk data and the previous render/full/mesh/feature tickets are preserved.
-If no snapshot exists, the shell is marked as load-finished and normal generation requests can proceed.
+chunk-load worker는 `loadChunkSnapshot`을 호출한다.
+main thread는 이후 terrain job 완료 처리 중 완료된 snapshot load를 설치한다.
+snapshot이 있으면 runtime chunk data로 변환하고 이전 render/full/mesh/feature ticket을 보존한다.
+snapshot이 없으면 shell을 load-finished로 표시하고 일반 생성 요청이 진행될 수 있게 한다.
 
-Region file read/write access is serialized by a region IO mutex so the chunk-load worker and save worker do not read and write region payload/header data at the same time.
+chunk-load worker와 save worker가 region payload/header 데이터를 동시에 읽고 쓰지 않도록 region file read/write 접근은 region IO mutex로 직렬화한다.
 
-## Chunk Entity Data
+## 청크 엔티티 데이터
 
-Runtime chunk data owns a `WorldEntity` array.
-The current entity type is `DroppedItem`.
+런타임 청크 데이터는 `WorldEntity` 배열을 소유한다.
+현재 entity type은 `DroppedItem`이다.
 
-- `entityId`: unique runtime/save identity for a world entity
-- `type`: entity payload type
-- `position`, `previousPosition`, `velocity`: runtime movement state
-- `flags`: compact common state such as grounded
-- dropped-item payload: `itemId` and `count`
+- `entityId`: 월드 엔티티의 고유 runtime/save identity
+- `type`: 엔티티 payload type
+- `position`, `previousPosition`, `velocity`: 런타임 이동 상태
+- `flags`: grounded 같은 공통 상태를 담는 compact 값
+- dropped-item payload: `itemId`와 `count`
 
-Entities move with their owner chunk.
-If an entity crosses a chunk boundary while both chunks are loaded, ownership is transferred to the target chunk.
+엔티티는 소유 청크와 함께 이동한다.
+두 청크가 모두 로드된 상태에서 엔티티가 청크 경계를 넘으면 소유권을 대상 청크로 이전한다.
 
-## Game Scene Unload
+## 게임 씬 언로드
 
-Returning from pause to the lobby unloads the game scene instead of keeping loaded world state alive.
+일시정지에서 로비로 돌아가면 로드된 월드 상태를 유지하지 않고 게임 씬을 언로드한다.
 
-The unload path:
+언로드 경로는 다음과 같다.
 
 ```text
-stop terrain workers
-enqueue all runtime chunks for save
-drain save worker
-wait for Vulkan device idle
-destroy loaded and retired terrain meshes
-clear runtime chunks, desired sets, requested job sets, and unload queues
-reset terrain load request
+terrain worker 중지
+모든 runtime chunk를 저장 큐에 추가
+save worker 비우기
+Vulkan device idle 대기
+로드된 terrain mesh와 retired terrain mesh 파괴
+runtime chunk, desired set, requested job set, unload queue 비우기
+terrain load request 초기화
 ```
 
-The renderer itself remains alive because the lobby still uses renderer-owned swapchain, sprite textures, and font resources.
-Starting a later game scene starts terrain and save workers again.
+로비가 렌더러 소유 swapchain, sprite texture, font resource를 계속 사용하므로 렌더러 자체는 살아 있다.
+나중에 게임 씬을 다시 시작하면 terrain worker와 save worker를 다시 시작한다.

@@ -1,4 +1,4 @@
-# 플레이어
+﻿# 플레이어
 
 ## 좌표와 카메라
 
@@ -74,7 +74,7 @@ V 키로 fly/ground 모드를 전환한다.
 - `A/D`: 좌우 이동
 - `Space`: 상승 또는 점프
 - `Shift`: fly 모드 하강
-- `F`: dropped item pickup
+- `F`: 드랍 아이템 획득
 - `V`: fly/ground 전환
 - `F2`: 스크린샷
 - `F3`: 디버그 텍스트
@@ -85,32 +85,32 @@ V 키로 fly/ground 모드를 전환한다.
 
 관련 문서: [[block-data]], [[debug-profiling]]
 
-## Player Save Data
+## 플레이어 저장 데이터
 
-Player state is loaded from and saved to `saves/world/player.dat`.
+플레이어 상태는 `saves/world/player.dat`에서 로드하고 같은 파일에 저장한다.
 
-- `x`, `y`, `z` use the player foot position.
-- `x` and `z` are stored as wrapped world coordinates.
-- `yaw` and `pitch` restore the camera view.
-- `moveMode` stores `0 = fly`, `1 = ground`.
-- `verticalVelocity` restores jump/fall momentum for ground movement.
-- The 50 runtime inventory slots are saved after movement state as `uint16 itemId` and `uint16 count` pairs.
-- The transient inventory cursor stack is not saved.
-- Interpolation state is not saved; on load, previous position is set to the loaded position.
+- `x`, `y`, `z`는 플레이어 발밑 위치를 사용한다.
+- `x`, `z`는 래핑된 월드 좌표로 저장한다.
+- `yaw`, `pitch`는 카메라 시점을 복원한다.
+- `moveMode`는 `0 = fly`, `1 = ground`로 저장한다.
+- `verticalVelocity`는 지상 이동의 점프/낙하 관성을 복원한다.
+- 50개 런타임 인벤토리 슬롯은 이동 상태 뒤에 `uint16 itemId`, `uint16 count` 쌍으로 저장한다.
+- 임시 인벤토리 커서 스택은 저장하지 않는다.
+- 보간 상태는 저장하지 않는다. 로드 시 이전 위치는 로드된 위치로 설정한다.
 
-Related document: [[save-load]]
+관련 문서: [[save-load]]
 
-## Block Placement Collision
+## 블록 설치 충돌
 
-Block placement is ignored when the placed collision block would overlap the current player collider.
-Non-collision blocks are not blocked by this rule.
+설치할 충돌 블록이 현재 플레이어 콜라이더와 겹칠 예정이면 블록 설치를 무시한다.
+충돌이 없는 블록은 이 규칙으로 막지 않는다.
 
-## Debug Time
+## 디버그 시간
 
-The upper-left debug text includes world time as:
+좌상단 디버그 텍스트는 월드 시간을 다음 형식으로 포함한다.
 
 ```text
 TIME: 0D 06H 00M
 ```
 
-The display is derived from the world `totalTicks` value stored in `saves/<world-name>/world.dat`.
+표시는 `saves/<world-name>/world.dat`에 저장된 월드 `totalTicks` 값에서 계산한다.

@@ -1,4 +1,4 @@
-# 빌드와 배포
+﻿# 빌드와 배포
 
 ## 빌드 방식
 
@@ -11,10 +11,10 @@
 - `DOLBUTOShaders`: Vulkan 셰이더 컴파일 타깃
 - `DOLBUTOPortable`: 포터블 배포 폴더 생성 타깃
 
-## Third-Party Prebuilt Libraries
+## 서드파티 사전 빌드 라이브러리
 
-Third-party libraries that are not expected to be modified are linked as prebuilt binaries.
-Game builds should not compile these third-party sources:
+수정할 예정이 없는 서드파티 라이브러리는 사전 빌드 바이너리로 링크한다.
+게임 빌드에서 이 서드파티 소스를 다시 컴파일하지 않는다.
 
 ```text
 third_party/prebuilt/
@@ -40,16 +40,16 @@ third_party/prebuilt/
     licenses/COPYING
 ```
 
-Current policy:
+현재 정책:
 
-- GLFW uses the official Windows x64 prebuilt package.
-- FreeType is built once as a shared Release library with optional compression/shaping dependencies disabled.
-- RmlUi is built once as a shared Release library with the FreeType font engine, no samples, no Lua, no Lottie, and no SVG plugin.
-- OpenAL Soft uses the official Windows x64 binary package.
-- If the OpenAL Soft binary package provides `soft_oal.dll`, copy the x64 DLL as `OpenAL32.dll` so the app-local DLL is used.
-- If a third-party version, compile option, runtime option, or architecture changes, rebuild that library outside the normal game build and replace only the files under `third_party/prebuilt`.
+- GLFW는 공식 Windows x64 사전 빌드 패키지를 사용한다.
+- FreeType은 선택적 압축/셰이핑 의존성을 끄고 공유 Release 라이브러리로 한 번 빌드한다.
+- RmlUi는 FreeType 폰트 엔진을 사용하고 samples, Lua, Lottie, SVG plugin을 끈 공유 Release 라이브러리로 한 번 빌드한다.
+- OpenAL Soft는 공식 Windows x64 바이너리 패키지를 사용한다.
+- OpenAL Soft 바이너리 패키지가 `soft_oal.dll`을 제공하면, 앱 로컬 DLL이 사용되도록 x64 DLL을 `OpenAL32.dll` 이름으로 복사한다.
+- 서드파티 버전, 컴파일 옵션, 런타임 옵션, 아키텍처가 바뀌면 일반 게임 빌드 밖에서 해당 라이브러리를 다시 빌드하고 `third_party/prebuilt` 아래 파일만 교체한다.
 
-Reference build options for one-time local prebuild generation:
+일회성 로컬 사전 빌드 생성용 참고 빌드 옵션:
 
 ```text
 FreeType:
@@ -74,7 +74,7 @@ RmlUi:
   RMLUI_COMPILER_OPTIONS=OFF
 ```
 
-The runtime DLLs copied next to `DOLBUTO.exe` are:
+`DOLBUTO.exe` 옆에 복사되는 런타임 DLL:
 
 ```text
 glfw3.dll

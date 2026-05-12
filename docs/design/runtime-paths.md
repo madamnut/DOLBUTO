@@ -1,4 +1,4 @@
-# 런타임 경로
+﻿# 런타임 경로
 
 ## 목적
 
@@ -46,16 +46,16 @@ screenshots -> exe 옆/screenshots
 
 관련 문서: [[build-and-distribution]]
 
-## Logs
+## 로그
 
-Runtime logs use `RuntimePaths::logDirectory()`.
+런타임 로그는 `RuntimePaths::logDirectory()`를 사용한다.
 
-Debug builds write logs to the project root `logs` directory.
-Release and portable builds write logs to the executable-side `logs` directory.
+Debug 빌드는 프로젝트 루트의 `logs` 디렉터리에 로그를 쓴다.
+Release 및 portable 빌드는 실행 파일 옆의 `logs` 디렉터리에 로그를 쓴다.
 
 ```text
 logs/Latest.txt
 logs/DOLBUTO_YYYYMMDD_HHMMSS_mmm.txt
 ```
 
-`Latest.txt` is overwritten on each run. The timestamped file is kept for history, and `_1`, `_2` suffixes are used if a name already exists.
+`Latest.txt`는 실행할 때마다 덮어쓴다. 타임스탬프 파일은 기록용으로 유지하며, 같은 이름이 이미 있으면 `_1`, `_2` 접미사를 사용한다.

@@ -1,4 +1,4 @@
-# 월드 생성
+﻿# 월드 생성
 
 ## 기본 형태
 
@@ -144,25 +144,25 @@ Empty
 
 관련 문서: [[chunk-system]], [[block-data]], [[save-load]]
 
-## Chunk Fill Optimization
+## 청크 채우기 최적화
 
-Generated chunk data is filled in layer-major order because the runtime index is:
+생성된 청크 데이터는 layer-major 순서로 채운다. 런타임 인덱스가 다음과 같기 때문이다.
 
 ```cpp
 index = (y * ChunkSizeZ + localZ) * ChunkSizeX + localX
 ```
 
-Chunk generation caches `terrainTopY[256]` from the heightmap for surface and vegetation placement.
-It also caches `bedrockHeights[256]` so the bedrock pass and subsurface pass do not repeat the same column hash.
-The shared solid range below the minimum height is filled as whole layers.
-Above that range, only the height-varying layers branch per column.
-Water writes update `fluidSubchunkCounts[y / 16]`, and bedrock is applied after the base `rock / air / water` shape.
+청크 생성은 표면과 식생 배치를 위해 heightmap에서 `terrainTopY[256]`을 캐시한다.
+또한 bedrock pass와 subsurface pass가 같은 column hash를 반복하지 않도록 `bedrockHeights[256]`도 캐시한다.
+최소 높이 아래의 공통 solid 범위는 전체 layer 단위로 채운다.
+그 위에서는 높이가 변하는 layer만 column별로 분기한다.
+물 기록은 `fluidSubchunkCounts[y / 16]`를 갱신하며, bedrock은 기본 `rock / air / water` 형태를 만든 뒤 적용한다.
 
-## Climate Chunk Data
+## 기후 청크 데이터
 
-Climate is stored per X/Z column in runtime chunk data.
+기후는 런타임 청크 데이터에 X/Z column별로 저장한다.
 
-- `temperature[256]`: `uint8_t` encoded `0~255`, decoded as `0.0~1.0`.
-- `precipitation[256]`: `uint8_t` encoded `0~255`, decoded as `0.0~1.0`.
-- Column index is `localZ * 16 + localX`.
-- Generated chunks populate these arrays with the same tileable climate noise used by the F6 overlay.
+- `temperature[256]`: `0~255`로 인코딩된 `uint8_t`, 디코딩 시 `0.0~1.0`.
+- `precipitation[256]`: `0~255`로 인코딩된 `uint8_t`, 디코딩 시 `0.0~1.0`.
+- Column index는 `localZ * 16 + localX`이다.
+- 생성된 청크는 F6 오버레이와 같은 tileable climate noise로 이 배열을 채운다.

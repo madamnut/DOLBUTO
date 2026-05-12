@@ -1,4 +1,4 @@
-# 렌더링
+﻿# 렌더링
 
 ## 현재 방식
 
@@ -49,22 +49,22 @@
 - mip 전환은 shader에서 카메라 거리 기준으로 처리한다.
 - `mipDistanceScale = 1.0`일 때 64블록 단위로 mip 단계가 바뀐다.
 
-## Camera-Relative Rendering
+## 카메라 상대 렌더링
 
-World, player, chunk, and save coordinates remain in world space.
-Scene rendering uses camera-relative coordinates before projection to reduce float precision jitter at large wrapped X/Z values.
+월드, 플레이어, 청크, 저장 좌표는 월드 공간에 유지한다.
+씬 렌더링은 큰 래핑 X/Z 좌표에서 float 정밀도 흔들림을 줄이기 위해 투영 전에 카메라 상대 좌표를 사용한다.
 
-- CPU gameplay coordinates remain `double` where already used.
-- Terrain mesh vertices remain stored in world coordinates.
-- Terrain, player, particle, dropped-item, and selection vertex shaders subtract `cameraPosition.xyz` from each world-space vertex.
-- Scene view matrices use the camera rotation with translation set to zero.
-- Terrain frustum culling tests chunk AABBs after subtracting the render camera position.
-- Fragment mip distance uses the length of the camera-relative position instead of `distance(camera, worldPosition)`.
+- CPU 게임플레이 좌표는 이미 사용하는 곳에서 `double`을 유지한다.
+- 지형 메시 정점은 월드 좌표로 저장한다.
+- 지형, 플레이어, 파티클, 드랍 아이템, 선택 표시 vertex shader는 각 월드 공간 정점에서 `cameraPosition.xyz`를 뺀다.
+- 씬 view matrix는 카메라 회전만 사용하고 translation은 0으로 둔다.
+- 지형 frustum culling은 청크 AABB에서 렌더 카메라 위치를 뺀 뒤 검사한다.
+- fragment mip 거리는 `distance(camera, worldPosition)` 대신 카메라 상대 위치의 길이를 사용한다.
 
-## Block Breaking Overlay
+## 블록 파괴 오버레이
 
-Block breaking crack textures are world-rendering overlays, not UI assets.
-They are stored under:
+블록 파괴 금 텍스처는 UI asset이 아니라 월드 렌더링 오버레이다.
+저장 위치는 다음과 같다.
 
 ```text
 assets/textures/block/breaking/destroy_stage_0.png
@@ -72,23 +72,23 @@ assets/textures/block/breaking/destroy_stage_0.png
 assets/textures/block/breaking/destroy_stage_9.png
 ```
 
-When the player holds block break, the selected cube block renders one of the ten overlay stages according to current break progress.
-The overlay is emitted as block-space quads using the terrain texture array and forces mip level 0.
-While breaking, small block-textured particles spawn from the hit face at a fixed interval.
+플레이어가 블록 파괴를 유지하면 선택된 큐브 블록은 현재 파괴 진행도에 따라 10개 오버레이 단계 중 하나를 렌더링한다.
+오버레이는 지형 texture array를 사용하는 블록 공간 quad로 방출하며 mip level 0을 강제한다.
+파괴 중에는 타격 면에서 작은 블록 텍스처 파티클이 고정 간격으로 생성된다.
 
-## Prop Rendering
+## 소품 렌더링
 
-`renderType = "prop"` blocks are rendered inside the normal terrain mesh path.
+`renderType = "prop"` 블록은 일반 지형 메시 경로 안에서 렌더링한다.
 
-- Block data chooses a `.dpm` model with `prop.model`.
-- Block data chooses one block texture array layer with `prop.texture`.
-- `.dpm` stores quad positions, UVs, and normals; it has no magic and no version field.
-- On startup, missing or stale `.dpm` files are regenerated from matching `.glb` files.
-- During `.glb` conversion, source triangle pairs are merged back into quads.
-- During subchunk meshing, prop quads are appended at the block position.
-- Prop quads are emitted double-sided to avoid depending on source model winding.
-- `randomOffset` prop blocks offset only rendered X/Z mesh position by up to `0.2` blocks from center.
-- Packed terrain positions and UVs use 1/256 precision so small rotated prop geometry and model UV islands survive.
+- 블록 데이터는 `prop.model`로 `.dpm` 모델을 선택한다.
+- 블록 데이터는 `prop.texture`로 블록 texture array layer 하나를 선택한다.
+- `.dpm`은 quad 위치, UV, normal을 저장하며 magic 값과 version field는 없다.
+- 시작 시 없거나 오래된 `.dpm` 파일은 대응하는 `.glb` 파일에서 다시 생성한다.
+- `.glb` 변환 중 원본 triangle pair는 다시 quad로 병합한다.
+- subchunk meshing 중 prop quad는 블록 위치에 추가된다.
+- prop quad는 원본 모델 winding에 의존하지 않도록 양면으로 방출한다.
+- `randomOffset` prop 블록은 렌더링되는 X/Z 메시 위치만 중심에서 최대 `0.2`블록까지 오프셋한다.
+- 작은 회전 prop geometry와 모델 UV island가 보존되도록 packed terrain 위치와 UV는 1/256 정밀도를 사용한다.
 
 ## 컬링
 
@@ -102,70 +102,70 @@ While breaking, small block-textured particles spawn from the hit face at a fixe
 - [[block-data]]
 - [[debug-profiling]]
 
-## Fluid Rendering
+## 유체 렌더링
 
-Fluids are rendered as separate subchunk meshes from block terrain.
-The current rendered fluid is `water`.
+유체는 블록 지형과 분리된 subchunk mesh로 렌더링한다.
+현재 렌더링되는 유체는 `water`이다.
 
-The non-fluid terrain mesh is named `solidSubchunks`.
-Here `solid` means the fluid-opposite terrain path and includes cube blocks, `cross` blocks, and `prop` blocks.
+비유체 지형 mesh 이름은 `solidSubchunks`이다.
+여기서 `solid`는 유체 반대편의 지형 경로를 뜻하며 cube 블록, `cross` 블록, `prop` 블록을 포함한다.
 
-- Texture: `assets/textures/fluid/water.png`
-- Runtime config: `config/render.json` -> `fluid.water.alpha`
-- Manual fluid mip textures: not used yet
-- `amount = 0` or `id = 0` is not rendered
-- Top-surface amount height is rounded up by 10-unit steps from `0.08` to `0.8` block
-- A water cell with another water cell above it renders as `1.0` block high
+- 텍스처: `assets/textures/fluid/water.png`
+- 런타임 설정: `config/render.json` -> `fluid.water.alpha`
+- 수동 유체 mip 텍스처는 아직 사용하지 않는다.
+- `amount = 0` 또는 `id = 0`은 렌더링하지 않는다.
+- 윗면 amount 높이는 10단위 올림으로 `0.08`~`0.8`블록에 매핑한다.
+- 위에 다른 물 셀이 있는 물 셀은 `1.0`블록 높이로 렌더링한다.
 
-Block terrain, block selection, and player mesh are drawn first, then fluid meshes are drawn in the same scene pass.
-Internal fluid faces are skipped when an adjacent fluid reaches the same or greater height.
-Fluid mesh generation skips subchunks whose `fluidSubchunkCounts` value is `0`.
-Fluid rendering uses a separate `fluidPipeline_` with alpha blending enabled and depth write disabled.
-The normal terrain pipeline remains non-blended for opaque/cutout block rendering.
-Fluids keep depth testing enabled so blocks, cutout terrain, selection outlines, and the player can occlude them through the scene depth buffer.
-The fluid pipeline uses `fluid.frag`.
-`fluid.frag` samples the fluid texture array and applies a fixed alpha value from render config.
-Water normal mapping, Fresnel alpha, depth absorption, and SSR are not part of the current renderer.
+블록 지형, 블록 선택 표시, 플레이어 메시를 먼저 그리고, 그 다음 같은 scene pass에서 유체 mesh를 그린다.
+인접 유체가 같거나 더 높은 높이에 도달하면 내부 유체 face는 생략한다.
+유체 mesh 생성은 `fluidSubchunkCounts` 값이 `0`인 subchunk를 건너뛴다.
+유체 렌더링은 alpha blending을 켜고 depth write를 끈 별도 `fluidPipeline_`을 사용한다.
+일반 terrain pipeline은 opaque/cutout 블록 렌더링을 위해 non-blend 상태로 유지한다.
+유체는 depth test를 유지하므로 블록, cutout 지형, 선택 외곽선, 플레이어가 scene depth buffer를 통해 유체를 가릴 수 있다.
+유체 pipeline은 `fluid.frag`를 사용한다.
+`fluid.frag`는 fluid texture array를 샘플링하고 render config의 고정 alpha 값을 적용한다.
+물 normal mapping, Fresnel alpha, depth absorption, SSR은 현재 렌더러에 포함되어 있지 않다.
 
-## Block Break Particles
+## 블록 파괴 파티클
 
-Block destruction spawns short-lived runtime particles. Particles are not saved.
+블록 파괴는 수명이 짧은 런타임 파티클을 생성한다. 파티클은 저장하지 않는다.
 
-- Trigger: successful block removal.
-- Count: 24 particles per destroyed block.
-- Shape: camera-facing billboard quads using the same right/up basis as the terrain view matrix.
-- Texture: the destroyed block's representative block texture layer.
-- UVs: deterministic random 4x4 sub-tiles within the texture.
-- Lifetime: `0.45 ~ 0.75` seconds.
-- Size: `0.10 ~ 0.16` blocks.
-- Gravity: `22`.
-- Collision: simple floor collision against solid terrain cells with weak bounce and strong X/Z friction.
-- Pipeline: dedicated particle graphics pipeline using the existing block texture array.
-- Depth test is enabled and depth write is disabled.
+- 트리거: 블록 제거 성공.
+- 개수: 파괴된 블록당 24개.
+- 형태: terrain view matrix와 같은 right/up basis를 사용하는 카메라 정면 billboard quad.
+- 텍스처: 파괴된 블록의 대표 block texture layer.
+- UV: 텍스처 내부의 결정론적 랜덤 4x4 sub-tile.
+- 수명: `0.45 ~ 0.75`초.
+- 크기: `0.10 ~ 0.16`블록.
+- 중력: `22`.
+- 충돌: solid terrain cell에 대한 단순 바닥 충돌, 약한 bounce, 강한 X/Z friction.
+- Pipeline: 기존 block texture array를 사용하는 전용 particle graphics pipeline.
+- Depth test는 켜고 depth write는 끈다.
 
-Scene draw order is blocks, fluids, player, block break particles, then selection outline.
+씬 그리기 순서는 블록, 유체, 플레이어, 블록 파괴 파티클, 선택 외곽선 순서다.
 
-## Climate Overlay
+## 기후 오버레이
 
-F6 cycles the climate debug overlay.
+F6은 기후 디버그 오버레이를 순환한다.
 
 ```text
 OFF -> Temperature -> Precipitation -> OFF
 ```
 
-The overlay is a `1024 x 1024` texture covering the full `65536 x 65536` wrapped world.
-Each pixel samples a `64 x 64` block area.
+오버레이는 전체 `65536 x 65536` 래핑 월드를 덮는 `1024 x 1024` 텍스처다.
+각 픽셀은 `64 x 64` 블록 영역을 샘플링한다.
 
-- Temperature uses wrapped Z as a north-south latitude value: world edges are cold and the center is hot.
-- Temperature adds weak tileable noise through a mid-latitude mask so the broad climate bands remain intact.
-- Temperature color maps low values to blue and high values to red.
-- Precipitation uses a wide tileable 2D noise sampled through the same 4D torus approach as terrain height noise.
-- Precipitation color maps low values to gray and high values to blue.
+- Temperature는 래핑된 Z를 남북 위도 값으로 사용한다. 월드 가장자리는 춥고 중앙은 덥다.
+- Temperature는 넓은 기후대가 유지되도록 중위도 mask를 통해 약한 tileable noise를 더한다.
+- Temperature 색상은 낮은 값을 파랑, 높은 값을 빨강으로 매핑한다.
+- Precipitation은 지형 높이 노이즈와 같은 4D torus 방식으로 샘플링한 넓은 tileable 2D noise를 사용한다.
+- Precipitation 색상은 낮은 값을 회색, 높은 값을 파랑으로 매핑한다.
 
-## Sky Sprites
+## 하늘 스프라이트
 
-Sun and moon sprites are projected from time-driven world directions and rendered as screen-space sprites.
-Their current projected half-size is `0.04` screen width, with height adjusted by the viewport aspect ratio.
-The renderer receives `worldTicks` from the application and computes a 28800-tick day cycle.
-At `06H` the sun is near the eastern horizon, at `12H` it is overhead, at `18H` it is near the western horizon, and the moon uses the opposite direction.
-The sky angle decreases through the day cycle so the projected sun rises instead of setting from the `06H` start time.
+태양과 달 스프라이트는 시간에 따라 변하는 월드 방향에서 투영해 screen-space sprite로 렌더링한다.
+현재 투영 half-size는 화면 너비의 `0.04`이며, 높이는 viewport aspect ratio에 맞게 조정한다.
+렌더러는 Application에서 `worldTicks`를 받아 28800틱 하루 주기를 계산한다.
+`06H`에는 태양이 동쪽 지평선 근처에 있고, `12H`에는 머리 위에 있으며, `18H`에는 서쪽 지평선 근처에 있다. 달은 반대 방향을 사용한다.
+하늘 각도는 하루 주기 동안 감소하므로 `06H` 시작 시점에서 투영된 태양은 지는 것이 아니라 떠오른다.
