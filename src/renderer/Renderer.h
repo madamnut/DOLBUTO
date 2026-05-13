@@ -294,6 +294,40 @@ namespace dolbuto
             std::vector<ItemSpriteQuad> quads;
         };
 
+        struct ItemLocalVertex
+        {
+            float x = 0.0f;
+            float y = 0.0f;
+            float z = 0.0f;
+            float u = 0.0f;
+            float v = 0.0f;
+            float ao = 1.0f;
+        };
+
+        struct ItemSpriteGpuMesh
+        {
+            uint32_t firstIndex = 0;
+            uint32_t indexCount = 0;
+        };
+
+        struct DroppedItemInstance
+        {
+            float centerX = 0.0f;
+            float centerY = 0.0f;
+            float centerZ = 0.0f;
+            float rotationX = 0.0f;
+            float rotationY = 0.0f;
+            float rotationZ = 0.0f;
+            float textureLayer = 0.0f;
+            float mipDistanceScale = 1.0f;
+        };
+
+        struct DroppedItemRenderInstance
+        {
+            uint16_t itemId = 0;
+            DroppedItemInstance instance{};
+        };
+
         struct PackedTerrainQuad
         {
             uint32_t p0x = 0;
@@ -782,6 +816,11 @@ namespace dolbuto
         RuntimeChunk* runtimeChunkForEntity(const WorldEntity& entity);
         const RuntimeChunk* runtimeChunkForEntity(const WorldEntity& entity) const;
         bool addWorldEntity(WorldEntity entity);
+        size_t countDroppedItemsInChunk(const RuntimeChunk& chunk) const;
+        void refreshDroppedItemChunkTracking(uint64_t key);
+        void removeDroppedItemChunkTracking(uint64_t key);
+        void resetDroppedItemTracking();
+        uint16_t mergeDroppedItemIntoNearby(WorldEntity& source);
         size_t loadedDroppedItemCount() const;
         bool worldEntityGrounded(const WorldEntity& entity) const;
         void setWorldEntityGrounded(WorldEntity& entity, bool grounded) const;
@@ -966,6 +1005,9 @@ namespace dolbuto
         VkDeviceMemory droppedItemVertexMemory_ = VK_NULL_HANDLE;
         VkBuffer droppedItemIndexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory droppedItemIndexMemory_ = VK_NULL_HANDLE;
+        VkBuffer droppedItemInstanceBuffer_ = VK_NULL_HANDLE;
+        VkDeviceMemory droppedItemInstanceMemory_ = VK_NULL_HANDLE;
+        void* droppedItemInstanceMapped_ = nullptr;
         VkBuffer selectionLineVertexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory selectionLineVertexMemory_ = VK_NULL_HANDLE;
         bool hasSelectedBlock_ = false;
@@ -979,6 +1021,8 @@ namespace dolbuto
         std::vector<BlockBreakParticle> blockBreakParticles_;
         BlockBreakingState blockBreaking_;
         uint64_t nextWorldEntityId_ = 1;
+        size_t loadedDroppedItemCount_ = 0;
+        std::unordered_map<uint64_t, size_t> droppedItemCountsByChunk_;
         double lastParticleUpdateTime_ = 0.0;
         double lastDroppedItemUpdateTime_ = 0.0;
         float droppedItemTickAccumulator_ = 0.0f;
@@ -1115,6 +1159,7 @@ namespace dolbuto
         std::array<uint32_t, 10> blockBreakingTextureLayers_{};
         std::vector<ItemDefinition> itemDefinitions_;
         std::vector<ItemSpriteMesh> itemSpriteMeshes_;
+        std::vector<ItemSpriteGpuMesh> itemSpriteGpuMeshes_;
         std::unordered_map<std::string, uint16_t> itemIdByKey_;
         std::array<ItemStack, 50> playerInventorySlots_{};
         ItemStack inventoryCursorStack_{};

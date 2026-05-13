@@ -25,6 +25,7 @@
 #include <cctype>
 #include <cstring>
 #include <cstddef>
+#include <cstdint>
 #include <ctime>
 #include <filesystem>
 #include <functional>
@@ -158,7 +159,11 @@ namespace dolbuto
         constexpr float DroppedItemPickupBaseSpeed = 7.0f;
         constexpr float DroppedItemPickupAcceleration = 256.0f;
         constexpr float DroppedItemPickupMaxSpeed = 52.0f;
-        constexpr size_t MaxDroppedItemRenderQuads = MaxDroppedItems * 256u;
+        constexpr float DroppedItemRenderDistance = 48.0f;
+        constexpr float DroppedItemRenderDistanceSquared = DroppedItemRenderDistance * DroppedItemRenderDistance;
+        constexpr float DroppedItemMergeAxisDistance = 0.75f;
+        constexpr float DroppedItemMergeBounceVelocity = 2.0f;
+        constexpr size_t MaxDroppedItemRenderInstances = MaxDroppedItems * 4u;
         constexpr uint8_t WorldEntityFlagGrounded = 1u << 0u;
         constexpr uint32_t BlockDropSalt = 0xD90210A5u;
         constexpr uint32_t BedrockHeightSalt = 0xBEEFBEDu;
@@ -2857,6 +2862,19 @@ namespace dolbuto
         {
             vkFreeMemory(device_, droppedItemIndexMemory_, nullptr);
         }
+        if (droppedItemInstanceMapped_ != nullptr)
+        {
+            vkUnmapMemory(device_, droppedItemInstanceMemory_);
+            droppedItemInstanceMapped_ = nullptr;
+        }
+        if (droppedItemInstanceBuffer_ != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(device_, droppedItemInstanceBuffer_, nullptr);
+        }
+        if (droppedItemInstanceMemory_ != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(device_, droppedItemInstanceMemory_, nullptr);
+        }
         if (selectionLineVertexBuffer_ != VK_NULL_HANDLE)
         {
             vkDestroyBuffer(device_, selectionLineVertexBuffer_, nullptr);
@@ -4481,6 +4499,7 @@ namespace dolbuto
     {
         const std::filesystem::path shaderDir = shaderDirectory();
         VkShaderModule vertShader = createShaderModule((shaderDir / "player.vert.spv").string());
+        VkShaderModule itemVertShader = createShaderModule((shaderDir / "item.vert.spv").string());
         VkShaderModule fragShader = createShaderModule((shaderDir / "terrain.frag.spv").string());
 
         VkPipelineShaderStageCreateInfo vertStage{};
@@ -4530,6 +4549,43 @@ namespace dolbuto
         vertexInput.pVertexBindingDescriptions = &binding;
         vertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributes.size());
         vertexInput.pVertexAttributeDescriptions = attributes.data();
+
+        std::array<VkVertexInputBindingDescription, 2> itemBindings{};
+        itemBindings[0].binding = 0;
+        itemBindings[0].stride = sizeof(ItemLocalVertex);
+        itemBindings[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        itemBindings[1].binding = 1;
+        itemBindings[1].stride = sizeof(DroppedItemInstance);
+        itemBindings[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+
+        std::array<VkVertexInputAttributeDescription, 5> itemAttributes{};
+        itemAttributes[0].binding = 0;
+        itemAttributes[0].location = 0;
+        itemAttributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+        itemAttributes[0].offset = offsetof(ItemLocalVertex, x);
+        itemAttributes[1].binding = 0;
+        itemAttributes[1].location = 1;
+        itemAttributes[1].format = VK_FORMAT_R32G32_SFLOAT;
+        itemAttributes[1].offset = offsetof(ItemLocalVertex, u);
+        itemAttributes[2].binding = 0;
+        itemAttributes[2].location = 2;
+        itemAttributes[2].format = VK_FORMAT_R32_SFLOAT;
+        itemAttributes[2].offset = offsetof(ItemLocalVertex, ao);
+        itemAttributes[3].binding = 1;
+        itemAttributes[3].location = 3;
+        itemAttributes[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        itemAttributes[3].offset = offsetof(DroppedItemInstance, centerX);
+        itemAttributes[4].binding = 1;
+        itemAttributes[4].location = 4;
+        itemAttributes[4].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        itemAttributes[4].offset = offsetof(DroppedItemInstance, rotationY);
+
+        VkPipelineVertexInputStateCreateInfo itemVertexInput{};
+        itemVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        itemVertexInput.vertexBindingDescriptionCount = static_cast<uint32_t>(itemBindings.size());
+        itemVertexInput.pVertexBindingDescriptions = itemBindings.data();
+        itemVertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(itemAttributes.size());
+        itemVertexInput.pVertexAttributeDescriptions = itemAttributes.data();
 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -4615,12 +4671,15 @@ namespace dolbuto
         }
 
         depthStencil.depthWriteEnable = VK_TRUE;
+        stages[0].module = itemVertShader;
+        pipelineInfo.pVertexInputState = &itemVertexInput;
         if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &itemPipeline_) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create item pipeline.");
         }
 
         vkDestroyShaderModule(device_, fragShader, nullptr);
+        vkDestroyShaderModule(device_, itemVertShader, nullptr);
         vkDestroyShaderModule(device_, vertShader, nullptr);
     }
 
@@ -5325,18 +5384,83 @@ namespace dolbuto
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             particleIndexBuffer_,
             particleIndexMemory_);
+
+        std::vector<ItemLocalVertex> itemVertices;
+        std::vector<uint32_t> itemIndices;
+        itemSpriteGpuMeshes_.assign(itemSpriteMeshes_.size(), {});
+        for (size_t itemId = 0; itemId < itemSpriteMeshes_.size(); ++itemId)
+        {
+            const ItemSpriteMesh& mesh = itemSpriteMeshes_[itemId];
+            if (mesh.quads.empty())
+            {
+                continue;
+            }
+
+            ItemSpriteGpuMesh gpuMesh{};
+            gpuMesh.firstIndex = static_cast<uint32_t>(itemIndices.size());
+            for (const ItemSpriteQuad& quad : mesh.quads)
+            {
+                const uint32_t baseVertex = static_cast<uint32_t>(itemVertices.size());
+                for (size_t vertexIndex = 0; vertexIndex < quad.positions.size(); ++vertexIndex)
+                {
+                    const Vec3& position = quad.positions[vertexIndex];
+                    itemVertices.push_back(ItemLocalVertex{
+                        position.x,
+                        position.y,
+                        position.z,
+                        quad.uvs[vertexIndex][0],
+                        quad.uvs[vertexIndex][1],
+                        quad.ao
+                    });
+                }
+
+                itemIndices.push_back(baseVertex);
+                itemIndices.push_back(baseVertex + 1u);
+                itemIndices.push_back(baseVertex + 2u);
+                itemIndices.push_back(baseVertex);
+                itemIndices.push_back(baseVertex + 2u);
+                itemIndices.push_back(baseVertex + 3u);
+            }
+            gpuMesh.indexCount = static_cast<uint32_t>(itemIndices.size() - gpuMesh.firstIndex);
+            itemSpriteGpuMeshes_[itemId] = gpuMesh;
+        }
+
+        if (!itemVertices.empty() && !itemIndices.empty())
+        {
+            createBuffer(
+                sizeof(ItemLocalVertex) * itemVertices.size(),
+                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                droppedItemVertexBuffer_,
+                droppedItemVertexMemory_);
+            createBuffer(
+                sizeof(uint32_t) * itemIndices.size(),
+                VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                droppedItemIndexBuffer_,
+                droppedItemIndexMemory_);
+
+            void* vertexData = nullptr;
+            vkMapMemory(device_, droppedItemVertexMemory_, 0, sizeof(ItemLocalVertex) * itemVertices.size(), 0, &vertexData);
+            std::memcpy(vertexData, itemVertices.data(), sizeof(ItemLocalVertex) * itemVertices.size());
+            vkUnmapMemory(device_, droppedItemVertexMemory_);
+
+            void* indexData = nullptr;
+            vkMapMemory(device_, droppedItemIndexMemory_, 0, sizeof(uint32_t) * itemIndices.size(), 0, &indexData);
+            std::memcpy(indexData, itemIndices.data(), sizeof(uint32_t) * itemIndices.size());
+            vkUnmapMemory(device_, droppedItemIndexMemory_);
+        }
+
         createBuffer(
-            sizeof(TerrainVertex) * MaxDroppedItemRenderQuads * 4u,
+            sizeof(DroppedItemInstance) * MaxDroppedItemRenderInstances,
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            droppedItemVertexBuffer_,
-            droppedItemVertexMemory_);
-        createBuffer(
-            sizeof(uint32_t) * MaxDroppedItemRenderQuads * 6u,
-            VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            droppedItemIndexBuffer_,
-            droppedItemIndexMemory_);
+            droppedItemInstanceBuffer_,
+            droppedItemInstanceMemory_);
+        if (vkMapMemory(device_, droppedItemInstanceMemory_, 0, sizeof(DroppedItemInstance) * MaxDroppedItemRenderInstances, 0, &droppedItemInstanceMapped_) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to map dropped item instance buffer.");
+        }
     }
 
     void Renderer::createSelectionLineBuffer()
@@ -5691,6 +5815,7 @@ namespace dolbuto
         const size_t featureCapacity = static_cast<size_t>(loadedChunkDiameter_ + 2) * static_cast<size_t>(loadedChunkDiameter_ + 2);
         const size_t renderCapacity = static_cast<size_t>(loadedChunkDiameter_) * static_cast<size_t>(loadedChunkDiameter_);
         runtimeChunks_.reserve(runtimeCapacity + 256u);
+        droppedItemCountsByChunk_.reserve(runtimeCapacity + 256u);
         terrainChunks_.reserve(renderCapacity + 256u);
         pendingUnloadSet_.reserve(runtimeCapacity + 256u);
         requestedChunkJobs_.reserve(featureCapacity + 256u);
@@ -6372,6 +6497,7 @@ namespace dolbuto
                 loaded.snapshotLoadRequested = false;
                 loaded.snapshotLoadFinished = true;
                 chunkIt->second = std::move(loaded);
+                refreshDroppedItemChunkTracking(key);
                 ++frameEnsureSavedCount_;
             }
             else
@@ -6439,6 +6565,7 @@ namespace dolbuto
             runtimeChunk.chunkX = chunk->chunkX;
             runtimeChunk.chunkZ = chunk->chunkZ;
             runtimeChunk.data = chunk;
+            refreshDroppedItemChunkTracking(key);
             runtimeChunk.outgoingFeatureSlots = std::move(completed.outgoingFeatureSlots);
             runtimeChunk.genState = ChunkGenState::Featuring;
             runtimeChunk.buildQueuedTicket = 0;
@@ -6471,6 +6598,7 @@ namespace dolbuto
             runtimeChunk.chunkX = chunk->chunkX;
             runtimeChunk.chunkZ = chunk->chunkZ;
             runtimeChunk.data = chunk;
+            refreshDroppedItemChunkTracking(key);
             runtimeChunk.incomingFeatureSlots = {};
             runtimeChunk.incomingFeatureMask = 0;
             runtimeChunk.finalizeQueuedTicket = 0;
@@ -6643,6 +6771,7 @@ namespace dolbuto
             {
                 enqueueSaveSnapshot(makeSaveSnapshot(runtimeIt->second));
             }
+            removeDroppedItemChunkTracking(key);
             runtimeChunks_.erase(key);
             requestedChunkJobs_.erase(key);
             requestedMeshJobs_.erase(key);
@@ -7021,6 +7150,7 @@ namespace dolbuto
         blockBreakParticles_.clear();
         resetBlockBreaking();
         nextWorldEntityId_ = 1;
+        resetDroppedItemTracking();
         playerInventorySlots_.fill(ItemStack{});
         inventoryCursorStack_ = {};
         updateInventoryUi();
@@ -7066,6 +7196,7 @@ namespace dolbuto
         blockBreakParticles_.clear();
         resetBlockBreaking();
         nextWorldEntityId_ = 1;
+        resetDroppedItemTracking();
         playerInventorySlots_.fill(ItemStack{});
         inventoryCursorStack_ = {};
         updateInventoryUi();
@@ -9837,6 +9968,7 @@ namespace dolbuto
         desiredFeatureChunks_.clear();
         desiredRenderChunks_.clear();
         runtimeChunks_.clear();
+        resetDroppedItemTracking();
     }
 
     void Renderer::updateTerrainStats()
@@ -13704,7 +13836,6 @@ namespace dolbuto
             indices.push_back(baseIndex + 2u);
             indices.push_back(baseIndex + 3u);
         };
-
         if (drawBreakingOverlay)
         {
             const size_t stage = std::min(
@@ -13841,6 +13972,20 @@ namespace dolbuto
 
     bool Renderer::addWorldEntity(WorldEntity entity)
     {
+        if (entity.entityId == 0)
+        {
+            entity.entityId = allocateWorldEntityId();
+        }
+
+        if (entity.type == WorldEntityType::DroppedItem)
+        {
+            mergeDroppedItemIntoNearby(entity);
+            if (entity.droppedItem.stack.count == 0)
+            {
+                return true;
+            }
+        }
+
         RuntimeChunk* chunk = runtimeChunkForEntity(entity);
         if (chunk == nullptr || !chunk->data)
         {
@@ -13851,36 +13996,155 @@ namespace dolbuto
         {
             chunk->data->entities.erase(chunk->data->entities.begin());
         }
-        if (entity.entityId == 0)
-        {
-            entity.entityId = allocateWorldEntityId();
-        }
         chunk->data->entities.push_back(std::move(entity));
+        refreshDroppedItemChunkTracking(entityChunkKey(chunk->data->entities.back()));
         markRuntimeChunkDataDirty(*chunk);
         return true;
     }
 
-    size_t Renderer::loadedDroppedItemCount() const
+    size_t Renderer::countDroppedItemsInChunk(const RuntimeChunk& chunk) const
     {
         size_t count = 0;
-        for (const auto& entry : runtimeChunks_)
+        if (!chunk.data)
         {
-            const RuntimeChunk& chunk = entry.second;
-            if (!chunk.data)
+            return count;
+        }
+
+        for (const WorldEntity& entity : chunk.data->entities)
+        {
+            if (entity.type == WorldEntityType::DroppedItem &&
+                entity.droppedItem.stack.itemId != 0 &&
+                entity.droppedItem.stack.count != 0)
             {
-                continue;
-            }
-            for (const WorldEntity& entity : chunk.data->entities)
-            {
-                if (entity.type == WorldEntityType::DroppedItem &&
-                    entity.droppedItem.stack.itemId != 0 &&
-                    entity.droppedItem.stack.count != 0)
-                {
-                    ++count;
-                }
+                ++count;
             }
         }
         return count;
+    }
+
+    void Renderer::refreshDroppedItemChunkTracking(uint64_t key)
+    {
+        const auto oldIt = droppedItemCountsByChunk_.find(key);
+        const size_t oldCount = oldIt != droppedItemCountsByChunk_.end() ? oldIt->second : 0u;
+
+        size_t newCount = 0;
+        const auto chunkIt = runtimeChunks_.find(key);
+        if (chunkIt != runtimeChunks_.end())
+        {
+            newCount = countDroppedItemsInChunk(chunkIt->second);
+        }
+
+        if (newCount > 0)
+        {
+            droppedItemCountsByChunk_[key] = newCount;
+        }
+        else if (oldIt != droppedItemCountsByChunk_.end())
+        {
+            droppedItemCountsByChunk_.erase(oldIt);
+        }
+
+        loadedDroppedItemCount_ = loadedDroppedItemCount_ - oldCount + newCount;
+    }
+
+    void Renderer::removeDroppedItemChunkTracking(uint64_t key)
+    {
+        const auto oldIt = droppedItemCountsByChunk_.find(key);
+        if (oldIt == droppedItemCountsByChunk_.end())
+        {
+            return;
+        }
+
+        loadedDroppedItemCount_ -= oldIt->second;
+        droppedItemCountsByChunk_.erase(oldIt);
+    }
+
+    void Renderer::resetDroppedItemTracking()
+    {
+        droppedItemCountsByChunk_.clear();
+        loadedDroppedItemCount_ = 0;
+    }
+
+    uint16_t Renderer::mergeDroppedItemIntoNearby(WorldEntity& source)
+    {
+        ItemStack& sourceStack = source.droppedItem.stack;
+        if (source.type != WorldEntityType::DroppedItem ||
+            source.collecting ||
+            sourceStack.itemId == 0 ||
+            sourceStack.count == 0 ||
+            static_cast<size_t>(sourceStack.itemId) >= itemDefinitions_.size())
+        {
+            return sourceStack.count;
+        }
+
+        const uint16_t maxStack = itemDefinitions_[sourceStack.itemId].stackSize;
+        if (maxStack == 0)
+        {
+            return sourceStack.count;
+        }
+
+        const int sourceChunkX = floorDiv(blockCoordinateXz(source.position.x), ChunkSizeX);
+        const int sourceChunkZ = floorDiv(blockCoordinateXz(source.position.z), ChunkSizeZ);
+        for (int dz = -1; dz <= 1 && sourceStack.count > 0; ++dz)
+        {
+            for (int dx = -1; dx <= 1 && sourceStack.count > 0; ++dx)
+            {
+                const uint64_t key = chunkKey(sourceChunkX + dx, sourceChunkZ + dz);
+                auto chunkIt = runtimeChunks_.find(key);
+                if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data)
+                {
+                    continue;
+                }
+
+                RuntimeChunk& chunk = chunkIt->second;
+                for (WorldEntity& target : chunk.data->entities)
+                {
+                    if (sourceStack.count == 0)
+                    {
+                        break;
+                    }
+                    if (target.entityId == source.entityId ||
+                        target.type != WorldEntityType::DroppedItem ||
+                        target.collecting ||
+                        target.droppedItem.stack.itemId != sourceStack.itemId ||
+                        target.droppedItem.stack.count == 0 ||
+                        target.droppedItem.stack.count >= maxStack)
+                    {
+                        continue;
+                    }
+
+                    const float dxItem = std::abs(target.position.x - source.position.x);
+                    const float dyItem = std::abs(target.position.y - source.position.y);
+                    const float dzItem = std::abs(target.position.z - source.position.z);
+                    if (dxItem > DroppedItemMergeAxisDistance ||
+                        dyItem > DroppedItemMergeAxisDistance ||
+                        dzItem > DroppedItemMergeAxisDistance)
+                    {
+                        continue;
+                    }
+
+                    const uint16_t capacity = static_cast<uint16_t>(maxStack - target.droppedItem.stack.count);
+                    const uint16_t moved = std::min(sourceStack.count, capacity);
+                    if (moved == 0)
+                    {
+                        continue;
+                    }
+
+                    target.droppedItem.stack.count = static_cast<uint16_t>(target.droppedItem.stack.count + moved);
+                    sourceStack.count = static_cast<uint16_t>(sourceStack.count - moved);
+                    target.velocity.y = std::max(target.velocity.y, DroppedItemMergeBounceVelocity);
+                    setWorldEntityGrounded(target, false);
+                    refreshDroppedItemChunkTracking(key);
+                    markRuntimeChunkDataDirty(chunk);
+                }
+            }
+        }
+
+        return sourceStack.count;
+    }
+
+    size_t Renderer::loadedDroppedItemCount() const
+    {
+        return loadedDroppedItemCount_;
     }
 
     bool Renderer::worldEntityGrounded(const WorldEntity& entity) const
@@ -14207,6 +14471,7 @@ namespace dolbuto
                     if (remaining == 0)
                     {
                         chunk.data->entities.erase(chunk.data->entities.begin() + static_cast<std::ptrdiff_t>(i));
+                        refreshDroppedItemChunkTracking(entry.first);
                         markRuntimeChunkDataDirty(chunk);
                         continue;
                     }
@@ -14336,6 +14601,27 @@ namespace dolbuto
                 }
             }
 
+            const float moveX = item.position.x - item.previousPosition.x;
+            const float moveY = item.position.y - item.previousPosition.y;
+            const float moveZ = item.position.z - item.previousPosition.z;
+            const bool movedThisTick = moveX * moveX + moveY * moveY + moveZ * moveZ > 0.000001f;
+            if (!item.collecting && movedThisTick)
+            {
+                const uint16_t countBeforeMerge = item.droppedItem.stack.count;
+                mergeDroppedItemIntoNearby(item);
+                if (item.droppedItem.stack.count != countBeforeMerge)
+                {
+                    markRuntimeChunkDataDirty(chunk);
+                }
+                if (item.droppedItem.stack.count == 0)
+                {
+                    chunk.data->entities.erase(chunk.data->entities.begin() + static_cast<std::ptrdiff_t>(i));
+                    refreshDroppedItemChunkTracking(entry.first);
+                    markRuntimeChunkDataDirty(chunk);
+                    continue;
+                }
+            }
+
             const uint64_t targetOwnerKey = entityChunkKey(item);
             if (targetOwnerKey != originalOwnerKey)
             {
@@ -14344,6 +14630,7 @@ namespace dolbuto
                 {
                     moves.push_back(EntityMove{targetOwnerKey, item});
                     chunk.data->entities.erase(chunk.data->entities.begin() + static_cast<std::ptrdiff_t>(i));
+                    refreshDroppedItemChunkTracking(entry.first);
                     markRuntimeChunkDataDirty(chunk);
                     continue;
                 }
@@ -14360,6 +14647,7 @@ namespace dolbuto
                 continue;
             }
             targetIt->second.data->entities.push_back(std::move(move.entity));
+            refreshDroppedItemChunkTracking(move.targetKey);
             markRuntimeChunkDataDirty(targetIt->second);
         }
     }
@@ -14531,58 +14819,67 @@ namespace dolbuto
             itemPipeline_ == VK_NULL_HANDLE ||
             droppedItemVertexBuffer_ == VK_NULL_HANDLE ||
             droppedItemIndexBuffer_ == VK_NULL_HANDLE ||
+            droppedItemInstanceBuffer_ == VK_NULL_HANDLE ||
+            droppedItemInstanceMapped_ == nullptr ||
             itemTextureArray_.descriptorSet == VK_NULL_HANDLE)
         {
             return;
         }
 
         const size_t itemCount = std::min(loadedDroppedItemCount(), MaxDroppedItems);
-        std::vector<TerrainVertex> vertices;
-        std::vector<uint32_t> indices;
-        vertices.reserve(std::min<size_t>(itemCount * 64u * 4u, MaxDroppedItemRenderQuads * 4u));
-        indices.reserve(std::min<size_t>(itemCount * 64u * 6u, MaxDroppedItemRenderQuads * 6u));
-
-        auto appendQuad = [&](const std::array<Vec3, 4>& positions, const std::array<std::array<float, 2>, 4>& uvs, float layer, float ao)
+        std::vector<DroppedItemRenderInstance> renderInstances;
+        renderInstances.reserve(std::min<size_t>(itemCount * 4u, MaxDroppedItemRenderInstances));
+        const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
+        const Frustum frustum = makeFrustum(camera, {}, aspect);
+        auto visualCopyCount = [](uint16_t count) -> size_t
         {
-            if (indices.size() / 6u >= MaxDroppedItemRenderQuads)
+            if (count >= 49)
             {
-                return;
+                return 4;
             }
-
-            const uint32_t baseIndex = static_cast<uint32_t>(vertices.size());
-            for (size_t vertexIndex = 0; vertexIndex < positions.size(); ++vertexIndex)
+            if (count >= 17)
             {
-                vertices.push_back({
-                    positions[vertexIndex].x,
-                    positions[vertexIndex].y,
-                    positions[vertexIndex].z,
-                    uvs[vertexIndex][0],
-                    uvs[vertexIndex][1],
-                    ao,
-                    layer,
-                    1.0f
-                });
+                return 3;
             }
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 1u);
-            indices.push_back(baseIndex + 2u);
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 2u);
-            indices.push_back(baseIndex + 3u);
+            if (count >= 2)
+            {
+                return 2;
+            }
+            return 1;
         };
+        const std::array<Vec3, 4> visualOffsets{{
+            {0.0f, 0.0f, 0.0f},
+            {-0.08f, 0.0f, -0.04f},
+            {0.08f, 0.0f, 0.04f},
+            {-0.02f, 0.0f, 0.10f}
+        }};
 
         size_t renderedItems = 0;
-        for (const auto& entry : runtimeChunks_)
+        for (const auto& trackedChunk : droppedItemCountsByChunk_)
         {
-            const RuntimeChunk& chunk = entry.second;
-            if (!chunk.data)
+            const auto chunkIt = runtimeChunks_.find(trackedChunk.first);
+            if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data)
+            {
+                continue;
+            }
+
+            const RuntimeChunk& chunk = chunkIt->second;
+            const int chunkX = static_cast<int32_t>(static_cast<uint32_t>(trackedChunk.first >> 32u));
+            const int chunkZ = static_cast<int32_t>(static_cast<uint32_t>(trackedChunk.first));
+            const float minX = static_cast<float>(chunkX * ChunkSizeX) - 0.5f - cameraPosition.x;
+            const float maxX = static_cast<float>(chunkX * ChunkSizeX + ChunkSizeX) - 0.5f - cameraPosition.x;
+            const float minY = -cameraPosition.y;
+            const float maxY = static_cast<float>(ChunkSizeY) - cameraPosition.y;
+            const float minZ = static_cast<float>(chunkZ * ChunkSizeZ) - 0.5f - cameraPosition.z;
+            const float maxZ = static_cast<float>(chunkZ * ChunkSizeZ + ChunkSizeZ) - 0.5f - cameraPosition.z;
+            if (!aabbIntersectsFrustum(frustum, {minX, minY, minZ}, {maxX, maxY, maxZ}))
             {
                 continue;
             }
 
             for (const WorldEntity& item : chunk.data->entities)
             {
-                if (renderedItems >= itemCount)
+                if (renderedItems >= itemCount || renderInstances.size() >= MaxDroppedItemRenderInstances)
                 {
                     break;
                 }
@@ -14604,79 +14901,62 @@ namespace dolbuto
                 {
                     continue;
                 }
+                if (static_cast<size_t>(item.droppedItem.stack.itemId) >= itemSpriteGpuMeshes_.size() ||
+                    itemSpriteGpuMeshes_[item.droppedItem.stack.itemId].indexCount == 0)
+                {
+                    continue;
+                }
 
                 const Vec3 interpolatedPosition{
                     item.previousPosition.x + (item.position.x - item.previousPosition.x) * droppedItemRenderAlpha_,
                     item.previousPosition.y + (item.position.y - item.previousPosition.y) * droppedItemRenderAlpha_,
                     item.previousPosition.z + (item.position.z - item.previousPosition.z) * droppedItemRenderAlpha_
                 };
-                const float cosX = std::cos(item.renderRotationX);
-                const float sinX = std::sin(item.renderRotationX);
-                const float cosY = std::cos(item.renderRotation);
-                const float sinY = std::sin(item.renderRotation);
-                const float cosZ = std::cos(item.renderRotationZ);
-                const float sinZ = std::sin(item.renderRotationZ);
-                const Vec3 center{
-                    interpolatedPosition.x,
-                    interpolatedPosition.y + DroppedItemThickness * 0.5f,
-                    interpolatedPosition.z
-                };
+                const float distanceX = interpolatedPosition.x - cameraPosition.x;
+                const float distanceY = interpolatedPosition.y - cameraPosition.y;
+                const float distanceZ = interpolatedPosition.z - cameraPosition.z;
+                if (distanceX * distanceX + distanceY * distanceY + distanceZ * distanceZ > DroppedItemRenderDistanceSquared)
+                {
+                    continue;
+                }
+
                 const float layer = static_cast<float>(definition.droppedTextureLayer);
-                auto transformLocal = [&](const Vec3& local)
+                const size_t copies = visualCopyCount(item.droppedItem.stack.count);
+                for (size_t copy = 0; copy < copies && renderInstances.size() < MaxDroppedItemRenderInstances; ++copy)
                 {
-                    Vec3 value{
-                        local.x * DroppedItemSize,
-                        local.y * DroppedItemThickness,
-                        local.z * DroppedItemSize
-                    };
-
-                    value = {
-                        value.x,
-                        value.y * cosX - value.z * sinX,
-                        value.y * sinX + value.z * cosX
-                    };
-                    value = {
-                        value.x * cosZ - value.y * sinZ,
-                        value.x * sinZ + value.y * cosZ,
-                        value.z
-                    };
-                    value = {
-                        value.x * cosY - value.z * sinY,
-                        value.y,
-                        value.x * sinY + value.z * cosY
-                    };
-                    return Vec3{center.x + value.x, center.y + value.y, center.z + value.z};
-                };
-
-                for (const ItemSpriteQuad& quad : itemSpriteMeshes_[item.droppedItem.stack.itemId].quads)
-                {
-                    std::array<Vec3, 4> worldPositions{};
-                    for (size_t vertexIndex = 0; vertexIndex < quad.positions.size(); ++vertexIndex)
-                    {
-                        worldPositions[vertexIndex] = transformLocal(quad.positions[vertexIndex]);
-                    }
-                    appendQuad(worldPositions, quad.uvs, layer, quad.ao);
+                    const Vec3& offset = visualOffsets[copy];
+                    const float copyRotationY = item.renderRotation + static_cast<float>(copy) * 1.5707963268f;
+                    DroppedItemRenderInstance renderInstance{};
+                    renderInstance.itemId = item.droppedItem.stack.itemId;
+                    renderInstance.instance.centerX = interpolatedPosition.x + offset.x;
+                    renderInstance.instance.centerY = interpolatedPosition.y + DroppedItemThickness * 0.5f + static_cast<float>(copy) * DroppedItemThickness;
+                    renderInstance.instance.centerZ = interpolatedPosition.z + offset.z;
+                    renderInstance.instance.rotationX = item.renderRotationX;
+                    renderInstance.instance.rotationY = copyRotationY;
+                    renderInstance.instance.rotationZ = item.renderRotationZ;
+                    renderInstance.instance.textureLayer = layer;
+                    renderInstance.instance.mipDistanceScale = 1.0f;
+                    renderInstances.push_back(renderInstance);
                 }
                 ++renderedItems;
             }
         }
 
-        if (indices.empty())
+        if (renderInstances.empty())
         {
             return;
         }
 
-        const VkDeviceSize vertexBytes = sizeof(TerrainVertex) * vertices.size();
-        const VkDeviceSize indexBytes = sizeof(uint32_t) * indices.size();
-        void* vertexData = nullptr;
-        vkMapMemory(device_, droppedItemVertexMemory_, 0, vertexBytes, 0, &vertexData);
-        std::memcpy(vertexData, vertices.data(), static_cast<size_t>(vertexBytes));
-        vkUnmapMemory(device_, droppedItemVertexMemory_);
+        std::sort(renderInstances.begin(), renderInstances.end(), [](const DroppedItemRenderInstance& lhs, const DroppedItemRenderInstance& rhs)
+        {
+            return lhs.itemId < rhs.itemId;
+        });
 
-        void* indexData = nullptr;
-        vkMapMemory(device_, droppedItemIndexMemory_, 0, indexBytes, 0, &indexData);
-        std::memcpy(indexData, indices.data(), static_cast<size_t>(indexBytes));
-        vkUnmapMemory(device_, droppedItemIndexMemory_);
+        auto* mappedInstances = static_cast<DroppedItemInstance*>(droppedItemInstanceMapped_);
+        for (size_t i = 0; i < renderInstances.size(); ++i)
+        {
+            mappedInstances[i] = renderInstances[i].instance;
+        }
 
         VkViewport viewport{};
         viewport.x = 0.0f;
@@ -14692,7 +14972,6 @@ namespace dolbuto
         scissor.extent = swapchainExtent_;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
         const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
         const Mat4 view = viewMatrix(camera, {});
         const Mat4 mvp = multiply(projection, view);
@@ -14707,10 +14986,30 @@ namespace dolbuto
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, itemPipeline_);
         vkCmdPushConstants(commandBuffer, particlePipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, particlePipelineLayout_, 0, 1, &itemTextureArray_.descriptorSet, 0, nullptr);
-        const VkDeviceSize vertexOffset = 0;
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &droppedItemVertexBuffer_, &vertexOffset);
+        const std::array<VkBuffer, 2> vertexBuffers = {droppedItemVertexBuffer_, droppedItemInstanceBuffer_};
+        const std::array<VkDeviceSize, 2> vertexOffsets = {0, 0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, static_cast<uint32_t>(vertexBuffers.size()), vertexBuffers.data(), vertexOffsets.data());
         vkCmdBindIndexBuffer(commandBuffer, droppedItemIndexBuffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+        size_t batchStart = 0;
+        while (batchStart < renderInstances.size())
+        {
+            const uint16_t itemId = renderInstances[batchStart].itemId;
+            size_t batchEnd = batchStart + 1u;
+            while (batchEnd < renderInstances.size() && renderInstances[batchEnd].itemId == itemId)
+            {
+                ++batchEnd;
+            }
+
+            const ItemSpriteGpuMesh& mesh = itemSpriteGpuMeshes_[itemId];
+            vkCmdDrawIndexed(
+                commandBuffer,
+                mesh.indexCount,
+                static_cast<uint32_t>(batchEnd - batchStart),
+                mesh.firstIndex,
+                0,
+                static_cast<uint32_t>(batchStart));
+            batchStart = batchEnd;
+        }
     }
 
     void Renderer::drawTerrainMeshBound(VkCommandBuffer commandBuffer, const TerrainMesh& mesh) const

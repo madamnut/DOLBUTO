@@ -125,6 +125,7 @@ set(SHADER_SOURCES
     shaders/terrain.frag
     shaders/fluid.frag
     shaders/player.vert
+    shaders/item.vert
     shaders/selection.vert
     shaders/selection.frag
 )
