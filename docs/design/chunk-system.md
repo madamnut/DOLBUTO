@@ -122,6 +122,8 @@ chunk-load worker는 `loadChunkSnapshot`을 호출한다.
 main thread는 이후 terrain job 완료 처리 중 완료된 snapshot load를 설치한다.
 snapshot이 있으면 runtime chunk data로 변환하고 이전 render/full/mesh/feature ticket을 보존한다.
 snapshot이 없으면 shell을 load-finished로 표시하고 일반 생성 요청이 진행될 수 있게 한다.
+snapshot에서 복원된 청크가 `Full` 이상이면 해당 청크와 주변 8청크의 메쉬 조건을 다시 검사한다.
+이는 저장된 청크가 비동기로 늦게 설치되면서 주변 청크의 `BuildChunkMesh` 조건을 새로 만족하는 경우를 처리하기 위함이다.
 
 chunk-load worker와 save worker가 region payload/header 데이터를 동시에 읽고 쓰지 않도록 region file read/write 접근은 region IO mutex로 직렬화한다.
 

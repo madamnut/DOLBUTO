@@ -36,4 +36,4 @@ DOLBUTO는 Vulkan/C++ 기반의 샌드박스 복셀 게임이다.
 
 - 현재 버전은 `0.0.0.1`이다.
 - `docs/design`은 확정된 설계만 남기는 공간이고, 실험 과정은 `docs/0.0.0.1` 날짜 로그에 기록한다.
-- Release/Portable 경로와 Debug 경로가 다르므로 경로 관련 작업은 [[runtime-paths]] 기준을 따른다.
+- Release 경로와 Debug 경로가 다르므로 경로 관련 작업은 [[runtime-paths]] 기준을 따른다.

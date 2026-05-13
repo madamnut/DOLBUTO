@@ -8,7 +8,7 @@
 saves/<world-name>/regions/
 ```
 
-Debug와 Release/Portable의 실제 기준 경로는 [[runtime-paths]]를 따른다.
+Debug와 Release의 실제 기준 경로는 [[runtime-paths]]를 따른다.
 
 ## region 파일
 

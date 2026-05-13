@@ -734,6 +734,17 @@ namespace dolbuto
                         renderViewDirection(app->camera_));
                 }
             }
+            else if (key == GLFW_KEY_Q && action == GLFW_PRESS && app != nullptr)
+            {
+                if (app->screen_ == Application::AppScreen::Game && app->renderer_ != nullptr)
+                {
+                    const bool wholeStack = (mods & GLFW_MOD_SHIFT) != 0;
+                    app->renderer_->dropSelectedHotbarItem(
+                        wholeStack,
+                        app->playerPosition_,
+                        renderViewDirection(app->camera_));
+                }
+            }
             else if (key == GLFW_KEY_V && action == GLFW_PRESS && app != nullptr)
             {
                 if (app->screen_ == Application::AppScreen::Game)
@@ -743,10 +754,6 @@ namespace dolbuto
                     app->grounded_ = false;
                     app->jumpPressed_ = false;
                 }
-            }
-            else if (key == GLFW_KEY_R && action == GLFW_PRESS && app != nullptr && app->renderer_ != nullptr)
-            {
-                app->renderer_->resetPeakProfiler();
             }
         });
 

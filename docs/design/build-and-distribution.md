@@ -4,12 +4,12 @@
 
 프로젝트는 CMake/Ninja 기반이며 Visual Studio에서 CMake 프로젝트로 열어 빌드한다.
 빌드 자체는 사용자가 직접 수행한다.
+현재 사용하는 구성은 `Debug`와 `Release`만 둔다.
 
 ## 주요 타깃
 
 - `DOLBUTO`: 게임 실행 파일
 - `DOLBUTOShaders`: Vulkan 셰이더 컴파일 타깃
-- `DOLBUTOPortable`: 포터블 배포 폴더 생성 타깃
 
 ## 서드파티 사전 빌드 라이브러리
 
@@ -95,9 +95,9 @@ Debug 빌드는 개발 편의성을 우선한다.
 
 Debug는 로그 확인과 디버깅을 위한 구성으로 본다.
 
-## Release 계열 빌드
+## Release 빌드
 
-Release, RelWithDebInfo, MinSizeRel은 배포 형태에 가깝게 동작한다.
+Release 빌드는 배포 형태에 가깝게 동작한다.
 
 - 실행 파일 옆의 `assets` 사용
 - 실행 파일 옆의 `config` 사용
@@ -108,19 +108,23 @@ Release, RelWithDebInfo, MinSizeRel은 배포 형태에 가깝게 동작한다.
 
 ## 포터블 배포
 
-`DOLBUTOPortable` 타깃은 다음 폴더를 생성한다.
+별도의 포터블 생성 타깃은 사용하지 않는다.
+Release 출력 폴더 자체를 폴더째 이동 가능한 포터블 실행 단위로 본다.
 
 ```text
-dist/DOLBUTO_0.0.0.1/
+out/build/.../Release/
   DOLBUTO.exe
   glfw3.dll
+  freetype.dll
+  rmlui.dll
+  OpenAL32.dll
   assets/
   config/
   shaders/
-  saves/world/regions/
+  saves/
 ```
 
-이 폴더 전체가 포터블 배포 단위다.
+배포할 때는 Release 출력 폴더 이름을 원하는 배포명으로 바꾸거나 압축한다.
 
 ## 아이콘
 

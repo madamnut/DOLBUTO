@@ -7,6 +7,7 @@
 - 개발 언어는 C++이며, C++20을 기준으로 한다.
 - 그래픽 API는 Vulkan을 사용한다.
 - 빌드 시스템은 CMake와 Ninja를 사용한다.
+- 빌드 구성은 `Debug`와 `Release`만 사용한다.
 - 창 생성과 입력 처리는 GLFW를 사용한다.
 - 최종 목표는 마인크래프트류 샌드박스 복셀 게임이다.
 - Vulkan SDK는 로컬 설치본을 사용한다.
@@ -33,10 +34,9 @@
 - Debug 빌드는 기존 개발 경로를 사용한다.
 - Debug 빌드의 `assets`, `config`, `saves/world`는 프로젝트 루트의 폴더를 직접 참조한다.
 - Debug 빌드의 shader는 CMake 빌드 폴더의 컴파일된 `.spv`를 사용한다.
-- Release/Portable 빌드는 실행 파일 옆의 `assets`, `config`, `shaders`, `saves/world`를 사용한다.
-- 포터블 배포본은 `DOLBUTOPortable` 타깃으로 생성한다.
-- 포터블 배포본은 `dist/DOLBUTO_0.0.0.1/` 아래에 생성된다.
-- Release 배포 확인은 반드시 dist 폴더에서 직접 실행해서 확인한다.
+- Release 빌드는 실행 파일 옆의 `assets`, `config`, `shaders`, `saves/world`를 사용한다.
+- Release 출력 폴더는 폴더째 이동 가능한 포터블 실행 단위로 본다.
+- Release 배포 확인은 반드시 Release 출력 폴더에서 직접 실행해서 확인한다.
 - 빌드는 반드시 사용자가 직접 수행한다.
 
 ## 디렉터리

@@ -14,7 +14,13 @@
 #include <RmlUi/Core/Event.h>
 #include <RmlUi/Core/SystemInterface.h>
 
+#include <AL/al.h>
+#include <AL/alc.h>
+
 #include <FastNoise/FastNoise.h>
+#define STB_VORBIS_HEADER_ONLY
+#include <stb_vorbis.c>
+#undef STB_VORBIS_HEADER_ONLY
 #include <stb_image.h>
 #include <stb_image_write.h>
 
@@ -37,6 +43,7 @@
 #include <sstream>
 #include <set>
 #include <stdexcept>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 
@@ -163,6 +170,12 @@ namespace dolbuto
         constexpr float DroppedItemRenderDistanceSquared = DroppedItemRenderDistance * DroppedItemRenderDistance;
         constexpr float DroppedItemMergeAxisDistance = 0.75f;
         constexpr float DroppedItemMergeBounceVelocity = 2.0f;
+        constexpr float DroppedItemManualDropForwardOffset = 0.75f;
+        constexpr float DroppedItemManualDropForwardVelocity = 7.0f;
+        constexpr float DroppedItemManualDropUpVelocity = 1.5f;
+        constexpr double MusicMinDelaySeconds = 10.0;
+        constexpr double MusicMaxDelaySeconds = 60.0;
+        constexpr float MusicStreamBufferSeconds = 2.0f;
         constexpr size_t MaxDroppedItemRenderInstances = MaxDroppedItems * 4u;
         constexpr uint8_t WorldEntityFlagGrounded = 1u << 0u;
         constexpr uint32_t BlockDropSalt = 0xD90210A5u;
@@ -272,6 +285,115 @@ namespace dolbuto
             file.seekg(0);
             file.read(buffer.data(), static_cast<std::streamsize>(size));
             return buffer;
+        }
+
+        struct WavSoundData
+        {
+            std::vector<char> pcm;
+            ALenum format = 0;
+            ALsizei sampleRate = 0;
+            uint16_t channels = 0;
+        };
+
+        uint16_t readLe16(const std::vector<char>& data, size_t offset)
+        {
+            if (offset + 2u > data.size())
+            {
+                throw std::runtime_error("WAV read overflow.");
+            }
+            return static_cast<uint16_t>(
+                static_cast<uint8_t>(data[offset]) |
+                (static_cast<uint16_t>(static_cast<uint8_t>(data[offset + 1u])) << 8u));
+        }
+
+        uint32_t readLe32(const std::vector<char>& data, size_t offset)
+        {
+            if (offset + 4u > data.size())
+            {
+                throw std::runtime_error("WAV read overflow.");
+            }
+            return static_cast<uint32_t>(static_cast<uint8_t>(data[offset])) |
+                (static_cast<uint32_t>(static_cast<uint8_t>(data[offset + 1u])) << 8u) |
+                (static_cast<uint32_t>(static_cast<uint8_t>(data[offset + 2u])) << 16u) |
+                (static_cast<uint32_t>(static_cast<uint8_t>(data[offset + 3u])) << 24u);
+        }
+
+        bool chunkIdEquals(const std::vector<char>& data, size_t offset, std::string_view id)
+        {
+            return offset + id.size() <= data.size() &&
+                std::equal(id.begin(), id.end(), data.begin() + static_cast<std::ptrdiff_t>(offset));
+        }
+
+        WavSoundData decodeWavPcm16(const std::filesystem::path& path)
+        {
+            const std::vector<char> data = readFile(path.string());
+            if (data.size() < 12u ||
+                !chunkIdEquals(data, 0, "RIFF") ||
+                !chunkIdEquals(data, 8, "WAVE"))
+            {
+                throw std::runtime_error("Invalid WAV file: " + path.string());
+            }
+
+            uint16_t audioFormat = 0;
+            uint16_t channels = 0;
+            uint32_t sampleRate = 0;
+            uint16_t bitsPerSample = 0;
+            size_t pcmOffset = 0;
+            size_t pcmSize = 0;
+
+            size_t offset = 12u;
+            while (offset + 8u <= data.size())
+            {
+                const size_t chunkDataOffset = offset + 8u;
+                const uint32_t chunkSize = readLe32(data, offset + 4u);
+                if (chunkDataOffset + chunkSize > data.size())
+                {
+                    throw std::runtime_error("Invalid WAV chunk size: " + path.string());
+                }
+
+                if (chunkIdEquals(data, offset, "fmt "))
+                {
+                    if (chunkSize < 16u)
+                    {
+                        throw std::runtime_error("Invalid WAV fmt chunk: " + path.string());
+                    }
+                    audioFormat = readLe16(data, chunkDataOffset + 0u);
+                    channels = readLe16(data, chunkDataOffset + 2u);
+                    sampleRate = readLe32(data, chunkDataOffset + 4u);
+                    bitsPerSample = readLe16(data, chunkDataOffset + 14u);
+                }
+                else if (chunkIdEquals(data, offset, "data"))
+                {
+                    pcmOffset = chunkDataOffset;
+                    pcmSize = chunkSize;
+                }
+
+                offset = chunkDataOffset + chunkSize + (chunkSize & 1u);
+            }
+
+            if (audioFormat != 1u || bitsPerSample != 16u || pcmOffset == 0u || pcmSize == 0u)
+            {
+                throw std::runtime_error("Only PCM 16-bit WAV files are supported: " + path.string());
+            }
+
+            WavSoundData sound{};
+            if (channels == 1u)
+            {
+                sound.format = AL_FORMAT_MONO16;
+            }
+            else if (channels == 2u)
+            {
+                sound.format = AL_FORMAT_STEREO16;
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported WAV channel count: " + path.string());
+            }
+
+            sound.sampleRate = static_cast<ALsizei>(sampleRate);
+            sound.channels = channels;
+            sound.pcm.assign(data.begin() + static_cast<std::ptrdiff_t>(pcmOffset), data.begin() + static_cast<std::ptrdiff_t>(pcmOffset + pcmSize));
+            return sound;
         }
 
         struct ParsedBlockDefinition
@@ -2504,20 +2626,6 @@ namespace dolbuto
             return text.str();
         }
 
-        std::string formatBracketMs(const char* label, double milliseconds)
-        {
-            std::ostringstream text;
-            text << label << "[" << std::fixed << std::setprecision(3) << milliseconds << "]";
-            return text.str();
-        }
-
-        std::string formatBracketCount(const char* label, uint64_t count)
-        {
-            std::ostringstream text;
-            text << label << "[" << count << "]";
-            return text.str();
-        }
-
         bool deviceExtensionAvailable(VkPhysicalDevice device, const char* extensionName)
         {
             uint32_t extensionCount = 0;
@@ -2776,6 +2884,7 @@ namespace dolbuto
         loadWorldConfig();
         loadRenderConfig();
         loadHeightLut();
+        initializeAudio();
         createCommandBuffers();
         createSyncObjects();
     }
@@ -2788,6 +2897,7 @@ namespace dolbuto
         stopSaveWorker();
         vkDeviceWaitIdle(device_);
         shutdownRmlUi();
+        shutdownAudio();
 
         cleanupSwapchain();
         destroyTexture(terrainTextureArray_);
@@ -3011,43 +3121,11 @@ namespace dolbuto
         bool gameSceneRenderEnabled,
         uint64_t worldTicks)
     {
-        const auto frameStart = std::chrono::steady_clock::now();
-        frameChunkUpdateMs_ = 0.0;
-        frameJobMainMs_ = 0.0;
-        frameUploadMs_ = 0.0;
-        frameUnloadMs_ = 0.0;
-        frameRetireMs_ = 0.0;
-        frameSaveEnqueueMs_ = 0.0;
-        frameGridScanMs_ = 0.0;
-        frameEnsureRuntimeMs_ = 0.0;
-        frameWantRenderMs_ = 0.0;
-        frameRenderDetachMs_ = 0.0;
-        frameUnloadScanMs_ = 0.0;
-        frameWantEnsureMs_ = 0.0;
-        frameWantInsertMs_ = 0.0;
-        frameWantReadyMs_ = 0.0;
-        frameWantDependMs_ = 0.0;
-        frameWantMeshReadyMs_ = 0.0;
-        frameWantMeshDependMs_ = 0.0;
-        frameEnsureKeyMs_ = 0.0;
-        frameEnsureMarkMs_ = 0.0;
-        frameEnsureFindMs_ = 0.0;
-        frameEnsureLoadMs_ = 0.0;
-        frameEnsureCreateMs_ = 0.0;
-        frameEnsureDataTouchMs_ = 0.0;
-        frameEnsureCallCount_ = 0;
-        frameEnsureHitCount_ = 0;
-        frameEnsureMissCount_ = 0;
-        frameEnsureSavedCount_ = 0;
-        frameEnsureEmptyCount_ = 0;
-        frameWantRenderCallCount_ = 0;
-        frameWantMeshCallCount_ = 0;
-        frameWantFullCallCount_ = 0;
-        frameWantFeaturingCallCount_ = 0;
-
         const Vec3 cameraPositionFloat = toVec3(cameraPosition);
         const Vec3 playerPositionFloat = toVec3(playerPosition);
 
+        updateAudioListener(camera, cameraPositionFloat);
+        updateMusicPlayback(menuOverlayMode, gameSceneRenderEnabled);
         updateTerrainDebugText();
 
         vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
@@ -3070,10 +3148,7 @@ namespace dolbuto
         }
         if (worldUpdateEnabled)
         {
-            const auto chunkUpdateStart = std::chrono::steady_clock::now();
             updateLoadedChunks(playerPosition);
-            const auto chunkUpdateEnd = std::chrono::steady_clock::now();
-            frameChunkUpdateMs_ += std::chrono::duration<double, std::milli>(chunkUpdateEnd - chunkUpdateStart).count();
             processCompletedTerrainJobs();
         }
         const auto cpuStart = std::chrono::steady_clock::now();
@@ -3171,54 +3246,12 @@ namespace dolbuto
 
         const auto cpuEnd = std::chrono::steady_clock::now();
         updatePerformanceText(std::chrono::duration<double, std::milli>(cpuEnd - cpuStart).count());
-        updatePeakProfiler(std::chrono::duration<double, std::milli>(cpuEnd - frameStart).count());
         currentFrame_ = (currentFrame_ + 1) % MaxFramesInFlight;
     }
 
     void Renderer::setFramebufferResized()
     {
         framebufferResized_ = true;
-    }
-
-    void Renderer::resetPeakProfiler()
-    {
-        peakFrameMs_ = 0.0;
-        peakChunkUpdateMs_ = 0.0;
-        peakJobMainMs_ = 0.0;
-        peakUploadMs_ = 0.0;
-        peakUnloadMs_ = 0.0;
-        peakRetireMs_ = 0.0;
-        peakSaveEnqueueMs_ = 0.0;
-        peakGridScanMs_ = 0.0;
-        peakEnsureRuntimeMs_ = 0.0;
-        peakWantRenderMs_ = 0.0;
-        peakRenderDetachMs_ = 0.0;
-        peakUnloadScanMs_ = 0.0;
-        peakWantEnsureMs_ = 0.0;
-        peakWantInsertMs_ = 0.0;
-        peakWantReadyMs_ = 0.0;
-        peakWantDependMs_ = 0.0;
-        peakWantMeshReadyMs_ = 0.0;
-        peakWantMeshDependMs_ = 0.0;
-        peakEnsureKeyMs_ = 0.0;
-        peakEnsureMarkMs_ = 0.0;
-        peakEnsureFindMs_ = 0.0;
-        peakEnsureLoadMs_ = 0.0;
-        peakEnsureCreateMs_ = 0.0;
-        peakEnsureDataTouchMs_ = 0.0;
-        peakEnsureCallCount_ = 0;
-        peakEnsureHitCount_ = 0;
-        peakEnsureMissCount_ = 0;
-        peakEnsureSavedCount_ = 0;
-        peakEnsureEmptyCount_ = 0;
-        peakWantRenderCallCount_ = 0;
-        peakWantMeshCallCount_ = 0;
-        peakWantFullCallCount_ = 0;
-        peakWantFeaturingCallCount_ = 0;
-        peakProfilerSamplingStarted_ = true;
-        peakProfilerStartTime_ = std::chrono::steady_clock::now();
-        peakProfilerStatusText_ = "PEAK SAMPLE: ON";
-        updatePeakProfilerText();
     }
 
     bool Renderer::playerColliderIntersectsTerrain(DVec3 playerPosition) const
@@ -3280,6 +3313,7 @@ namespace dolbuto
         if (changed)
         {
             rebuildEditedChunkMeshes(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ);
+            playBlockPlaceSound(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ);
         }
         return changed;
     }
@@ -3368,6 +3402,63 @@ namespace dolbuto
         item.renderSpin = 8.0f;
         item.renderSpinZ = 8.0f;
         markRuntimeChunkDataDirty(chunkIt->second);
+        return true;
+    }
+
+    bool Renderer::dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction)
+    {
+        const size_t slotIndex = static_cast<size_t>(std::clamp(hotbarSelectedSlot_, 0, 9));
+        ItemStack& slot = playerInventorySlots_[slotIndex];
+        if (slot.itemId == 0 || slot.count == 0 || static_cast<size_t>(slot.itemId) >= itemDefinitions_.size())
+        {
+            return false;
+        }
+
+        Vec3 dropDirection = normalize(direction);
+        if (dropDirection.x == 0.0f && dropDirection.y == 0.0f && dropDirection.z == 0.0f)
+        {
+            dropDirection = {0.0f, 0.0f, 1.0f};
+        }
+
+        const uint16_t dropCount = wholeStack ? slot.count : 1u;
+        WorldEntity item{};
+        item.entityId = allocateWorldEntityId();
+        item.type = WorldEntityType::DroppedItem;
+        item.position = {
+            static_cast<float>(playerPosition.x) + dropDirection.x * DroppedItemManualDropForwardOffset,
+            static_cast<float>(playerPosition.y) + 0.875f + dropDirection.y * DroppedItemManualDropForwardOffset,
+            static_cast<float>(playerPosition.z) + dropDirection.z * DroppedItemManualDropForwardOffset
+        };
+        item.previousPosition = item.position;
+        item.velocity = {
+            dropDirection.x * DroppedItemManualDropForwardVelocity,
+            dropDirection.y * DroppedItemManualDropForwardVelocity + DroppedItemManualDropUpVelocity,
+            dropDirection.z * DroppedItemManualDropForwardVelocity
+        };
+        item.droppedItem.stack.itemId = slot.itemId;
+        item.droppedItem.stack.count = dropCount;
+
+        static thread_local std::mt19937 manualDropRandom{std::random_device{}()};
+        std::uniform_real_distribution<float> angleDistribution(0.0f, 6.2831853f);
+        std::uniform_real_distribution<float> spinDistribution(-8.0f, 8.0f);
+        item.renderRotationX = angleDistribution(manualDropRandom);
+        item.renderRotation = angleDistribution(manualDropRandom);
+        item.renderRotationZ = angleDistribution(manualDropRandom);
+        item.renderSpinX = spinDistribution(manualDropRandom);
+        item.renderSpin = spinDistribution(manualDropRandom);
+        item.renderSpinZ = spinDistribution(manualDropRandom);
+
+        if (!addWorldEntity(std::move(item)))
+        {
+            return false;
+        }
+
+        slot.count = static_cast<uint16_t>(slot.count - dropCount);
+        if (slot.count == 0)
+        {
+            slot.itemId = 0;
+        }
+        updateInventoryUi();
         return true;
     }
 
@@ -5554,6 +5645,674 @@ namespace dolbuto
         createTerrainBuffer({playerLocalVertices_, playerIndices_}, playerMesh_, false);
     }
 
+    void Renderer::initializeAudio()
+    {
+        auto* device = alcOpenDevice(nullptr);
+        if (device == nullptr)
+        {
+            log::warn("OpenAL device open failed.");
+            return;
+        }
+
+        auto* context = alcCreateContext(device, nullptr);
+        if (context == nullptr)
+        {
+            log::warn("OpenAL context creation failed.");
+            alcCloseDevice(device);
+            return;
+        }
+
+        if (alcMakeContextCurrent(context) == ALC_FALSE)
+        {
+            log::warn("OpenAL context activation failed.");
+            alcDestroyContext(context);
+            alcCloseDevice(device);
+            return;
+        }
+
+        audioDevice_ = device;
+        audioContext_ = context;
+        audioAvailable_ = true;
+
+        alGenSources(static_cast<ALsizei>(audioSources_.size()), reinterpret_cast<ALuint*>(audioSources_.data()));
+        if (alGetError() != AL_NO_ERROR)
+        {
+            log::warn("OpenAL source creation failed.");
+            shutdownAudio();
+            return;
+        }
+
+        ALuint musicSource = 0;
+        alGenSources(1, &musicSource);
+        if (alGetError() != AL_NO_ERROR || musicSource == 0)
+        {
+            log::warn("OpenAL music source creation failed.");
+            shutdownAudio();
+            return;
+        }
+        musicSource_ = static_cast<uint32_t>(musicSource);
+
+        loadAudioAssets();
+    }
+
+    void Renderer::shutdownAudio()
+    {
+        if (!audioAvailable_)
+        {
+            return;
+        }
+
+        alSourceStopv(static_cast<ALsizei>(audioSources_.size()), reinterpret_cast<const ALuint*>(audioSources_.data()));
+        alDeleteSources(static_cast<ALsizei>(audioSources_.size()), reinterpret_cast<const ALuint*>(audioSources_.data()));
+        audioSources_.fill(0);
+        if (musicSource_ != 0)
+        {
+            closeMusicStream();
+            const ALuint source = static_cast<ALuint>(musicSource_);
+            alSourceStop(source);
+            alSourcei(source, AL_BUFFER, 0);
+            alDeleteSources(1, &source);
+            musicSource_ = 0;
+        }
+        if (blockBreakSound_ != 0)
+        {
+            const ALuint buffer = static_cast<ALuint>(blockBreakSound_);
+            alDeleteBuffers(1, &buffer);
+            blockBreakSound_ = 0;
+        }
+        if (buttonClickSound_ != 0)
+        {
+            const ALuint buffer = static_cast<ALuint>(buttonClickSound_);
+            alDeleteBuffers(1, &buffer);
+            buttonClickSound_ = 0;
+        }
+        if (blockPlaceSound_ != 0)
+        {
+            const ALuint buffer = static_cast<ALuint>(blockPlaceSound_);
+            alDeleteBuffers(1, &buffer);
+            blockPlaceSound_ = 0;
+        }
+        if (itemPickupSound_ != 0)
+        {
+            const ALuint buffer = static_cast<ALuint>(itemPickupSound_);
+            alDeleteBuffers(1, &buffer);
+            itemPickupSound_ = 0;
+        }
+        musicTracks_.clear();
+
+        alcMakeContextCurrent(nullptr);
+        if (audioContext_ != nullptr)
+        {
+            alcDestroyContext(static_cast<ALCcontext*>(audioContext_));
+            audioContext_ = nullptr;
+        }
+        if (audioDevice_ != nullptr)
+        {
+            alcCloseDevice(static_cast<ALCdevice*>(audioDevice_));
+            audioDevice_ = nullptr;
+        }
+        audioAvailable_ = false;
+        nextAudioSource_ = 0;
+        activeMusicScene_ = MusicScene::None;
+        nextMusicStartTime_ = 0.0;
+        lastMusicTrackIndex_ = static_cast<size_t>(-1);
+    }
+
+    void Renderer::loadAudioAssets()
+    {
+        const std::filesystem::path sfxDir = assetDirectory() / "audio" / "sfx";
+        blockBreakSound_ = loadWavSound(sfxDir / "Break.wav", true);
+        buttonClickSound_ = loadWavSound(sfxDir / "Button_Click.wav");
+        blockPlaceSound_ = loadWavSound(sfxDir / "Place.wav", true);
+        itemPickupSound_ = loadWavSound(sfxDir / "Pop.wav");
+        loadMusicAssets();
+    }
+
+    void Renderer::loadMusicAssets()
+    {
+        const std::filesystem::path musicDir = assetDirectory() / "audio" / "music";
+        try
+        {
+            if (!std::filesystem::exists(musicDir))
+            {
+                return;
+            }
+
+            for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(musicDir))
+            {
+                if (!entry.is_regular_file())
+                {
+                    continue;
+                }
+
+                std::string extension = entry.path().extension().string();
+                std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value)
+                {
+                    return static_cast<char>(std::tolower(value));
+                });
+
+                if (extension == ".ogg")
+                {
+                    musicTracks_.push_back({entry.path(), MusicTrackType::Ogg});
+                }
+                else if (extension == ".wav")
+                {
+                    musicTracks_.push_back({entry.path(), MusicTrackType::Wav});
+                }
+            }
+
+            std::sort(musicTracks_.begin(), musicTracks_.end(), [](const MusicTrack& left, const MusicTrack& right)
+            {
+                return left.path.string() < right.path.string();
+            });
+
+            if (musicTracks_.empty())
+            {
+                log::warn("No playable music files found: " + musicDir.string());
+            }
+        }
+        catch (const std::exception& error)
+        {
+            log::warn(std::string("Music directory scan failed: ") + error.what());
+        }
+    }
+
+    uint32_t Renderer::loadWavSound(const std::filesystem::path& path, bool forceMono)
+    {
+        if (!audioAvailable_)
+        {
+            return 0;
+        }
+
+        try
+        {
+            WavSoundData sound = decodeWavPcm16(path);
+            if (forceMono && sound.channels == 2u)
+            {
+                std::vector<char> mono;
+                mono.resize(sound.pcm.size() / 2u);
+                const size_t stereoSampleCount = sound.pcm.size() / sizeof(int16_t);
+                for (size_t stereoIndex = 0, monoIndex = 0; stereoIndex + 1u < stereoSampleCount; stereoIndex += 2u, ++monoIndex)
+                {
+                    int16_t left = 0;
+                    int16_t right = 0;
+                    std::memcpy(&left, sound.pcm.data() + stereoIndex * sizeof(int16_t), sizeof(left));
+                    std::memcpy(&right, sound.pcm.data() + (stereoIndex + 1u) * sizeof(int16_t), sizeof(right));
+                    const int16_t mixed = static_cast<int16_t>((static_cast<int>(left) + static_cast<int>(right)) / 2);
+                    std::memcpy(mono.data() + monoIndex * sizeof(int16_t), &mixed, sizeof(mixed));
+                }
+                sound.pcm = std::move(mono);
+                sound.channels = 1u;
+                sound.format = AL_FORMAT_MONO16;
+            }
+            ALuint buffer = 0;
+            alGenBuffers(1, &buffer);
+            alBufferData(buffer, sound.format, sound.pcm.data(), static_cast<ALsizei>(sound.pcm.size()), sound.sampleRate);
+            if (alGetError() != AL_NO_ERROR)
+            {
+                if (buffer != 0)
+                {
+                    alDeleteBuffers(1, &buffer);
+                }
+                log::warn("OpenAL buffer upload failed: " + path.string());
+                return 0;
+            }
+            return static_cast<uint32_t>(buffer);
+        }
+        catch (const std::exception& error)
+        {
+            log::warn(error.what());
+            return 0;
+        }
+    }
+
+    uint32_t Renderer::acquireAudioSource()
+    {
+        if (!audioAvailable_ || audioSources_.empty())
+        {
+            return 0;
+        }
+
+        const uint32_t source = audioSources_[nextAudioSource_ % audioSources_.size()];
+        nextAudioSource_ = (nextAudioSource_ + 1u) % audioSources_.size();
+        alSourceStop(static_cast<ALuint>(source));
+        alSourcei(static_cast<ALuint>(source), AL_BUFFER, 0);
+        return source;
+    }
+
+    void Renderer::updateAudioListener(const Camera& camera, Vec3 cameraPosition)
+    {
+        if (!audioAvailable_)
+        {
+            return;
+        }
+
+        const Vec3 forward = camera.forward();
+        const Vec3 up = camera.up();
+        const std::array<ALfloat, 6> orientation = {
+            forward.x, forward.y, forward.z,
+            up.x, up.y, up.z
+        };
+        alListener3f(AL_POSITION, cameraPosition.x, cameraPosition.y, cameraPosition.z);
+        alListener3f(AL_VELOCITY, 0.0f, 0.0f, 0.0f);
+        alListenerfv(AL_ORIENTATION, orientation.data());
+    }
+
+    void Renderer::updateMusicPlayback(int menuOverlayMode, bool gameSceneRenderEnabled)
+    {
+        if (!audioAvailable_ || musicSource_ == 0 || musicTracks_.empty())
+        {
+            return;
+        }
+
+        MusicScene scene = MusicScene::None;
+        if (gameSceneRenderEnabled)
+        {
+            scene = MusicScene::Game;
+        }
+        else if (menuOverlayMode == 1 || menuOverlayMode == 3 || menuOverlayMode == 4)
+        {
+            scene = MusicScene::Lobby;
+        }
+
+        if (scene != activeMusicScene_)
+        {
+            resetMusicPlayback(scene);
+        }
+        if (scene == MusicScene::None)
+        {
+            return;
+        }
+
+        if (musicStreamActive_)
+        {
+            updateMusicStream();
+            return;
+        }
+
+        ALint state = AL_STOPPED;
+        alGetSourcei(static_cast<ALuint>(musicSource_), AL_SOURCE_STATE, &state);
+        if (musicLazyBuffer_ != 0)
+        {
+            if (state == AL_PLAYING || state == AL_PAUSED)
+            {
+                return;
+            }
+            closeMusicStream();
+            scheduleNextMusic();
+            return;
+        }
+
+        if (state == AL_PLAYING || state == AL_PAUSED)
+        {
+            return;
+        }
+
+        const double now = glfwGetTime();
+        if (nextMusicStartTime_ <= 0.0)
+        {
+            scheduleNextMusic();
+            return;
+        }
+        if (now < nextMusicStartTime_)
+        {
+            return;
+        }
+
+        std::uniform_int_distribution<size_t> trackDistribution(0, musicTracks_.size() - 1u);
+        size_t trackIndex = trackDistribution(musicRandom_);
+        if (musicTracks_.size() > 1u && trackIndex == lastMusicTrackIndex_)
+        {
+            trackIndex = (trackIndex + 1u) % musicTracks_.size();
+        }
+        if (!startMusicTrack(trackIndex))
+        {
+            scheduleNextMusic();
+        }
+    }
+
+    bool Renderer::startMusicTrack(size_t trackIndex)
+    {
+        if (!audioAvailable_ || musicSource_ == 0 || trackIndex >= musicTracks_.size())
+        {
+            return false;
+        }
+
+        closeMusicStream();
+        const MusicTrack& track = musicTracks_[trackIndex];
+        if (track.type == MusicTrackType::Wav)
+        {
+            const uint32_t buffer = loadWavSound(track.path);
+            if (buffer == 0)
+            {
+                return false;
+            }
+
+            musicLazyBuffer_ = buffer;
+            lastMusicTrackIndex_ = trackIndex;
+            const ALuint source = static_cast<ALuint>(musicSource_);
+            alSourcei(source, AL_BUFFER, static_cast<ALint>(musicLazyBuffer_));
+            alSourcei(source, AL_SOURCE_RELATIVE, AL_TRUE);
+            alSource3f(source, AL_POSITION, 0.0f, 0.0f, 0.0f);
+            alSourcef(source, AL_GAIN, 1.0f);
+            alSourcePlay(source);
+            if (alGetError() != AL_NO_ERROR)
+            {
+                closeMusicStream();
+                log::warn("OpenAL music WAV playback failed: " + track.path.string());
+                return false;
+            }
+            nextMusicStartTime_ = 0.0;
+            return true;
+        }
+
+        int error = 0;
+        const std::string pathString = track.path.string();
+        stb_vorbis* decoder = stb_vorbis_open_filename(pathString.c_str(), &error, nullptr);
+        if (decoder == nullptr)
+        {
+            log::warn("OGG stream open failed: " + pathString);
+            return false;
+        }
+
+        const stb_vorbis_info info = stb_vorbis_get_info(decoder);
+        if (info.channels == 1)
+        {
+            musicStreamFormat_ = AL_FORMAT_MONO16;
+        }
+        else if (info.channels == 2)
+        {
+            musicStreamFormat_ = AL_FORMAT_STEREO16;
+        }
+        else
+        {
+            stb_vorbis_close(decoder);
+            log::warn("Unsupported OGG channel count: " + pathString);
+            return false;
+        }
+
+        musicDecoder_ = decoder;
+        musicStreamChannels_ = info.channels;
+        musicStreamSampleRate_ = static_cast<int>(info.sample_rate);
+        const size_t framesPerBuffer = std::max<size_t>(1u, static_cast<size_t>(static_cast<float>(musicStreamSampleRate_) * MusicStreamBufferSeconds));
+        musicStreamPcm_.assign(framesPerBuffer * static_cast<size_t>(musicStreamChannels_), 0);
+
+        ALuint buffers[3]{};
+        alGenBuffers(static_cast<ALsizei>(musicStreamBuffers_.size()), buffers);
+        if (alGetError() != AL_NO_ERROR)
+        {
+            closeMusicStream();
+            log::warn("OpenAL music stream buffer creation failed.");
+            return false;
+        }
+        for (size_t index = 0; index < musicStreamBuffers_.size(); ++index)
+        {
+            musicStreamBuffers_[index] = static_cast<uint32_t>(buffers[index]);
+        }
+
+        std::array<ALuint, 3> queuedBuffers{};
+        ALsizei queuedCount = 0;
+        for (uint32_t buffer : musicStreamBuffers_)
+        {
+            if (!fillMusicStreamBuffer(buffer))
+            {
+                break;
+            }
+            queuedBuffers[static_cast<size_t>(queuedCount)] = static_cast<ALuint>(buffer);
+            ++queuedCount;
+        }
+        if (queuedCount == 0)
+        {
+            closeMusicStream();
+            log::warn("OGG stream has no playable samples: " + pathString);
+            return false;
+        }
+
+        const ALuint source = static_cast<ALuint>(musicSource_);
+        alSourcei(source, AL_SOURCE_RELATIVE, AL_TRUE);
+        alSource3f(source, AL_POSITION, 0.0f, 0.0f, 0.0f);
+        alSourcef(source, AL_GAIN, 1.0f);
+        alSourceQueueBuffers(source, queuedCount, queuedBuffers.data());
+        alSourcePlay(source);
+        if (alGetError() != AL_NO_ERROR)
+        {
+            closeMusicStream();
+            log::warn("OpenAL music stream playback failed: " + pathString);
+            return false;
+        }
+
+        musicStreamActive_ = true;
+        musicStreamFinished_ = queuedCount < static_cast<ALsizei>(musicStreamBuffers_.size());
+        lastMusicTrackIndex_ = trackIndex;
+        nextMusicStartTime_ = 0.0;
+        return true;
+    }
+
+    bool Renderer::fillMusicStreamBuffer(uint32_t buffer)
+    {
+        if (musicDecoder_ == nullptr || buffer == 0 || musicStreamChannels_ <= 0 || musicStreamSampleRate_ <= 0 || musicStreamPcm_.empty())
+        {
+            return false;
+        }
+
+        const int sampleCapacity = static_cast<int>(std::min<size_t>(musicStreamPcm_.size(), static_cast<size_t>(std::numeric_limits<int>::max())));
+        const int frames = stb_vorbis_get_samples_short_interleaved(
+            static_cast<stb_vorbis*>(musicDecoder_),
+            musicStreamChannels_,
+            musicStreamPcm_.data(),
+            sampleCapacity);
+        if (frames <= 0)
+        {
+            return false;
+        }
+
+        const size_t pcmBytes = static_cast<size_t>(frames) * static_cast<size_t>(musicStreamChannels_) * sizeof(int16_t);
+        if (pcmBytes > static_cast<size_t>(std::numeric_limits<ALsizei>::max()))
+        {
+            return false;
+        }
+
+        alBufferData(
+            static_cast<ALuint>(buffer),
+            static_cast<ALenum>(musicStreamFormat_),
+            musicStreamPcm_.data(),
+            static_cast<ALsizei>(pcmBytes),
+            static_cast<ALsizei>(musicStreamSampleRate_));
+        return alGetError() == AL_NO_ERROR;
+    }
+
+    bool Renderer::updateMusicStream()
+    {
+        if (!audioAvailable_ || !musicStreamActive_ || musicSource_ == 0)
+        {
+            return false;
+        }
+
+        const ALuint source = static_cast<ALuint>(musicSource_);
+        ALint processedCount = 0;
+        alGetSourcei(source, AL_BUFFERS_PROCESSED, &processedCount);
+        while (processedCount > 0)
+        {
+            ALuint buffer = 0;
+            alSourceUnqueueBuffers(source, 1, &buffer);
+            --processedCount;
+            if (buffer == 0)
+            {
+                continue;
+            }
+            if (!musicStreamFinished_ && fillMusicStreamBuffer(static_cast<uint32_t>(buffer)))
+            {
+                alSourceQueueBuffers(source, 1, &buffer);
+            }
+            else
+            {
+                musicStreamFinished_ = true;
+            }
+        }
+
+        ALint queuedCount = 0;
+        alGetSourcei(source, AL_BUFFERS_QUEUED, &queuedCount);
+        if (queuedCount <= 0 && musicStreamFinished_)
+        {
+            closeMusicStream();
+            scheduleNextMusic();
+            return false;
+        }
+
+        ALint state = AL_STOPPED;
+        alGetSourcei(source, AL_SOURCE_STATE, &state);
+        if (queuedCount > 0 && state != AL_PLAYING && state != AL_PAUSED)
+        {
+            alSourcePlay(source);
+        }
+        return queuedCount > 0;
+    }
+
+    void Renderer::resetMusicPlayback(MusicScene scene)
+    {
+        stopMusicPlayback();
+        activeMusicScene_ = scene;
+        lastMusicTrackIndex_ = static_cast<size_t>(-1);
+        if (scene == MusicScene::Lobby)
+        {
+            nextMusicStartTime_ = glfwGetTime();
+        }
+        else if (scene != MusicScene::None)
+        {
+            scheduleNextMusic();
+        }
+    }
+
+    void Renderer::stopMusicPlayback()
+    {
+        closeMusicStream();
+        nextMusicStartTime_ = 0.0;
+    }
+
+    void Renderer::closeMusicStream()
+    {
+        if (musicSource_ != 0)
+        {
+            const ALuint source = static_cast<ALuint>(musicSource_);
+            alSourceStop(source);
+            if (musicStreamActive_ || musicDecoder_ != nullptr)
+            {
+                ALint queuedCount = 0;
+                alGetSourcei(source, AL_BUFFERS_QUEUED, &queuedCount);
+                while (queuedCount > 0)
+                {
+                    ALuint buffer = 0;
+                    alSourceUnqueueBuffers(source, 1, &buffer);
+                    --queuedCount;
+                }
+            }
+            alSourcei(source, AL_BUFFER, 0);
+        }
+
+        if (musicDecoder_ != nullptr)
+        {
+            stb_vorbis_close(static_cast<stb_vorbis*>(musicDecoder_));
+            musicDecoder_ = nullptr;
+        }
+
+        for (uint32_t& buffer : musicStreamBuffers_)
+        {
+            if (buffer != 0)
+            {
+                const ALuint alBuffer = static_cast<ALuint>(buffer);
+                alDeleteBuffers(1, &alBuffer);
+                buffer = 0;
+            }
+        }
+
+        if (musicLazyBuffer_ != 0)
+        {
+            const ALuint buffer = static_cast<ALuint>(musicLazyBuffer_);
+            alDeleteBuffers(1, &buffer);
+            musicLazyBuffer_ = 0;
+        }
+
+        musicStreamChannels_ = 0;
+        musicStreamSampleRate_ = 0;
+        musicStreamFormat_ = 0;
+        musicStreamPcm_.clear();
+        musicStreamActive_ = false;
+        musicStreamFinished_ = false;
+    }
+
+    void Renderer::scheduleNextMusic()
+    {
+        std::uniform_real_distribution<double> delayDistribution(MusicMinDelaySeconds, MusicMaxDelaySeconds);
+        nextMusicStartTime_ = glfwGetTime() + delayDistribution(musicRandom_);
+    }
+
+    void Renderer::playSfx2D(uint32_t buffer, float gain)
+    {
+        if (!audioAvailable_ || buffer == 0)
+        {
+            return;
+        }
+
+        const uint32_t source = acquireAudioSource();
+        if (source == 0)
+        {
+            return;
+        }
+
+        alSourcei(static_cast<ALuint>(source), AL_BUFFER, static_cast<ALint>(buffer));
+        alSourcei(static_cast<ALuint>(source), AL_SOURCE_RELATIVE, AL_TRUE);
+        alSource3f(static_cast<ALuint>(source), AL_POSITION, 0.0f, 0.0f, 0.0f);
+        alSourcef(static_cast<ALuint>(source), AL_GAIN, gain);
+        alSourcePlay(static_cast<ALuint>(source));
+    }
+
+    void Renderer::playSfx3D(uint32_t buffer, Vec3 position, float gain)
+    {
+        if (!audioAvailable_ || buffer == 0)
+        {
+            return;
+        }
+
+        const uint32_t source = acquireAudioSource();
+        if (source == 0)
+        {
+            return;
+        }
+
+        alSourcei(static_cast<ALuint>(source), AL_BUFFER, static_cast<ALint>(buffer));
+        alSourcei(static_cast<ALuint>(source), AL_SOURCE_RELATIVE, AL_FALSE);
+        alSource3f(static_cast<ALuint>(source), AL_POSITION, position.x, position.y, position.z);
+        alSource3f(static_cast<ALuint>(source), AL_VELOCITY, 0.0f, 0.0f, 0.0f);
+        alSourcef(static_cast<ALuint>(source), AL_GAIN, gain);
+        alSourcef(static_cast<ALuint>(source), AL_REFERENCE_DISTANCE, 8.0f);
+        alSourcef(static_cast<ALuint>(source), AL_MAX_DISTANCE, 48.0f);
+        alSourcef(static_cast<ALuint>(source), AL_ROLLOFF_FACTOR, 1.0f);
+        alSourcePlay(static_cast<ALuint>(source));
+    }
+
+    void Renderer::playBlockBreakSound(int x, int y, int z)
+    {
+        playSfx3D(blockBreakSound_, Vec3{
+            static_cast<float>(x),
+            static_cast<float>(y) + 0.5f,
+            static_cast<float>(z)
+        });
+    }
+
+    void Renderer::playBlockPlaceSound(int x, int y, int z)
+    {
+        playSfx3D(blockPlaceSound_, Vec3{
+            static_cast<float>(x),
+            static_cast<float>(y) + 0.5f,
+            static_cast<float>(z)
+        });
+    }
+
+    void Renderer::playItemPickupSound()
+    {
+        playSfx2D(itemPickupSound_);
+    }
+
     void Renderer::loadWorldConfig()
     {
         loadGridScale_ = DefaultLoadGridScale;
@@ -5789,16 +6548,11 @@ namespace dolbuto
         loadedCenterGroupChunkX_ = centerGroupChunkX;
         loadedCenterGroupChunkZ_ = centerGroupChunkZ;
 
-        const auto chunkUpdateStart = std::chrono::steady_clock::now();
         requestTerrainLoad(centerGroupChunkX, centerGroupChunkZ);
-        const auto chunkUpdateEnd = std::chrono::steady_clock::now();
-        chunkUpdateProfileText_ = formatProfileMs("UPDATE TOTAL", std::chrono::duration<double, std::milli>(chunkUpdateEnd - chunkUpdateStart).count());
-        debugTextBatchDirty_ = true;
     }
 
     void Renderer::requestTerrainLoad(int centerGroupChunkX, int centerGroupChunkZ)
     {
-        const auto updateStart = std::chrono::steady_clock::now();
         loadedChunkDiameter_ = std::max(1, loadGridScale_) * LoadGridUnitChunks;
         loadedCenterGroupChunkX_ = centerGroupChunkX;
         loadedCenterGroupChunkZ_ = centerGroupChunkZ;
@@ -5823,7 +6577,6 @@ namespace dolbuto
         requestedChunkJobs_.clear();
         requestedMeshJobs_.clear();
 
-        const auto gridStart = std::chrono::steady_clock::now();
         const int renderMin = -(loadedChunkDiameter_ / 2 - 1);
         const int renderMax = loadedChunkDiameter_ / 2;
         const int runtimeKeepMin = renderMin - 2;
@@ -5842,7 +6595,6 @@ namespace dolbuto
             entry.second.bestPriority = UINT32_MAX;
         }
 
-        const auto ensureStart = std::chrono::steady_clock::now();
         for (const ChunkOffset& offset : loadOrder_)
         {
             if (offset.x < runtimeKeepMin || offset.x > runtimeKeepMax || offset.z < runtimeKeepMin || offset.z > runtimeKeepMax)
@@ -5854,8 +6606,6 @@ namespace dolbuto
                 loadedCenterGroupChunkZ_ + offset.z,
                 generation);
         }
-        const auto ensureEnd = std::chrono::steady_clock::now();
-        frameEnsureRuntimeMs_ += std::chrono::duration<double, std::milli>(ensureEnd - ensureStart).count();
 
         auto distanceToCenterGroupSquared = [](const ChunkOffset& offset)
         {
@@ -5864,7 +6614,6 @@ namespace dolbuto
             return static_cast<uint32_t>(dx * dx + dz * dz);
         };
 
-        const auto wantRenderStart = std::chrono::steady_clock::now();
         for (const ChunkOffset& offset : loadOrder_)
         {
             if (offset.x < renderMin || offset.x > renderMax || offset.z < renderMin || offset.z > renderMax)
@@ -5876,12 +6625,7 @@ namespace dolbuto
                 loadedCenterGroupChunkZ_ + offset.z,
                 distanceToCenterGroupSquared(offset));
         }
-        const auto wantRenderEnd = std::chrono::steady_clock::now();
-        frameWantRenderMs_ += std::chrono::duration<double, std::milli>(wantRenderEnd - wantRenderStart).count();
-        const auto gridEnd = std::chrono::steady_clock::now();
-        frameGridScanMs_ += std::chrono::duration<double, std::milli>(gridEnd - gridStart).count();
 
-        const auto renderDetachStart = std::chrono::steady_clock::now();
         for (auto it = terrainChunks_.begin(); it != terrainChunks_.end();)
         {
             if (desiredRenderChunks_.find(it->first) == desiredRenderChunks_.end())
@@ -5896,10 +6640,7 @@ namespace dolbuto
                 ++it;
             }
         }
-        const auto renderDetachEnd = std::chrono::steady_clock::now();
-        frameRenderDetachMs_ += std::chrono::duration<double, std::milli>(renderDetachEnd - renderDetachStart).count();
 
-        const auto unloadScanStart = std::chrono::steady_clock::now();
         for (const auto& entry : runtimeChunks_)
         {
             if (desiredTerrainChunks_.find(entry.first) == desiredTerrainChunks_.end())
@@ -5914,14 +6655,7 @@ namespace dolbuto
                 pendingUnloadSet_.erase(entry.first);
             }
         }
-        const auto unloadScanEnd = std::chrono::steady_clock::now();
-        frameUnloadScanMs_ += std::chrono::duration<double, std::milli>(unloadScanEnd - unloadScanStart).count();
 
-        const auto updateEnd = std::chrono::steady_clock::now();
-        chunkUpdateProfileText_ = formatProfileMs("UPDATE TOTAL", std::chrono::duration<double, std::milli>(updateEnd - updateStart).count());
-        gridScanProfileText_ = formatProfileMs("GRID SCAN", std::chrono::duration<double, std::milli>(gridEnd - gridStart).count());
-        newChunksProfileText_ = "NEW CHUNKS: " + std::to_string(requestedChunkJobs_.size());
-        metadataBuildProfileText_ = formatProfileMs("META BUILD", 0.0);
         updateTerrainStats();
         debugTextBatchDirty_ = true;
     }
@@ -6353,28 +7087,13 @@ namespace dolbuto
 
     void Renderer::processCompletedTerrainJobs()
     {
-        const auto buildStart = std::chrono::steady_clock::now();
         const uint64_t generation = terrainGeneration_.load();
         std::vector<CompletedChunkData> completedChunks;
         std::vector<std::shared_ptr<ChunkData>> completedMergedChunks;
         std::vector<CompletedChunkMesh> completedMeshes;
         std::vector<CompletedChunkLoad> completedLoads;
-        size_t queuedFeatureJobCount = 0;
-        size_t queuedFinalizeJobCount = 0;
-        size_t queuedMeshJobCount = 0;
-        size_t queuedDataDoneCount = 0;
-        size_t queuedFinalizeDoneCount = 0;
-        size_t queuedMeshDoneCount = 0;
-        uint32_t uploadedChunkCount = 0;
-        double uploadMs = 0.0;
         {
             std::lock_guard<std::mutex> lock(terrainJobMutex_);
-            queuedFeatureJobCount = terrainFeatureJobs_.size();
-            queuedFinalizeJobCount = terrainFinalizeJobs_.size();
-            queuedMeshJobCount = terrainMeshJobs_.size();
-            queuedDataDoneCount = completedChunkData_.size();
-            queuedFinalizeDoneCount = completedMergedChunks_.size();
-            queuedMeshDoneCount = completedChunkMeshes_.size();
             while (!completedChunkData_.empty())
             {
                 completedChunks.push_back(std::move(completedChunkData_.front()));
@@ -6426,7 +7145,6 @@ namespace dolbuto
 
                 completedMeshes.push_back(std::move(completedChunkMeshes_.front()));
                 completedChunkMeshes_.pop_front();
-                uploadedChunkCount = uploadChunkCount;
             }
         }
         {
@@ -6498,11 +7216,6 @@ namespace dolbuto
                 loaded.snapshotLoadFinished = true;
                 chunkIt->second = std::move(loaded);
                 refreshDroppedItemChunkTracking(key);
-                ++frameEnsureSavedCount_;
-            }
-            else
-            {
-                ++frameEnsureEmptyCount_;
             }
 
             if (desiredRenderChunks_.find(key) != desiredRenderChunks_.end())
@@ -6520,6 +7233,15 @@ namespace dolbuto
             else if (featuringTicket == generation)
             {
                 wantFeaturing(completed.chunkX, completed.chunkZ, bestPriority);
+            }
+
+            auto readyIt = runtimeChunks_.find(key);
+            if (readyIt != runtimeChunks_.end() &&
+                readyIt->second.data &&
+                (readyIt->second.genState == ChunkGenState::Full ||
+                    readyIt->second.genState == ChunkGenState::Meshed))
+            {
+                tryQueueMeshesAround(completed.chunkX, completed.chunkZ);
             }
         }
 
@@ -6626,7 +7348,6 @@ namespace dolbuto
                 continue;
             }
 
-            const auto uploadStart = std::chrono::steady_clock::now();
             ChunkRenderData& renderData = terrainChunks_[key];
             retiredTerrainChunks_.push_back(RetiredChunkRenderData{
                 static_cast<uint32_t>(MaxFramesInFlight + 1),
@@ -6638,110 +7359,14 @@ namespace dolbuto
             createChunkTerrainBuffers(mesh.solidSubchunks, renderData.solidSubchunks);
             createChunkTerrainBuffers(mesh.fluidSubchunks, renderData.fluidSubchunks);
             runtimeIt->second.genState = ChunkGenState::Meshed;
-            const auto uploadEnd = std::chrono::steady_clock::now();
-            uploadMs += std::chrono::duration<double, std::milli>(uploadEnd - uploadStart).count();
         }
 
         if (!completedChunks.empty() || !completedMergedChunks.empty() || !completedMeshes.empty())
         {
             updateTerrainStats();
         }
-        const auto retireStart = std::chrono::steady_clock::now();
         processRetiredTerrainChunks();
-        const auto retireEnd = std::chrono::steady_clock::now();
-        const uint32_t unloadedChunkCount = processPendingTerrainUnloads();
-        const auto unloadEnd = std::chrono::steady_clock::now();
-        const size_t retiredChunkCount = retiredTerrainChunks_.size();
-
-        const auto buildEnd = std::chrono::steady_clock::now();
-        frameUploadMs_ += uploadMs;
-        frameRetireMs_ += std::chrono::duration<double, std::milli>(retireEnd - retireStart).count();
-        frameUnloadMs_ += std::chrono::duration<double, std::milli>(unloadEnd - retireEnd).count();
-        frameJobMainMs_ += std::chrono::duration<double, std::milli>(buildEnd - buildStart).count();
-        const std::chrono::duration<double> terrainDebugElapsed = buildEnd - terrainDebugSampleTime_;
-        if (terrainDebugSampleTime_ == std::chrono::steady_clock::time_point{} || terrainDebugElapsed.count() >= 0.05)
-        {
-            terrainDebugSampleTime_ = buildEnd;
-            size_t emptyCount = 0;
-            size_t featuringCount = 0;
-            size_t fullCount = 0;
-            size_t meshedCount = 0;
-            for (const auto& entry : runtimeChunks_)
-            {
-                if (desiredTerrainChunks_.find(entry.first) == desiredTerrainChunks_.end())
-                {
-                    continue;
-                }
-
-                switch (entry.second.genState)
-                {
-                case ChunkGenState::Empty:
-                    ++emptyCount;
-                    break;
-                case ChunkGenState::Featuring:
-                    ++featuringCount;
-                    break;
-                case ChunkGenState::Full:
-                    ++fullCount;
-                    break;
-                case ChunkGenState::Meshed:
-                    ++meshedCount;
-                    break;
-                }
-            }
-
-            size_t renderMissingCount = 0;
-            for (uint64_t key : desiredRenderChunks_)
-            {
-                if (terrainChunks_.find(key) == terrainChunks_.end())
-                {
-                    ++renderMissingCount;
-                }
-            }
-
-            size_t saveQueueCount = 0;
-            size_t pendingSaveCount = 0;
-            {
-                std::lock_guard<std::mutex> lock(saveJobMutex_);
-                saveQueueCount = saveJobs_.size();
-                pendingSaveCount = pendingSaveSnapshots_.size();
-            }
-
-            dataQueueText_ = "WANT RENDER/FEATURE/DATA: " +
-                std::to_string(desiredRenderChunks_.size()) + " / " +
-                std::to_string(desiredFeatureChunks_.size()) + " / " +
-                std::to_string(desiredTerrainChunks_.size());
-            finalizeQueueText_ = "STATE EMPTY/FEATURING/FULL/MESHED: " +
-                std::to_string(emptyCount) + " / " +
-                std::to_string(featuringCount) + " / " +
-                std::to_string(fullCount) + " / " +
-                std::to_string(meshedCount);
-            meshQueueText_ = "RENDER MISS: " + std::to_string(renderMissingCount);
-            dataDoneText_ = "QUEUE BUILD/FINALIZE/MESH: " +
-                std::to_string(queuedFeatureJobCount) + " / " +
-                std::to_string(queuedFinalizeJobCount) + " / " +
-                std::to_string(queuedMeshJobCount);
-            meshDoneText_ = "DONE BUILD/FINALIZE/MESH: " +
-                std::to_string(queuedDataDoneCount) + " / " +
-                std::to_string(queuedFinalizeDoneCount) + " / " +
-                std::to_string(queuedMeshDoneCount);
-            saveQueueText_ = "SAVE QUEUE/CACHE: " +
-                std::to_string(saveQueueCount) + " / " +
-                std::to_string(pendingSaveCount);
-            saveDoneText_ = "SAVE CHUNK/FEATURE/FAILED: " +
-                std::to_string(saveChunkDoneCount_.load(std::memory_order_relaxed)) + " / " +
-                std::to_string(saveFeatureDoneCount_.load(std::memory_order_relaxed)) + " / " +
-                std::to_string(saveFailedCount_.load(std::memory_order_relaxed));
-            loadText_ = "LOAD PENDING/REGION/MISS: " +
-                std::to_string(loadPendingHitCount_.load(std::memory_order_relaxed)) + " / " +
-                std::to_string(loadRegionHitCount_.load(std::memory_order_relaxed)) + " / " +
-                std::to_string(loadMissCount_.load(std::memory_order_relaxed));
-            uploadText_ = "UPLOAD: " + std::to_string(uploadedChunkCount) + " / " + std::to_string(maxTerrainUploadChunksPerFrame_);
-            unloadText_ = "UNLOAD: " + std::to_string(unloadedChunkCount) + " / " + std::to_string(maxTerrainUnloadChunksPerFrame_);
-            retiredText_ = "RETIRED: " + std::to_string(retiredChunkCount);
-            jobMainText_ = formatProfileMs("JOB MAIN", std::chrono::duration<double, std::milli>(buildEnd - buildStart).count());
-            debugTextBatchDirty_ = true;
-        }
+        processPendingTerrainUnloads();
     }
 
     uint32_t Renderer::processPendingTerrainUnloads()
@@ -6813,44 +7438,24 @@ namespace dolbuto
 
     Renderer::RuntimeChunk& Renderer::ensureRuntimeChunk(int chunkX, int chunkZ, uint64_t generation)
     {
-        ++frameEnsureCallCount_;
-
-        const auto keyStart = std::chrono::steady_clock::now();
         const uint64_t key = chunkKey(chunkX, chunkZ);
-        const auto keyEnd = std::chrono::steady_clock::now();
-        frameEnsureKeyMs_ += std::chrono::duration<double, std::milli>(keyEnd - keyStart).count();
 
-        const auto markStart = std::chrono::steady_clock::now();
         desiredTerrainChunks_.insert(key);
         pendingUnloadSet_.erase(key);
-        const auto markEnd = std::chrono::steady_clock::now();
-        frameEnsureMarkMs_ += std::chrono::duration<double, std::milli>(markEnd - markStart).count();
 
-        const auto findStart = std::chrono::steady_clock::now();
         auto chunkIt = runtimeChunks_.find(key);
-        const auto findEnd = std::chrono::steady_clock::now();
-        frameEnsureFindMs_ += std::chrono::duration<double, std::milli>(findEnd - findStart).count();
         if (chunkIt == runtimeChunks_.end())
         {
-            ++frameEnsureMissCount_;
-            const auto createStart = std::chrono::steady_clock::now();
             RuntimeChunk chunk{};
             chunk.chunkX = chunkX;
             chunk.chunkZ = chunkZ;
             chunk.snapshotLoadRequested = true;
             chunk.snapshotLoadFinished = false;
             chunkIt = runtimeChunks_.emplace(key, std::move(chunk)).first;
-            const auto createEnd = std::chrono::steady_clock::now();
-            frameEnsureCreateMs_ += std::chrono::duration<double, std::milli>(createEnd - createStart).count();
             enqueueChunkLoadJob(chunkX, chunkZ, generation);
-        }
-        else
-        {
-            ++frameEnsureHitCount_;
         }
 
         RuntimeChunk& chunk = chunkIt->second;
-        const auto touchStart = std::chrono::steady_clock::now();
         chunk.chunkX = chunkX;
         chunk.chunkZ = chunkZ;
         if (!chunk.data && !chunk.snapshotLoadRequested && !chunk.snapshotLoadFinished)
@@ -6862,73 +7467,46 @@ namespace dolbuto
         {
             chunk.data->generation = generation;
         }
-        const auto touchEnd = std::chrono::steady_clock::now();
-        frameEnsureDataTouchMs_ += std::chrono::duration<double, std::milli>(touchEnd - touchStart).count();
         return chunk;
     }
 
     void Renderer::wantRender(int chunkX, int chunkZ, uint32_t priority)
     {
-        ++frameWantRenderCallCount_;
         const uint64_t generation = terrainGeneration_.load();
         const uint64_t key = chunkKey(chunkX, chunkZ);
-        const auto ensureStart = std::chrono::steady_clock::now();
         RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
-        const auto ensureEnd = std::chrono::steady_clock::now();
-        frameWantEnsureMs_ += std::chrono::duration<double, std::milli>(ensureEnd - ensureStart).count();
 
-        const auto insertStart = std::chrono::steady_clock::now();
         desiredRenderChunks_.insert(key);
         chunk.renderTicket = generation;
         chunk.bestPriority = std::min(chunk.bestPriority, priority);
-        const auto insertEnd = std::chrono::steady_clock::now();
-        frameWantInsertMs_ += std::chrono::duration<double, std::milli>(insertEnd - insertStart).count();
 
-        const auto readyStart = std::chrono::steady_clock::now();
         if (chunkMeshReady(key))
         {
-            const auto readyEnd = std::chrono::steady_clock::now();
-            frameWantReadyMs_ += std::chrono::duration<double, std::milli>(readyEnd - readyStart).count();
             return;
         }
-        const auto readyEnd = std::chrono::steady_clock::now();
-        frameWantReadyMs_ += std::chrono::duration<double, std::milli>(readyEnd - readyStart).count();
 
-        const auto dependStart = std::chrono::steady_clock::now();
         wantMesh(chunkX, chunkZ, priority);
-        const auto dependEnd = std::chrono::steady_clock::now();
-        frameWantDependMs_ += std::chrono::duration<double, std::milli>(dependEnd - dependStart).count();
     }
 
     void Renderer::wantMesh(int chunkX, int chunkZ, uint32_t priority)
     {
-        ++frameWantMeshCallCount_;
         const uint64_t generation = terrainGeneration_.load();
         const uint64_t key = chunkKey(chunkX, chunkZ);
         RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
         chunk.meshTicket = generation;
         chunk.bestPriority = std::min(chunk.bestPriority, priority);
 
-        const auto readyStart = std::chrono::steady_clock::now();
         if (chunkMeshReady(key))
         {
-            const auto readyEnd = std::chrono::steady_clock::now();
-            frameWantMeshReadyMs_ += std::chrono::duration<double, std::milli>(readyEnd - readyStart).count();
             return;
         }
-        const auto readyEnd = std::chrono::steady_clock::now();
-        frameWantMeshReadyMs_ += std::chrono::duration<double, std::milli>(readyEnd - readyStart).count();
 
-        const auto dependStart = std::chrono::steady_clock::now();
         wantFull(chunkX, chunkZ, priority);
         tryQueueMeshIfReady(chunkX, chunkZ);
-        const auto dependEnd = std::chrono::steady_clock::now();
-        frameWantMeshDependMs_ += std::chrono::duration<double, std::milli>(dependEnd - dependStart).count();
     }
 
     void Renderer::wantFull(int chunkX, int chunkZ, uint32_t priority)
     {
-        ++frameWantFullCallCount_;
         const uint64_t generation = terrainGeneration_.load();
         const uint64_t key = chunkKey(chunkX, chunkZ);
         RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
@@ -6960,7 +7538,6 @@ namespace dolbuto
 
     void Renderer::wantFeaturing(int chunkX, int chunkZ, uint32_t priority)
     {
-        ++frameWantFeaturingCallCount_;
         const uint64_t generation = terrainGeneration_.load();
         RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
         desiredFeatureChunks_.insert(chunkKey(chunkX, chunkZ));
@@ -7028,13 +7605,6 @@ namespace dolbuto
 
     void Renderer::enqueueSaveSnapshot(SaveChunkSnapshot snapshot)
     {
-        const auto enqueueStart = std::chrono::steady_clock::now();
-        const auto recordEnqueueMs = [&]()
-        {
-            const auto enqueueEnd = std::chrono::steady_clock::now();
-            frameSaveEnqueueMs_ += std::chrono::duration<double, std::milli>(enqueueEnd - enqueueStart).count();
-        };
-
         const uint64_t key = storageChunkKey(snapshot.chunkX, snapshot.chunkZ);
         if (snapshot.genState == ChunkGenState::Meshed)
         {
@@ -7055,12 +7625,10 @@ namespace dolbuto
 
         if (snapshot.hasData && !snapshot.forceSave)
         {
-            recordEnqueueMs();
             return;
         }
         if (!snapshot.hasData && snapshot.incomingFeatureMask == 0 && !hasIncomingFeatureSlots(snapshot))
         {
-            recordEnqueueMs();
             return;
         }
 
@@ -7074,7 +7642,6 @@ namespace dolbuto
                 const auto savedIt = savedCleanRevisions_.find(key);
                 if (!snapshot.forceSave && savedIt != savedCleanRevisions_.end() && savedIt->second == snapshot.revision)
                 {
-                    recordEnqueueMs();
                     return;
                 }
             }
@@ -7090,7 +7657,6 @@ namespace dolbuto
                     previous.genState == ChunkGenState::Full &&
                     (snapshot.genState != ChunkGenState::Full || previous.revision > snapshot.revision))
                 {
-                    recordEnqueueMs();
                     return;
                 }
                 pending = snapshot;
@@ -7125,7 +7691,6 @@ namespace dolbuto
             saveJobs_.push_back(std::move(snapshot));
         }
         saveJobCondition_.notify_one();
-        recordEnqueueMs();
     }
 
     void Renderer::enqueueSaveAllRuntimeChunks()
@@ -12742,6 +13307,10 @@ namespace dolbuto
             return;
         }
 
+        if (event.GetType() == "click")
+        {
+            playSfx2D(buttonClickSound_);
+        }
         pendingUiAction_ = target->GetId();
     }
 
@@ -13514,6 +14083,7 @@ namespace dolbuto
 
         spawnBlockBreakParticles(hit.blockX, hit.blockY, hit.blockZ, destroyedBlock);
         spawnBlockDrops(hit.blockX, hit.blockY, hit.blockZ, destroyedBlock);
+        playBlockBreakSound(hit.blockX, hit.blockY, hit.blockZ);
         rebuildEditedChunkMeshes(hit.blockX, hit.blockY, hit.blockZ);
         return true;
     }
@@ -14467,7 +15037,12 @@ namespace dolbuto
                 const float travel = speed * dt;
                 if (distance <= travel || droppedItemTouchesPlayerCollider(item, playerPosition))
                 {
+                    const uint16_t countBeforePickup = item.droppedItem.stack.count;
                     const uint16_t remaining = addItemToPlayerInventory(item.droppedItem.stack);
+                    if (remaining < countBeforePickup)
+                    {
+                        playItemPickupSound();
+                    }
                     if (remaining == 0)
                     {
                         chunk.data->entities.erase(chunk.data->entities.begin() + static_cast<std::ptrdiff_t>(i));
@@ -15548,13 +16123,6 @@ namespace dolbuto
         addText(debugTextBatch_, terrainDrawText_, rightX, 222.0f, true);
         addText(debugTextBatch_, terrainFaceText_, rightX, 244.0f, true);
         addText(debugTextBatch_, terrainVertexText_, rightX, 266.0f, true);
-        addText(debugTextBatch_, chunkPeakFrameText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 154.0f, false);
-        addText(debugTextBatch_, chunkPeakRequestText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 132.0f, false);
-        addText(debugTextBatch_, chunkPeakEnsureText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 110.0f, false);
-        addText(debugTextBatch_, chunkPeakWantText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 88.0f, false);
-        addText(debugTextBatch_, chunkPeakMeshRequestText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 66.0f, false);
-        addText(debugTextBatch_, chunkPeakEnsureCountText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 44.0f, false);
-        addText(debugTextBatch_, chunkPeakRequestCountText_, 12.0f, static_cast<float>(swapchainExtent_.height) - 22.0f, false);
 
         debugTextBatchDirty_ = false;
         debugTextBufferDirty_ = true;
@@ -15636,136 +16204,6 @@ namespace dolbuto
         accumulatedGpuFrameMs_ = 0.0;
         performanceSampleCount_ = 0;
         performanceSampleStart_ = now;
-        debugTextBatchDirty_ = true;
-    }
-
-    void Renderer::updatePeakProfiler(double frameMs)
-    {
-        const auto now = std::chrono::steady_clock::now();
-        if (peakProfilerStartTime_ == std::chrono::steady_clock::time_point{})
-        {
-            peakProfilerStartTime_ = now;
-            peakProfilerSamplingStarted_ = true;
-            peakProfilerStatusText_ = "PEAK SAMPLE: ON";
-            debugTextBatchDirty_ = true;
-            updatePeakProfilerText();
-        }
-
-        bool changed = false;
-        const auto updatePeak = [&](double value, double& peak)
-        {
-            if (value > peak)
-            {
-                peak = value;
-                changed = true;
-            }
-        };
-        const auto updatePeakCount = [&](uint64_t value, uint64_t& peak)
-        {
-            if (value > peak)
-            {
-                peak = value;
-                changed = true;
-            }
-        };
-
-        updatePeak(frameMs, peakFrameMs_);
-        updatePeak(frameChunkUpdateMs_, peakChunkUpdateMs_);
-        updatePeak(frameJobMainMs_, peakJobMainMs_);
-        updatePeak(frameUploadMs_, peakUploadMs_);
-        updatePeak(frameUnloadMs_, peakUnloadMs_);
-        updatePeak(frameRetireMs_, peakRetireMs_);
-        updatePeak(frameSaveEnqueueMs_, peakSaveEnqueueMs_);
-        updatePeak(frameGridScanMs_, peakGridScanMs_);
-        updatePeak(frameEnsureRuntimeMs_, peakEnsureRuntimeMs_);
-        updatePeak(frameWantRenderMs_, peakWantRenderMs_);
-        updatePeak(frameRenderDetachMs_, peakRenderDetachMs_);
-        updatePeak(frameUnloadScanMs_, peakUnloadScanMs_);
-        updatePeak(frameWantEnsureMs_, peakWantEnsureMs_);
-        updatePeak(frameWantInsertMs_, peakWantInsertMs_);
-        updatePeak(frameWantReadyMs_, peakWantReadyMs_);
-        updatePeak(frameWantDependMs_, peakWantDependMs_);
-        updatePeak(frameWantMeshReadyMs_, peakWantMeshReadyMs_);
-        updatePeak(frameWantMeshDependMs_, peakWantMeshDependMs_);
-        updatePeak(frameEnsureKeyMs_, peakEnsureKeyMs_);
-        updatePeak(frameEnsureMarkMs_, peakEnsureMarkMs_);
-        updatePeak(frameEnsureFindMs_, peakEnsureFindMs_);
-        updatePeak(frameEnsureLoadMs_, peakEnsureLoadMs_);
-        updatePeak(frameEnsureCreateMs_, peakEnsureCreateMs_);
-        updatePeak(frameEnsureDataTouchMs_, peakEnsureDataTouchMs_);
-        updatePeakCount(frameEnsureCallCount_, peakEnsureCallCount_);
-        updatePeakCount(frameEnsureHitCount_, peakEnsureHitCount_);
-        updatePeakCount(frameEnsureMissCount_, peakEnsureMissCount_);
-        updatePeakCount(frameEnsureSavedCount_, peakEnsureSavedCount_);
-        updatePeakCount(frameEnsureEmptyCount_, peakEnsureEmptyCount_);
-        updatePeakCount(frameWantRenderCallCount_, peakWantRenderCallCount_);
-        updatePeakCount(frameWantMeshCallCount_, peakWantMeshCallCount_);
-        updatePeakCount(frameWantFullCallCount_, peakWantFullCallCount_);
-        updatePeakCount(frameWantFeaturingCallCount_, peakWantFeaturingCallCount_);
-
-        if (changed)
-        {
-            updatePeakProfilerText();
-        }
-    }
-
-    void Renderer::updatePeakProfilerText()
-    {
-        peakFrameText_ = formatProfileMs("PEAK FRAME", peakFrameMs_);
-        peakUpdateText_ = formatProfileMs("PEAK UPDATE", peakChunkUpdateMs_);
-        peakEnsureRuntimeText_ = formatProfileMs("PEAK ENSURE RUNTIME", peakEnsureRuntimeMs_);
-        peakWantRenderText_ = formatProfileMs("PEAK WANT RENDER", peakWantRenderMs_);
-        peakEnsureKeyText_ = formatProfileMs("PEAK ENSURE KEY", peakEnsureKeyMs_);
-        peakEnsureMarkText_ = formatProfileMs("PEAK ENSURE MARK", peakEnsureMarkMs_);
-        peakEnsureFindText_ = formatProfileMs("PEAK ENSURE FIND", peakEnsureFindMs_);
-        peakEnsureLoadText_ = formatProfileMs("PEAK ENSURE LOAD", peakEnsureLoadMs_);
-        peakEnsureCreateText_ = formatProfileMs("PEAK ENSURE CREATE", peakEnsureCreateMs_);
-        peakEnsureDataTouchText_ = formatProfileMs("PEAK ENSURE DATA TOUCH", peakEnsureDataTouchMs_);
-        chunkPeakFrameText_ =
-            "CHUNK PEAK FRAME: " +
-            formatBracketMs("TOTAL", peakFrameMs_) + " " +
-            formatBracketMs("UPDATE", peakChunkUpdateMs_) + " " +
-            formatBracketMs("JOB", peakJobMainMs_) + " " +
-            formatBracketMs("UPLOAD", peakUploadMs_) + " " +
-            formatBracketMs("UNLOAD", peakUnloadMs_);
-        chunkPeakRequestText_ =
-            "CHUNK PEAK REQUEST: " +
-            formatBracketMs("GRID", peakGridScanMs_) + " " +
-            formatBracketMs("ENSURE", peakEnsureRuntimeMs_) + " " +
-            formatBracketMs("WANT", peakWantRenderMs_) + " " +
-            formatBracketMs("DETACH", peakRenderDetachMs_) + " " +
-            formatBracketMs("SCAN", peakUnloadScanMs_);
-        chunkPeakEnsureText_ =
-            "CHUNK PEAK ENSURE: " +
-            formatBracketMs("KEY", peakEnsureKeyMs_) + " " +
-            formatBracketMs("MARK", peakEnsureMarkMs_) + " " +
-            formatBracketMs("FIND", peakEnsureFindMs_) + " " +
-            formatBracketMs("LOAD", peakEnsureLoadMs_) + " " +
-            formatBracketMs("CREATE", peakEnsureCreateMs_) + " " +
-            formatBracketMs("TOUCH", peakEnsureDataTouchMs_);
-        chunkPeakWantText_ =
-            "CHUNK PEAK WANT: " +
-            formatBracketMs("ENSURE", peakWantEnsureMs_) + " " +
-            formatBracketMs("INSERT", peakWantInsertMs_) + " " +
-            formatBracketMs("READY", peakWantReadyMs_) + " " +
-            formatBracketMs("DEPEND", peakWantDependMs_);
-        chunkPeakMeshRequestText_ =
-            "CHUNK PEAK MESHREQ: " +
-            formatBracketMs("READY", peakWantMeshReadyMs_) + " " +
-            formatBracketMs("DEPEND", peakWantMeshDependMs_);
-        chunkPeakEnsureCountText_ =
-            "CHUNK PEAK ENSURE COUNT: " +
-            formatBracketCount("CALL", peakEnsureCallCount_) + " " +
-            formatBracketCount("HIT", peakEnsureHitCount_) + " " +
-            formatBracketCount("MISS", peakEnsureMissCount_) + " " +
-            formatBracketCount("SAVED", peakEnsureSavedCount_) + " " +
-            formatBracketCount("EMPTY", peakEnsureEmptyCount_);
-        chunkPeakRequestCountText_ =
-            "CHUNK PEAK REQUEST COUNT: " +
-            formatBracketCount("WANT", peakWantRenderCallCount_) + " " +
-            formatBracketCount("MESH", peakWantMeshCallCount_) + " " +
-            formatBracketCount("FULL", peakWantFullCallCount_) + " " +
-            formatBracketCount("FEATURE", peakWantFeaturingCallCount_);
         debugTextBatchDirty_ = true;
     }
 

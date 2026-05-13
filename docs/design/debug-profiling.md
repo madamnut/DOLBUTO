@@ -46,31 +46,13 @@ QUADS
 
 ## 좌하단
 
-좌하단은 청크 로딩, 저장, 작업 큐 등 현재 병목 확인용 임시 공간이다.
-프로파일링 목적에 따라 표시 항목은 바뀔 수 있다.
-
-현재 확인하던 주요 항목:
-
-- 로드/저장 큐 상태
-- 청크 load hit/miss
-- upload/unload 예산
-- save done/failed 상태
+현재 좌하단 디버그 텍스트는 표시하지 않는다.
+좌하단용 청크 피크 계측과 재측정 입력도 사용하지 않는다.
 
 ## 우하단 피크 프로파일러
 
-우하단은 순간 스파이크 확인용 피크 프로파일러다.
-
-- 프로그램 시작 후 5초 뒤 샘플링 시작
-- 누적 최대값 유지
-- R 키로 재측정
-
-대표 항목:
-
-- `PEAK FRAME`
-- `PEAK UPDATE`
-- `PEAK ENSURE RUNTIME`
-- `PEAK WANT RENDER`
-- 세부 ensure/want 단계
+현재 우하단 피크 프로파일러 텍스트는 표시하지 않는다.
+피크 재측정용 `R` 입력도 사용하지 않는다.
 
 ## 텍스트 렌더링
 
@@ -105,27 +87,4 @@ logs/DOLBUTO_YYYYMMDD_HHMMSS_mmm.txt
 
 ## 하단 디버그 텍스트
 
-우하단 피크 프로파일러 텍스트는 현재 표시하지 않는다.
-좌하단 청크 로딩 진단은 재설정 가능한 누적 피크 latency 값을 millisecond 단위로 표시한다.
-
-`R`을 누르면 표시 중인 모든 청크 피크 값이 `0.000`으로 초기화된다.
-초기화 뒤 각 값은 그 이후 측정된 최대 latency를 표시한다.
-
-표시 그룹은 다음과 같다.
-
-```text
-CHUNK PEAK FRAME: TOTAL[] UPDATE[] JOB[] UPLOAD[] UNLOAD[]
-CHUNK PEAK REQUEST: GRID[] ENSURE[] WANT[] DETACH[] SCAN[]
-CHUNK PEAK ENSURE: KEY[] MARK[] FIND[] LOAD[] CREATE[] TOUCH[]
-CHUNK PEAK WANT: ENSURE[] INSERT[] READY[] DEPEND[]
-CHUNK PEAK MESHREQ: READY[] DEPEND[]
-CHUNK PEAK ENSURE COUNT: CALL[] HIT[] MISS[] SAVED[] EMPTY[]
-CHUNK PEAK REQUEST COUNT: WANT[] MESH[] FULL[] FEATURE[]
-```
-
-count 줄은 마지막 `R` 초기화 이후 프레임당 호출 수의 최대값을 표시한다.
-`HIT`는 런타임 청크가 이미 있었다는 뜻이다.
-`MISS`는 런타임 청크 entry를 새로 만들어야 했다는 뜻이다.
-`SAVED`는 해당 miss가 저장된 청크 snapshot에서 복원되었다는 뜻이다.
-`EMPTY`는 해당 miss가 생성을 위한 빈 runtime shell을 만들었다는 뜻이다.
-`TOTAL`은 전체 CPU frame 피크이며, 인게임 frame-time spike에 가장 가까운 표시값이다.
+현재 하단 디버그 텍스트는 표시하지 않는다.

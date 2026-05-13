@@ -23,6 +23,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <random>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -76,11 +77,11 @@ namespace dolbuto
         void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds);
         bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition);
         bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
+        bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction);
         std::string selectedBlockText() const;
         std::string climateText(DVec3 position) const;
         void loadGameScene(const std::filesystem::path& worldDirectory, uint64_t worldSeed);
         void unloadGameScene();
-        void resetPeakProfiler();
         void setWorldList(const std::vector<WorldListItem>& worlds);
         void setHotbarSelectedSlot(int slot);
         std::array<InventorySlot, 50> inventorySnapshot() const;
@@ -255,6 +256,25 @@ namespace dolbuto
         {
             None = 0,
             DroppedItem = 1
+        };
+
+        enum class MusicScene : uint8_t
+        {
+            None = 0,
+            Lobby = 1,
+            Game = 2
+        };
+
+        enum class MusicTrackType : uint8_t
+        {
+            Ogg = 0,
+            Wav = 1
+        };
+
+        struct MusicTrack
+        {
+            std::filesystem::path path;
+            MusicTrackType type = MusicTrackType::Ogg;
         };
 
         struct DroppedItemEntityData
@@ -810,6 +830,26 @@ namespace dolbuto
         void spawnBlockMiningParticle(const BlockRaycastHit& hit, uint16_t block);
         void updateBlockBreakParticles();
         void drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition);
+        void initializeAudio();
+        void shutdownAudio();
+        void loadAudioAssets();
+        void loadMusicAssets();
+        uint32_t loadWavSound(const std::filesystem::path& path, bool forceMono = false);
+        uint32_t acquireAudioSource();
+        void updateAudioListener(const Camera& camera, Vec3 cameraPosition);
+        void updateMusicPlayback(int menuOverlayMode, bool gameSceneRenderEnabled);
+        bool startMusicTrack(size_t trackIndex);
+        bool fillMusicStreamBuffer(uint32_t buffer);
+        bool updateMusicStream();
+        void resetMusicPlayback(MusicScene scene);
+        void stopMusicPlayback();
+        void closeMusicStream();
+        void scheduleNextMusic();
+        void playSfx2D(uint32_t buffer, float gain = 1.0f);
+        void playSfx3D(uint32_t buffer, Vec3 position, float gain = 1.0f);
+        void playBlockBreakSound(int x, int y, int z);
+        void playBlockPlaceSound(int x, int y, int z);
+        void playItemPickupSound();
         void spawnBlockDrops(int x, int y, int z, uint16_t block);
         uint64_t allocateWorldEntityId();
         uint64_t entityChunkKey(const WorldEntity& entity) const;
@@ -861,8 +901,6 @@ namespace dolbuto
         void updateDebugTextBatch(std::string_view fpsText);
         void buildMenuTextBatch(int menuOverlayMode);
         void updatePerformanceText(double cpuFrameMs);
-        void updatePeakProfiler(double frameMs);
-        void updatePeakProfilerText();
         void addText(TextBatch& batch, std::string_view text, float x, float y, bool alignRight) const;
         void addTextPass(std::vector<TextVertex>& vertices, std::string_view text, float x, float y, bool alignRight, float offsetX, float offsetY) const;
         void appendGlyphQuad(std::vector<TextVertex>& vertices, const Glyph& glyph) const;
@@ -906,42 +944,6 @@ namespace dolbuto
         std::string cpuFrameText_ = "CPU: ---.---MS";
         std::string gpuFrameText_ = "GPU: ---.---MS";
         std::string vramText_ = "VRAM: 0MB";
-        std::string dataQueueText_ = "WANT RENDER/FEATURE/DATA: 0 / 0 / 0";
-        std::string finalizeQueueText_ = "STATE EMPTY/FEATURING/FULL/MESHED: 0 / 0 / 0 / 0";
-        std::string meshQueueText_ = "RENDER MISS: 0";
-        std::string dataDoneText_ = "QUEUE BUILD/FINALIZE/MESH: 0 / 0 / 0";
-        std::string meshDoneText_ = "DONE BUILD/FINALIZE/MESH: 0 / 0 / 0";
-        std::string saveQueueText_ = "SAVE QUEUE/CACHE: 0 / 0";
-        std::string saveDoneText_ = "SAVE CHUNK/FEATURE/FAILED: 0 / 0 / 0";
-        std::string loadText_ = "LOAD PENDING/REGION/MISS: 0 / 0 / 0";
-        std::string uploadText_ = "UPLOAD: 0000 / 8";
-        std::string unloadText_ = "UNLOAD: 0000 / 16";
-        std::string retiredText_ = "RETIRED: 0000";
-        std::string jobMainText_ = "JOB MAIN: 000.000MS";
-        std::string peakProfilerStatusText_ = "PEAK SAMPLE: WAIT 5S";
-        std::string peakFrameText_ = "PEAK FRAME: 000.000MS";
-        std::string peakUpdateText_ = "PEAK UPDATE: 000.000MS";
-        std::string peakEnsureRuntimeText_ = "PEAK ENSURE RUNTIME: 000.000MS";
-        std::string peakWantRenderText_ = "PEAK WANT RENDER: 000.000MS";
-        std::string peakEnsureKeyText_ = "PEAK ENSURE KEY: 000.000MS";
-        std::string peakEnsureMarkText_ = "PEAK ENSURE MARK: 000.000MS";
-        std::string peakEnsureFindText_ = "PEAK ENSURE FIND: 000.000MS";
-        std::string peakEnsureLoadText_ = "PEAK ENSURE LOAD: 000.000MS";
-        std::string peakEnsureCreateText_ = "PEAK ENSURE CREATE: 000.000MS";
-        std::string peakEnsureDataTouchText_ = "PEAK ENSURE DATA TOUCH: 000.000MS";
-        std::string chunkPeakFrameText_ = "CHUNK PEAK FRAME: TOTAL[0.000] UPDATE[0.000] JOB[0.000] UPLOAD[0.000] UNLOAD[0.000]";
-        std::string chunkPeakRequestText_ = "CHUNK PEAK REQUEST: GRID[0.000] ENSURE[0.000] WANT[0.000] DETACH[0.000] SCAN[0.000]";
-        std::string chunkPeakEnsureText_ = "CHUNK PEAK ENSURE: KEY[0.000] MARK[0.000] FIND[0.000] LOAD[0.000] CREATE[0.000] TOUCH[0.000]";
-        std::string chunkPeakWantText_ = "CHUNK PEAK WANT: ENSURE[0.000] INSERT[0.000] READY[0.000] DEPEND[0.000]";
-        std::string chunkPeakMeshRequestText_ = "CHUNK PEAK MESHREQ: READY[0.000] DEPEND[0.000]";
-        std::string chunkPeakEnsureCountText_ = "CHUNK PEAK ENSURE COUNT: CALL[0] HIT[0] MISS[0] SAVED[0] EMPTY[0]";
-        std::string chunkPeakRequestCountText_ = "CHUNK PEAK REQUEST COUNT: WANT[0] MESH[0] FULL[0] FEATURE[0]";
-        std::chrono::steady_clock::time_point terrainDebugSampleTime_{};
-        std::string chunkUpdateProfileText_ = "UPDATE TOTAL: ---.---MS";
-        std::string worldBuildProfileText_ = "WORLD TOTAL: ---.---MS";
-        std::string gridScanProfileText_ = "GRID SCAN: ---.---MS";
-        std::string newChunksProfileText_ = "NEW CHUNKS: ---.---MS";
-        std::string metadataBuildProfileText_ = "META BUILD: ---.---MS";
         std::string cachedFpsText_;
         VkExtent2D lastResolutionExtent_{};
         TextBatch debugTextBatch_;
@@ -1161,6 +1163,30 @@ namespace dolbuto
         std::vector<ItemSpriteMesh> itemSpriteMeshes_;
         std::vector<ItemSpriteGpuMesh> itemSpriteGpuMeshes_;
         std::unordered_map<std::string, uint16_t> itemIdByKey_;
+        void* audioDevice_ = nullptr;
+        void* audioContext_ = nullptr;
+        bool audioAvailable_ = false;
+        std::array<uint32_t, 16> audioSources_{};
+        size_t nextAudioSource_ = 0;
+        uint32_t blockBreakSound_ = 0;
+        uint32_t buttonClickSound_ = 0;
+        uint32_t blockPlaceSound_ = 0;
+        uint32_t itemPickupSound_ = 0;
+        uint32_t musicSource_ = 0;
+        std::vector<MusicTrack> musicTracks_;
+        std::array<uint32_t, 3> musicStreamBuffers_{};
+        void* musicDecoder_ = nullptr;
+        int musicStreamChannels_ = 0;
+        int musicStreamSampleRate_ = 0;
+        int musicStreamFormat_ = 0;
+        std::vector<int16_t> musicStreamPcm_;
+        bool musicStreamActive_ = false;
+        bool musicStreamFinished_ = false;
+        uint32_t musicLazyBuffer_ = 0;
+        MusicScene activeMusicScene_ = MusicScene::None;
+        double nextMusicStartTime_ = 0.0;
+        size_t lastMusicTrackIndex_ = static_cast<size_t>(-1);
+        std::mt19937 musicRandom_{std::random_device{}()};
         std::array<ItemStack, 50> playerInventorySlots_{};
         ItemStack inventoryCursorStack_{};
         double rmlMouseX_ = 0.0;
@@ -1178,72 +1204,5 @@ namespace dolbuto
         double accumulatedCpuFrameMs_ = 0.0;
         double accumulatedGpuFrameMs_ = 0.0;
         uint32_t performanceSampleCount_ = 0;
-        std::chrono::steady_clock::time_point peakProfilerStartTime_{};
-        bool peakProfilerSamplingStarted_ = false;
-        double frameChunkUpdateMs_ = 0.0;
-        double frameJobMainMs_ = 0.0;
-        double frameUploadMs_ = 0.0;
-        double frameUnloadMs_ = 0.0;
-        double frameRetireMs_ = 0.0;
-        double frameSaveEnqueueMs_ = 0.0;
-        double frameGridScanMs_ = 0.0;
-        double frameEnsureRuntimeMs_ = 0.0;
-        double frameWantRenderMs_ = 0.0;
-        double frameRenderDetachMs_ = 0.0;
-        double frameUnloadScanMs_ = 0.0;
-        double frameWantEnsureMs_ = 0.0;
-        double frameWantInsertMs_ = 0.0;
-        double frameWantReadyMs_ = 0.0;
-        double frameWantDependMs_ = 0.0;
-        double frameWantMeshReadyMs_ = 0.0;
-        double frameWantMeshDependMs_ = 0.0;
-        double frameEnsureKeyMs_ = 0.0;
-        double frameEnsureMarkMs_ = 0.0;
-        double frameEnsureFindMs_ = 0.0;
-        double frameEnsureLoadMs_ = 0.0;
-        double frameEnsureCreateMs_ = 0.0;
-        double frameEnsureDataTouchMs_ = 0.0;
-        uint64_t frameEnsureCallCount_ = 0;
-        uint64_t frameEnsureHitCount_ = 0;
-        uint64_t frameEnsureMissCount_ = 0;
-        uint64_t frameEnsureSavedCount_ = 0;
-        uint64_t frameEnsureEmptyCount_ = 0;
-        uint64_t frameWantRenderCallCount_ = 0;
-        uint64_t frameWantMeshCallCount_ = 0;
-        uint64_t frameWantFullCallCount_ = 0;
-        uint64_t frameWantFeaturingCallCount_ = 0;
-        double peakFrameMs_ = 0.0;
-        double peakChunkUpdateMs_ = 0.0;
-        double peakJobMainMs_ = 0.0;
-        double peakUploadMs_ = 0.0;
-        double peakUnloadMs_ = 0.0;
-        double peakRetireMs_ = 0.0;
-        double peakSaveEnqueueMs_ = 0.0;
-        double peakGridScanMs_ = 0.0;
-        double peakEnsureRuntimeMs_ = 0.0;
-        double peakWantRenderMs_ = 0.0;
-        double peakRenderDetachMs_ = 0.0;
-        double peakUnloadScanMs_ = 0.0;
-        double peakWantEnsureMs_ = 0.0;
-        double peakWantInsertMs_ = 0.0;
-        double peakWantReadyMs_ = 0.0;
-        double peakWantDependMs_ = 0.0;
-        double peakWantMeshReadyMs_ = 0.0;
-        double peakWantMeshDependMs_ = 0.0;
-        double peakEnsureKeyMs_ = 0.0;
-        double peakEnsureMarkMs_ = 0.0;
-        double peakEnsureFindMs_ = 0.0;
-        double peakEnsureLoadMs_ = 0.0;
-        double peakEnsureCreateMs_ = 0.0;
-        double peakEnsureDataTouchMs_ = 0.0;
-        uint64_t peakEnsureCallCount_ = 0;
-        uint64_t peakEnsureHitCount_ = 0;
-        uint64_t peakEnsureMissCount_ = 0;
-        uint64_t peakEnsureSavedCount_ = 0;
-        uint64_t peakEnsureEmptyCount_ = 0;
-        uint64_t peakWantRenderCallCount_ = 0;
-        uint64_t peakWantMeshCallCount_ = 0;
-        uint64_t peakWantFullCallCount_ = 0;
-        uint64_t peakWantFeaturingCallCount_ = 0;
     };
 }

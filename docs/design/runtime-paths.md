@@ -2,7 +2,7 @@
 
 ## 목적
 
-Debug와 Release/Portable의 리소스 탐색 기준을 분리하기 위해 런타임 경로 시스템을 둔다.
+Debug와 Release의 리소스 탐색 기준을 분리하기 위해 런타임 경로 시스템을 둔다.
 경로 처리는 `src/platform/RuntimePaths.*`에서 담당한다.
 
 ## Debug 경로
@@ -19,9 +19,9 @@ screenshots -> 프로젝트 루트/screenshots
 
 이 방식은 개발 중 원본 에셋과 설정을 바로 수정하기 위한 것이다.
 
-## Release/Portable 경로
+## Release 경로
 
-Release 계열에서는 실행 파일 위치를 기준으로 리소스를 찾는다.
+Release에서는 실행 파일 위치를 기준으로 리소스를 찾는다.
 
 ```text
 assets      -> exe 옆/assets
@@ -31,14 +31,13 @@ shaders     -> exe 옆/shaders
 screenshots -> exe 옆/screenshots
 ```
 
-이 방식은 포터블 배포 폴더를 그대로 옮겨도 실행 가능하게 만들기 위한 것이다.
+이 방식은 Release 출력 폴더를 그대로 옮겨도 실행 가능하게 만들기 위한 것이다.
 
 ## 사용처
 
 - `Application`: 설정 파일, 창 아이콘
 - `Renderer`: 에셋, 셰이더, 월드 저장/로드, 스크린샷
 - CMake Release 후처리: exe 옆에 리소스 복사
-- `DOLBUTOPortable`: 배포 폴더 구성
 
 ## 주의점
 
@@ -51,7 +50,7 @@ screenshots -> exe 옆/screenshots
 런타임 로그는 `RuntimePaths::logDirectory()`를 사용한다.
 
 Debug 빌드는 프로젝트 루트의 `logs` 디렉터리에 로그를 쓴다.
-Release 및 portable 빌드는 실행 파일 옆의 `logs` 디렉터리에 로그를 쓴다.
+Release 빌드는 실행 파일 옆의 `logs` 디렉터리에 로그를 쓴다.
 
 ```text
 logs/Latest.txt

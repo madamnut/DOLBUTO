@@ -15,6 +15,7 @@
 - [[player]]
 - [[block-data]]
 - [[item-data]]
+- [[audio]]
 - [[ui]]
 - [[debug-profiling]]
 

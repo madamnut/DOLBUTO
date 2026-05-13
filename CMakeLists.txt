@@ -9,6 +9,9 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+if(CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
+endif()
 
 find_package(Vulkan REQUIRED)
 
@@ -161,6 +164,7 @@ add_executable(DOLBUTO
     src/renderer/Renderer.h
     src/third_party/stb_image.cpp
     src/third_party/stb_image_write.cpp
+    src/third_party/stb_vorbis.cpp
 )
 
 add_dependencies(DOLBUTO DOLBUTOShaders)
@@ -198,8 +202,8 @@ endif()
 if(WIN32 AND MSVC)
     target_link_options(DOLBUTO
         PRIVATE
-            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:/SUBSYSTEM:WINDOWS>"
-            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:/ENTRY:mainCRTStartup>"
+            "$<$<CONFIG:Release>:/SUBSYSTEM:WINDOWS>"
+            "$<$<CONFIG:Release>:/ENTRY:mainCRTStartup>"
     )
 endif()
 
@@ -207,7 +211,7 @@ add_custom_command(TARGET DOLBUTO POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DOLBUTO_RUNTIME_DLLS} "$<TARGET_FILE_DIR:DOLBUTO>"
 )
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
     add_custom_command(TARGET DOLBUTO POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets" "$<TARGET_FILE_DIR:DOLBUTO>/assets"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/config" "$<TARGET_FILE_DIR:DOLBUTO>/config"
@@ -215,18 +219,3 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebI
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:DOLBUTO>/saves"
     )
 endif()
-
-set(DOLBUTO_PORTABLE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dist/DOLBUTO_0.0.0.1")
-
-add_custom_target(DOLBUTOPortable
-    COMMAND ${CMAKE_COMMAND} -E rm -rf "${DOLBUTO_PORTABLE_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${DOLBUTO_PORTABLE_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${DOLBUTO_PORTABLE_DIR}/saves"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:DOLBUTO>" "${DOLBUTO_PORTABLE_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DOLBUTO_RUNTIME_DLLS} "${DOLBUTO_PORTABLE_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets" "${DOLBUTO_PORTABLE_DIR}/assets"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/config" "${DOLBUTO_PORTABLE_DIR}/config"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${SHADER_OUTPUT_DIR}" "${DOLBUTO_PORTABLE_DIR}/shaders"
-    DEPENDS DOLBUTO
-    COMMENT "Creating portable DOLBUTO package at ${DOLBUTO_PORTABLE_DIR}"
-)
