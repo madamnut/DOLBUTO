@@ -429,7 +429,7 @@ namespace dolbuto
     Application::Application()
     {
         log::initialize();
-        log::info("DOLBUTO 0.0.0.1 start");
+        log::info("DOLBUTO 0.0.0.2 start");
         log::info("Asset directory: " + assetDirectory().string());
         log::info("Config directory: " + configDirectory().string());
         log::info("Shader directory: " + shaderDirectory().string());

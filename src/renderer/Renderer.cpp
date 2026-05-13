@@ -197,7 +197,7 @@ namespace dolbuto
         constexpr float TerrainPositionPackScale = 256.0f;
         constexpr float TerrainUvPackScale = 256.0f;
         constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
-        constexpr const char* VersionText = "DOLBUTO 0.0.0.1";
+        constexpr const char* VersionText = "DOLBUTO 0.0.0.2";
         constexpr std::array<const char*, 1> DeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
         constexpr const char* MemoryBudgetExtension = "VK_EXT_memory_budget";
         constexpr const char* PhysicalDeviceProperties2Extension = "VK_KHR_get_physical_device_properties2";

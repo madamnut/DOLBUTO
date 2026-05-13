@@ -4,7 +4,7 @@
 
 DOLBUTO는 외부 파일 기반 UI 배치에 RmlUi를 사용한다.
 
-RmlUi 소스는 다음 위치에 포함되어 있다.
+RmlUi 소스는 참고용으로 다음 위치에 포함되어 있다.
 
 ```text
 third_party/RmlUi
@@ -12,7 +12,7 @@ third_party/RmlUi
 
 포함된 RmlUi 버전은 `6.1`이다.
 
-FreeType 소스는 다음 위치에 포함되어 있다.
+FreeType 소스는 참고용으로 다음 위치에 포함되어 있다.
 
 ```text
 third_party/freetype-2.14.2
@@ -22,11 +22,12 @@ third_party/freetype-2.14.2
 
 ## 빌드 통합
 
-RmlUi는 루트 `CMakeLists.txt`에서 `add_subdirectory`로 추가한다.
+현재 게임 빌드는 `third_party/prebuilt` 아래의 사전 빌드 FreeType/RmlUi 공유 라이브러리를 링크한다.
+RmlUi와 FreeType 소스 트리는 참고용이며, 일반 게임 빌드에서 다시 컴파일하지 않는다.
 
-현재 빌드 옵션은 다음과 같다.
+현재 사전 빌드 라이브러리 생성 기준은 다음과 같다.
 
-- `BUILD_SHARED_LIBS = OFF`
+- `BUILD_SHARED_LIBS = ON`
 - `RMLUI_SAMPLES = OFF`
 - `RMLUI_LUA_BINDINGS = OFF`
 - `RMLUI_LOTTIE_PLUGIN = OFF`
@@ -35,7 +36,7 @@ RmlUi는 루트 `CMakeLists.txt`에서 `add_subdirectory`로 추가한다.
 - `RMLUI_PRECOMPILED_HEADERS = OFF`
 - `RMLUI_COMPILER_OPTIONS = OFF`
 
-게임 타깃은 `Freetype::Freetype`와 `RmlUi::Core`를 링크한다.
+루트 `CMakeLists.txt`는 `Freetype::Freetype`와 `RmlUi::Core`를 imported target으로 만들고, 게임 타깃은 이 둘을 링크한다.
 
 ## 현재 런타임 상태
 

@@ -65,7 +65,7 @@ FastNoise2를 사용한다.
   "precipitation": {
     "featureScale": 4096.0,
     "octaveCount": 3,
-    "lacunarity": 2.0,
+    "lacunarity": 1.0,
     "gain": 0.5,
     "simplexScale": 1.0
   }
