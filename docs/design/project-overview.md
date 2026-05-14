@@ -15,6 +15,7 @@ DOLBUTO는 Vulkan/C++ 기반의 샌드박스 복셀 게임이다.
 ## 주요 구성
 
 - 애플리케이션/입력/플레이어: [[player]]
+- 클라이언트 구조/의존 방향: [[client-architecture]]
 - 런타임 경로: [[runtime-paths]]
 - Vulkan 렌더링: [[rendering]]
 - 청크 로딩/작업 큐: [[chunk-system]]
@@ -30,6 +31,7 @@ DOLBUTO는 Vulkan/C++ 기반의 샌드박스 복셀 게임이다.
 `src/game/GameClient.h/.cpp`는 클라이언트 런타임 오케스트레이터로서 메인 루프, 입력, 플레이어 상태, 월드 선택/생성, 월드/플레이어 상태 저장, UI action 처리를 담당한다.
 현재 `Renderer`는 Vulkan 렌더링뿐 아니라 월드 런타임, 청크 저장/로드, UI, 오디오, 아이템 렌더링까지 넓은 책임을 아직 많이 가진다.
 0.0.0.2에서는 `GameClient`를 기준으로 전체 흐름과 렌더링 책임을 나누는 방향으로 정리를 진행한다.
+클라이언트 계층과 의존 방향은 [[client-architecture]]를 기준으로 한다.
 
 현재 분리된 타입 헤더:
 
@@ -51,6 +53,9 @@ src/config/ConfigLoaders.h
 src/config/ConfigLoaders.cpp
 src/assets/PropModelLoader.h
 src/assets/PropModelLoader.cpp
+src/game/ClientUiTypes.h
+src/game/ClientWorldRuntime.h
+src/game/ClientWorldRuntime.cpp
 src/gameplay/BlockInteractionSystem.h
 src/gameplay/BlockInteractionSystem.cpp
 src/gameplay/PlayerInventory.h
@@ -84,6 +89,10 @@ src/world/WorldRuntime.cpp
 `DataLoaders`는 `assets/data/blocks.json`과 `assets/data/items.json`의 정의 파싱만 담당한다.
 `ConfigLoaders`는 `config/world.json`과 `config/render.json`의 설정 파일 읽기와 값 검증/클램프를 담당한다.
 `PropModelLoader`는 소품 모델 `.glb` 파싱, `.dpm` 변환/검증, 렌더링용 소품 quad 로드를 담당한다.
+`ClientUiTypes`는 `GameClient`와 렌더러/UI bridge 사이에서 주고받는 클라이언트 표시 DTO를 담는다.
+`ClientWorldRuntime`은 클라이언트 월드 런타임 전환 계층이며 `WorldRuntime`, `SaveSystem`, `ChunkLoadSystem`, `TerrainJobSystem`, terrain request set, unload queue, load order, active world 상태를 소유한다.
+terrain render/mesh/full/featuring ticket 설정, chunk-load 필요 판단, BuildFeaturing/FinalizeFeatures/BuildChunkMesh job 생성 조건도 `ClientWorldRuntime`이 담당한다.
+terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 판정, pending unload 후보 관리도 `ClientWorldRuntime`이 담당하고 `Renderer`는 저장 snapshot 생성, feature slot 전달, GPU mesh 설치 같은 렌더러 의존 작업만 수행한다.
 `BlockInteractionSystem`은 블록 좌표 변환, 플레이어 충돌 범위 판정, 블록 레이캐스트, 블록 파괴 진행 상태를 담당한다.
 `PlayerInventory`는 플레이어 인벤토리 슬롯, 임시 커서 스택, 스택 병합, 클릭/Shift-click/핫바 교환 규칙을 담당한다.
 `AudioSystem`은 OpenAL device/context, 효과음 buffer/source pool, 음악 source와 OGG/WAV 재생 상태를 소유한다.
@@ -99,13 +108,16 @@ src/world/WorldRuntime.cpp
 `TerrainMesher`는 chunk mesh와 편집 subchunk mesh의 CPU orchestration을 담당한다.
 `WorldRuntime`은 runtime chunk map, chunk key/좌표 helper, runtime block 조회/수정, dirty marking, chunk derived cache 갱신, terrain 완료 결과의 runtime chunk 상태 설치를 소유한다.
 `Renderer` 구현은 `src/renderer/Renderer.cpp`, `src/renderer/RendererUi.cpp`, `src/renderer/RendererDroppedItems.cpp`로 나뉘어 있다.
+프레임 렌더링 입력은 `src/renderer/RendererFrame.h`의 `RendererFrame` DTO로 묶어 `GameClient`에서 전달한다.
 `RendererDroppedItems.cpp`는 dropped item의 아이템 스프라이트 mesh, GPU instance 업로드, draw path, Renderer callback 연결을 유지하며, runtime chunk 조회/순회는 `WorldRuntime`을 경유한다.
 텍스처 배열 생성, Vulkan 리소스 생성은 아직 `Renderer`가 담당한다.
 `Renderer`는 오디오 초기화/종료, listener 갱신, 음악 씬 분류, 효과음 발생 시점만 `AudioSystem`에 전달한다.
 `Renderer`는 RmlUi의 Vulkan `RenderInterface`, UI geometry 업로드, 인벤토리 입력을 `PlayerInventory`에 전달하고 아이템 정의를 표시용 데이터로 변환하는 역할을 아직 담당한다.
 `Renderer`는 블록 상호작용 입력을 `BlockInteractionSystem`에 전달하고 실제 블록 쓰기, mesh 재생성, particle/sound 실행을 담당한다.
-`Renderer`는 runtime chunk를 직접 보관하지 않고 `WorldRuntime`의 조회/순회/생성 API를 통해 접근하며, 저장할 runtime chunk snapshot 생성과 snapshot에서 runtime chunk를 복원하는 역할을 유지한다.
-`Renderer`는 terrain job callback에서 `TerrainBuilder`와 `TerrainMesher`를 호출하며, terrain 완료 결과의 runtime 상태 설치는 `WorldRuntime`에 위임하고 GPU mesh buffer 설치를 담당한다.
+`Renderer`는 runtime chunk와 terrain/save/load 시스템을 직접 소유하지 않고 `ClientWorldRuntime`이 소유한 `WorldRuntime`과 worker system을 참조하는 전환 단계에 있다.
+`Renderer`는 저장할 runtime chunk snapshot 생성과 snapshot에서 runtime chunk를 복원하는 역할을 아직 유지한다.
+`Renderer`는 terrain job callback에서 `TerrainBuilder`와 `TerrainMesher`를 호출하며, terrain job enqueue는 `ClientWorldRuntime`이 만든 job을 받아 worker에 넣는 bridge로 남아 있다.
+terrain 완료 결과의 runtime 상태 설치는 `WorldRuntime`에 위임하고 GPU mesh buffer 설치는 `Renderer`가 담당한다.
 fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
 
 ## 좌표계

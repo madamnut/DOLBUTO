@@ -310,11 +310,11 @@ namespace dolbuto
         ui_.showItemTooltip(rml, layout->left, layout->top, layout->width, layout->height);
     }
 
-    void Renderer::setWorldList(const std::vector<WorldListItem>& worlds)
+    void Renderer::setWorldList(const std::vector<game::WorldListItem>& worlds)
     {
         std::vector<ui::WorldListEntry> entries;
         entries.reserve(worlds.size());
-        for (const WorldListItem& world : worlds)
+        for (const game::WorldListItem& world : worlds)
         {
             entries.push_back(ui::WorldListEntry{
                 world.name,

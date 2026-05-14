@@ -3,9 +3,12 @@
 #include "assets/PropModelLoader.h"
 #include "audio/AudioSystem.h"
 #include "camera/Camera.h"
+#include "game/ClientWorldRuntime.h"
+#include "game/ClientUiTypes.h"
 #include "gameplay/BlockInteractionSystem.h"
 #include "gameplay/PlayerInventory.h"
 #include "items/ItemData.h"
+#include "renderer/RendererFrame.h"
 #include "renderer/TerrainTypes.h"
 #include "save/SaveSystem.h"
 #include "ui/InventoryUi.h"
@@ -52,29 +55,7 @@ namespace dolbuto
         Renderer(const Renderer&) = delete;
         Renderer& operator=(const Renderer&) = delete;
 
-        struct WorldListItem
-        {
-            std::string name;
-            std::string createdText;
-            std::string lastPlayedText;
-        };
-
-        void drawFrame(
-            const Camera& camera,
-            DVec3 cameraPosition,
-            std::string_view fpsText,
-            bool debugTextVisible,
-            bool screenshotRequested,
-            bool showPlayer,
-            DVec3 playerPosition,
-            float playerYaw,
-            bool terrainWireframe,
-            int climateOverlayMode,
-            int menuOverlayMode,
-            bool hudVisible,
-            bool worldUpdateEnabled,
-            bool gameSceneRenderEnabled,
-            uint64_t worldTicks);
+        void drawFrame(const RendererFrame& frame);
         void setFramebufferResized();
         bool playerColliderIntersectsTerrain(DVec3 playerPosition) const;
         void updateBlockSelection(DVec3 origin, Vec3 direction);
@@ -86,7 +67,7 @@ namespace dolbuto
         std::string climateText(DVec3 position) const;
         void loadGameScene(const std::filesystem::path& worldDirectory, uint64_t worldSeed);
         void unloadGameScene();
-        void setWorldList(const std::vector<WorldListItem>& worlds);
+        void setWorldList(const std::vector<game::WorldListItem>& worlds);
         void setHotbarSelectedSlot(int slot);
         std::array<ItemStack, gameplay::PlayerInventory::SlotCount> inventorySnapshot() const;
         void setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots);
@@ -303,11 +284,7 @@ namespace dolbuto
             VkDeviceSize bufferOffset = 0;
         };
 
-        struct ChunkOffset
-        {
-            int x = 0;
-            int z = 0;
-        };
+        using ChunkOffset = game::ClientWorldRuntime::ChunkOffset;
 
         struct ChunkRenderData
         {
@@ -678,26 +655,30 @@ namespace dolbuto
         float precipitationNoiseSimplexScale_ = 1.0f;
         int seaLevel_ = 0;
         float fluidWaterAlpha_ = 0.8f;
-        std::filesystem::path activeWorldDirectory_;
-        uint64_t activeWorldSeed_ = 0;
-        int activeWorldSeedSalt_ = 0;
-        int loadedChunkDiameter_ = 0;
-        int loadedCenterGroupChunkX_ = 0;
-        int loadedCenterGroupChunkZ_ = 0;
-        bool terrainLoadRequested_ = false;
-        bool gameSceneLoaded_ = false;
-        std::atomic<uint64_t> terrainGeneration_{0};
-        int loadOrderDiameter_ = 0;
-        std::vector<ChunkOffset> loadOrder_;
-        std::unordered_set<uint64_t> desiredTerrainChunks_;
-        std::unordered_set<uint64_t> desiredFeatureChunks_;
-        std::unordered_set<uint64_t> desiredRenderChunks_;
-        std::unordered_set<uint64_t> requestedChunkJobs_;
-        std::unordered_set<uint64_t> requestedMeshJobs_;
-        std::unordered_set<uint64_t> pendingUnloadSet_;
-        world::WorldRuntime worldRuntime_;
+        game::ClientWorldRuntime clientWorldRuntime_;
+        std::filesystem::path& activeWorldDirectory_;
+        uint64_t& activeWorldSeed_;
+        int& activeWorldSeedSalt_;
+        int& loadedChunkDiameter_;
+        int& loadedCenterGroupChunkX_;
+        int& loadedCenterGroupChunkZ_;
+        bool& terrainLoadRequested_;
+        bool& gameSceneLoaded_;
+        std::atomic<uint64_t>& terrainGeneration_;
+        int& loadOrderDiameter_;
+        std::vector<ChunkOffset>& loadOrder_;
+        std::unordered_set<uint64_t>& desiredTerrainChunks_;
+        std::unordered_set<uint64_t>& desiredFeatureChunks_;
+        std::unordered_set<uint64_t>& desiredRenderChunks_;
+        std::unordered_set<uint64_t>& requestedChunkJobs_;
+        std::unordered_set<uint64_t>& requestedMeshJobs_;
+        std::unordered_set<uint64_t>& pendingUnloadSet_;
+        world::WorldRuntime& worldRuntime_;
         std::unordered_map<uint64_t, ChunkRenderData> terrainChunks_;
-        std::deque<uint64_t> pendingUnloadChunks_;
+        std::deque<uint64_t>& pendingUnloadChunks_;
+        save::SaveSystem& saveSystem_;
+        world::ChunkLoadSystem& chunkLoadSystem_;
+        world::TerrainJobSystem& terrainJobSystem_;
         std::deque<RetiredChunkRenderData> retiredTerrainChunks_;
         std::array<uint16_t, 1024> heightLut_{};
         VkDeviceSize localMemoryHeapSize_ = 0;
@@ -756,8 +737,5 @@ namespace dolbuto
         double accumulatedCpuFrameMs_ = 0.0;
         double accumulatedGpuFrameMs_ = 0.0;
         uint32_t performanceSampleCount_ = 0;
-        save::SaveSystem saveSystem_;
-        world::ChunkLoadSystem chunkLoadSystem_;
-        world::TerrainJobSystem terrainJobSystem_;
     };
 }

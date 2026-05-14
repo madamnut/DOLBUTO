@@ -377,9 +377,6 @@ namespace dolbuto
             FeatureNeighborOffset{0, 1},
             FeatureNeighborOffset{1, 1}
         };
-
-        constexpr uint8_t AllFeatureSourcesMask = 0xFFu;
-
         std::optional<size_t> featureNeighborIndex(int offsetX, int offsetZ)
         {
             for (size_t i = 0; i < FeatureNeighborOffsets.size(); ++i)
@@ -667,7 +664,29 @@ namespace dolbuto
     }
 
     Renderer::Renderer(GLFWwindow* window)
-        : window_(window)
+        : window_(window),
+        activeWorldDirectory_(clientWorldRuntime_.activeWorldDirectory),
+        activeWorldSeed_(clientWorldRuntime_.activeWorldSeed),
+        activeWorldSeedSalt_(clientWorldRuntime_.activeWorldSeedSalt),
+        loadedChunkDiameter_(clientWorldRuntime_.loadedChunkDiameter),
+        loadedCenterGroupChunkX_(clientWorldRuntime_.loadedCenterGroupChunkX),
+        loadedCenterGroupChunkZ_(clientWorldRuntime_.loadedCenterGroupChunkZ),
+        terrainLoadRequested_(clientWorldRuntime_.terrainLoadRequested),
+        gameSceneLoaded_(clientWorldRuntime_.gameSceneLoaded),
+        terrainGeneration_(clientWorldRuntime_.terrainGeneration),
+        loadOrderDiameter_(clientWorldRuntime_.loadOrderDiameter),
+        loadOrder_(clientWorldRuntime_.loadOrder),
+        desiredTerrainChunks_(clientWorldRuntime_.desiredTerrainChunks),
+        desiredFeatureChunks_(clientWorldRuntime_.desiredFeatureChunks),
+        desiredRenderChunks_(clientWorldRuntime_.desiredRenderChunks),
+        requestedChunkJobs_(clientWorldRuntime_.requestedChunkJobs),
+        requestedMeshJobs_(clientWorldRuntime_.requestedMeshJobs),
+        pendingUnloadSet_(clientWorldRuntime_.pendingUnloadSet),
+        worldRuntime_(clientWorldRuntime_.worldRuntime),
+        pendingUnloadChunks_(clientWorldRuntime_.pendingUnloadChunks),
+        saveSystem_(clientWorldRuntime_.saveSystem),
+        chunkLoadSystem_(clientWorldRuntime_.chunkLoadSystem),
+        terrainJobSystem_(clientWorldRuntime_.terrainJobSystem)
     {
         createInstance();
         createSurface();
@@ -923,28 +942,13 @@ namespace dolbuto
         }
     }
 
-    void Renderer::drawFrame(
-        const Camera& camera,
-        DVec3 cameraPosition,
-        std::string_view fpsText,
-        bool debugTextVisible,
-        bool screenshotRequested,
-        bool showPlayer,
-        DVec3 playerPosition,
-        float playerYaw,
-        bool terrainWireframe,
-        int climateOverlayMode,
-        int menuOverlayMode,
-        bool hudVisible,
-        bool worldUpdateEnabled,
-        bool gameSceneRenderEnabled,
-        uint64_t worldTicks)
+    void Renderer::drawFrame(const RendererFrame& frame)
     {
-        const Vec3 cameraPositionFloat = toVec3(cameraPosition);
-        const Vec3 playerPositionFloat = toVec3(playerPosition);
+        const Vec3 cameraPositionFloat = toVec3(frame.cameraPosition);
+        const Vec3 playerPositionFloat = toVec3(frame.playerPosition);
 
-        updateAudioListener(camera, cameraPositionFloat);
-        updateMusicPlayback(menuOverlayMode, gameSceneRenderEnabled);
+        updateAudioListener(frame.camera, cameraPositionFloat);
+        updateMusicPlayback(frame.menuOverlayMode, frame.gameSceneRenderEnabled);
         updateTerrainDebugText();
 
         vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
@@ -965,9 +969,9 @@ namespace dolbuto
                 lastGpuFrameMs_ = static_cast<double>(timestamps[1] - timestamps[0]) * static_cast<double>(timestampPeriod_) / 1000000.0;
             }
         }
-        if (worldUpdateEnabled)
+        if (frame.worldUpdateEnabled)
         {
-            updateLoadedChunks(playerPosition);
+            updateLoadedChunks(frame.playerPosition);
             processCompletedTerrainJobs();
         }
         const auto cpuStart = std::chrono::steady_clock::now();
@@ -990,7 +994,7 @@ namespace dolbuto
         VkBuffer screenshotBuffer = VK_NULL_HANDLE;
         VkDeviceMemory screenshotMemory = VK_NULL_HANDLE;
         const VkDeviceSize screenshotSize = static_cast<VkDeviceSize>(swapchainExtent_.width) * static_cast<VkDeviceSize>(swapchainExtent_.height) * 4u;
-        if (screenshotRequested)
+        if (frame.screenshotRequested)
         {
             createBuffer(
                 screenshotSize,
@@ -1000,13 +1004,28 @@ namespace dolbuto
                 screenshotMemory);
         }
 
-        if (showPlayer)
+        if (frame.showPlayer)
         {
-            updatePlayerMesh(playerPositionFloat, playerYaw);
+            updatePlayerMesh(playerPositionFloat, frame.playerYaw);
         }
-        ensureClimateOverlayTexture(climateOverlayMode);
+        ensureClimateOverlayTexture(frame.climateOverlayMode);
 
-        recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex, camera, cameraPositionFloat, playerPositionFloat, fpsText, debugTextVisible, screenshotBuffer, showPlayer, terrainWireframe, climateOverlayMode, menuOverlayMode, hudVisible, gameSceneRenderEnabled, worldTicks);
+        recordCommandBuffer(
+            commandBuffers_[currentFrame_],
+            imageIndex,
+            frame.camera,
+            cameraPositionFloat,
+            playerPositionFloat,
+            frame.fpsText,
+            frame.debugTextVisible,
+            screenshotBuffer,
+            frame.showPlayer,
+            frame.terrainWireframe,
+            frame.climateOverlayMode,
+            frame.menuOverlayMode,
+            frame.hudVisible,
+            frame.gameSceneRenderEnabled,
+            frame.worldTicks);
 
         VkSemaphore waitSemaphores[] = {imageAvailableSemaphores_[currentFrame_]};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -3434,45 +3453,22 @@ namespace dolbuto
 
     void Renderer::requestTerrainLoad(int centerGroupChunkX, int centerGroupChunkZ)
     {
-        loadedChunkDiameter_ = std::max(1, loadGridScale_) * LoadGridUnitChunks;
-        loadedCenterGroupChunkX_ = centerGroupChunkX;
-        loadedCenterGroupChunkZ_ = centerGroupChunkZ;
-        const uint64_t generation = ++terrainGeneration_;
+        const game::ClientWorldRuntime::TerrainLoadPlan loadPlan =
+            clientWorldRuntime_.beginTerrainLoadRequest(centerGroupChunkX, centerGroupChunkZ, loadGridScale_, LoadGridUnitChunks);
+        const uint64_t generation = loadPlan.generation;
         rebuildLoadOrderIfNeeded();
 
-        desiredTerrainChunks_.clear();
-        desiredFeatureChunks_.clear();
-        desiredRenderChunks_.clear();
-        desiredTerrainChunks_.reserve(static_cast<size_t>(loadedChunkDiameter_ + 4) * static_cast<size_t>(loadedChunkDiameter_ + 4));
-        desiredFeatureChunks_.reserve(static_cast<size_t>(loadedChunkDiameter_ + 2) * static_cast<size_t>(loadedChunkDiameter_ + 2));
-        desiredRenderChunks_.reserve(static_cast<size_t>(loadedChunkDiameter_) * loadedChunkDiameter_);
-        const size_t runtimeCapacity = static_cast<size_t>(loadedChunkDiameter_ + 4) * static_cast<size_t>(loadedChunkDiameter_ + 4);
-        const size_t featureCapacity = static_cast<size_t>(loadedChunkDiameter_ + 2) * static_cast<size_t>(loadedChunkDiameter_ + 2);
-        const size_t renderCapacity = static_cast<size_t>(loadedChunkDiameter_) * static_cast<size_t>(loadedChunkDiameter_);
-        worldRuntime_.reserve(runtimeCapacity + 256u);
-        droppedItemCountsByChunk_.reserve(runtimeCapacity + 256u);
-        terrainChunks_.reserve(renderCapacity + 256u);
-        pendingUnloadSet_.reserve(runtimeCapacity + 256u);
-        requestedChunkJobs_.reserve(featureCapacity + 256u);
-        requestedMeshJobs_.reserve(renderCapacity + 256u);
-        requestedChunkJobs_.clear();
-        requestedMeshJobs_.clear();
-
-        const int renderMin = -(loadedChunkDiameter_ / 2 - 1);
-        const int renderMax = loadedChunkDiameter_ / 2;
-        const int runtimeKeepMin = renderMin - 2;
-        const int runtimeKeepMax = renderMax + 2;
-
+        droppedItemCountsByChunk_.reserve(loadPlan.runtimeCapacity + 256u);
+        terrainChunks_.reserve(loadPlan.renderCapacity + 256u);
         terrainJobSystem_.clearQueuedJobsAndMeshes();
-
-        for (auto& entry : worldRuntime_.chunks())
-        {
-            entry.second.bestPriority = UINT32_MAX;
-        }
+        clientWorldRuntime_.resetRuntimePriorities();
 
         for (const ChunkOffset& offset : loadOrder_)
         {
-            if (offset.x < runtimeKeepMin || offset.x > runtimeKeepMax || offset.z < runtimeKeepMin || offset.z > runtimeKeepMax)
+            if (offset.x < loadPlan.runtimeKeepMin ||
+                offset.x > loadPlan.runtimeKeepMax ||
+                offset.z < loadPlan.runtimeKeepMin ||
+                offset.z > loadPlan.runtimeKeepMax)
             {
                 continue;
             }
@@ -3491,7 +3487,7 @@ namespace dolbuto
 
         for (const ChunkOffset& offset : loadOrder_)
         {
-            if (offset.x < renderMin || offset.x > renderMax || offset.z < renderMin || offset.z > renderMax)
+            if (offset.x < loadPlan.renderMin || offset.x > loadPlan.renderMax || offset.z < loadPlan.renderMin || offset.z > loadPlan.renderMax)
             {
                 continue;
             }
@@ -3503,7 +3499,7 @@ namespace dolbuto
 
         for (auto it = terrainChunks_.begin(); it != terrainChunks_.end();)
         {
-            if (desiredRenderChunks_.find(it->first) == desiredRenderChunks_.end())
+            if (!clientWorldRuntime_.isRenderDesired(it->first))
             {
                 retiredTerrainChunks_.push_back(RetiredChunkRenderData{
                     static_cast<uint32_t>(MaxFramesInFlight + 1),
@@ -3516,20 +3512,7 @@ namespace dolbuto
             }
         }
 
-        for (const auto& entry : worldRuntime_.chunks())
-        {
-            if (desiredTerrainChunks_.find(entry.first) == desiredTerrainChunks_.end())
-            {
-                if (pendingUnloadSet_.insert(entry.first).second)
-                {
-                    pendingUnloadChunks_.push_back(entry.first);
-                }
-            }
-            else
-            {
-                pendingUnloadSet_.erase(entry.first);
-            }
-        }
+        clientWorldRuntime_.collectPendingUnloadsOutsideDesired();
 
         updateTerrainStats();
         debugTextBatchDirty_ = true;
@@ -3537,37 +3520,7 @@ namespace dolbuto
 
     void Renderer::rebuildLoadOrderIfNeeded()
     {
-        const int dataDiameter = loadedChunkDiameter_ + 4;
-        if (loadOrderDiameter_ == dataDiameter && !loadOrder_.empty())
-        {
-            return;
-        }
-
-        loadOrderDiameter_ = dataDiameter;
-        loadOrder_.clear();
-        loadOrder_.reserve(static_cast<size_t>(dataDiameter) * dataDiameter);
-
-        const int min = -(dataDiameter / 2 - 1);
-        const int max = dataDiameter / 2;
-        for (int z = min; z <= max; ++z)
-        {
-            for (int x = min; x <= max; ++x)
-            {
-                loadOrder_.push_back({x, z});
-            }
-        }
-
-        auto distanceToCenterGroupSquared = [](const ChunkOffset& offset)
-        {
-            const int dx = offset.x < 0 ? -offset.x : (offset.x > 1 ? offset.x - 1 : 0);
-            const int dz = offset.z < 0 ? -offset.z : (offset.z > 1 ? offset.z - 1 : 0);
-            return dx * dx + dz * dz;
-        };
-
-        std::stable_sort(loadOrder_.begin(), loadOrder_.end(), [&](const ChunkOffset& left, const ChunkOffset& right)
-        {
-            return distanceToCenterGroupSquared(left) < distanceToCenterGroupSquared(right);
-        });
+        clientWorldRuntime_.rebuildLoadOrderIfNeeded();
     }
 
     void Renderer::startTerrainWorkers()
@@ -3715,60 +3668,25 @@ namespace dolbuto
 
     void Renderer::processCompletedTerrainJobs()
     {
-        const uint64_t generation = terrainGeneration_.load();
-        std::vector<CompletedChunkData> completedChunks;
-        std::vector<std::shared_ptr<ChunkData>> completedMergedChunks;
-        std::vector<CompletedChunkMesh> completedMeshes;
-        std::vector<CompletedChunkLoad> completedLoads;
-        std::vector<uint64_t> uploadChunkKeys;
-        uploadChunkKeys.reserve(static_cast<size_t>(maxTerrainUploadChunksPerFrame_));
-        uint32_t uploadChunkCount = 0;
-        auto canUploadChunk = [&](uint64_t key) -> bool
-        {
-            for (uint64_t uploadKey : uploadChunkKeys)
-            {
-                if (uploadKey == key)
-                {
-                    return true;
-                }
-            }
-
-            if (uploadChunkCount >= static_cast<uint32_t>(maxTerrainUploadChunksPerFrame_))
-            {
-                return false;
-            }
-
-            uploadChunkKeys.push_back(key);
-            ++uploadChunkCount;
-            return true;
-        };
-
-        world::TerrainCompletedBatch terrainCompleted = terrainJobSystem_.drainCompleted(
-            [&](const CompletedChunkMesh& mesh)
-            {
-                const uint64_t key = chunkKey(mesh.chunkX, mesh.chunkZ);
-                return mesh.generation != generation || desiredRenderChunks_.find(key) == desiredRenderChunks_.end();
-            },
-            [&](const CompletedChunkMesh& mesh)
-            {
-                return canUploadChunk(chunkKey(mesh.chunkX, mesh.chunkZ));
-            });
-        completedChunks = std::move(terrainCompleted.completedChunks);
-        completedMergedChunks = std::move(terrainCompleted.completedMergedChunks);
-        completedMeshes = std::move(terrainCompleted.completedMeshes);
-        completedLoads = chunkLoadSystem_.drainCompleted();
+        game::ClientWorldRuntime::CompletedWorkBatch work = clientWorldRuntime_.drainCompletedWork(
+            static_cast<uint32_t>(maxTerrainUploadChunksPerFrame_));
+        const uint64_t generation = work.generation;
+        std::vector<CompletedChunkData> completedChunks = std::move(work.terrain.completedChunks);
+        std::vector<std::shared_ptr<ChunkData>> completedMergedChunks = std::move(work.terrain.completedMergedChunks);
+        std::vector<CompletedChunkMesh> completedMeshes = std::move(work.terrain.completedMeshes);
+        std::vector<CompletedChunkLoad> completedLoads = std::move(work.completedLoads);
 
         for (CompletedChunkLoad& completed : completedLoads)
         {
             const uint64_t key = chunkKey(completed.chunkX, completed.chunkZ);
-            RuntimeChunk* existingChunk = worldRuntime_.finishSnapshotLoad(key);
-            if (existingChunk == nullptr)
+            game::ClientWorldRuntime::ChunkLoadCompletion loadCompletion = clientWorldRuntime_.finishChunkLoad(completed);
+            if (loadCompletion.chunk == nullptr)
             {
                 continue;
             }
 
-            const world::WorldRuntime::RuntimeChunkLoadState loadState = world::WorldRuntime::captureLoadState(*existingChunk);
-            if (desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
+            const world::WorldRuntime::RuntimeChunkLoadState loadState = loadCompletion.loadState;
+            if (!loadCompletion.desired)
             {
                 continue;
             }
@@ -3803,7 +3721,7 @@ namespace dolbuto
                 refreshDroppedItemChunkTracking(key);
             }
 
-            if (desiredRenderChunks_.find(key) != desiredRenderChunks_.end())
+            if (clientWorldRuntime_.isRenderDesired(key))
             {
                 wantRender(completed.chunkX, completed.chunkZ, loadState.bestPriority);
             }
@@ -3834,14 +3752,15 @@ namespace dolbuto
         {
             const std::shared_ptr<ChunkData>& chunk = completed.chunk;
             const uint64_t key = chunkKey(chunk->chunkX, chunk->chunkZ);
-            requestedChunkJobs_.erase(key);
-            if (chunk->generation != generation || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
+            clientWorldRuntime_.clearRequestedChunkJob(key);
+            const game::ClientWorldRuntime::CompletedChunkDecision decision = clientWorldRuntime_.decideCompletedChunk(*chunk);
+            if (decision == game::ClientWorldRuntime::CompletedChunkDecision::Ignore)
             {
-                if (chunk->generation != generation && desiredTerrainChunks_.find(key) != desiredTerrainChunks_.end())
-                {
-                    continue;
-                }
+                continue;
+            }
 
+            if (decision == game::ClientWorldRuntime::CompletedChunkDecision::Save)
+            {
                 SaveChunkSnapshot snapshot{};
                 snapshot.chunkX = chunk->chunkX;
                 snapshot.chunkZ = chunk->chunkZ;
@@ -3861,7 +3780,7 @@ namespace dolbuto
                         continue;
                     }
 
-                    if (desiredTerrainChunks_.find(chunkKey(targetChunkX, targetChunkZ)) != desiredTerrainChunks_.end())
+                    if (clientWorldRuntime_.isTerrainDesired(chunkKey(targetChunkX, targetChunkZ)))
                     {
                         acceptFeatureSlot(targetChunkX, targetChunkZ, *sourceSlot, completed.outgoingFeatureSlots[slot]);
                     }
@@ -3878,13 +3797,14 @@ namespace dolbuto
         for (const std::shared_ptr<ChunkData>& chunk : completedMergedChunks)
         {
             const uint64_t key = chunkKey(chunk->chunkX, chunk->chunkZ);
-            if (chunk->generation != generation || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
+            const game::ClientWorldRuntime::CompletedChunkDecision decision = clientWorldRuntime_.decideCompletedChunk(*chunk);
+            if (decision == game::ClientWorldRuntime::CompletedChunkDecision::Ignore)
             {
-                if (chunk->generation != generation && desiredTerrainChunks_.find(key) != desiredTerrainChunks_.end())
-                {
-                    continue;
-                }
+                continue;
+            }
 
+            if (decision == game::ClientWorldRuntime::CompletedChunkDecision::Save)
+            {
                 SaveChunkSnapshot snapshot{};
                 snapshot.chunkX = chunk->chunkX;
                 snapshot.chunkZ = chunk->chunkZ;
@@ -3903,14 +3823,14 @@ namespace dolbuto
         for (CompletedChunkMesh& mesh : completedMeshes)
         {
             const uint64_t key = chunkKey(mesh.chunkX, mesh.chunkZ);
-            requestedMeshJobs_.erase(key);
-            worldRuntime_.clearMeshQueued(key);
+            clientWorldRuntime_.clearRequestedMeshJob(key);
 
-            if (mesh.generation != generation || desiredRenderChunks_.find(key) == desiredRenderChunks_.end())
+            const game::ClientWorldRuntime::CompletedMeshDecision decision = clientWorldRuntime_.decideCompletedMesh(mesh);
+            if (decision == game::ClientWorldRuntime::CompletedMeshDecision::Ignore)
             {
                 continue;
             }
-            if (!worldRuntime_.meshRevisionMatches(key, mesh.revision))
+            if (decision == game::ClientWorldRuntime::CompletedMeshDecision::Retry)
             {
                 tryQueueMeshIfReady(mesh.chunkX, mesh.chunkZ);
                 continue;
@@ -3940,14 +3860,17 @@ namespace dolbuto
     uint32_t Renderer::processPendingTerrainUnloads()
     {
         uint32_t unloadedCount = 0;
-        while (!pendingUnloadChunks_.empty() && unloadedCount < static_cast<uint32_t>(maxTerrainUnloadChunksPerFrame_))
+        while (unloadedCount < static_cast<uint32_t>(maxTerrainUnloadChunksPerFrame_))
         {
-            const uint64_t key = pendingUnloadChunks_.front();
-            pendingUnloadChunks_.pop_front();
-
-            if (desiredTerrainChunks_.find(key) != desiredTerrainChunks_.end())
+            const std::optional<uint64_t> pendingKey = clientWorldRuntime_.takePendingTerrainUnload();
+            if (!pendingKey)
             {
-                pendingUnloadSet_.erase(key);
+                break;
+            }
+            const uint64_t key = *pendingKey;
+
+            if (clientWorldRuntime_.cancelPendingTerrainUnloadIfDesired(key))
+            {
                 continue;
             }
 
@@ -3965,10 +3888,7 @@ namespace dolbuto
                 enqueueSaveSnapshot(makeSaveSnapshot(*runtimeChunk));
             }
             removeDroppedItemChunkTracking(key);
-            worldRuntime_.erase(key);
-            requestedChunkJobs_.erase(key);
-            requestedMeshJobs_.erase(key);
-            pendingUnloadSet_.erase(key);
+            clientWorldRuntime_.finishPendingTerrainUnload(key);
             ++unloadedCount;
         }
 
@@ -4006,41 +3926,29 @@ namespace dolbuto
 
     RuntimeChunk& Renderer::ensureRuntimeChunk(int chunkX, int chunkZ, uint64_t generation)
     {
-        const uint64_t key = chunkKey(chunkX, chunkZ);
-
-        desiredTerrainChunks_.insert(key);
-        pendingUnloadSet_.erase(key);
-
-        bool created = false;
-        RuntimeChunk& chunk = worldRuntime_.ensureChunkShell(chunkX, chunkZ, created);
-        if (created)
-        {
-            chunk.snapshotLoadRequested = true;
-            chunk.snapshotLoadFinished = false;
-            enqueueChunkLoadJob(chunkX, chunkZ, generation);
-        }
-
-        if (!chunk.data && !chunk.snapshotLoadRequested && !chunk.snapshotLoadFinished)
-        {
-            chunk.snapshotLoadRequested = true;
-            enqueueChunkLoadJob(chunkX, chunkZ, generation);
-        }
-        if (chunk.data)
-        {
-            chunk.data->generation = generation;
-        }
-        return chunk;
+        return clientWorldRuntime_.ensureRuntimeChunk(
+            chunkX,
+            chunkZ,
+            generation,
+            [this](int loadChunkX, int loadChunkZ, uint64_t loadGeneration)
+            {
+                enqueueChunkLoadJob(loadChunkX, loadChunkZ, loadGeneration);
+            });
     }
 
     void Renderer::wantRender(int chunkX, int chunkZ, uint32_t priority)
     {
         const uint64_t generation = terrainGeneration_.load();
         const uint64_t key = chunkKey(chunkX, chunkZ);
-        RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
-
-        desiredRenderChunks_.insert(key);
-        chunk.renderTicket = generation;
-        chunk.bestPriority = std::min(chunk.bestPriority, priority);
+        clientWorldRuntime_.requestRenderTicket(
+            chunkX,
+            chunkZ,
+            generation,
+            priority,
+            [this](int loadChunkX, int loadChunkZ, uint64_t loadGeneration)
+            {
+                enqueueChunkLoadJob(loadChunkX, loadChunkZ, loadGeneration);
+            });
 
         if (chunkMeshReady(key))
         {
@@ -4054,9 +3962,15 @@ namespace dolbuto
     {
         const uint64_t generation = terrainGeneration_.load();
         const uint64_t key = chunkKey(chunkX, chunkZ);
-        RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
-        chunk.meshTicket = generation;
-        chunk.bestPriority = std::min(chunk.bestPriority, priority);
+        clientWorldRuntime_.requestMeshTicket(
+            chunkX,
+            chunkZ,
+            generation,
+            priority,
+            [this](int loadChunkX, int loadChunkZ, uint64_t loadGeneration)
+            {
+                enqueueChunkLoadJob(loadChunkX, loadChunkZ, loadGeneration);
+            });
 
         if (chunkMeshReady(key))
         {
@@ -4071,9 +3985,15 @@ namespace dolbuto
     {
         const uint64_t generation = terrainGeneration_.load();
         const uint64_t key = chunkKey(chunkX, chunkZ);
-        RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
-        chunk.fullTicket = generation;
-        chunk.bestPriority = std::min(chunk.bestPriority, priority);
+        RuntimeChunk& chunk = clientWorldRuntime_.requestFullTicket(
+            chunkX,
+            chunkZ,
+            generation,
+            priority,
+            [this](int loadChunkX, int loadChunkZ, uint64_t loadGeneration)
+            {
+                enqueueChunkLoadJob(loadChunkX, loadChunkZ, loadGeneration);
+            });
 
         if (chunk.genState == ChunkGenState::Full || chunk.genState == ChunkGenState::Meshed)
         {
@@ -4100,45 +4020,28 @@ namespace dolbuto
     void Renderer::wantFeaturing(int chunkX, int chunkZ, uint32_t priority)
     {
         const uint64_t generation = terrainGeneration_.load();
-        RuntimeChunk& chunk = ensureRuntimeChunk(chunkX, chunkZ, generation);
-        desiredFeatureChunks_.insert(chunkKey(chunkX, chunkZ));
-        chunk.featuringTicket = generation;
-        chunk.bestPriority = std::min(chunk.bestPriority, priority);
-        if (!chunk.data && chunk.snapshotLoadRequested && !chunk.snapshotLoadFinished)
-        {
-            return;
-        }
-
-        if (chunk.outgoingPublishedTicket == generation &&
-            (chunk.genState == ChunkGenState::Featuring ||
-                chunk.genState == ChunkGenState::Full ||
-                chunk.genState == ChunkGenState::Meshed))
-        {
-            return;
-        }
-
-        if (chunk.genState == ChunkGenState::Featuring ||
-            chunk.genState == ChunkGenState::Full ||
-            chunk.genState == ChunkGenState::Meshed)
+        RuntimeChunk& chunk = clientWorldRuntime_.requestFeaturingTicket(
+            chunkX,
+            chunkZ,
+            generation,
+            priority,
+            [this](int loadChunkX, int loadChunkZ, uint64_t loadGeneration)
+            {
+                enqueueChunkLoadJob(loadChunkX, loadChunkZ, loadGeneration);
+            });
+        if (clientWorldRuntime_.shouldPublishFeatures(chunk, generation))
         {
             publishFeatureSlots(chunk);
             return;
         }
 
-        if (chunk.buildQueuedTicket == generation)
+        std::optional<TerrainJob> job = clientWorldRuntime_.makeBuildFeaturingJobIfNeeded(chunk, generation);
+        if (!job)
         {
             return;
         }
 
-        TerrainJob job{};
-        job.type = TerrainJob::Type::BuildFeaturing;
-        job.generation = generation;
-        job.priority = chunk.bestPriority;
-        job.chunkX = chunkX;
-        job.chunkZ = chunkZ;
-        enqueueTerrainJob(std::move(job));
-        requestedChunkJobs_.insert(chunkKey(chunkX, chunkZ));
-        chunk.buildQueuedTicket = generation;
+        enqueueTerrainJob(std::move(*job));
     }
 
     SaveChunkSnapshot Renderer::makeSaveSnapshot(const RuntimeChunk& chunk) const
@@ -4185,9 +4088,7 @@ namespace dolbuto
         }
 
         log::info("Loading game scene: " + worldDirectory.string());
-        activeWorldDirectory_ = worldDirectory;
-        activeWorldSeed_ = worldSeed;
-        activeWorldSeedSalt_ = static_cast<int>((worldSeed ^ (worldSeed >> 32u)) & 0x7fffffffu);
+        clientWorldRuntime_.setActiveWorld(worldDirectory, worldSeed);
         blockBreakParticles_.clear();
         resetBlockBreaking();
         nextWorldEntityId_ = 1;
@@ -4201,7 +4102,7 @@ namespace dolbuto
         droppedItemRenderAlpha_ = 0.0f;
         climateTemperatureOverlayReady_ = false;
         climatePrecipitationOverlayReady_ = false;
-        terrainLoadRequested_ = false;
+        clientWorldRuntime_.resetLoadRequest();
         startSaveWorker();
         startChunkLoadWorker();
         startTerrainWorkers();
@@ -4224,7 +4125,7 @@ namespace dolbuto
         vkDeviceWaitIdle(device_);
         destroyAllTerrainChunks();
         saveSystem_.clear();
-        terrainLoadRequested_ = false;
+        clientWorldRuntime_.resetLoadRequest();
         blockBreakParticles_.clear();
         resetBlockBreaking();
         nextWorldEntityId_ = 1;
@@ -4236,9 +4137,6 @@ namespace dolbuto
         lastDroppedItemUpdateTime_ = 0.0;
         droppedItemTickAccumulator_ = 0.0f;
         droppedItemRenderAlpha_ = 0.0f;
-        loadedChunkDiameter_ = 0;
-        loadedCenterGroupChunkX_ = 0;
-        loadedCenterGroupChunkZ_ = 0;
         updateTerrainStats();
         debugTextBatchDirty_ = true;
         gameSceneLoaded_ = false;
@@ -4378,7 +4276,7 @@ namespace dolbuto
 
         const uint64_t targetKey = chunkKey(targetChunkX, targetChunkZ);
         RuntimeChunk* existingTarget = worldRuntime_.find(targetKey);
-        if (existingTarget == nullptr && desiredTerrainChunks_.find(targetKey) == desiredTerrainChunks_.end())
+        if (existingTarget == nullptr && !clientWorldRuntime_.isTerrainDesired(targetKey))
         {
             return;
         }
@@ -4451,84 +4349,27 @@ namespace dolbuto
 
     void Renderer::tryQueueFeatureFinalize(uint64_t key)
     {
-        RuntimeChunk* chunk = worldRuntime_.find(key);
-        if (chunk == nullptr)
-        {
-            return;
-        }
-
         const uint64_t generation = terrainGeneration_.load();
-        if (chunk->fullTicket != generation ||
-            chunk->genState != ChunkGenState::Featuring ||
-            !chunk->data ||
-            chunk->finalizeQueuedTicket == generation)
+        std::optional<TerrainJob> job = clientWorldRuntime_.makeFeatureFinalizeJobIfReady(key, generation);
+        if (!job)
         {
             return;
         }
 
-        if ((chunk->incomingFeatureMask & AllFeatureSourcesMask) != AllFeatureSourcesMask)
-        {
-            return;
-        }
-
-        TerrainJob job{};
-        job.type = TerrainJob::Type::FinalizeFeatures;
-        job.generation = generation;
-        job.priority = chunk->bestPriority;
-        job.chunkX = chunk->chunkX;
-        job.chunkZ = chunk->chunkZ;
-        job.chunk = chunk->data;
-        job.incomingFeatureSlots = chunk->incomingFeatureSlots;
-        chunk->finalizeQueuedTicket = generation;
-        enqueueTerrainJob(std::move(job));
+        enqueueTerrainJob(std::move(*job));
     }
 
     void Renderer::tryQueueMeshIfReady(int chunkX, int chunkZ)
     {
         const uint64_t key = chunkKey(chunkX, chunkZ);
-        RuntimeChunk* target = worldRuntime_.find(key);
         const uint64_t generation = terrainGeneration_.load();
-        if (target == nullptr ||
-            desiredRenderChunks_.find(key) == desiredRenderChunks_.end() ||
-            target->meshTicket != generation ||
-            requestedMeshJobs_.find(key) != requestedMeshJobs_.end() ||
-            target->meshQueuedTicket == generation ||
-            (target->genState != ChunkGenState::Full && target->genState != ChunkGenState::Meshed))
+        std::optional<TerrainJob> job = clientWorldRuntime_.makeMeshJobIfReady(chunkX, chunkZ, generation, chunkMeshReady(key));
+        if (!job)
         {
             return;
         }
 
-        std::array<std::shared_ptr<ChunkData>, 9> chunks{};
-        for (int dz = -1; dz <= 1; ++dz)
-        {
-            for (int dx = -1; dx <= 1; ++dx)
-            {
-                const RuntimeChunk* chunk = worldRuntime_.find(chunkKey(chunkX + dx, chunkZ + dz));
-                if (chunk == nullptr || !chunk->data ||
-                    chunk->genState == ChunkGenState::Empty)
-                {
-                    return;
-                }
-                chunks[static_cast<size_t>((dz + 1) * 3 + (dx + 1))] = chunk->data;
-            }
-        }
-
-        if (chunkMeshReady(key))
-        {
-            return;
-        }
-
-        TerrainJob job{};
-        job.type = TerrainJob::Type::BuildChunkMesh;
-        job.generation = generation;
-        job.revision = chunks[4]->revision;
-        job.priority = target->bestPriority;
-        job.chunkX = chunkX;
-        job.chunkZ = chunkZ;
-        job.meshChunks = chunks;
-        requestedMeshJobs_.insert(key);
-        target->meshQueuedTicket = generation;
-        enqueueTerrainJob(std::move(job));
+        enqueueTerrainJob(std::move(*job));
     }
 
     void Renderer::tryQueueMeshesAround(int chunkX, int chunkZ)
@@ -4566,7 +4407,7 @@ namespace dolbuto
 
         const uint64_t key = chunkKey(chunkX, chunkZ);
         RuntimeChunk* chunk = worldRuntime_.find(key);
-        if (chunk == nullptr || !chunk->data || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
+        if (chunk == nullptr || !chunk->data || !clientWorldRuntime_.isTerrainDesired(key))
         {
             return;
         }
@@ -4576,8 +4417,7 @@ namespace dolbuto
         const uint64_t revision = chunk->data->revision;
         TerrainBuildData mesh = buildEditedSubchunkMesh(chunk->data, subchunkY);
 
-        requestedMeshJobs_.erase(key);
-        chunk->meshQueuedTicket = 0;
+        clientWorldRuntime_.clearRequestedMeshJob(key);
         ChunkRenderData& renderData = terrainChunks_[key];
         renderData.revision = chunk->data->revision;
         renderData.chunkX = chunkX;
@@ -5385,14 +5225,7 @@ namespace dolbuto
         }
         terrainChunks_.clear();
         retiredTerrainChunks_.clear();
-        pendingUnloadChunks_.clear();
-        pendingUnloadSet_.clear();
-        requestedChunkJobs_.clear();
-        requestedMeshJobs_.clear();
-        desiredTerrainChunks_.clear();
-        desiredFeatureChunks_.clear();
-        desiredRenderChunks_.clear();
-        worldRuntime_.clear();
+        clientWorldRuntime_.resetSceneRuntime();
         resetDroppedItemTracking();
     }
 

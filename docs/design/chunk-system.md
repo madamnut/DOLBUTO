@@ -13,7 +13,10 @@
 청크/월드 런타임 타입은 `src/world/WorldTypes.h`에 둔다.
 이 파일은 청크 크기 상수, `ChunkData`, `RuntimeChunk`, `ChunkGenState`, feature write, terrain job, save/load snapshot, `WorldEntity` 계열 타입을 가진다.
 runtime chunk map과 chunk key/좌표 helper, block 조회/수정, dirty marking, derived cache 갱신은 `src/world/WorldRuntime.h/.cpp`가 소유한다.
-`Renderer`는 terrain load, save/unload, mesh queue 경로에서 runtime chunk map을 직접 들고 있지 않고 `WorldRuntime`의 API를 통해 조회, 순회, 생성, 삭제한다.
+클라이언트의 active world 상태, load order, desired/requested/pending unload set, `WorldRuntime`, `SaveSystem`, `ChunkLoadSystem`, `TerrainJobSystem`은 `src/game/ClientWorldRuntime.h/.cpp`가 소유하는 전환 단계다.
+`Renderer`는 terrain load, save/unload, mesh queue 경로에서 runtime chunk map을 직접 들고 있지 않고 `ClientWorldRuntime`이 소유한 `WorldRuntime`의 API를 통해 조회, 순회, 생성, 삭제한다.
+render/mesh/full/featuring ticket 설정, snapshot load 요청 필요 여부, requested job set 갱신, BuildFeaturing/FinalizeFeatures/BuildChunkMesh job 생성 조건은 `ClientWorldRuntime`이 담당한다.
+terrain/chunk-load 완료 큐 drain, 완료 결과의 install/save/ignore 판정, mesh 완료의 install/retry/ignore 판정, pending unload 큐 pop/cancel/finish도 `ClientWorldRuntime`이 담당한다.
 snapshot load 완료, featuring/full 청크 설치, mesh queued ticket 초기화, Meshed 상태 전환 같은 terrain 완료 결과의 runtime 상태 갱신도 `WorldRuntime`이 담당한다.
 save worker와 region 저장/로드 실행 로직은 `src/save/SaveSystem.h/.cpp`에 둔다.
 chunk-load worker와 snapshot load 요청/완료 큐는 `src/world/ChunkLoadSystem.h/.cpp`에 둔다.
@@ -168,7 +171,7 @@ terrain worker 중지
 save worker 비우기
 Vulkan device idle 대기
 로드된 terrain mesh와 retired terrain mesh 파괴
-WorldRuntime의 runtime chunk, desired set, requested job set, unload queue 비우기
+ClientWorldRuntime의 runtime chunk, desired set, requested job set, unload queue 비우기
 terrain load request 초기화
 ```
 

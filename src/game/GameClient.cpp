@@ -1,5 +1,6 @@
 #include "game/GameClient.h"
 
+#include "game/ClientUiTypes.h"
 #include "gameplay/PlayerInventory.h"
 #include "items/ItemData.h"
 #include "platform/Log.h"
@@ -9,6 +10,7 @@
 #include <GLFW/glfw3.h>
 
 #include "renderer/Renderer.h"
+#include "renderer/RendererFrame.h"
 
 #include <algorithm>
 #include <array>
@@ -598,7 +600,23 @@ namespace dolbuto
             const bool worldUpdateEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory;
             const bool gameSceneRenderEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory;
             const bool renderDebugText = (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory) && debugTextVisible_;
-            renderer_->drawFrame(renderCamera, renderCameraPosition, debugText_.data(), renderDebugText, screenshotRequested_, showPlayer, renderPlayerPosition, camera_.yaw(), terrainWireframe_, climateOverlayMode_, menuOverlayMode, hudVisible_, worldUpdateEnabled, gameSceneRenderEnabled, worldTicks_);
+            renderer_->drawFrame(RendererFrame{
+                renderCamera,
+                renderCameraPosition,
+                debugText_.data(),
+                renderDebugText,
+                screenshotRequested_,
+                showPlayer,
+                renderPlayerPosition,
+                camera_.yaw(),
+                terrainWireframe_,
+                climateOverlayMode_,
+                menuOverlayMode,
+                hudVisible_,
+                worldUpdateEnabled,
+                gameSceneRenderEnabled,
+                worldTicks_
+            });
             screenshotRequested_ = false;
         }
     }
@@ -1105,11 +1123,11 @@ namespace dolbuto
 
         if (renderer_ != nullptr)
         {
-            std::vector<Renderer::WorldListItem> items;
+            std::vector<game::WorldListItem> items;
             items.reserve(availableWorlds_.size());
             for (const WorldInfo& world : availableWorlds_)
             {
-                items.push_back(Renderer::WorldListItem{
+                items.push_back(game::WorldListItem{
                     world.name,
                     formatUnixSeconds(world.createdUnixSeconds),
                     formatUnixSeconds(world.lastPlayedUnixSeconds)

@@ -6,6 +6,7 @@
 ## 핵심 문서
 
 - [[project-overview]]
+- [[client-architecture]]
 - [[build-and-distribution]]
 - [[runtime-paths]]
 - [[rendering]]

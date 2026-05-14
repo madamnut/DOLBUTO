@@ -152,6 +152,9 @@ add_custom_target(DOLBUTOShaders DEPENDS ${SHADER_OUTPUTS})
 add_executable(DOLBUTO
     ${DOLBUTO_WINDOWS_RESOURCE}
     src/main.cpp
+    src/game/ClientUiTypes.h
+    src/game/ClientWorldRuntime.cpp
+    src/game/ClientWorldRuntime.h
     src/game/GameClient.cpp
     src/game/GameClient.h
     src/gameplay/BlockInteractionSystem.cpp
@@ -175,6 +178,7 @@ add_executable(DOLBUTO
     src/platform/RuntimePaths.h
     src/renderer/Renderer.cpp
     src/renderer/RendererDroppedItems.cpp
+    src/renderer/RendererFrame.h
     src/renderer/Renderer.h
     src/renderer/TerrainTypes.h
     src/renderer/RendererUi.cpp

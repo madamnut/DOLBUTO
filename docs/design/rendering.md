@@ -37,6 +37,7 @@
 현재 포함 타입은 `TerrainVertex`, `PackedTerrainQuad`, `TerrainMesh`, `TerrainBuildData`이다.
 `src/renderer/RendererUi.cpp`는 RmlUi `RenderInterface` 구현과 UI 입력/인벤토리 표시 갱신을 담는다.
 `src/renderer/RendererDroppedItems.cpp`는 dropped item 아이템 스프라이트 mesh 생성, GPU instance 업로드, draw path를 담는다.
+`src/renderer/RendererFrame.h`는 `GameClient`가 한 프레임 렌더링에 넘기는 카메라, 플레이어, overlay, debug, screenshot, world tick 입력을 `RendererFrame` DTO로 묶는다.
 드롭 아이템 생성/병합/물리 tick/pickup 판정은 `src/world/DroppedItemSystem.h/.cpp`가 담당한다.
 `src/world/TerrainMesher.h/.cpp`는 chunk mesh와 편집 subchunk mesh의 CPU orchestration을 맡는다.
 solid subchunk의 greedy meshing 본체와 Vulkan 업로드는 아직 `Renderer`가 담당한다.
