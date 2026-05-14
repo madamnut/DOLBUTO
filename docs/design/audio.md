@@ -61,12 +61,14 @@ assets/audio/sfx/Pop.wav
 
 ## 런타임 구조
 
-- 시작 시 OpenAL device/context를 만든다.
-- SFX WAV 파일은 시작 시 OpenAL buffer로 로드한다.
-- 음악 파일은 시작 시 경로와 형식만 기록한다.
-- 짧은 효과음은 16개 source pool을 순환 사용한다.
+- 오디오 런타임 구현은 `src/audio/AudioSystem.h`와 `src/audio/AudioSystem.cpp`에 둔다.
+- `AudioSystem`은 시작 시 OpenAL device/context를 만든다.
+- SFX WAV 파일은 `AudioSystem` 초기화 시 OpenAL buffer로 로드한다.
+- 음악 파일은 `AudioSystem` 초기화 시 경로와 형식만 기록한다.
+- 짧은 효과음은 `AudioSystem` 내부의 16개 source pool을 순환 사용한다.
 - source가 다시 필요하면 기존 재생을 멈추고 새 buffer를 연결해 재생한다.
 - 음악은 효과음 source pool과 별도의 source를 사용한다.
+- `Renderer`는 매 프레임 listener 위치/방향, 현재 음악 씬, 버튼/블록/아이템 이벤트 발생 시점만 `AudioSystem`에 전달한다.
 - 현재 음악 씬 분류가 바뀌면 music source를 정지하고 새 씬의 대기 타이머를 다시 잡는다.
 - OGG 디코딩은 OpenAL 런타임 확장에 의존하지 않는다.
 - OGG 음악 스트림은 씬 전환, 곡 종료, 종료 처리 시 디코더와 큐 buffer를 닫는다.

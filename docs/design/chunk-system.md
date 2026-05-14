@@ -10,6 +10,16 @@
 
 블록 편집 시에는 전체 청크를 다시 만들지 않고 필요한 서브청크 주변만 다시 메싱하는 방향을 유지한다.
 
+청크/월드 런타임 타입은 `src/world/WorldTypes.h`에 둔다.
+이 파일은 청크 크기 상수, `ChunkData`, `RuntimeChunk`, `ChunkGenState`, feature write, terrain job, save/load snapshot, `WorldEntity` 계열 타입을 가진다.
+save worker와 region 저장/로드 실행 로직은 `src/save/SaveSystem.h/.cpp`에 둔다.
+chunk-load worker와 snapshot load 요청/완료 큐는 `src/world/ChunkLoadSystem.h/.cpp`에 둔다.
+terrain worker와 terrain job/완료 큐는 `src/world/TerrainJobSystem.h/.cpp`에 둔다.
+terrain job callback은 `BuildFeaturing`/`FinalizeFeatures`에서 `src/world/TerrainBuilder.h/.cpp`를 호출해 높이맵, 초기 청크 데이터, tree feature write 생성/반영을 수행한다.
+`BuildChunkMesh`의 chunk mesh orchestration과 편집 subchunk 주변 block sampling은 `src/world/TerrainMesher.h/.cpp`가 맡는다.
+solid subchunk mesh 생성 본체와 GPU 업로드/설치는 아직 `Renderer`가 맡는다.
+fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
+
 ## 로딩 중심
 
 렌더 중심은 플레이어가 속한 2x2 청크 그룹을 기준으로 한다.
@@ -50,7 +60,7 @@ Meshed
 
 ## 작업 큐
 
-terrain worker는 4개를 사용한다.
+terrain worker는 4개를 사용하며 `TerrainJobSystem`이 worker thread와 큐를 소유한다.
 작업 큐는 성격별로 나뉘어 있다.
 
 ```text
@@ -63,9 +73,9 @@ terrainFeatureJobs
 
 작업 타입:
 
-- `BuildFeaturing`: 지형/표면/자기 feature 생성과 이웃 feature write 생성
-- `FinalizeFeatures`: incoming feature를 청크 데이터에 반영
-- `BuildChunkMesh`: Full 청크와 주변 8청크를 사용해 메쉬 생성
+- `BuildFeaturing`: `TerrainBuilder`로 지형/표면/자기 feature 생성과 이웃 feature write 생성
+- `FinalizeFeatures`: `TerrainBuilder`로 incoming feature를 청크 데이터에 반영
+- `BuildChunkMesh`: `TerrainMesher`가 Full 청크와 주변 8청크를 사용해 subchunk mesh 생성을 조율
 
 ## 파생 요청
 
@@ -118,14 +128,14 @@ GPU 리소스 폐기는 한 프레임에 몰리지 않도록 budget을 둔다.
 저장된 청크 snapshot 읽기는 render thread가 아니라 단일 chunk-load worker가 처리한다.
 `ensureRuntimeChunk`가 없는 런타임 청크를 발견하면 runtime shell을 삽입하고, snapshot loading requested 상태를 표시하고, chunk load job을 큐에 넣은 뒤 즉시 반환한다.
 
-chunk-load worker는 `loadChunkSnapshot`을 호출한다.
+chunk-load worker는 `SaveSystem`의 snapshot load 함수를 호출한다.
 main thread는 이후 terrain job 완료 처리 중 완료된 snapshot load를 설치한다.
 snapshot이 있으면 runtime chunk data로 변환하고 이전 render/full/mesh/feature ticket을 보존한다.
 snapshot이 없으면 shell을 load-finished로 표시하고 일반 생성 요청이 진행될 수 있게 한다.
 snapshot에서 복원된 청크가 `Full` 이상이면 해당 청크와 주변 8청크의 메쉬 조건을 다시 검사한다.
 이는 저장된 청크가 비동기로 늦게 설치되면서 주변 청크의 `BuildChunkMesh` 조건을 새로 만족하는 경우를 처리하기 위함이다.
 
-chunk-load worker와 save worker가 region payload/header 데이터를 동시에 읽고 쓰지 않도록 region file read/write 접근은 region IO mutex로 직렬화한다.
+chunk-load worker와 save worker가 region payload/header 데이터를 동시에 읽고 쓰지 않도록 `SaveSystem` 내부 region IO mutex로 region file read/write 접근을 직렬화한다.
 
 ## 청크 엔티티 데이터
 
@@ -158,4 +168,4 @@ terrain load request 초기화
 ```
 
 로비가 렌더러 소유 swapchain, sprite texture, font resource를 계속 사용하므로 렌더러 자체는 살아 있다.
-나중에 게임 씬을 다시 시작하면 terrain worker와 save worker를 다시 시작한다.
+나중에 게임 씬을 다시 시작하면 terrain job system, chunk-load worker, save worker를 다시 시작한다.

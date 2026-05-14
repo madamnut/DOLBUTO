@@ -171,23 +171,55 @@ assets/textures/ui/player
 
 ## 런타임 통합
 
-첫 RmlUi 통합은 기존 Vulkan device, render pass, descriptor set layout, sampler, texture upload 경로, 런타임 asset 경로 helper를 재사용할 수 있도록 `Renderer` 내부에 구현되어 있다.
+RmlUi 런타임 수명주기와 문서 소유권은 `src/ui/UiSystem.h`와 `src/ui/UiSystem.cpp`에 둔다.
+인벤토리/핫바/툴팁의 표현 문자열과 좌표 계산은 `src/ui/InventoryUi.h`와 `src/ui/InventoryUi.cpp`에 둔다.
+GLFW 입력 값을 RmlUi 입력 값으로 변환하는 코드는 `src/ui/RmlInput.h`와 `src/ui/RmlInput.cpp`에 둔다.
+Vulkan 렌더링 자원과 화면별 RML 내용 갱신은 기존 Vulkan device, render pass, descriptor set layout, sampler, texture upload 경로, 런타임 asset 경로 helper를 재사용해야 하므로 아직 `Renderer`에 남아 있다.
 
-Renderer가 소유하는 항목은 다음과 같다.
+`UiSystem`이 소유하는 항목은 다음과 같다.
 
 - RmlUi 초기화와 종료
 - RmlUi context 생명주기
+- RmlUi 문서 로드와 종료
+- 메뉴 문서 show/hide 상태
+- 버튼 click과 월드 행 dblclick 이벤트 수신
+- UI action 큐
+- GLFW 기반 RmlUi system interface
+- RmlUi mouse/key/text/wheel 입력 전달
+- 핫바 scope class, 인벤토리/툴팁/월드 목록 element 갱신
+- 월드 목록 RML 생성
+
+`RmlInput`이 소유하는 항목은 다음과 같다.
+
+- GLFW key를 RmlUi key identifier로 변환
+- GLFW modifier bit를 RmlUi modifier bit로 변환
+- 현재 GLFW modifier 상태를 RmlUi modifier bit로 계산
+
+`InventoryUi`가 소유하는 항목은 다음과 같다.
+
+- 인벤토리와 핫바 슬롯 좌표 계산
+- 인벤토리 hit test용 슬롯 판정
+- 디버그 슬롯, 아이템 슬롯, 커서 아이템 RML 생성
+- 아이템 툴팁 RML 생성
+- 툴팁 크기와 화면 안쪽 위치 계산
+
+`Renderer`가 계속 소유하는 항목은 다음과 같다.
+
 - Vulkan `Rml::RenderInterface` 구현
 - UI geometry 업로드 버퍼
 - 전용 RmlUi graphics pipeline
 - 기존 texture upload 경로를 통한 UI texture 로딩
-- 화면 모드별 menu document 표시 상태
+- 런타임 인벤토리 상태와 커서 슬롯 상태
+- 아이템 정의를 `InventoryUi` 표시 데이터로 변환
+- 인벤토리 슬롯 클릭과 숫자키 핫바 교환 같은 조작 처리
 
 Application은 게임 화면이 아닐 때 GLFW 마우스, 텍스트, 기본 키 입력을 RmlUi context로 전달한다.
 인벤토리는 비게임 입력 화면으로 취급하므로 마우스 이동과 클릭은 플레이어 카메라나 블록 상호작용 대신 RmlUi로 전달된다.
 키보드 입력은 GLFW modifier 상태를 RmlUi로 전달해 텍스트 입력창이 Shift+Arrow, Ctrl+C/V 같은 선택 및 편집 단축키를 처리할 수 있게 한다.
-렌더러는 경과 시간과 클립보드 접근을 위해 GLFW 기반의 작은 RmlUi system interface를 제공한다.
-RmlUi 클릭 이벤트는 Application이 메뉴 action으로 소비한다.
+`UiSystem`은 경과 시간과 클립보드 접근을 위해 GLFW 기반의 작은 RmlUi system interface를 제공한다.
+`UiSystem`은 Application에서 들어온 mouse/key/text/wheel 입력을 RmlUi context로 전달한다.
+RmlUi 클릭/더블클릭 이벤트는 `UiSystem`이 action으로 보관하고, Application이 메뉴 action으로 소비한다.
+핫바, 인벤토리, 툴팁, 월드 목록은 `UiSystem` 메서드를 통해 문서 element에 반영한다.
 기존 네이티브 메뉴 hit test는 RmlUi를 사용할 수 없을 때의 fallback으로만 유지하며, 정상 RmlUi 메뉴 클릭 뒤에는 실행되면 안 된다.
 현재 메뉴 문서는 주요 layout block에 명시적 absolute positioning을 사용한다.
 이는 현재 RmlUi 통합에서 자동 margin이 있는 browser-style stacked layout보다 예측 가능하기 때문이다.

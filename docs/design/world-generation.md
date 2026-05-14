@@ -19,6 +19,10 @@ FastNoise2를 사용한다.
 - 플레이어와 렌더 청크의 실제 좌표는 세션 중 누적될 수 있지만, 생성 결과는 래핑 좌표 기준으로 반복된다.
 
 현재 설정은 `config/world.json`에서 관리한다.
+파일 읽기와 설정 값 검증은 `src/config/ConfigLoaders.h/.cpp`의 `config::loadWorldConfig`가 맡는다.
+렌더러는 로드된 설정 값을 월드 생성, 청크 로딩, 기후 노이즈 계산에 적용한다.
+높이맵, 초기 청크 블록/유체 채우기, 기후 칼럼 채우기, 나무 feature write 생성과 반영은 `src/world/TerrainBuilder.h/.cpp`가 맡는다.
+`Renderer`는 설정값을 `world::TerrainBuilderConfig`로 넘기고, 완료된 청크 설치와 메쉬/GPU 업로드 흐름만 유지한다.
 
 ```json
 "terrain": {
@@ -141,6 +145,9 @@ Empty
   -> BuildChunkMesh
   -> Meshed
 ```
+
+`BuildFeaturing`과 `FinalizeFeatures`의 CPU 지형 생성/feature 반영 처리는 `TerrainBuilder`가 수행한다.
+terrain worker 큐와 완료 큐 소유권은 `TerrainJobSystem`에 있고, `Renderer`는 job callback에서 빌더를 호출해 결과를 받는다.
 
 관련 문서: [[chunk-system]], [[block-data]], [[save-load]]
 

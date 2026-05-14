@@ -1,26 +1,15 @@
 #include "renderer/Renderer.h"
 
 #include "camera/Camera.h"
+#include "config/ConfigLoaders.h"
+#include "data/DataLoaders.h"
 #include "platform/Log.h"
 #include "platform/RuntimePaths.h"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-#include <RmlUi/Core/Context.h>
-#include <RmlUi/Core/Element.h>
-#include <RmlUi/Core/ElementDocument.h>
-#include <RmlUi/Core/Elements/ElementFormControlInput.h>
-#include <RmlUi/Core/Event.h>
-#include <RmlUi/Core/SystemInterface.h>
-
-#include <AL/al.h>
-#include <AL/alc.h>
-
 #include <FastNoise/FastNoise.h>
-#define STB_VORBIS_HEADER_ONLY
-#include <stb_vorbis.c>
-#undef STB_VORBIS_HEADER_ONLY
 #include <stb_image.h>
 #include <stb_image_write.h>
 
@@ -28,7 +17,6 @@
 #include <array>
 #include <chrono>
 #include <cmath>
-#include <cctype>
 #include <cstring>
 #include <cstddef>
 #include <cstdint>
@@ -68,14 +56,7 @@ namespace dolbuto
         constexpr int ChunkSizeZ = 16;
         constexpr int SubchunkSize = 16;
         constexpr int SubchunksPerChunk = ChunkSizeY / SubchunkSize;
-        constexpr int MeshingBorder = 1;
-        constexpr int MeshingSizeX = ChunkSizeX + MeshingBorder * 2;
-        constexpr int MeshingSizeZ = ChunkSizeZ + MeshingBorder * 2;
-        constexpr size_t MeshingBlockCount = MeshingSizeX * ChunkSizeY * MeshingSizeZ;
         constexpr int LoadGridUnitChunks = 16;
-        constexpr int RegionSizeChunks = 16;
-        constexpr uint32_t RegionSectorSize = 4096;
-        constexpr size_t RegionChunkEntrySize = 16;
         constexpr int DefaultSeaLevel = 256;
         constexpr int CenterGroupChunks = 2;
         constexpr int DefaultLoadGridScale = 1;
@@ -88,7 +69,6 @@ namespace dolbuto
         constexpr int TerrainTilePeriod = 65536;
         constexpr int WorldSizeBlocks = TerrainTilePeriod;
         constexpr int WorldSizeChunks = WorldSizeBlocks / ChunkSizeX;
-        constexpr int TerrainNoiseSeed = 1337;
         constexpr float DefaultTerrainNoiseFeatureScale = 220.0f;
         constexpr int DefaultTerrainNoiseOctaveCount = 4;
         constexpr float DefaultTerrainNoiseLacunarity = 2.0f;
@@ -126,24 +106,14 @@ namespace dolbuto
         constexpr double PerformanceSampleSeconds = 0.5;
         constexpr uint16_t BlockAir = 0;
         constexpr uint16_t BlockRock = 1;
-        constexpr uint16_t BlockGrass = 2;
-        constexpr uint16_t BlockDirt = 3;
-        constexpr uint16_t BlockSand = 4;
         constexpr uint16_t BlockTrunk = 8;
         constexpr uint16_t BlockLeaves = 9;
         constexpr uint16_t BlockPlant = 10000;
         constexpr uint16_t BlockStoneProp = 20000;
         constexpr uint16_t BlockBranchProp = 20001;
-        constexpr uint16_t BlockBedrock = 65535;
         constexpr uint16_t FluidNone = 0;
-        constexpr uint16_t FluidWater = 1;
-        constexpr uint16_t FluidFullAmount = 100;
-        constexpr uint16_t FluidHeightStepAmount = 10;
-        constexpr uint16_t FluidHeightLevels = 10;
-        constexpr float FluidSurfaceMaxHeight = 0.8f;
         constexpr int FluidAmountBits = 7;
         constexpr uint16_t FluidAmountMask = (1u << FluidAmountBits) - 1u;
-        constexpr float FluidMipDistanceScale = 0.0f;
         constexpr uint8_t ClimateMinByte = 0;
         constexpr uint8_t ClimateMaxByte = 255;
         constexpr size_t MaxBlockBreakParticles = 2048;
@@ -173,13 +143,9 @@ namespace dolbuto
         constexpr float DroppedItemManualDropForwardOffset = 0.75f;
         constexpr float DroppedItemManualDropForwardVelocity = 7.0f;
         constexpr float DroppedItemManualDropUpVelocity = 1.5f;
-        constexpr double MusicMinDelaySeconds = 10.0;
-        constexpr double MusicMaxDelaySeconds = 60.0;
-        constexpr float MusicStreamBufferSeconds = 2.0f;
         constexpr size_t MaxDroppedItemRenderInstances = MaxDroppedItems * 4u;
         constexpr uint8_t WorldEntityFlagGrounded = 1u << 0u;
         constexpr uint32_t BlockDropSalt = 0xD90210A5u;
-        constexpr uint32_t BedrockHeightSalt = 0xBEEFBEDu;
         constexpr uint32_t TopFaceRotationSalt = 0x51A7E001u;
         constexpr uint32_t PlantPlacementSalt = 0x9A7D3E21u;
         constexpr uint8_t PlantPlacementMax = 151;
@@ -188,12 +154,6 @@ namespace dolbuto
         constexpr uint8_t TreePlacementMin = 168;
         constexpr uint8_t TreePlacementMax = 170;
         constexpr float RandomBlockOffsetHalfRange = 0.2f;
-        constexpr size_t DpmHeaderSize = sizeof(uint32_t);
-        constexpr size_t DpmQuadFloatCount = 4u * 3u + 4u * 2u + 3u;
-        constexpr size_t DpmQuadRenderFloatCount = 4u * 3u + 4u * 2u;
-        constexpr size_t DpmQuadSize = sizeof(float) * DpmQuadFloatCount;
-        constexpr uint32_t GlbJsonChunkType = 0x4E4F534Au;
-        constexpr uint32_t GlbBinChunkType = 0x004E4942u;
         constexpr float TerrainPositionPackScale = 256.0f;
         constexpr float TerrainUvPackScale = 256.0f;
         constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
@@ -201,46 +161,6 @@ namespace dolbuto
         constexpr std::array<const char*, 1> DeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
         constexpr const char* MemoryBudgetExtension = "VK_EXT_memory_budget";
         constexpr const char* PhysicalDeviceProperties2Extension = "VK_KHR_get_physical_device_properties2";
-
-        class RmlGlfwSystemInterface final : public Rml::SystemInterface
-        {
-        public:
-            explicit RmlGlfwSystemInterface(GLFWwindow* window)
-                : window_(window)
-            {
-            }
-
-            double GetElapsedTime() override
-            {
-                return glfwGetTime();
-            }
-
-            void SetClipboardText(const Rml::String& text) override
-            {
-                if (window_ != nullptr)
-                {
-                    glfwSetClipboardString(window_, text.c_str());
-                }
-            }
-
-            void GetClipboardText(Rml::String& text) override
-            {
-                text.clear();
-                if (window_ == nullptr)
-                {
-                    return;
-                }
-
-                const char* clipboard = glfwGetClipboardString(window_);
-                if (clipboard != nullptr)
-                {
-                    text = clipboard;
-                }
-            }
-
-        private:
-            GLFWwindow* window_ = nullptr;
-        };
 
         struct Mat4
         {
@@ -285,922 +205,6 @@ namespace dolbuto
             file.seekg(0);
             file.read(buffer.data(), static_cast<std::streamsize>(size));
             return buffer;
-        }
-
-        struct WavSoundData
-        {
-            std::vector<char> pcm;
-            ALenum format = 0;
-            ALsizei sampleRate = 0;
-            uint16_t channels = 0;
-        };
-
-        uint16_t readLe16(const std::vector<char>& data, size_t offset)
-        {
-            if (offset + 2u > data.size())
-            {
-                throw std::runtime_error("WAV read overflow.");
-            }
-            return static_cast<uint16_t>(
-                static_cast<uint8_t>(data[offset]) |
-                (static_cast<uint16_t>(static_cast<uint8_t>(data[offset + 1u])) << 8u));
-        }
-
-        uint32_t readLe32(const std::vector<char>& data, size_t offset)
-        {
-            if (offset + 4u > data.size())
-            {
-                throw std::runtime_error("WAV read overflow.");
-            }
-            return static_cast<uint32_t>(static_cast<uint8_t>(data[offset])) |
-                (static_cast<uint32_t>(static_cast<uint8_t>(data[offset + 1u])) << 8u) |
-                (static_cast<uint32_t>(static_cast<uint8_t>(data[offset + 2u])) << 16u) |
-                (static_cast<uint32_t>(static_cast<uint8_t>(data[offset + 3u])) << 24u);
-        }
-
-        bool chunkIdEquals(const std::vector<char>& data, size_t offset, std::string_view id)
-        {
-            return offset + id.size() <= data.size() &&
-                std::equal(id.begin(), id.end(), data.begin() + static_cast<std::ptrdiff_t>(offset));
-        }
-
-        WavSoundData decodeWavPcm16(const std::filesystem::path& path)
-        {
-            const std::vector<char> data = readFile(path.string());
-            if (data.size() < 12u ||
-                !chunkIdEquals(data, 0, "RIFF") ||
-                !chunkIdEquals(data, 8, "WAVE"))
-            {
-                throw std::runtime_error("Invalid WAV file: " + path.string());
-            }
-
-            uint16_t audioFormat = 0;
-            uint16_t channels = 0;
-            uint32_t sampleRate = 0;
-            uint16_t bitsPerSample = 0;
-            size_t pcmOffset = 0;
-            size_t pcmSize = 0;
-
-            size_t offset = 12u;
-            while (offset + 8u <= data.size())
-            {
-                const size_t chunkDataOffset = offset + 8u;
-                const uint32_t chunkSize = readLe32(data, offset + 4u);
-                if (chunkDataOffset + chunkSize > data.size())
-                {
-                    throw std::runtime_error("Invalid WAV chunk size: " + path.string());
-                }
-
-                if (chunkIdEquals(data, offset, "fmt "))
-                {
-                    if (chunkSize < 16u)
-                    {
-                        throw std::runtime_error("Invalid WAV fmt chunk: " + path.string());
-                    }
-                    audioFormat = readLe16(data, chunkDataOffset + 0u);
-                    channels = readLe16(data, chunkDataOffset + 2u);
-                    sampleRate = readLe32(data, chunkDataOffset + 4u);
-                    bitsPerSample = readLe16(data, chunkDataOffset + 14u);
-                }
-                else if (chunkIdEquals(data, offset, "data"))
-                {
-                    pcmOffset = chunkDataOffset;
-                    pcmSize = chunkSize;
-                }
-
-                offset = chunkDataOffset + chunkSize + (chunkSize & 1u);
-            }
-
-            if (audioFormat != 1u || bitsPerSample != 16u || pcmOffset == 0u || pcmSize == 0u)
-            {
-                throw std::runtime_error("Only PCM 16-bit WAV files are supported: " + path.string());
-            }
-
-            WavSoundData sound{};
-            if (channels == 1u)
-            {
-                sound.format = AL_FORMAT_MONO16;
-            }
-            else if (channels == 2u)
-            {
-                sound.format = AL_FORMAT_STEREO16;
-            }
-            else
-            {
-                throw std::runtime_error("Unsupported WAV channel count: " + path.string());
-            }
-
-            sound.sampleRate = static_cast<ALsizei>(sampleRate);
-            sound.channels = channels;
-            sound.pcm.assign(data.begin() + static_cast<std::ptrdiff_t>(pcmOffset), data.begin() + static_cast<std::ptrdiff_t>(pcmOffset + pcmSize));
-            return sound;
-        }
-
-        struct ParsedBlockDefinition
-        {
-            uint16_t id = BlockAir;
-            std::string name = "unknown";
-            std::string renderType = "none";
-            bool directional = false;
-            bool collision = false;
-            bool ao = false;
-            std::string faceOcclusion = "none";
-            bool sameBlockFaceCulling = false;
-            std::string alphaMode = "opaque";
-            float alphaCutoff = 0.5f;
-            float mipDistanceScale = 1.0f;
-            float hardness = -1.0f;
-            bool randomOffset = false;
-            std::unordered_map<std::string, std::string> textures;
-            std::string propModel;
-            std::string propTexture;
-            std::vector<std::string> dropItemKeys;
-            std::vector<uint16_t> dropMins;
-            std::vector<uint16_t> dropMaxes;
-            std::vector<float> dropChances;
-        };
-
-        struct ParsedItemDefinition
-        {
-            uint16_t id = 0;
-            std::string key = "none";
-            std::string name = "None";
-            uint16_t stackSize = 0;
-            std::string texture = "none";
-            std::string slotTexture = "none";
-            std::string droppedTexture = "none";
-            std::string heldTexture = "none";
-            std::string droppedRender = "extruded_sprite";
-            std::string heldRender = "extruded_sprite";
-        };
-
-        std::optional<std::string> jsonStringField(const std::string& object, const std::string& key)
-        {
-            const std::string token = "\"" + key + "\"";
-            const size_t keyPos = object.find(token);
-            if (keyPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            const size_t colonPos = object.find(':', keyPos + token.size());
-            if (colonPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            const size_t quoteStart = object.find('"', colonPos + 1);
-            if (quoteStart == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            std::string value;
-            bool escaped = false;
-            for (size_t i = quoteStart + 1; i < object.size(); ++i)
-            {
-                const char c = object[i];
-                if (escaped)
-                {
-                    value.push_back(c);
-                    escaped = false;
-                    continue;
-                }
-                if (c == '\\')
-                {
-                    escaped = true;
-                    continue;
-                }
-                if (c == '"')
-                {
-                    return value;
-                }
-                value.push_back(c);
-            }
-
-            return std::nullopt;
-        }
-
-        std::optional<int> jsonIntField(const std::string& object, const std::string& key)
-        {
-            const std::string token = "\"" + key + "\"";
-            const size_t keyPos = object.find(token);
-            if (keyPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            const size_t colonPos = object.find(':', keyPos + token.size());
-            if (colonPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            size_t valueStart = object.find_first_not_of(" \t\r\n", colonPos + 1);
-            if (valueStart == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            size_t valueEnd = valueStart;
-            if (object[valueEnd] == '-')
-            {
-                ++valueEnd;
-            }
-            while (valueEnd < object.size() && std::isdigit(static_cast<unsigned char>(object[valueEnd])) != 0)
-            {
-                ++valueEnd;
-            }
-
-            if (valueEnd == valueStart || (valueEnd == valueStart + 1 && object[valueStart] == '-'))
-            {
-                return std::nullopt;
-            }
-
-            try
-            {
-                return std::stoi(object.substr(valueStart, valueEnd - valueStart));
-            }
-            catch (...)
-            {
-                return std::nullopt;
-            }
-        }
-
-        std::optional<float> jsonFloatField(const std::string& object, const std::string& key)
-        {
-            const std::string token = "\"" + key + "\"";
-            const size_t keyPos = object.find(token);
-            if (keyPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            const size_t colonPos = object.find(':', keyPos + token.size());
-            if (colonPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            size_t valueStart = object.find_first_not_of(" \t\r\n", colonPos + 1);
-            if (valueStart == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            size_t valueEnd = valueStart;
-            while (valueEnd < object.size())
-            {
-                const char c = object[valueEnd];
-                if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E')
-                {
-                    ++valueEnd;
-                    continue;
-                }
-                break;
-            }
-
-            if (valueEnd == valueStart)
-            {
-                return std::nullopt;
-            }
-
-            try
-            {
-                return std::stof(object.substr(valueStart, valueEnd - valueStart));
-            }
-            catch (...)
-            {
-                return std::nullopt;
-            }
-        }
-
-        std::optional<std::array<float, 2>> jsonFloat2Field(const std::string& object, const std::string& key)
-        {
-            const std::string token = "\"" + key + "\"";
-            const size_t keyPos = object.find(token);
-            if (keyPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            const size_t openPos = object.find('[', keyPos + token.size());
-            const size_t closePos = object.find(']', openPos == std::string::npos ? keyPos + token.size() : openPos + 1);
-            if (openPos == std::string::npos || closePos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            std::array<float, 2> values{};
-            size_t cursor = openPos + 1;
-            for (size_t i = 0; i < values.size(); ++i)
-            {
-                cursor = object.find_first_not_of(" \t\r\n,", cursor);
-                if (cursor == std::string::npos || cursor >= closePos)
-                {
-                    return std::nullopt;
-                }
-
-                size_t valueEnd = cursor;
-                while (valueEnd < closePos)
-                {
-                    const char c = object[valueEnd];
-                    if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E')
-                    {
-                        ++valueEnd;
-                        continue;
-                    }
-                    break;
-                }
-                if (valueEnd == cursor)
-                {
-                    return std::nullopt;
-                }
-
-                try
-                {
-                    values[i] = std::stof(object.substr(cursor, valueEnd - cursor));
-                }
-                catch (...)
-                {
-                    return std::nullopt;
-                }
-                cursor = valueEnd;
-            }
-
-            return values;
-        }
-
-        std::optional<std::array<float, 3>> jsonFloat3Field(const std::string& object, const std::string& key)
-        {
-            const std::string token = "\"" + key + "\"";
-            const size_t keyPos = object.find(token);
-            if (keyPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            const size_t openPos = object.find('[', keyPos + token.size());
-            const size_t closePos = object.find(']', openPos == std::string::npos ? keyPos + token.size() : openPos + 1);
-            if (openPos == std::string::npos || closePos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            std::array<float, 3> values{};
-            size_t cursor = openPos + 1;
-            for (size_t i = 0; i < values.size(); ++i)
-            {
-                cursor = object.find_first_not_of(" \t\r\n,", cursor);
-                if (cursor == std::string::npos || cursor >= closePos)
-                {
-                    return std::nullopt;
-                }
-
-                size_t valueEnd = cursor;
-                while (valueEnd < closePos)
-                {
-                    const char c = object[valueEnd];
-                    if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E')
-                    {
-                        ++valueEnd;
-                        continue;
-                    }
-                    break;
-                }
-                if (valueEnd == cursor)
-                {
-                    return std::nullopt;
-                }
-
-                try
-                {
-                    values[i] = std::stof(object.substr(cursor, valueEnd - cursor));
-                }
-                catch (...)
-                {
-                    return std::nullopt;
-                }
-                cursor = valueEnd;
-            }
-
-            return values;
-        }
-
-        std::optional<bool> jsonBoolField(const std::string& object, const std::string& key)
-        {
-            const std::string token = "\"" + key + "\"";
-            const size_t keyPos = object.find(token);
-            if (keyPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            const size_t colonPos = object.find(':', keyPos + token.size());
-            if (colonPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            const size_t valueStart = object.find_first_not_of(" \t\r\n", colonPos + 1);
-            if (valueStart == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            if (object.compare(valueStart, 4, "true") == 0)
-            {
-                return true;
-            }
-            if (object.compare(valueStart, 5, "false") == 0)
-            {
-                return false;
-            }
-
-            return std::nullopt;
-        }
-
-        std::optional<std::string> jsonObjectField(const std::string& object, const std::string& key)
-        {
-            const std::string token = "\"" + key + "\"";
-            const size_t keyPos = object.find(token);
-            if (keyPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            const size_t openPos = object.find('{', keyPos + token.size());
-            if (openPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            int depth = 0;
-            bool inString = false;
-            bool escaped = false;
-            for (size_t i = openPos; i < object.size(); ++i)
-            {
-                const char c = object[i];
-                if (inString)
-                {
-                    if (escaped)
-                    {
-                        escaped = false;
-                    }
-                    else if (c == '\\')
-                    {
-                        escaped = true;
-                    }
-                    else if (c == '"')
-                    {
-                        inString = false;
-                    }
-                    continue;
-                }
-
-                if (c == '"')
-                {
-                    inString = true;
-                }
-                else if (c == '{')
-                {
-                    ++depth;
-                }
-                else if (c == '}')
-                {
-                    --depth;
-                    if (depth == 0)
-                    {
-                        return object.substr(openPos, i - openPos + 1);
-                    }
-                }
-            }
-
-            return std::nullopt;
-        }
-
-        std::optional<std::string> jsonArrayField(const std::string& object, const std::string& key)
-        {
-            const std::string token = "\"" + key + "\"";
-            const size_t keyPos = object.find(token);
-            if (keyPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            const size_t openPos = object.find('[', keyPos + token.size());
-            if (openPos == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            int depth = 0;
-            bool inString = false;
-            bool escaped = false;
-            for (size_t i = openPos; i < object.size(); ++i)
-            {
-                const char c = object[i];
-                if (inString)
-                {
-                    if (escaped)
-                    {
-                        escaped = false;
-                    }
-                    else if (c == '\\')
-                    {
-                        escaped = true;
-                    }
-                    else if (c == '"')
-                    {
-                        inString = false;
-                    }
-                    continue;
-                }
-
-                if (c == '"')
-                {
-                    inString = true;
-                }
-                else if (c == '[')
-                {
-                    ++depth;
-                }
-                else if (c == ']')
-                {
-                    --depth;
-                    if (depth == 0)
-                    {
-                        return object.substr(openPos, i - openPos + 1);
-                    }
-                }
-            }
-
-            return std::nullopt;
-        }
-
-        std::vector<std::string> jsonTopLevelObjects(const std::string& text)
-        {
-            std::vector<std::string> objects;
-            int depth = 0;
-            size_t objectStart = std::string::npos;
-            bool inString = false;
-            bool escaped = false;
-
-            for (size_t i = 0; i < text.size(); ++i)
-            {
-                const char c = text[i];
-                if (inString)
-                {
-                    if (escaped)
-                    {
-                        escaped = false;
-                    }
-                    else if (c == '\\')
-                    {
-                        escaped = true;
-                    }
-                    else if (c == '"')
-                    {
-                        inString = false;
-                    }
-                    continue;
-                }
-
-                if (c == '"')
-                {
-                    inString = true;
-                }
-                else if (c == '{')
-                {
-                    if (depth == 0)
-                    {
-                        objectStart = i;
-                    }
-                    ++depth;
-                }
-                else if (c == '}')
-                {
-                    --depth;
-                    if (depth == 0 && objectStart != std::string::npos)
-                    {
-                        objects.push_back(text.substr(objectStart, i - objectStart + 1));
-                        objectStart = std::string::npos;
-                    }
-                }
-            }
-
-            return objects;
-        }
-
-        std::vector<std::string> jsonObjectMemberObjects(const std::string& object)
-        {
-            const size_t open = object.find('{');
-            const size_t close = object.rfind('}');
-            if (open == std::string::npos || close == std::string::npos || close <= open)
-            {
-                return {};
-            }
-
-            return jsonTopLevelObjects(object.substr(open + 1u, close - open - 1u));
-        }
-
-        std::optional<std::string> jsonTopLevelArrayField(const std::string& object, const std::string& key)
-        {
-            const size_t open = object.find('{');
-            const size_t close = object.rfind('}');
-            if (open == std::string::npos || close == std::string::npos || close <= open)
-            {
-                return std::nullopt;
-            }
-
-            const std::string token = "\"" + key + "\"";
-            size_t cursor = open + 1u;
-            int depth = 0;
-            bool inString = false;
-            bool escaped = false;
-            while (cursor < close)
-            {
-                const char c = object[cursor];
-                if (inString)
-                {
-                    if (escaped)
-                    {
-                        escaped = false;
-                    }
-                    else if (c == '\\')
-                    {
-                        escaped = true;
-                    }
-                    else if (c == '"')
-                    {
-                        inString = false;
-                    }
-                    ++cursor;
-                    continue;
-                }
-
-                if (c == '"')
-                {
-                    if (depth == 0 && object.compare(cursor, token.size(), token) == 0)
-                    {
-                        const size_t colon = object.find(':', cursor + token.size());
-                        if (colon == std::string::npos)
-                        {
-                            return std::nullopt;
-                        }
-                        const size_t arrayOpen = object.find_first_not_of(" \t\r\n", colon + 1u);
-                        if (arrayOpen == std::string::npos || arrayOpen >= object.size() || object[arrayOpen] != '[')
-                        {
-                            return std::nullopt;
-                        }
-
-                        int arrayDepth = 0;
-                        bool arrayInString = false;
-                        bool arrayEscaped = false;
-                        for (size_t i = arrayOpen; i < object.size(); ++i)
-                        {
-                            const char arrayChar = object[i];
-                            if (arrayInString)
-                            {
-                                if (arrayEscaped)
-                                {
-                                    arrayEscaped = false;
-                                }
-                                else if (arrayChar == '\\')
-                                {
-                                    arrayEscaped = true;
-                                }
-                                else if (arrayChar == '"')
-                                {
-                                    arrayInString = false;
-                                }
-                                continue;
-                            }
-                            if (arrayChar == '"')
-                            {
-                                arrayInString = true;
-                            }
-                            else if (arrayChar == '[')
-                            {
-                                ++arrayDepth;
-                            }
-                            else if (arrayChar == ']')
-                            {
-                                --arrayDepth;
-                                if (arrayDepth == 0)
-                                {
-                                    return object.substr(arrayOpen, i - arrayOpen + 1u);
-                                }
-                            }
-                        }
-                        return std::nullopt;
-                    }
-                    inString = true;
-                }
-                else if (c == '{' || c == '[')
-                {
-                    ++depth;
-                }
-                else if (c == '}' || c == ']')
-                {
-                    --depth;
-                }
-                ++cursor;
-            }
-            return std::nullopt;
-        }
-
-        std::vector<ParsedItemDefinition> parseItemDefinitions(const std::string& text)
-        {
-            std::vector<ParsedItemDefinition> definitions;
-
-            for (const std::string& object : jsonTopLevelObjects(text))
-            {
-                const std::optional<int> id = jsonIntField(object, "id");
-                if (!id.has_value() || *id < 0 || *id > std::numeric_limits<uint16_t>::max())
-                {
-                    continue;
-                }
-
-                ParsedItemDefinition definition{};
-                definition.id = static_cast<uint16_t>(*id);
-                if (const std::optional<std::string> key = jsonStringField(object, "key"); key.has_value())
-                {
-                    definition.key = *key;
-                }
-                if (const std::optional<std::string> name = jsonStringField(object, "name"); name.has_value())
-                {
-                    definition.name = *name;
-                }
-                if (const std::optional<int> stackSize = jsonIntField(object, "stackSize"); stackSize.has_value())
-                {
-                    definition.stackSize = static_cast<uint16_t>(std::clamp(*stackSize, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
-                }
-                if (const std::optional<std::string> texture = jsonStringField(object, "texture"); texture.has_value())
-                {
-                    definition.texture = *texture;
-                }
-                if (const std::optional<std::string> slotTexture = jsonStringField(object, "slotTexture"); slotTexture.has_value())
-                {
-                    definition.slotTexture = *slotTexture;
-                }
-                if (const std::optional<std::string> render = jsonObjectField(object, "render"); render.has_value())
-                {
-                    if (const std::optional<std::string> type = jsonStringField(*render, "type"); type.has_value())
-                    {
-                        definition.droppedRender = *type;
-                        definition.heldRender = *type;
-                    }
-                    if (const std::optional<std::string> texture = jsonStringField(*render, "texture"); texture.has_value())
-                    {
-                        definition.droppedTexture = *texture;
-                        definition.heldTexture = *texture;
-                    }
-                    if (const std::optional<std::string> dropped = jsonStringField(*render, "dropped"); dropped.has_value())
-                    {
-                        definition.droppedRender = *dropped;
-                    }
-                    if (const std::optional<std::string> held = jsonStringField(*render, "held"); held.has_value())
-                    {
-                        definition.heldRender = *held;
-                    }
-                }
-                if (const std::optional<std::string> droppedRender = jsonObjectField(object, "droppedRender"); droppedRender.has_value())
-                {
-                    if (const std::optional<std::string> type = jsonStringField(*droppedRender, "type"); type.has_value())
-                    {
-                        definition.droppedRender = *type;
-                    }
-                    if (const std::optional<std::string> texture = jsonStringField(*droppedRender, "texture"); texture.has_value())
-                    {
-                        definition.droppedTexture = *texture;
-                    }
-                }
-                if (const std::optional<std::string> heldRender = jsonObjectField(object, "heldRender"); heldRender.has_value())
-                {
-                    if (const std::optional<std::string> type = jsonStringField(*heldRender, "type"); type.has_value())
-                    {
-                        definition.heldRender = *type;
-                    }
-                    if (const std::optional<std::string> texture = jsonStringField(*heldRender, "texture"); texture.has_value())
-                    {
-                        definition.heldTexture = *texture;
-                    }
-                }
-
-                definitions.push_back(std::move(definition));
-            }
-
-            return definitions;
-        }
-
-        std::vector<ParsedBlockDefinition> parseBlockDefinitions(const std::string& text)
-        {
-            std::vector<ParsedBlockDefinition> definitions;
-            constexpr std::array<const char*, 5> TextureKeys = {"all", "top", "bottom", "side", "topBottom"};
-
-            for (const std::string& object : jsonTopLevelObjects(text))
-            {
-                const std::optional<int> id = jsonIntField(object, "id");
-                if (!id.has_value() || *id < 0 || *id > std::numeric_limits<uint16_t>::max())
-                {
-                    continue;
-                }
-
-                ParsedBlockDefinition definition{};
-                definition.id = static_cast<uint16_t>(*id);
-                if (const std::optional<std::string> name = jsonStringField(object, "name"); name.has_value())
-                {
-                    definition.name = *name;
-                }
-                if (const std::optional<std::string> renderType = jsonStringField(object, "renderType"); renderType.has_value())
-                {
-                    definition.renderType = *renderType;
-                }
-                if (const std::optional<bool> directional = jsonBoolField(object, "directional"); directional.has_value())
-                {
-                    definition.directional = *directional;
-                }
-                if (const std::optional<bool> collision = jsonBoolField(object, "collision"); collision.has_value())
-                {
-                    definition.collision = *collision;
-                }
-                if (const std::optional<bool> ao = jsonBoolField(object, "ao"); ao.has_value())
-                {
-                    definition.ao = *ao;
-                }
-                if (const std::optional<std::string> faceOcclusion = jsonStringField(object, "faceOcclusion"); faceOcclusion.has_value())
-                {
-                    definition.faceOcclusion = *faceOcclusion;
-                }
-                if (const std::optional<bool> sameBlockFaceCulling = jsonBoolField(object, "sameBlockFaceCulling"); sameBlockFaceCulling.has_value())
-                {
-                    definition.sameBlockFaceCulling = *sameBlockFaceCulling;
-                }
-                if (const std::optional<std::string> alphaMode = jsonStringField(object, "alphaMode"); alphaMode.has_value())
-                {
-                    definition.alphaMode = *alphaMode;
-                }
-                if (const std::optional<float> alphaCutoff = jsonFloatField(object, "alphaCutoff"); alphaCutoff.has_value())
-                {
-                    definition.alphaCutoff = std::clamp(*alphaCutoff, 0.0f, 1.0f);
-                }
-                if (const std::optional<float> mipDistanceScale = jsonFloatField(object, "mipDistanceScale"); mipDistanceScale.has_value())
-                {
-                    definition.mipDistanceScale = std::max(0.0f, *mipDistanceScale);
-                }
-                if (const std::optional<float> hardness = jsonFloatField(object, "hardness"); hardness.has_value())
-                {
-                    definition.hardness = *hardness;
-                }
-                if (const std::optional<bool> randomOffset = jsonBoolField(object, "randomOffset"); randomOffset.has_value())
-                {
-                    definition.randomOffset = *randomOffset;
-                }
-                if (const std::optional<std::string> textures = jsonObjectField(object, "textures"); textures.has_value())
-                {
-                    for (const char* key : TextureKeys)
-                    {
-                        if (const std::optional<std::string> texture = jsonStringField(*textures, key); texture.has_value())
-                        {
-                            definition.textures[key] = *texture;
-                        }
-                    }
-                }
-                if (const std::optional<std::string> prop = jsonObjectField(object, "prop"); prop.has_value())
-                {
-                    if (const std::optional<std::string> model = jsonStringField(*prop, "model"); model.has_value())
-                    {
-                        definition.propModel = *model;
-                    }
-                    if (const std::optional<std::string> texture = jsonStringField(*prop, "texture"); texture.has_value())
-                    {
-                        definition.propTexture = *texture;
-                    }
-                }
-                if (const std::optional<std::string> drops = jsonArrayField(object, "drops"); drops.has_value())
-                {
-                    for (const std::string& dropObject : jsonTopLevelObjects(*drops))
-                    {
-                        const std::optional<std::string> item = jsonStringField(dropObject, "item");
-                        if (!item.has_value() || item->empty())
-                        {
-                            continue;
-                        }
-
-                        const int minCount = jsonIntField(dropObject, "min").value_or(1);
-                        const int maxCount = jsonIntField(dropObject, "max").value_or(minCount);
-                        const float chance = jsonFloatField(dropObject, "chance").value_or(1.0f);
-                        definition.dropItemKeys.push_back(*item);
-                        definition.dropMins.push_back(static_cast<uint16_t>(std::clamp(minCount, 0, static_cast<int>(std::numeric_limits<uint16_t>::max()))));
-                        definition.dropMaxes.push_back(static_cast<uint16_t>(std::clamp(maxCount, 0, static_cast<int>(std::numeric_limits<uint16_t>::max()))));
-                        definition.dropChances.push_back(std::clamp(chance, 0.0f, 1.0f));
-                    }
-                }
-                definitions.push_back(std::move(definition));
-            }
-
-            return definitions;
         }
 
         uint32_t worldRandomHash(int x, int y, int z, uint32_t salt)
@@ -1294,16 +298,6 @@ namespace dolbuto
             return path.parent_path() / "mip" / (path.stem().string() + "_mip" + std::to_string(mipLevel) + ".png");
         }
 
-        int bedrockHeightAt(int worldX, int worldZ)
-        {
-            return 1 + static_cast<int>(worldRandom8(worldX, 0, worldZ, BedrockHeightSalt) & 3u);
-        }
-
-        constexpr uint16_t packFluid(uint16_t id, uint16_t amount)
-        {
-            return static_cast<uint16_t>((id << FluidAmountBits) | amount);
-        }
-
         constexpr uint16_t fluidId(uint16_t fluid)
         {
             return static_cast<uint16_t>(fluid >> FluidAmountBits);
@@ -1312,17 +306,6 @@ namespace dolbuto
         constexpr uint16_t fluidAmount(uint16_t fluid)
         {
             return static_cast<uint16_t>(fluid & FluidAmountMask);
-        }
-
-        constexpr float fluidSurfaceHeight(uint16_t amount)
-        {
-            const uint16_t clampedAmount = amount > FluidFullAmount ? FluidFullAmount : amount;
-            if (clampedAmount == 0)
-            {
-                return 0.0f;
-            }
-            const uint16_t level = static_cast<uint16_t>((clampedAmount + FluidHeightStepAmount - 1u) / FluidHeightStepAmount);
-            return (static_cast<float>(level) / static_cast<float>(FluidHeightLevels)) * FluidSurfaceMaxHeight;
         }
 
         uint8_t encodeClimateValue(float value)
@@ -1336,39 +319,6 @@ namespace dolbuto
         float decodeClimateValue(uint8_t value)
         {
             return static_cast<float>(value) / static_cast<float>(ClimateMaxByte);
-        }
-
-        uint16_t baseTerrainBlockForColumn(int worldX, int y, int worldZ, int height)
-        {
-            if (y < 0 || y >= height)
-            {
-                return BlockAir;
-            }
-            if (y < bedrockHeightAt(worldX, worldZ))
-            {
-                return BlockBedrock;
-            }
-            return BlockRock;
-        }
-
-        uint16_t generatedTerrainBlockForColumn(int worldX, int y, int worldZ, int height, int seaLevel)
-        {
-            const uint16_t baseBlock = baseTerrainBlockForColumn(worldX, y, worldZ, height);
-            if (baseBlock != BlockRock)
-            {
-                return baseBlock;
-            }
-
-            const bool waterAbove = height <= seaLevel;
-            if (y == height - 1)
-            {
-                return waterAbove ? BlockSand : BlockGrass;
-            }
-            if (y >= height - 5)
-            {
-                return waterAbove ? BlockSand : BlockDirt;
-            }
-            return BlockRock;
         }
 
         std::filesystem::path screenshotPath()
@@ -1442,11 +392,6 @@ namespace dolbuto
                 static_cast<uint64_t>(static_cast<uint32_t>(chunkZ));
         }
 
-        uint64_t storageChunkKey(int chunkX, int chunkZ)
-        {
-            return chunkKey(wrapChunkCoordinate(chunkX), wrapChunkCoordinate(chunkZ));
-        }
-
         struct FeatureNeighborOffset
         {
             int x = 0;
@@ -1476,1075 +421,6 @@ namespace dolbuto
                 }
             }
             return std::nullopt;
-        }
-
-        void writeU8(std::vector<uint8_t>& bytes, uint8_t value)
-        {
-            bytes.push_back(value);
-        }
-
-        void writeU16(std::vector<uint8_t>& bytes, uint16_t value)
-        {
-            bytes.push_back(static_cast<uint8_t>(value & 0xFFu));
-            bytes.push_back(static_cast<uint8_t>((value >> 8u) & 0xFFu));
-        }
-
-        void writeU32(std::vector<uint8_t>& bytes, uint32_t value)
-        {
-            for (int i = 0; i < 4; ++i)
-            {
-                bytes.push_back(static_cast<uint8_t>((value >> (i * 8)) & 0xFFu));
-            }
-        }
-
-        void writeU64(std::vector<uint8_t>& bytes, uint64_t value)
-        {
-            for (int i = 0; i < 8; ++i)
-            {
-                bytes.push_back(static_cast<uint8_t>((value >> (i * 8)) & 0xFFu));
-            }
-        }
-
-        uint8_t readU8(const std::vector<uint8_t>& bytes, size_t& offset)
-        {
-            if (offset >= bytes.size())
-            {
-                throw std::runtime_error("Chunk payload read overflow.");
-            }
-            return bytes[offset++];
-        }
-
-        uint16_t readU16(const std::vector<uint8_t>& bytes, size_t& offset)
-        {
-            if (offset + 2 > bytes.size())
-            {
-                throw std::runtime_error("Chunk payload read overflow.");
-            }
-            const uint16_t value = static_cast<uint16_t>(bytes[offset]) |
-                static_cast<uint16_t>(static_cast<uint16_t>(bytes[offset + 1]) << 8u);
-            offset += 2;
-            return value;
-        }
-
-        uint32_t readU32(const std::vector<uint8_t>& bytes, size_t& offset)
-        {
-            if (offset + 4 > bytes.size())
-            {
-                throw std::runtime_error("Chunk payload read overflow.");
-            }
-            uint32_t value = 0;
-            for (int i = 0; i < 4; ++i)
-            {
-                value |= static_cast<uint32_t>(bytes[offset + static_cast<size_t>(i)]) << (i * 8);
-            }
-            offset += 4;
-            return value;
-        }
-
-        uint64_t readU64(const std::vector<uint8_t>& bytes, size_t& offset)
-        {
-            if (offset + 8 > bytes.size())
-            {
-                throw std::runtime_error("Chunk payload read overflow.");
-            }
-            uint64_t value = 0;
-            for (int i = 0; i < 8; ++i)
-            {
-                value |= static_cast<uint64_t>(bytes[offset + static_cast<size_t>(i)]) << (i * 8);
-            }
-            offset += 8;
-            return value;
-        }
-
-        void writeU32At(std::vector<uint8_t>& bytes, size_t offset, uint32_t value)
-        {
-            for (int i = 0; i < 4; ++i)
-            {
-                bytes[offset + static_cast<size_t>(i)] = static_cast<uint8_t>((value >> (i * 8)) & 0xFFu);
-            }
-        }
-
-        uint32_t readU32At(const std::vector<uint8_t>& bytes, size_t offset)
-        {
-            uint32_t value = 0;
-            for (int i = 0; i < 4; ++i)
-            {
-                value |= static_cast<uint32_t>(bytes[offset + static_cast<size_t>(i)]) << (i * 8);
-            }
-            return value;
-        }
-
-        void writeF32(std::vector<uint8_t>& bytes, float value)
-        {
-            uint32_t bits = 0;
-            std::memcpy(&bits, &value, sizeof(bits));
-            writeU32(bytes, bits);
-        }
-
-        float readF32At(const std::vector<uint8_t>& bytes, size_t offset)
-        {
-            float value = 0.0f;
-            if (offset + sizeof(value) <= bytes.size())
-            {
-                std::memcpy(&value, bytes.data() + offset, sizeof(value));
-            }
-            return value;
-        }
-
-        float readF32(const std::vector<uint8_t>& bytes, size_t& offset)
-        {
-            if (offset + sizeof(float) > bytes.size())
-            {
-                throw std::runtime_error("Chunk payload read overflow.");
-            }
-            const float value = readF32At(bytes, offset);
-            offset += sizeof(float);
-            return value;
-        }
-
-        std::optional<std::string> jsonStringAt(const std::string& text, size_t& cursor)
-        {
-            cursor = text.find('"', cursor);
-            if (cursor == std::string::npos)
-            {
-                return std::nullopt;
-            }
-
-            std::string value;
-            bool escaped = false;
-            for (size_t i = cursor + 1; i < text.size(); ++i)
-            {
-                const char c = text[i];
-                if (escaped)
-                {
-                    value.push_back(c);
-                    escaped = false;
-                    continue;
-                }
-                if (c == '\\')
-                {
-                    escaped = true;
-                    continue;
-                }
-                if (c == '"')
-                {
-                    cursor = i + 1;
-                    return value;
-                }
-                value.push_back(c);
-            }
-            return std::nullopt;
-        }
-
-        std::vector<float> jsonFloatArrayValues(const std::string& array)
-        {
-            std::vector<float> values;
-            const size_t openPos = array.find('[');
-            const size_t closePos = array.rfind(']');
-            if (openPos == std::string::npos || closePos == std::string::npos || closePos <= openPos)
-            {
-                return values;
-            }
-
-            size_t cursor = openPos + 1;
-            while (cursor < closePos)
-            {
-                cursor = array.find_first_not_of(" \t\r\n,", cursor);
-                if (cursor == std::string::npos || cursor >= closePos)
-                {
-                    break;
-                }
-
-                size_t valueEnd = cursor;
-                while (valueEnd < closePos)
-                {
-                    const char c = array[valueEnd];
-                    if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E')
-                    {
-                        ++valueEnd;
-                        continue;
-                    }
-                    break;
-                }
-                if (valueEnd == cursor)
-                {
-                    break;
-                }
-
-                try
-                {
-                    values.push_back(std::stof(array.substr(cursor, valueEnd - cursor)));
-                }
-                catch (...)
-                {
-                    values.clear();
-                    return values;
-                }
-                cursor = valueEnd;
-            }
-            return values;
-        }
-
-        std::vector<std::string> jsonStringArrayValues(const std::string& array)
-        {
-            std::vector<std::string> values;
-            const size_t openPos = array.find('[');
-            const size_t closePos = array.rfind(']');
-            if (openPos == std::string::npos || closePos == std::string::npos || closePos <= openPos)
-            {
-                return values;
-            }
-
-            size_t cursor = openPos + 1;
-            while (cursor < closePos)
-            {
-                cursor = array.find_first_not_of(" \t\r\n,", cursor);
-                if (cursor == std::string::npos || cursor >= closePos)
-                {
-                    break;
-                }
-                std::optional<std::string> value = jsonStringAt(array, cursor);
-                if (!value)
-                {
-                    break;
-                }
-                values.push_back(*value);
-            }
-            return values;
-        }
-
-        std::optional<std::string> jsonArrayAt(const std::string& text, size_t openPos, size_t& next)
-        {
-            if (openPos == std::string::npos || openPos >= text.size() || text[openPos] != '[')
-            {
-                return std::nullopt;
-            }
-
-            int depth = 0;
-            bool inString = false;
-            bool escaped = false;
-            for (size_t i = openPos; i < text.size(); ++i)
-            {
-                const char c = text[i];
-                if (inString)
-                {
-                    if (escaped)
-                    {
-                        escaped = false;
-                    }
-                    else if (c == '\\')
-                    {
-                        escaped = true;
-                    }
-                    else if (c == '"')
-                    {
-                        inString = false;
-                    }
-                    continue;
-                }
-                if (c == '"')
-                {
-                    inString = true;
-                }
-                else if (c == '[')
-                {
-                    ++depth;
-                }
-                else if (c == ']')
-                {
-                    --depth;
-                    if (depth == 0)
-                    {
-                        next = i + 1;
-                        return text.substr(openPos, i - openPos + 1);
-                    }
-                }
-            }
-            return std::nullopt;
-        }
-
-        std::unordered_map<std::string, std::array<float, 3>> jsonFloat3Map(const std::string& object)
-        {
-            std::unordered_map<std::string, std::array<float, 3>> values;
-            size_t cursor = 0;
-            while (cursor < object.size())
-            {
-                std::optional<std::string> key = jsonStringAt(object, cursor);
-                if (!key)
-                {
-                    break;
-                }
-                const size_t colon = object.find(':', cursor);
-                const size_t open = object.find('[', colon == std::string::npos ? cursor : colon + 1);
-                size_t next = 0;
-                std::optional<std::string> array = jsonArrayAt(object, open, next);
-                if (!array)
-                {
-                    break;
-                }
-                const std::vector<float> parsed = jsonFloatArrayValues(*array);
-                if (parsed.size() >= 3)
-                {
-                    values[*key] = {parsed[0], parsed[1], parsed[2]};
-                }
-                cursor = next;
-            }
-            return values;
-        }
-
-        std::unordered_map<std::string, std::array<float, 2>> jsonFloat2Map(const std::string& object)
-        {
-            std::unordered_map<std::string, std::array<float, 2>> values;
-            size_t cursor = 0;
-            while (cursor < object.size())
-            {
-                std::optional<std::string> key = jsonStringAt(object, cursor);
-                if (!key)
-                {
-                    break;
-                }
-                const size_t colon = object.find(':', cursor);
-                const size_t open = object.find('[', colon == std::string::npos ? cursor : colon + 1);
-                size_t next = 0;
-                std::optional<std::string> array = jsonArrayAt(object, open, next);
-                if (!array)
-                {
-                    break;
-                }
-                const std::vector<float> parsed = jsonFloatArrayValues(*array);
-                if (parsed.size() >= 2)
-                {
-                    values[*key] = {parsed[0], parsed[1]};
-                }
-                cursor = next;
-            }
-            return values;
-        }
-
-        struct PropVertex
-        {
-            std::array<float, 3> position{};
-            std::array<float, 2> uv{};
-            std::array<float, 3> normal{};
-        };
-
-        struct PropMeshData
-        {
-            std::vector<PropVertex> vertices;
-            std::vector<uint32_t> indices;
-        };
-
-        struct PropQuad
-        {
-            std::array<PropVertex, 4> vertices{};
-            std::array<float, 3> normal{};
-        };
-
-        struct GlbAccessor
-        {
-            int bufferView = -1;
-            int byteOffset = 0;
-            int componentType = 0;
-            int count = 0;
-            std::string type;
-        };
-
-        struct GlbBufferView
-        {
-            int byteOffset = 0;
-            int byteLength = 0;
-            int byteStride = 0;
-        };
-
-        struct GlbNode
-        {
-            int mesh = -1;
-            std::vector<int> children;
-            std::array<float, 3> translation{0.0f, 0.0f, 0.0f};
-            std::array<float, 4> rotation{0.0f, 0.0f, 0.0f, 1.0f};
-        };
-
-        struct GlbPrimitive
-        {
-            int position = -1;
-            int normal = -1;
-            int uv = -1;
-            int indices = -1;
-        };
-
-        struct GlbMesh
-        {
-            std::vector<GlbPrimitive> primitives;
-        };
-
-        std::array<float, 3> glbPositionToBlockLocal(std::array<float, 3> value)
-        {
-            return {
-                (value[0] + 8.0f) / 16.0f,
-                value[1] / 16.0f,
-                (value[2] + 8.0f) / 16.0f};
-        }
-
-        std::array<float, 3> rotateByQuaternion(std::array<float, 3> value, std::array<float, 4> q)
-        {
-            const std::array<float, 3> u{q[0], q[1], q[2]};
-            const float s = q[3];
-            const std::array<float, 3> cross1{
-                u[1] * value[2] - u[2] * value[1],
-                u[2] * value[0] - u[0] * value[2],
-                u[0] * value[1] - u[1] * value[0]};
-            const std::array<float, 3> cross2{
-                u[1] * cross1[2] - u[2] * cross1[1],
-                u[2] * cross1[0] - u[0] * cross1[2],
-                u[0] * cross1[1] - u[1] * cross1[0]};
-            return {
-                value[0] + 2.0f * (s * cross1[0] + cross2[0]),
-                value[1] + 2.0f * (s * cross1[1] + cross2[1]),
-                value[2] + 2.0f * (s * cross1[2] + cross2[2])};
-        }
-
-        std::array<float, 3> transformPoint(std::array<float, 3> value, const std::vector<int>& chain, const std::vector<GlbNode>& nodes)
-        {
-            for (auto it = chain.rbegin(); it != chain.rend(); ++it)
-            {
-                const GlbNode& node = nodes[static_cast<size_t>(*it)];
-                value = rotateByQuaternion(value, node.rotation);
-                value[0] += node.translation[0];
-                value[1] += node.translation[1];
-                value[2] += node.translation[2];
-            }
-            return value;
-        }
-
-        std::optional<std::string> jsonObjectAt(const std::vector<std::string>& objects, int index)
-        {
-            if (index < 0 || static_cast<size_t>(index) >= objects.size())
-            {
-                return std::nullopt;
-            }
-            return objects[static_cast<size_t>(index)];
-        }
-
-        std::vector<uint8_t> glbChunk(const std::vector<uint8_t>& bytes, uint32_t expectedType)
-        {
-            if (bytes.size() < 12 || bytes[0] != 'g' || bytes[1] != 'l' || bytes[2] != 'T' || bytes[3] != 'F')
-            {
-                return {};
-            }
-            size_t offset = 12;
-            while (offset + 8 <= bytes.size())
-            {
-                const uint32_t chunkLength = readU32At(bytes, offset);
-                const uint32_t chunkType = readU32At(bytes, offset + 4u);
-                offset += 8u;
-                if (offset + chunkLength > bytes.size())
-                {
-                    return {};
-                }
-                if (chunkType == expectedType)
-                {
-                    return std::vector<uint8_t>(bytes.begin() + static_cast<std::ptrdiff_t>(offset), bytes.begin() + static_cast<std::ptrdiff_t>(offset + chunkLength));
-                }
-                offset += chunkLength;
-            }
-            return {};
-        }
-
-        GlbAccessor parseGlbAccessor(const std::string& object)
-        {
-            GlbAccessor accessor{};
-            accessor.bufferView = jsonIntField(object, "bufferView").value_or(-1);
-            accessor.byteOffset = jsonIntField(object, "byteOffset").value_or(0);
-            accessor.componentType = jsonIntField(object, "componentType").value_or(0);
-            accessor.count = jsonIntField(object, "count").value_or(0);
-            accessor.type = jsonStringField(object, "type").value_or("");
-            return accessor;
-        }
-
-        GlbBufferView parseGlbBufferView(const std::string& object)
-        {
-            GlbBufferView view{};
-            view.byteOffset = jsonIntField(object, "byteOffset").value_or(0);
-            view.byteLength = jsonIntField(object, "byteLength").value_or(0);
-            view.byteStride = jsonIntField(object, "byteStride").value_or(0);
-            return view;
-        }
-
-        GlbNode parseGlbNode(const std::string& object)
-        {
-            GlbNode node{};
-            node.mesh = jsonIntField(object, "mesh").value_or(-1);
-            node.translation = jsonFloat3Field(object, "translation").value_or(node.translation);
-            if (const std::optional<std::string> rotation = jsonArrayField(object, "rotation"); rotation.has_value())
-            {
-                const std::vector<float> values = jsonFloatArrayValues(*rotation);
-                if (values.size() >= 4)
-                {
-                    node.rotation = {values[0], values[1], values[2], values[3]};
-                }
-            }
-            if (const std::optional<std::string> children = jsonArrayField(object, "children"); children.has_value())
-            {
-                const std::vector<float> values = jsonFloatArrayValues(*children);
-                for (float value : values)
-                {
-                    node.children.push_back(static_cast<int>(std::lround(value)));
-                }
-            }
-            return node;
-        }
-
-        GlbMesh parseGlbMesh(const std::string& object)
-        {
-            GlbMesh mesh{};
-            const std::optional<std::string> primitives = jsonArrayField(object, "primitives");
-            if (!primitives)
-            {
-                return mesh;
-            }
-            for (const std::string& primitiveObject : jsonTopLevelObjects(*primitives))
-            {
-                GlbPrimitive primitive{};
-                if (jsonIntField(primitiveObject, "mode").value_or(4) != 4)
-                {
-                    continue;
-                }
-                primitive.indices = jsonIntField(primitiveObject, "indices").value_or(-1);
-                if (const std::optional<std::string> attributes = jsonObjectField(primitiveObject, "attributes"); attributes.has_value())
-                {
-                    primitive.position = jsonIntField(*attributes, "POSITION").value_or(-1);
-                    primitive.normal = jsonIntField(*attributes, "NORMAL").value_or(-1);
-                    primitive.uv = jsonIntField(*attributes, "TEXCOORD_0").value_or(-1);
-                }
-                if (primitive.position >= 0 && primitive.uv >= 0 && primitive.indices >= 0)
-                {
-                    mesh.primitives.push_back(primitive);
-                }
-            }
-            return mesh;
-        }
-
-        std::array<float, 3> readGlbVec3(const std::vector<uint8_t>& bin, const std::vector<GlbAccessor>& accessors, const std::vector<GlbBufferView>& views, int accessorIndex, int elementIndex)
-        {
-            const GlbAccessor& accessor = accessors[static_cast<size_t>(accessorIndex)];
-            const GlbBufferView& view = views[static_cast<size_t>(accessor.bufferView)];
-            const int stride = view.byteStride > 0 ? view.byteStride : 12;
-            const size_t offset = static_cast<size_t>(view.byteOffset + accessor.byteOffset + elementIndex * stride);
-            return {readF32At(bin, offset), readF32At(bin, offset + 4u), readF32At(bin, offset + 8u)};
-        }
-
-        std::array<float, 2> readGlbVec2(const std::vector<uint8_t>& bin, const std::vector<GlbAccessor>& accessors, const std::vector<GlbBufferView>& views, int accessorIndex, int elementIndex)
-        {
-            const GlbAccessor& accessor = accessors[static_cast<size_t>(accessorIndex)];
-            const GlbBufferView& view = views[static_cast<size_t>(accessor.bufferView)];
-            const int stride = view.byteStride > 0 ? view.byteStride : 8;
-            const size_t offset = static_cast<size_t>(view.byteOffset + accessor.byteOffset + elementIndex * stride);
-            return {readF32At(bin, offset), readF32At(bin, offset + 4u)};
-        }
-
-        uint32_t readGlbIndex(const std::vector<uint8_t>& bin, const std::vector<GlbAccessor>& accessors, const std::vector<GlbBufferView>& views, int accessorIndex, int elementIndex)
-        {
-            const GlbAccessor& accessor = accessors[static_cast<size_t>(accessorIndex)];
-            const GlbBufferView& view = views[static_cast<size_t>(accessor.bufferView)];
-            const size_t offset = static_cast<size_t>(view.byteOffset + accessor.byteOffset);
-            if (accessor.componentType == 5125)
-            {
-                return readU32At(bin, offset + static_cast<size_t>(elementIndex) * 4u);
-            }
-            if (accessor.componentType == 5123)
-            {
-                size_t readOffset = offset + static_cast<size_t>(elementIndex) * 2u;
-                return readOffset + 1u < bin.size() ? static_cast<uint32_t>(bin[readOffset]) | (static_cast<uint32_t>(bin[readOffset + 1u]) << 8u) : 0u;
-            }
-            return offset + static_cast<size_t>(elementIndex) < bin.size() ? bin[offset + static_cast<size_t>(elementIndex)] : 0u;
-        }
-
-        std::array<float, 3> cross3(std::array<float, 3> a, std::array<float, 3> b)
-        {
-            return {
-                a[1] * b[2] - a[2] * b[1],
-                a[2] * b[0] - a[0] * b[2],
-                a[0] * b[1] - a[1] * b[0]};
-        }
-
-        std::array<float, 3> subtract3(std::array<float, 3> a, std::array<float, 3> b)
-        {
-            return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
-        }
-
-        float lengthSquared3(std::array<float, 3> value)
-        {
-            return value[0] * value[0] + value[1] * value[1] + value[2] * value[2];
-        }
-
-        std::array<float, 3> normalize3(std::array<float, 3> value)
-        {
-            const float length = std::sqrt(lengthSquared3(value));
-            if (length <= 0.000001f)
-            {
-                return {0.0f, 1.0f, 0.0f};
-            }
-            return {value[0] / length, value[1] / length, value[2] / length};
-        }
-
-        float quadOrderError(const std::array<PropVertex, 4>& vertices, const std::array<int, 4>& order)
-        {
-            const std::array<float, 3>& a = vertices[static_cast<size_t>(order[0])].position;
-            const std::array<float, 3>& b = vertices[static_cast<size_t>(order[1])].position;
-            const std::array<float, 3>& c = vertices[static_cast<size_t>(order[2])].position;
-            const std::array<float, 3>& d = vertices[static_cast<size_t>(order[3])].position;
-            const std::array<float, 3> predicted{b[0] + d[0] - a[0], b[1] + d[1] - a[1], b[2] + d[2] - a[2]};
-            return lengthSquared3(subtract3(predicted, c));
-        }
-
-        std::optional<PropQuad> mergeTrianglePairToQuad(const PropMeshData& mesh, size_t indexOffset)
-        {
-            if (indexOffset + 5u >= mesh.indices.size())
-            {
-                return std::nullopt;
-            }
-
-            std::array<PropVertex, 6> triangleVertices{};
-            for (size_t i = 0; i < triangleVertices.size(); ++i)
-            {
-                const uint32_t index = mesh.indices[indexOffset + i];
-                if (static_cast<size_t>(index) >= mesh.vertices.size())
-                {
-                    return std::nullopt;
-                }
-                triangleVertices[i] = mesh.vertices[static_cast<size_t>(index)];
-            }
-
-            std::array<PropVertex, 4> uniqueVertices{};
-            size_t uniqueCount = 0;
-            auto samePositionAndUv = [](const PropVertex& a, const PropVertex& b)
-            {
-                return lengthSquared3(subtract3(a.position, b.position)) <= 0.0000001f &&
-                    std::abs(a.uv[0] - b.uv[0]) <= 0.0001f &&
-                    std::abs(a.uv[1] - b.uv[1]) <= 0.0001f;
-            };
-            for (const PropVertex& vertex : triangleVertices)
-            {
-                bool exists = false;
-                for (size_t i = 0; i < uniqueCount; ++i)
-                {
-                    if (samePositionAndUv(uniqueVertices[i], vertex))
-                    {
-                        exists = true;
-                        break;
-                    }
-                }
-                if (!exists)
-                {
-                    if (uniqueCount >= uniqueVertices.size())
-                    {
-                        return std::nullopt;
-                    }
-                    uniqueVertices[uniqueCount++] = vertex;
-                }
-            }
-            if (uniqueCount != 4u)
-            {
-                return std::nullopt;
-            }
-
-            std::array<int, 4> bestOrder{0, 1, 2, 3};
-            float bestError = std::numeric_limits<float>::max();
-            std::array<int, 4> order{0, 1, 2, 3};
-            do
-            {
-                const std::array<float, 3> edgeU = subtract3(uniqueVertices[static_cast<size_t>(order[1])].position, uniqueVertices[static_cast<size_t>(order[0])].position);
-                const std::array<float, 3> edgeV = subtract3(uniqueVertices[static_cast<size_t>(order[3])].position, uniqueVertices[static_cast<size_t>(order[0])].position);
-                if (lengthSquared3(edgeU) <= 0.0000001f || lengthSquared3(edgeV) <= 0.0000001f || lengthSquared3(cross3(edgeU, edgeV)) <= 0.0000001f)
-                {
-                    continue;
-                }
-                const float error = quadOrderError(uniqueVertices, order);
-                if (error < bestError)
-                {
-                    bestError = error;
-                    bestOrder = order;
-                }
-            } while (std::next_permutation(order.begin(), order.end()));
-
-            if (bestError > 0.000001f)
-            {
-                return std::nullopt;
-            }
-
-            PropQuad quad{};
-            for (size_t i = 0; i < quad.vertices.size(); ++i)
-            {
-                quad.vertices[i] = uniqueVertices[static_cast<size_t>(bestOrder[i])];
-            }
-            quad.normal = normalize3(cross3(
-                subtract3(quad.vertices[1].position, quad.vertices[0].position),
-                subtract3(quad.vertices[3].position, quad.vertices[0].position)));
-            return quad;
-        }
-
-        std::vector<PropQuad> convertTrianglesToQuads(const PropMeshData& mesh)
-        {
-            std::vector<PropQuad> quads;
-            quads.reserve(mesh.indices.size() / 6u);
-            for (size_t offset = 0; offset + 5u < mesh.indices.size(); offset += 6u)
-            {
-                if (std::optional<PropQuad> quad = mergeTrianglePairToQuad(mesh, offset); quad.has_value())
-                {
-                    quads.push_back(*quad);
-                }
-            }
-            return quads;
-        }
-
-        bool writeDpm(const std::filesystem::path& path, const std::vector<PropQuad>& quads)
-        {
-            if (quads.empty())
-            {
-                return false;
-            }
-            std::vector<uint8_t> bytes;
-            bytes.reserve(DpmHeaderSize + quads.size() * DpmQuadSize);
-            writeU32(bytes, static_cast<uint32_t>(quads.size()));
-            for (const PropQuad& quad : quads)
-            {
-                for (const PropVertex& vertex : quad.vertices)
-                {
-                    for (float value : vertex.position) { writeF32(bytes, value); }
-                }
-                for (const PropVertex& vertex : quad.vertices)
-                {
-                    for (float value : vertex.uv) { writeF32(bytes, value); }
-                }
-                for (float value : quad.normal) { writeF32(bytes, value); }
-            }
-            std::ofstream file(path, std::ios::binary | std::ios::trunc);
-            if (!file.is_open())
-            {
-                return false;
-            }
-            file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-            return static_cast<bool>(file);
-        }
-
-        bool dpmLooksValid(const std::filesystem::path& path)
-        {
-            std::ifstream file(path, std::ios::binary | std::ios::ate);
-            if (!file.is_open())
-            {
-                return false;
-            }
-            const auto fileSize = static_cast<size_t>(file.tellg());
-            if (fileSize < DpmHeaderSize)
-            {
-                return false;
-            }
-            std::vector<uint8_t> header(DpmHeaderSize);
-            file.seekg(0);
-            file.read(reinterpret_cast<char*>(header.data()), static_cast<std::streamsize>(header.size()));
-            if (!file)
-            {
-                return false;
-            }
-            const uint32_t quadCount = readU32At(header, 0);
-            return fileSize == DpmHeaderSize + static_cast<size_t>(quadCount) * DpmQuadSize;
-        }
-
-        PropMeshData convertGlbToDpmMesh(const std::filesystem::path& glbPath)
-        {
-            const std::vector<char> file = readFile(glbPath.string());
-            const std::vector<uint8_t> bytes(file.begin(), file.end());
-            const std::vector<uint8_t> jsonBytes = glbChunk(bytes, GlbJsonChunkType);
-            const std::vector<uint8_t> bin = glbChunk(bytes, GlbBinChunkType);
-            if (jsonBytes.empty() || bin.empty())
-            {
-                return {};
-            }
-            std::string json(jsonBytes.begin(), jsonBytes.end());
-            while (!json.empty() && (json.back() == '\0' || json.back() == ' '))
-            {
-                json.pop_back();
-            }
-
-            std::vector<GlbAccessor> accessors;
-            std::vector<GlbBufferView> views;
-            std::vector<GlbNode> nodes;
-            std::vector<GlbMesh> meshes;
-            for (const std::string& object : jsonTopLevelObjects(jsonTopLevelArrayField(json, "accessors").value_or("[]")))
-            {
-                accessors.push_back(parseGlbAccessor(object));
-            }
-            for (const std::string& object : jsonTopLevelObjects(jsonTopLevelArrayField(json, "bufferViews").value_or("[]")))
-            {
-                views.push_back(parseGlbBufferView(object));
-            }
-            for (const std::string& object : jsonTopLevelObjects(jsonTopLevelArrayField(json, "nodes").value_or("[]")))
-            {
-                nodes.push_back(parseGlbNode(object));
-            }
-            for (const std::string& object : jsonTopLevelObjects(jsonTopLevelArrayField(json, "meshes").value_or("[]")))
-            {
-                meshes.push_back(parseGlbMesh(object));
-            }
-
-            PropMeshData mesh;
-            std::vector<bool> hasParent(nodes.size(), false);
-            for (const GlbNode& node : nodes)
-            {
-                for (int child : node.children)
-                {
-                    if (child >= 0 && static_cast<size_t>(child) < hasParent.size())
-                    {
-                        hasParent[static_cast<size_t>(child)] = true;
-                    }
-                }
-            }
-
-            auto visitNode = [&](auto&& self, int nodeIndex, std::vector<int>& chain) -> void
-            {
-                if (nodeIndex < 0 || static_cast<size_t>(nodeIndex) >= nodes.size())
-                {
-                    return;
-                }
-                chain.push_back(nodeIndex);
-                const GlbNode& node = nodes[static_cast<size_t>(nodeIndex)];
-                if (node.mesh >= 0 && static_cast<size_t>(node.mesh) < meshes.size())
-                {
-                    for (const GlbPrimitive& primitive : meshes[static_cast<size_t>(node.mesh)].primitives)
-                    {
-                        const GlbAccessor& positionAccessor = accessors[static_cast<size_t>(primitive.position)];
-                        const uint32_t vertexBase = static_cast<uint32_t>(mesh.vertices.size());
-                        for (int i = 0; i < positionAccessor.count; ++i)
-                        {
-                            PropVertex vertex{};
-                            vertex.position = glbPositionToBlockLocal(transformPoint(readGlbVec3(bin, accessors, views, primitive.position, i), chain, nodes));
-                            vertex.uv = readGlbVec2(bin, accessors, views, primitive.uv, i);
-                            vertex.normal = primitive.normal >= 0 ? rotateByQuaternion(readGlbVec3(bin, accessors, views, primitive.normal, i), node.rotation) : std::array<float, 3>{0.0f, 1.0f, 0.0f};
-                            mesh.vertices.push_back(vertex);
-                        }
-                        const GlbAccessor& indexAccessor = accessors[static_cast<size_t>(primitive.indices)];
-                        for (int i = 0; i < indexAccessor.count; ++i)
-                        {
-                            mesh.indices.push_back(vertexBase + readGlbIndex(bin, accessors, views, primitive.indices, i));
-                        }
-                    }
-                }
-                for (int child : node.children)
-                {
-                    self(self, child, chain);
-                }
-                chain.pop_back();
-            };
-
-            std::vector<int> chain;
-            for (size_t i = 0; i < nodes.size(); ++i)
-            {
-                if (!hasParent[i])
-                {
-                    visitNode(visitNode, static_cast<int>(i), chain);
-                }
-            }
-            return mesh;
-        }
-
-        bool convertGlbToDpm(const std::filesystem::path& glbPath, const std::filesystem::path& dpmPath)
-        {
-            try
-            {
-                const PropMeshData mesh = convertGlbToDpmMesh(glbPath);
-                const std::vector<PropQuad> quads = convertTrianglesToQuads(mesh);
-                if (!writeDpm(dpmPath, quads))
-                {
-                    return false;
-                }
-                return dpmLooksValid(dpmPath);
-            }
-            catch (...)
-            {
-                return false;
-            }
-        }
-
-        void ensurePropModelBinary(const std::filesystem::path& modelDirectory, const std::string& modelName)
-        {
-            if (modelName.empty())
-            {
-                return;
-            }
-            const std::filesystem::path dpmPath = modelDirectory / (modelName + ".dpm");
-            const std::filesystem::path glbPath = modelDirectory / (modelName + ".glb");
-            bool needsConvert = !std::filesystem::exists(dpmPath) || !dpmLooksValid(dpmPath);
-            if (!needsConvert && std::filesystem::exists(glbPath))
-            {
-                try
-                {
-                    needsConvert = std::filesystem::last_write_time(glbPath) > std::filesystem::last_write_time(dpmPath);
-                }
-                catch (...)
-                {
-                    needsConvert = false;
-                }
-            }
-            if (!needsConvert)
-            {
-                return;
-            }
-            if (!std::filesystem::exists(glbPath))
-            {
-                log::warn("Prop model dpm is missing and glb was not found: " + modelName);
-                return;
-            }
-            log::info("Converting prop model: " + glbPath.string() + " -> " + dpmPath.string());
-            if (!convertGlbToDpm(glbPath, dpmPath))
-            {
-                log::warn("Failed to convert prop model: " + glbPath.string());
-            }
-        }
-
-        PropMeshData loadDpmMesh(const std::filesystem::path& dpmPath)
-        {
-            std::ifstream file(dpmPath, std::ios::binary | std::ios::ate);
-            if (!file.is_open())
-            {
-                return {};
-            }
-            const auto fileSize = static_cast<size_t>(file.tellg());
-            std::vector<uint8_t> bytes(fileSize);
-            file.seekg(0);
-            file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-            if (!file || bytes.size() < DpmHeaderSize)
-            {
-                return {};
-            }
-            const uint32_t quadCount = readU32At(bytes, 0);
-            if (bytes.size() != DpmHeaderSize + static_cast<size_t>(quadCount) * DpmQuadSize)
-            {
-                return {};
-            }
-            PropMeshData mesh;
-            mesh.vertices.reserve(static_cast<size_t>(quadCount) * 4u);
-            mesh.indices.reserve(static_cast<size_t>(quadCount) * 4u);
-            size_t offset = DpmHeaderSize;
-            for (uint32_t quad = 0; quad < quadCount; ++quad)
-            {
-                std::array<PropVertex, 4> vertices{};
-                for (PropVertex& vertex : vertices)
-                {
-                    for (float& value : vertex.position) { value = readF32At(bytes, offset); offset += sizeof(float); }
-                }
-                for (PropVertex& vertex : vertices)
-                {
-                    for (float& value : vertex.uv) { value = readF32At(bytes, offset); offset += sizeof(float); }
-                }
-                std::array<float, 3> normal{};
-                for (float& value : normal) { value = readF32At(bytes, offset); offset += sizeof(float); }
-
-                const uint32_t base = static_cast<uint32_t>(mesh.vertices.size());
-                for (PropVertex& vertex : vertices)
-                {
-                    vertex.normal = normal;
-                    mesh.vertices.push_back(vertex);
-                }
-                mesh.indices.push_back(base + 0u);
-                mesh.indices.push_back(base + 1u);
-                mesh.indices.push_back(base + 2u);
-                mesh.indices.push_back(base + 3u);
-            }
-            return mesh;
-        }
-
-        std::vector<uint8_t> lz4EncodeLiteralBlock(const std::vector<uint8_t>& raw)
-        {
-            std::vector<uint8_t> encoded;
-            encoded.reserve(raw.size() + raw.size() / 255 + 16);
-            const size_t literalLength = raw.size();
-            const uint8_t tokenLiteral = static_cast<uint8_t>(std::min<size_t>(literalLength, 15u));
-            encoded.push_back(static_cast<uint8_t>(tokenLiteral << 4u));
-            if (literalLength >= 15)
-            {
-                size_t remaining = literalLength - 15;
-                while (remaining >= 255)
-                {
-                    encoded.push_back(255);
-                    remaining -= 255;
-                }
-                encoded.push_back(static_cast<uint8_t>(remaining));
-            }
-            encoded.insert(encoded.end(), raw.begin(), raw.end());
-            return encoded;
-        }
-
-        std::vector<uint8_t> lz4DecodeBlock(const std::vector<uint8_t>& encoded, size_t rawSize)
-        {
-            std::vector<uint8_t> decoded;
-            decoded.reserve(rawSize);
-            size_t offset = 0;
-            while (offset < encoded.size() && decoded.size() < rawSize)
-            {
-                const uint8_t token = encoded[offset++];
-                size_t literalLength = token >> 4u;
-                if (literalLength == 15)
-                {
-                    uint8_t lengthByte = 0;
-                    do
-                    {
-                        if (offset >= encoded.size())
-                        {
-                            throw std::runtime_error("Invalid LZ4 literal length.");
-                        }
-                        lengthByte = encoded[offset++];
-                        literalLength += lengthByte;
-                    } while (lengthByte == 255);
-                }
-
-                if (offset + literalLength > encoded.size())
-                {
-                    throw std::runtime_error("Invalid LZ4 literal data.");
-                }
-                decoded.insert(decoded.end(), encoded.begin() + static_cast<std::ptrdiff_t>(offset), encoded.begin() + static_cast<std::ptrdiff_t>(offset + literalLength));
-                offset += literalLength;
-                if (decoded.size() >= rawSize)
-                {
-                    break;
-                }
-
-                if (offset + 2 > encoded.size())
-                {
-                    throw std::runtime_error("Invalid LZ4 match offset.");
-                }
-                const size_t matchOffset = static_cast<size_t>(encoded[offset]) |
-                    (static_cast<size_t>(encoded[offset + 1]) << 8u);
-                offset += 2;
-                size_t matchLength = token & 0x0Fu;
-                if (matchLength == 15)
-                {
-                    uint8_t lengthByte = 0;
-                    do
-                    {
-                        if (offset >= encoded.size())
-                        {
-                            throw std::runtime_error("Invalid LZ4 match length.");
-                        }
-                        lengthByte = encoded[offset++];
-                        matchLength += lengthByte;
-                    } while (lengthByte == 255);
-                }
-                matchLength += 4;
-                if (matchOffset == 0 || matchOffset > decoded.size())
-                {
-                    throw std::runtime_error("Invalid LZ4 match distance.");
-                }
-                for (size_t i = 0; i < matchLength; ++i)
-                {
-                    decoded.push_back(decoded[decoded.size() - matchOffset]);
-                }
-            }
-
-            if (decoded.size() != rawSize)
-            {
-                throw std::runtime_error("Invalid LZ4 decoded size.");
-            }
-            return decoded;
         }
 
         FastNoise::SmartNode<> terrainNoiseGenerator(float simplexScale, int octaveCount, float lacunarity, float gain)
@@ -2591,32 +467,6 @@ namespace dolbuto
             cache.gain = gain;
             cache.generator = createGenerator();
             return cache.generator;
-        }
-
-        int heightFromLut(const std::array<uint16_t, HeightLutCount>& heightLut, float noise)
-        {
-            constexpr float scale = static_cast<float>(HeightLutCount - 1u) / (HeightLutNoiseMax - HeightLutNoiseMin);
-            const float normalized = (noise - HeightLutNoiseMin) * scale;
-            const int index = std::clamp(
-                static_cast<int>(normalized + 0.5f),
-                0,
-                static_cast<int>(HeightLutCount - 1u));
-            return static_cast<int>(heightLut[static_cast<size_t>(index)]);
-        }
-
-        void convertNoiseToHeights(
-            const std::array<uint16_t, HeightLutCount>& heightLut,
-            const std::array<float, ChunkSizeX * ChunkSizeZ>& noise,
-            std::array<int, ChunkSizeX * ChunkSizeZ>& heights)
-        {
-            constexpr float scale = static_cast<float>(HeightLutCount - 1u) / (HeightLutNoiseMax - HeightLutNoiseMin);
-            constexpr int maxIndex = static_cast<int>(HeightLutCount - 1u);
-            for (size_t i = 0; i < noise.size(); ++i)
-            {
-                const float normalized = (noise[i] - HeightLutNoiseMin) * scale;
-                const int index = std::clamp(static_cast<int>(normalized + 0.5f), 0, maxIndex);
-                heights[i] = static_cast<int>(heightLut[static_cast<size_t>(index)]);
-            }
         }
 
         std::string formatProfileMs(const char* label, double milliseconds)
@@ -5068,11 +2918,11 @@ namespace dolbuto
 
         const std::vector<char> blockDefinitionData = readFile((assetDir / "data" / "blocks.json").string());
         const std::string blockDefinitionText(blockDefinitionData.begin(), blockDefinitionData.end());
-        const std::vector<ParsedBlockDefinition> blockDefinitions = parseBlockDefinitions(blockDefinitionText);
+        const std::vector<data::ParsedBlockDefinition> blockDefinitions = data::parseBlockDefinitions(blockDefinitionText);
 
         const std::vector<char> itemDefinitionData = readFile((assetDir / "data" / "items.json").string());
         const std::string itemDefinitionText(itemDefinitionData.begin(), itemDefinitionData.end());
-        const std::vector<ParsedItemDefinition> itemDefinitions = parseItemDefinitions(itemDefinitionText);
+        const std::vector<data::ParsedItemDefinition> itemDefinitions = data::parseItemDefinitions(itemDefinitionText);
 
         auto parseItemRenderType = [](const std::string& value)
         {
@@ -5101,7 +2951,7 @@ namespace dolbuto
             itemTextureNames.push_back(textureName);
             return layer;
         };
-        for (const ParsedItemDefinition& definition : itemDefinitions)
+        for (const data::ParsedItemDefinition& definition : itemDefinitions)
         {
             const std::string droppedTexture = definition.droppedTexture != "none" ? definition.droppedTexture : definition.texture;
             const std::string heldTexture = definition.heldTexture != "none" ? definition.heldTexture : droppedTexture;
@@ -5190,7 +3040,7 @@ namespace dolbuto
 
         blockDefinitions_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
         blockTextureLayers_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
-        for (const ParsedBlockDefinition& definition : blockDefinitions)
+        for (const data::ParsedBlockDefinition& definition : blockDefinitions)
         {
             BlockDefinition blockDefinition{};
             blockDefinition.name = definition.name;
@@ -5271,15 +3121,15 @@ namespace dolbuto
 
         const std::filesystem::path propModelDirectory = assetDir / "textures" / "block" / "model";
         std::unordered_set<std::string> checkedPropModels;
-        for (const ParsedBlockDefinition& definition : blockDefinitions)
+        for (const data::ParsedBlockDefinition& definition : blockDefinitions)
         {
             if (definition.renderType == "prop" && !definition.propModel.empty() && checkedPropModels.insert(definition.propModel).second)
             {
-                ensurePropModelBinary(propModelDirectory, definition.propModel);
+                assets::ensurePropModelBinary(propModelDirectory, definition.propModel);
             }
         }
         propMeshesByBlock_.clear();
-        for (const ParsedBlockDefinition& definition : blockDefinitions)
+        for (const data::ParsedBlockDefinition& definition : blockDefinitions)
         {
             if (definition.renderType != "prop" || definition.propModel.empty())
             {
@@ -5287,29 +3137,11 @@ namespace dolbuto
             }
 
             const std::filesystem::path dpmPath = propModelDirectory / (definition.propModel + ".dpm");
-            PropMeshData loadedMesh = loadDpmMesh(dpmPath);
-            if (loadedMesh.vertices.empty() || loadedMesh.indices.empty())
+            assets::PropMesh mesh = assets::loadDpmRenderMesh(dpmPath);
+            if (mesh.quads.empty())
             {
                 log::warn("Prop model dpm could not be loaded: " + dpmPath.string());
                 continue;
-            }
-            PropMesh mesh{};
-            mesh.quads.reserve((loadedMesh.vertices.size() / 4u) * DpmQuadRenderFloatCount);
-            for (size_t vertexOffset = 0; vertexOffset + 3u < loadedMesh.vertices.size(); vertexOffset += 4u)
-            {
-                for (size_t vertexIndex = 0; vertexIndex < 4u; ++vertexIndex)
-                {
-                    const PropVertex& vertex = loadedMesh.vertices[vertexOffset + vertexIndex];
-                    mesh.quads.push_back(vertex.position[0]);
-                    mesh.quads.push_back(vertex.position[1]);
-                    mesh.quads.push_back(vertex.position[2]);
-                }
-                for (size_t vertexIndex = 0; vertexIndex < 4u; ++vertexIndex)
-                {
-                    const PropVertex& vertex = loadedMesh.vertices[vertexOffset + vertexIndex];
-                    mesh.quads.push_back(vertex.uv[0]);
-                    mesh.quads.push_back(vertex.uv[1]);
-                }
             }
             propMeshesByBlock_[definition.id] = std::move(mesh);
         }
@@ -5647,652 +3479,36 @@ namespace dolbuto
 
     void Renderer::initializeAudio()
     {
-        auto* device = alcOpenDevice(nullptr);
-        if (device == nullptr)
-        {
-            log::warn("OpenAL device open failed.");
-            return;
-        }
-
-        auto* context = alcCreateContext(device, nullptr);
-        if (context == nullptr)
-        {
-            log::warn("OpenAL context creation failed.");
-            alcCloseDevice(device);
-            return;
-        }
-
-        if (alcMakeContextCurrent(context) == ALC_FALSE)
-        {
-            log::warn("OpenAL context activation failed.");
-            alcDestroyContext(context);
-            alcCloseDevice(device);
-            return;
-        }
-
-        audioDevice_ = device;
-        audioContext_ = context;
-        audioAvailable_ = true;
-
-        alGenSources(static_cast<ALsizei>(audioSources_.size()), reinterpret_cast<ALuint*>(audioSources_.data()));
-        if (alGetError() != AL_NO_ERROR)
-        {
-            log::warn("OpenAL source creation failed.");
-            shutdownAudio();
-            return;
-        }
-
-        ALuint musicSource = 0;
-        alGenSources(1, &musicSource);
-        if (alGetError() != AL_NO_ERROR || musicSource == 0)
-        {
-            log::warn("OpenAL music source creation failed.");
-            shutdownAudio();
-            return;
-        }
-        musicSource_ = static_cast<uint32_t>(musicSource);
-
-        loadAudioAssets();
+        audio_.initialize(assetDirectory());
     }
 
     void Renderer::shutdownAudio()
     {
-        if (!audioAvailable_)
-        {
-            return;
-        }
-
-        alSourceStopv(static_cast<ALsizei>(audioSources_.size()), reinterpret_cast<const ALuint*>(audioSources_.data()));
-        alDeleteSources(static_cast<ALsizei>(audioSources_.size()), reinterpret_cast<const ALuint*>(audioSources_.data()));
-        audioSources_.fill(0);
-        if (musicSource_ != 0)
-        {
-            closeMusicStream();
-            const ALuint source = static_cast<ALuint>(musicSource_);
-            alSourceStop(source);
-            alSourcei(source, AL_BUFFER, 0);
-            alDeleteSources(1, &source);
-            musicSource_ = 0;
-        }
-        if (blockBreakSound_ != 0)
-        {
-            const ALuint buffer = static_cast<ALuint>(blockBreakSound_);
-            alDeleteBuffers(1, &buffer);
-            blockBreakSound_ = 0;
-        }
-        if (buttonClickSound_ != 0)
-        {
-            const ALuint buffer = static_cast<ALuint>(buttonClickSound_);
-            alDeleteBuffers(1, &buffer);
-            buttonClickSound_ = 0;
-        }
-        if (blockPlaceSound_ != 0)
-        {
-            const ALuint buffer = static_cast<ALuint>(blockPlaceSound_);
-            alDeleteBuffers(1, &buffer);
-            blockPlaceSound_ = 0;
-        }
-        if (itemPickupSound_ != 0)
-        {
-            const ALuint buffer = static_cast<ALuint>(itemPickupSound_);
-            alDeleteBuffers(1, &buffer);
-            itemPickupSound_ = 0;
-        }
-        musicTracks_.clear();
-
-        alcMakeContextCurrent(nullptr);
-        if (audioContext_ != nullptr)
-        {
-            alcDestroyContext(static_cast<ALCcontext*>(audioContext_));
-            audioContext_ = nullptr;
-        }
-        if (audioDevice_ != nullptr)
-        {
-            alcCloseDevice(static_cast<ALCdevice*>(audioDevice_));
-            audioDevice_ = nullptr;
-        }
-        audioAvailable_ = false;
-        nextAudioSource_ = 0;
-        activeMusicScene_ = MusicScene::None;
-        nextMusicStartTime_ = 0.0;
-        lastMusicTrackIndex_ = static_cast<size_t>(-1);
-    }
-
-    void Renderer::loadAudioAssets()
-    {
-        const std::filesystem::path sfxDir = assetDirectory() / "audio" / "sfx";
-        blockBreakSound_ = loadWavSound(sfxDir / "Break.wav", true);
-        buttonClickSound_ = loadWavSound(sfxDir / "Button_Click.wav");
-        blockPlaceSound_ = loadWavSound(sfxDir / "Place.wav", true);
-        itemPickupSound_ = loadWavSound(sfxDir / "Pop.wav");
-        loadMusicAssets();
-    }
-
-    void Renderer::loadMusicAssets()
-    {
-        const std::filesystem::path musicDir = assetDirectory() / "audio" / "music";
-        try
-        {
-            if (!std::filesystem::exists(musicDir))
-            {
-                return;
-            }
-
-            for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(musicDir))
-            {
-                if (!entry.is_regular_file())
-                {
-                    continue;
-                }
-
-                std::string extension = entry.path().extension().string();
-                std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value)
-                {
-                    return static_cast<char>(std::tolower(value));
-                });
-
-                if (extension == ".ogg")
-                {
-                    musicTracks_.push_back({entry.path(), MusicTrackType::Ogg});
-                }
-                else if (extension == ".wav")
-                {
-                    musicTracks_.push_back({entry.path(), MusicTrackType::Wav});
-                }
-            }
-
-            std::sort(musicTracks_.begin(), musicTracks_.end(), [](const MusicTrack& left, const MusicTrack& right)
-            {
-                return left.path.string() < right.path.string();
-            });
-
-            if (musicTracks_.empty())
-            {
-                log::warn("No playable music files found: " + musicDir.string());
-            }
-        }
-        catch (const std::exception& error)
-        {
-            log::warn(std::string("Music directory scan failed: ") + error.what());
-        }
-    }
-
-    uint32_t Renderer::loadWavSound(const std::filesystem::path& path, bool forceMono)
-    {
-        if (!audioAvailable_)
-        {
-            return 0;
-        }
-
-        try
-        {
-            WavSoundData sound = decodeWavPcm16(path);
-            if (forceMono && sound.channels == 2u)
-            {
-                std::vector<char> mono;
-                mono.resize(sound.pcm.size() / 2u);
-                const size_t stereoSampleCount = sound.pcm.size() / sizeof(int16_t);
-                for (size_t stereoIndex = 0, monoIndex = 0; stereoIndex + 1u < stereoSampleCount; stereoIndex += 2u, ++monoIndex)
-                {
-                    int16_t left = 0;
-                    int16_t right = 0;
-                    std::memcpy(&left, sound.pcm.data() + stereoIndex * sizeof(int16_t), sizeof(left));
-                    std::memcpy(&right, sound.pcm.data() + (stereoIndex + 1u) * sizeof(int16_t), sizeof(right));
-                    const int16_t mixed = static_cast<int16_t>((static_cast<int>(left) + static_cast<int>(right)) / 2);
-                    std::memcpy(mono.data() + monoIndex * sizeof(int16_t), &mixed, sizeof(mixed));
-                }
-                sound.pcm = std::move(mono);
-                sound.channels = 1u;
-                sound.format = AL_FORMAT_MONO16;
-            }
-            ALuint buffer = 0;
-            alGenBuffers(1, &buffer);
-            alBufferData(buffer, sound.format, sound.pcm.data(), static_cast<ALsizei>(sound.pcm.size()), sound.sampleRate);
-            if (alGetError() != AL_NO_ERROR)
-            {
-                if (buffer != 0)
-                {
-                    alDeleteBuffers(1, &buffer);
-                }
-                log::warn("OpenAL buffer upload failed: " + path.string());
-                return 0;
-            }
-            return static_cast<uint32_t>(buffer);
-        }
-        catch (const std::exception& error)
-        {
-            log::warn(error.what());
-            return 0;
-        }
-    }
-
-    uint32_t Renderer::acquireAudioSource()
-    {
-        if (!audioAvailable_ || audioSources_.empty())
-        {
-            return 0;
-        }
-
-        const uint32_t source = audioSources_[nextAudioSource_ % audioSources_.size()];
-        nextAudioSource_ = (nextAudioSource_ + 1u) % audioSources_.size();
-        alSourceStop(static_cast<ALuint>(source));
-        alSourcei(static_cast<ALuint>(source), AL_BUFFER, 0);
-        return source;
+        audio_.shutdown();
     }
 
     void Renderer::updateAudioListener(const Camera& camera, Vec3 cameraPosition)
     {
-        if (!audioAvailable_)
-        {
-            return;
-        }
-
-        const Vec3 forward = camera.forward();
-        const Vec3 up = camera.up();
-        const std::array<ALfloat, 6> orientation = {
-            forward.x, forward.y, forward.z,
-            up.x, up.y, up.z
-        };
-        alListener3f(AL_POSITION, cameraPosition.x, cameraPosition.y, cameraPosition.z);
-        alListener3f(AL_VELOCITY, 0.0f, 0.0f, 0.0f);
-        alListenerfv(AL_ORIENTATION, orientation.data());
+        audio_.updateListener(cameraPosition, camera.forward(), camera.up());
     }
 
     void Renderer::updateMusicPlayback(int menuOverlayMode, bool gameSceneRenderEnabled)
     {
-        if (!audioAvailable_ || musicSource_ == 0 || musicTracks_.empty())
-        {
-            return;
-        }
-
-        MusicScene scene = MusicScene::None;
+        audio::MusicScene scene = audio::MusicScene::None;
         if (gameSceneRenderEnabled)
         {
-            scene = MusicScene::Game;
+            scene = audio::MusicScene::Game;
         }
         else if (menuOverlayMode == 1 || menuOverlayMode == 3 || menuOverlayMode == 4)
         {
-            scene = MusicScene::Lobby;
+            scene = audio::MusicScene::Lobby;
         }
-
-        if (scene != activeMusicScene_)
-        {
-            resetMusicPlayback(scene);
-        }
-        if (scene == MusicScene::None)
-        {
-            return;
-        }
-
-        if (musicStreamActive_)
-        {
-            updateMusicStream();
-            return;
-        }
-
-        ALint state = AL_STOPPED;
-        alGetSourcei(static_cast<ALuint>(musicSource_), AL_SOURCE_STATE, &state);
-        if (musicLazyBuffer_ != 0)
-        {
-            if (state == AL_PLAYING || state == AL_PAUSED)
-            {
-                return;
-            }
-            closeMusicStream();
-            scheduleNextMusic();
-            return;
-        }
-
-        if (state == AL_PLAYING || state == AL_PAUSED)
-        {
-            return;
-        }
-
-        const double now = glfwGetTime();
-        if (nextMusicStartTime_ <= 0.0)
-        {
-            scheduleNextMusic();
-            return;
-        }
-        if (now < nextMusicStartTime_)
-        {
-            return;
-        }
-
-        std::uniform_int_distribution<size_t> trackDistribution(0, musicTracks_.size() - 1u);
-        size_t trackIndex = trackDistribution(musicRandom_);
-        if (musicTracks_.size() > 1u && trackIndex == lastMusicTrackIndex_)
-        {
-            trackIndex = (trackIndex + 1u) % musicTracks_.size();
-        }
-        if (!startMusicTrack(trackIndex))
-        {
-            scheduleNextMusic();
-        }
-    }
-
-    bool Renderer::startMusicTrack(size_t trackIndex)
-    {
-        if (!audioAvailable_ || musicSource_ == 0 || trackIndex >= musicTracks_.size())
-        {
-            return false;
-        }
-
-        closeMusicStream();
-        const MusicTrack& track = musicTracks_[trackIndex];
-        if (track.type == MusicTrackType::Wav)
-        {
-            const uint32_t buffer = loadWavSound(track.path);
-            if (buffer == 0)
-            {
-                return false;
-            }
-
-            musicLazyBuffer_ = buffer;
-            lastMusicTrackIndex_ = trackIndex;
-            const ALuint source = static_cast<ALuint>(musicSource_);
-            alSourcei(source, AL_BUFFER, static_cast<ALint>(musicLazyBuffer_));
-            alSourcei(source, AL_SOURCE_RELATIVE, AL_TRUE);
-            alSource3f(source, AL_POSITION, 0.0f, 0.0f, 0.0f);
-            alSourcef(source, AL_GAIN, 1.0f);
-            alSourcePlay(source);
-            if (alGetError() != AL_NO_ERROR)
-            {
-                closeMusicStream();
-                log::warn("OpenAL music WAV playback failed: " + track.path.string());
-                return false;
-            }
-            nextMusicStartTime_ = 0.0;
-            return true;
-        }
-
-        int error = 0;
-        const std::string pathString = track.path.string();
-        stb_vorbis* decoder = stb_vorbis_open_filename(pathString.c_str(), &error, nullptr);
-        if (decoder == nullptr)
-        {
-            log::warn("OGG stream open failed: " + pathString);
-            return false;
-        }
-
-        const stb_vorbis_info info = stb_vorbis_get_info(decoder);
-        if (info.channels == 1)
-        {
-            musicStreamFormat_ = AL_FORMAT_MONO16;
-        }
-        else if (info.channels == 2)
-        {
-            musicStreamFormat_ = AL_FORMAT_STEREO16;
-        }
-        else
-        {
-            stb_vorbis_close(decoder);
-            log::warn("Unsupported OGG channel count: " + pathString);
-            return false;
-        }
-
-        musicDecoder_ = decoder;
-        musicStreamChannels_ = info.channels;
-        musicStreamSampleRate_ = static_cast<int>(info.sample_rate);
-        const size_t framesPerBuffer = std::max<size_t>(1u, static_cast<size_t>(static_cast<float>(musicStreamSampleRate_) * MusicStreamBufferSeconds));
-        musicStreamPcm_.assign(framesPerBuffer * static_cast<size_t>(musicStreamChannels_), 0);
-
-        ALuint buffers[3]{};
-        alGenBuffers(static_cast<ALsizei>(musicStreamBuffers_.size()), buffers);
-        if (alGetError() != AL_NO_ERROR)
-        {
-            closeMusicStream();
-            log::warn("OpenAL music stream buffer creation failed.");
-            return false;
-        }
-        for (size_t index = 0; index < musicStreamBuffers_.size(); ++index)
-        {
-            musicStreamBuffers_[index] = static_cast<uint32_t>(buffers[index]);
-        }
-
-        std::array<ALuint, 3> queuedBuffers{};
-        ALsizei queuedCount = 0;
-        for (uint32_t buffer : musicStreamBuffers_)
-        {
-            if (!fillMusicStreamBuffer(buffer))
-            {
-                break;
-            }
-            queuedBuffers[static_cast<size_t>(queuedCount)] = static_cast<ALuint>(buffer);
-            ++queuedCount;
-        }
-        if (queuedCount == 0)
-        {
-            closeMusicStream();
-            log::warn("OGG stream has no playable samples: " + pathString);
-            return false;
-        }
-
-        const ALuint source = static_cast<ALuint>(musicSource_);
-        alSourcei(source, AL_SOURCE_RELATIVE, AL_TRUE);
-        alSource3f(source, AL_POSITION, 0.0f, 0.0f, 0.0f);
-        alSourcef(source, AL_GAIN, 1.0f);
-        alSourceQueueBuffers(source, queuedCount, queuedBuffers.data());
-        alSourcePlay(source);
-        if (alGetError() != AL_NO_ERROR)
-        {
-            closeMusicStream();
-            log::warn("OpenAL music stream playback failed: " + pathString);
-            return false;
-        }
-
-        musicStreamActive_ = true;
-        musicStreamFinished_ = queuedCount < static_cast<ALsizei>(musicStreamBuffers_.size());
-        lastMusicTrackIndex_ = trackIndex;
-        nextMusicStartTime_ = 0.0;
-        return true;
-    }
-
-    bool Renderer::fillMusicStreamBuffer(uint32_t buffer)
-    {
-        if (musicDecoder_ == nullptr || buffer == 0 || musicStreamChannels_ <= 0 || musicStreamSampleRate_ <= 0 || musicStreamPcm_.empty())
-        {
-            return false;
-        }
-
-        const int sampleCapacity = static_cast<int>(std::min<size_t>(musicStreamPcm_.size(), static_cast<size_t>(std::numeric_limits<int>::max())));
-        const int frames = stb_vorbis_get_samples_short_interleaved(
-            static_cast<stb_vorbis*>(musicDecoder_),
-            musicStreamChannels_,
-            musicStreamPcm_.data(),
-            sampleCapacity);
-        if (frames <= 0)
-        {
-            return false;
-        }
-
-        const size_t pcmBytes = static_cast<size_t>(frames) * static_cast<size_t>(musicStreamChannels_) * sizeof(int16_t);
-        if (pcmBytes > static_cast<size_t>(std::numeric_limits<ALsizei>::max()))
-        {
-            return false;
-        }
-
-        alBufferData(
-            static_cast<ALuint>(buffer),
-            static_cast<ALenum>(musicStreamFormat_),
-            musicStreamPcm_.data(),
-            static_cast<ALsizei>(pcmBytes),
-            static_cast<ALsizei>(musicStreamSampleRate_));
-        return alGetError() == AL_NO_ERROR;
-    }
-
-    bool Renderer::updateMusicStream()
-    {
-        if (!audioAvailable_ || !musicStreamActive_ || musicSource_ == 0)
-        {
-            return false;
-        }
-
-        const ALuint source = static_cast<ALuint>(musicSource_);
-        ALint processedCount = 0;
-        alGetSourcei(source, AL_BUFFERS_PROCESSED, &processedCount);
-        while (processedCount > 0)
-        {
-            ALuint buffer = 0;
-            alSourceUnqueueBuffers(source, 1, &buffer);
-            --processedCount;
-            if (buffer == 0)
-            {
-                continue;
-            }
-            if (!musicStreamFinished_ && fillMusicStreamBuffer(static_cast<uint32_t>(buffer)))
-            {
-                alSourceQueueBuffers(source, 1, &buffer);
-            }
-            else
-            {
-                musicStreamFinished_ = true;
-            }
-        }
-
-        ALint queuedCount = 0;
-        alGetSourcei(source, AL_BUFFERS_QUEUED, &queuedCount);
-        if (queuedCount <= 0 && musicStreamFinished_)
-        {
-            closeMusicStream();
-            scheduleNextMusic();
-            return false;
-        }
-
-        ALint state = AL_STOPPED;
-        alGetSourcei(source, AL_SOURCE_STATE, &state);
-        if (queuedCount > 0 && state != AL_PLAYING && state != AL_PAUSED)
-        {
-            alSourcePlay(source);
-        }
-        return queuedCount > 0;
-    }
-
-    void Renderer::resetMusicPlayback(MusicScene scene)
-    {
-        stopMusicPlayback();
-        activeMusicScene_ = scene;
-        lastMusicTrackIndex_ = static_cast<size_t>(-1);
-        if (scene == MusicScene::Lobby)
-        {
-            nextMusicStartTime_ = glfwGetTime();
-        }
-        else if (scene != MusicScene::None)
-        {
-            scheduleNextMusic();
-        }
-    }
-
-    void Renderer::stopMusicPlayback()
-    {
-        closeMusicStream();
-        nextMusicStartTime_ = 0.0;
-    }
-
-    void Renderer::closeMusicStream()
-    {
-        if (musicSource_ != 0)
-        {
-            const ALuint source = static_cast<ALuint>(musicSource_);
-            alSourceStop(source);
-            if (musicStreamActive_ || musicDecoder_ != nullptr)
-            {
-                ALint queuedCount = 0;
-                alGetSourcei(source, AL_BUFFERS_QUEUED, &queuedCount);
-                while (queuedCount > 0)
-                {
-                    ALuint buffer = 0;
-                    alSourceUnqueueBuffers(source, 1, &buffer);
-                    --queuedCount;
-                }
-            }
-            alSourcei(source, AL_BUFFER, 0);
-        }
-
-        if (musicDecoder_ != nullptr)
-        {
-            stb_vorbis_close(static_cast<stb_vorbis*>(musicDecoder_));
-            musicDecoder_ = nullptr;
-        }
-
-        for (uint32_t& buffer : musicStreamBuffers_)
-        {
-            if (buffer != 0)
-            {
-                const ALuint alBuffer = static_cast<ALuint>(buffer);
-                alDeleteBuffers(1, &alBuffer);
-                buffer = 0;
-            }
-        }
-
-        if (musicLazyBuffer_ != 0)
-        {
-            const ALuint buffer = static_cast<ALuint>(musicLazyBuffer_);
-            alDeleteBuffers(1, &buffer);
-            musicLazyBuffer_ = 0;
-        }
-
-        musicStreamChannels_ = 0;
-        musicStreamSampleRate_ = 0;
-        musicStreamFormat_ = 0;
-        musicStreamPcm_.clear();
-        musicStreamActive_ = false;
-        musicStreamFinished_ = false;
-    }
-
-    void Renderer::scheduleNextMusic()
-    {
-        std::uniform_real_distribution<double> delayDistribution(MusicMinDelaySeconds, MusicMaxDelaySeconds);
-        nextMusicStartTime_ = glfwGetTime() + delayDistribution(musicRandom_);
-    }
-
-    void Renderer::playSfx2D(uint32_t buffer, float gain)
-    {
-        if (!audioAvailable_ || buffer == 0)
-        {
-            return;
-        }
-
-        const uint32_t source = acquireAudioSource();
-        if (source == 0)
-        {
-            return;
-        }
-
-        alSourcei(static_cast<ALuint>(source), AL_BUFFER, static_cast<ALint>(buffer));
-        alSourcei(static_cast<ALuint>(source), AL_SOURCE_RELATIVE, AL_TRUE);
-        alSource3f(static_cast<ALuint>(source), AL_POSITION, 0.0f, 0.0f, 0.0f);
-        alSourcef(static_cast<ALuint>(source), AL_GAIN, gain);
-        alSourcePlay(static_cast<ALuint>(source));
-    }
-
-    void Renderer::playSfx3D(uint32_t buffer, Vec3 position, float gain)
-    {
-        if (!audioAvailable_ || buffer == 0)
-        {
-            return;
-        }
-
-        const uint32_t source = acquireAudioSource();
-        if (source == 0)
-        {
-            return;
-        }
-
-        alSourcei(static_cast<ALuint>(source), AL_BUFFER, static_cast<ALint>(buffer));
-        alSourcei(static_cast<ALuint>(source), AL_SOURCE_RELATIVE, AL_FALSE);
-        alSource3f(static_cast<ALuint>(source), AL_POSITION, position.x, position.y, position.z);
-        alSource3f(static_cast<ALuint>(source), AL_VELOCITY, 0.0f, 0.0f, 0.0f);
-        alSourcef(static_cast<ALuint>(source), AL_GAIN, gain);
-        alSourcef(static_cast<ALuint>(source), AL_REFERENCE_DISTANCE, 8.0f);
-        alSourcef(static_cast<ALuint>(source), AL_MAX_DISTANCE, 48.0f);
-        alSourcef(static_cast<ALuint>(source), AL_ROLLOFF_FACTOR, 1.0f);
-        alSourcePlay(static_cast<ALuint>(source));
+        audio_.updateMusicPlayback(scene, glfwGetTime());
     }
 
     void Renderer::playBlockBreakSound(int x, int y, int z)
     {
-        playSfx3D(blockBreakSound_, Vec3{
+        audio_.playBlockBreak(Vec3{
             static_cast<float>(x),
             static_cast<float>(y) + 0.5f,
             static_cast<float>(z)
@@ -6301,7 +3517,7 @@ namespace dolbuto
 
     void Renderer::playBlockPlaceSound(int x, int y, int z)
     {
-        playSfx3D(blockPlaceSound_, Vec3{
+        audio_.playBlockPlace(Vec3{
             static_cast<float>(x),
             static_cast<float>(y) + 0.5f,
             static_cast<float>(z)
@@ -6310,188 +3526,77 @@ namespace dolbuto
 
     void Renderer::playItemPickupSound()
     {
-        playSfx2D(itemPickupSound_);
+        audio_.playItemPickup();
     }
 
     void Renderer::loadWorldConfig()
     {
-        loadGridScale_ = DefaultLoadGridScale;
-        terrainWorkerCount_ = DefaultTerrainWorkerCount;
-        maxTerrainUploadChunksPerFrame_ = DefaultMaxTerrainUploadChunksPerFrame;
-        maxTerrainUnloadChunksPerFrame_ = DefaultMaxTerrainUnloadChunksPerFrame;
-        maxTerrainRetiredDestroyPerFrame_ = DefaultMaxTerrainRetiredDestroyPerFrame;
-        terrainNoiseFeatureScale_ = DefaultTerrainNoiseFeatureScale;
-        terrainNoiseOctaveCount_ = DefaultTerrainNoiseOctaveCount;
-        terrainNoiseLacunarity_ = DefaultTerrainNoiseLacunarity;
-        terrainNoiseGain_ = DefaultTerrainNoiseGain;
-        terrainNoiseSimplexScale_ = DefaultTerrainNoiseSimplexScale;
-        terrainDomainWarpEnabled_ = DefaultTerrainDomainWarpEnabled;
-        terrainDomainWarpAmplitude_ = DefaultTerrainDomainWarpAmplitude;
-        terrainDomainWarpFrequency_ = DefaultTerrainDomainWarpFrequency;
-        terrainDomainWarpOctaveCount_ = DefaultTerrainDomainWarpOctaveCount;
-        terrainDomainWarpGain_ = DefaultTerrainDomainWarpGain;
-        temperatureNoiseStrength_ = DefaultTemperatureNoiseStrength;
-        temperatureNoiseFeatureScale_ = DefaultTemperatureNoiseFeatureScale;
-        temperatureNoiseOctaveCount_ = DefaultTemperatureNoiseOctaveCount;
-        temperatureNoiseLacunarity_ = DefaultTemperatureNoiseLacunarity;
-        temperatureNoiseGain_ = DefaultTemperatureNoiseGain;
-        temperatureNoiseSimplexScale_ = DefaultTemperatureNoiseSimplexScale;
-        precipitationNoiseFeatureScale_ = DefaultPrecipitationNoiseFeatureScale;
-        precipitationNoiseOctaveCount_ = DefaultPrecipitationNoiseOctaveCount;
-        precipitationNoiseLacunarity_ = DefaultPrecipitationNoiseLacunarity;
-        precipitationNoiseGain_ = DefaultPrecipitationNoiseGain;
-        precipitationNoiseSimplexScale_ = DefaultPrecipitationNoiseSimplexScale;
-        seaLevel_ = DefaultSeaLevel;
+        config::WorldConfig defaults{};
+        defaults.loadGridScale = DefaultLoadGridScale;
+        defaults.terrainWorkerCount = DefaultTerrainWorkerCount;
+        defaults.maxTerrainUploadChunksPerFrame = DefaultMaxTerrainUploadChunksPerFrame;
+        defaults.maxTerrainUnloadChunksPerFrame = DefaultMaxTerrainUnloadChunksPerFrame;
+        defaults.maxTerrainRetiredDestroyPerFrame = DefaultMaxTerrainRetiredDestroyPerFrame;
+        defaults.terrainNoiseFeatureScale = DefaultTerrainNoiseFeatureScale;
+        defaults.terrainNoiseOctaveCount = DefaultTerrainNoiseOctaveCount;
+        defaults.terrainNoiseLacunarity = DefaultTerrainNoiseLacunarity;
+        defaults.terrainNoiseGain = DefaultTerrainNoiseGain;
+        defaults.terrainNoiseSimplexScale = DefaultTerrainNoiseSimplexScale;
+        defaults.terrainDomainWarpEnabled = DefaultTerrainDomainWarpEnabled;
+        defaults.terrainDomainWarpAmplitude = DefaultTerrainDomainWarpAmplitude;
+        defaults.terrainDomainWarpFrequency = DefaultTerrainDomainWarpFrequency;
+        defaults.terrainDomainWarpOctaveCount = DefaultTerrainDomainWarpOctaveCount;
+        defaults.terrainDomainWarpGain = DefaultTerrainDomainWarpGain;
+        defaults.temperatureNoiseStrength = DefaultTemperatureNoiseStrength;
+        defaults.temperatureNoiseFeatureScale = DefaultTemperatureNoiseFeatureScale;
+        defaults.temperatureNoiseOctaveCount = DefaultTemperatureNoiseOctaveCount;
+        defaults.temperatureNoiseLacunarity = DefaultTemperatureNoiseLacunarity;
+        defaults.temperatureNoiseGain = DefaultTemperatureNoiseGain;
+        defaults.temperatureNoiseSimplexScale = DefaultTemperatureNoiseSimplexScale;
+        defaults.precipitationNoiseFeatureScale = DefaultPrecipitationNoiseFeatureScale;
+        defaults.precipitationNoiseOctaveCount = DefaultPrecipitationNoiseOctaveCount;
+        defaults.precipitationNoiseLacunarity = DefaultPrecipitationNoiseLacunarity;
+        defaults.precipitationNoiseGain = DefaultPrecipitationNoiseGain;
+        defaults.precipitationNoiseSimplexScale = DefaultPrecipitationNoiseSimplexScale;
+        defaults.seaLevel = DefaultSeaLevel;
 
-        const std::filesystem::path path = configDirectory() / "world.json";
-        std::ifstream file(path);
-        if (!file.is_open())
-        {
-            return;
-        }
-
-        std::ostringstream contents;
-        contents << file.rdbuf();
-        const std::string text = contents.str();
-        const std::string chunkLoad = jsonObjectField(text, "chunkLoad").value_or("{}");
-        const std::string terrain = jsonObjectField(text, "terrain").value_or("{}");
-        const std::string terrainDomainWarp = jsonObjectField(terrain, "domainWarp").value_or("{}");
-        const std::string terrainBaseNoise = jsonObjectField(terrain, "baseNoise").value_or("{}");
-        const std::string climate = jsonObjectField(text, "climate").value_or("{}");
-        const std::string temperature = jsonObjectField(climate, "temperature").value_or("{}");
-        const std::string precipitation = jsonObjectField(climate, "precipitation").value_or("{}");
-        if (const std::optional<int> value = jsonIntField(terrain, "seaLevel"); value.has_value())
-        {
-            seaLevel_ = std::clamp(*value, 0, ChunkSizeY - 1);
-        }
-
-        if (const std::optional<int> value = jsonIntField(chunkLoad, "loadGridScale"); value.has_value())
-        {
-            loadGridScale_ = std::max(0, *value);
-        }
-        if (const std::optional<int> value = jsonIntField(chunkLoad, "workerCount"); value.has_value())
-        {
-            terrainWorkerCount_ = std::clamp(*value, 1, 16);
-        }
-        if (const std::optional<int> value = jsonIntField(chunkLoad, "maxCompletedChunksAppliedPerFrame"); value.has_value())
-        {
-            maxTerrainUploadChunksPerFrame_ = std::clamp(*value, 1, 64);
-        }
-        if (const std::optional<int> value = jsonIntField(chunkLoad, "maxUnloadedChunksPerFrame"); value.has_value())
-        {
-            maxTerrainUnloadChunksPerFrame_ = std::clamp(*value, 1, 64);
-        }
-        if (const std::optional<int> value = jsonIntField(chunkLoad, "maxRetiredChunksDestroyedPerFrame"); value.has_value())
-        {
-            maxTerrainRetiredDestroyPerFrame_ = std::clamp(*value, 1, 64);
-        }
-        if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "featureScale"); value.has_value() && *value > 0.0f)
-        {
-            terrainNoiseFeatureScale_ = *value;
-        }
-        if (const std::optional<int> value = jsonIntField(terrainBaseNoise, "octaveCount"); value.has_value())
-        {
-            terrainNoiseOctaveCount_ = std::clamp(*value, 1, 16);
-        }
-        if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "lacunarity"); value.has_value() && *value > 0.0f)
-        {
-            terrainNoiseLacunarity_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "gain"); value.has_value() && *value >= 0.0f)
-        {
-            terrainNoiseGain_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "simplexScale"); value.has_value() && *value > 0.0f)
-        {
-            terrainNoiseSimplexScale_ = *value;
-        }
-        if (const std::optional<bool> value = jsonBoolField(terrainDomainWarp, "enabled"); value.has_value())
-        {
-            terrainDomainWarpEnabled_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(terrainDomainWarp, "amplitude"); value.has_value() && *value >= 0.0f)
-        {
-            terrainDomainWarpAmplitude_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(terrainDomainWarp, "frequency"); value.has_value() && *value > 0.0f)
-        {
-            terrainDomainWarpFrequency_ = *value;
-        }
-        if (const std::optional<int> value = jsonIntField(terrainDomainWarp, "octaveCount"); value.has_value())
-        {
-            terrainDomainWarpOctaveCount_ = std::clamp(*value, 1, 16);
-        }
-        if (const std::optional<float> value = jsonFloatField(terrainDomainWarp, "gain"); value.has_value() && *value >= 0.0f)
-        {
-            terrainDomainWarpGain_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(temperature, "noiseStrength"); value.has_value() && *value >= 0.0f)
-        {
-            temperatureNoiseStrength_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(temperature, "noiseFeatureScale"); value.has_value() && *value > 0.0f)
-        {
-            temperatureNoiseFeatureScale_ = *value;
-        }
-        if (const std::optional<int> value = jsonIntField(temperature, "noiseOctaveCount"); value.has_value())
-        {
-            temperatureNoiseOctaveCount_ = std::clamp(*value, 1, 16);
-        }
-        if (const std::optional<float> value = jsonFloatField(temperature, "noiseLacunarity"); value.has_value() && *value > 0.0f)
-        {
-            temperatureNoiseLacunarity_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(temperature, "noiseGain"); value.has_value() && *value >= 0.0f)
-        {
-            temperatureNoiseGain_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(temperature, "noiseSimplexScale"); value.has_value() && *value > 0.0f)
-        {
-            temperatureNoiseSimplexScale_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(precipitation, "featureScale"); value.has_value() && *value > 0.0f)
-        {
-            precipitationNoiseFeatureScale_ = *value;
-        }
-        if (const std::optional<int> value = jsonIntField(precipitation, "octaveCount"); value.has_value())
-        {
-            precipitationNoiseOctaveCount_ = std::clamp(*value, 1, 16);
-        }
-        if (const std::optional<float> value = jsonFloatField(precipitation, "lacunarity"); value.has_value() && *value > 0.0f)
-        {
-            precipitationNoiseLacunarity_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(precipitation, "gain"); value.has_value() && *value >= 0.0f)
-        {
-            precipitationNoiseGain_ = *value;
-        }
-        if (const std::optional<float> value = jsonFloatField(precipitation, "simplexScale"); value.has_value() && *value > 0.0f)
-        {
-            precipitationNoiseSimplexScale_ = *value;
-        }
+        const config::WorldConfig worldConfig = config::loadWorldConfig(configDirectory() / "world.json", defaults, ChunkSizeY - 1);
+        loadGridScale_ = worldConfig.loadGridScale;
+        terrainWorkerCount_ = worldConfig.terrainWorkerCount;
+        maxTerrainUploadChunksPerFrame_ = worldConfig.maxTerrainUploadChunksPerFrame;
+        maxTerrainUnloadChunksPerFrame_ = worldConfig.maxTerrainUnloadChunksPerFrame;
+        maxTerrainRetiredDestroyPerFrame_ = worldConfig.maxTerrainRetiredDestroyPerFrame;
+        terrainNoiseFeatureScale_ = worldConfig.terrainNoiseFeatureScale;
+        terrainNoiseOctaveCount_ = worldConfig.terrainNoiseOctaveCount;
+        terrainNoiseLacunarity_ = worldConfig.terrainNoiseLacunarity;
+        terrainNoiseGain_ = worldConfig.terrainNoiseGain;
+        terrainNoiseSimplexScale_ = worldConfig.terrainNoiseSimplexScale;
+        terrainDomainWarpEnabled_ = worldConfig.terrainDomainWarpEnabled;
+        terrainDomainWarpAmplitude_ = worldConfig.terrainDomainWarpAmplitude;
+        terrainDomainWarpFrequency_ = worldConfig.terrainDomainWarpFrequency;
+        terrainDomainWarpOctaveCount_ = worldConfig.terrainDomainWarpOctaveCount;
+        terrainDomainWarpGain_ = worldConfig.terrainDomainWarpGain;
+        temperatureNoiseStrength_ = worldConfig.temperatureNoiseStrength;
+        temperatureNoiseFeatureScale_ = worldConfig.temperatureNoiseFeatureScale;
+        temperatureNoiseOctaveCount_ = worldConfig.temperatureNoiseOctaveCount;
+        temperatureNoiseLacunarity_ = worldConfig.temperatureNoiseLacunarity;
+        temperatureNoiseGain_ = worldConfig.temperatureNoiseGain;
+        temperatureNoiseSimplexScale_ = worldConfig.temperatureNoiseSimplexScale;
+        precipitationNoiseFeatureScale_ = worldConfig.precipitationNoiseFeatureScale;
+        precipitationNoiseOctaveCount_ = worldConfig.precipitationNoiseOctaveCount;
+        precipitationNoiseLacunarity_ = worldConfig.precipitationNoiseLacunarity;
+        precipitationNoiseGain_ = worldConfig.precipitationNoiseGain;
+        precipitationNoiseSimplexScale_ = worldConfig.precipitationNoiseSimplexScale;
+        seaLevel_ = worldConfig.seaLevel;
     }
 
     void Renderer::loadRenderConfig()
     {
-        fluidWaterAlpha_ = DefaultFluidWaterAlpha;
+        config::RenderConfig defaults{};
+        defaults.fluidWaterAlpha = DefaultFluidWaterAlpha;
 
-        const std::filesystem::path path = configDirectory() / "render.json";
-        std::ifstream file(path);
-        if (!file.is_open())
-        {
-            return;
-        }
-
-        std::ostringstream contents;
-        contents << file.rdbuf();
-        const std::string text = contents.str();
-        const std::string fluid = jsonObjectField(text, "fluid").value_or("{}");
-        const std::string water = jsonObjectField(fluid, "water").value_or("{}");
-
-        if (const std::optional<float> value = jsonFloatField(water, "alpha"); value.has_value())
-        {
-            fluidWaterAlpha_ = std::clamp(*value, 0.0f, 1.0f);
-        }
+        const config::RenderConfig renderConfig = config::loadRenderConfig(configDirectory() / "render.json", defaults);
+        fluidWaterAlpha_ = renderConfig.fluidWaterAlpha;
     }
 
     void Renderer::loadHeightLut()
@@ -6582,13 +3687,7 @@ namespace dolbuto
         const int runtimeKeepMin = renderMin - 2;
         const int runtimeKeepMax = renderMax + 2;
 
-        {
-            std::lock_guard<std::mutex> lock(terrainJobMutex_);
-            terrainFeatureJobs_.clear();
-            terrainFinalizeJobs_.clear();
-            terrainMeshJobs_.clear();
-            completedChunkMeshes_.clear();
-        }
+        terrainJobSystem_.clearQueuedJobsAndMeshes();
 
         for (auto& entry : runtimeChunks_)
         {
@@ -6697,61 +3796,73 @@ namespace dolbuto
 
     void Renderer::startTerrainWorkers()
     {
-        stopTerrainWorkers_ = false;
-        terrainWorkers_.reserve(static_cast<size_t>(terrainWorkerCount_));
-        for (int i = 0; i < terrainWorkerCount_; ++i)
-        {
-            terrainWorkers_.emplace_back(&Renderer::terrainWorkerLoop, this);
-        }
+        terrainJobSystem_.start(
+            terrainWorkerCount_,
+            [this]
+            {
+                return terrainGeneration_.load();
+            },
+            [this](TerrainJob job)
+            {
+                const world::TerrainBuilder terrainBuilder(terrainBuilderConfig());
+                world::TerrainJobResult result{};
+                if (job.type == TerrainJob::Type::BuildFeaturing)
+                {
+                    std::shared_ptr<ChunkData> chunk = terrainBuilder.buildChunkData(job.chunkX, job.chunkZ);
+                    chunk->generation = job.generation;
+                    chunk->revision = 0;
+                    const std::array<int, ChunkColumnCount> heights = terrainBuilder.buildChunkHeightmap(job.chunkX, job.chunkZ);
+                    std::array<FeatureWriteListPtr, FeatureNeighborCount> outgoingFeatureSlots = terrainBuilder.buildTreeFeatures(chunk, heights);
+                    result.completedChunkData = CompletedChunkData{std::move(chunk), std::move(outgoingFeatureSlots)};
+                }
+                else if (job.type == TerrainJob::Type::FinalizeFeatures && job.chunk)
+                {
+                    terrainBuilder.applyFeatureWrites(job.chunk, job.incomingFeatureSlots);
+                    result.completedMergedChunk = std::move(job.chunk);
+                }
+                else if (job.meshChunks[4])
+                {
+                    if (job.revision != job.meshChunks[4]->revision)
+                    {
+                        CompletedChunkMesh mesh{};
+                        mesh.generation = job.generation;
+                        mesh.revision = job.revision;
+                        mesh.chunkX = job.chunkX;
+                        mesh.chunkZ = job.chunkZ;
+                        result.completedChunkMesh = std::move(mesh);
+                    }
+                    else
+                    {
+                        result.completedChunkMesh = buildChunkMesh(job.meshChunks, job.generation);
+                    }
+                }
+                return result;
+            });
     }
 
     void Renderer::stopTerrainWorkers()
     {
-        {
-            std::lock_guard<std::mutex> lock(terrainJobMutex_);
-            stopTerrainWorkers_ = true;
-            terrainFeatureJobs_.clear();
-            terrainFinalizeJobs_.clear();
-            terrainMeshJobs_.clear();
-        }
-        terrainJobCondition_.notify_all();
+        terrainJobSystem_.stop();
+        world::TerrainCompletedBatch completed = terrainJobSystem_.drainForShutdown();
 
-        for (std::thread& worker : terrainWorkers_)
+        for (CompletedChunkData& completedData : completed.completedChunks)
         {
-            if (worker.joinable())
-            {
-                worker.join();
-            }
-        }
-        terrainWorkers_.clear();
-
-        std::deque<CompletedChunkData> completedData;
-        std::deque<std::shared_ptr<ChunkData>> completedMerged;
-        {
-            std::lock_guard<std::mutex> lock(terrainJobMutex_);
-            completedData = std::move(completedChunkData_);
-            completedMerged = std::move(completedMergedChunks_);
-            completedChunkMeshes_.clear();
-        }
-
-        for (CompletedChunkData& completed : completedData)
-        {
-            if (!completed.chunk)
+            if (!completedData.chunk)
             {
                 continue;
             }
 
             SaveChunkSnapshot snapshot{};
-            snapshot.chunkX = completed.chunk->chunkX;
-            snapshot.chunkZ = completed.chunk->chunkZ;
+            snapshot.chunkX = completedData.chunk->chunkX;
+            snapshot.chunkZ = completedData.chunk->chunkZ;
             snapshot.genState = ChunkGenState::Featuring;
-            snapshot.revision = completed.chunk->revision;
+            snapshot.revision = completedData.chunk->revision;
             snapshot.hasData = true;
-            snapshot.chunkData = completed.chunk;
+            snapshot.chunkData = completedData.chunk;
             enqueueSaveSnapshot(std::move(snapshot));
         }
 
-        for (const std::shared_ptr<ChunkData>& chunk : completedMerged)
+        for (const std::shared_ptr<ChunkData>& chunk : completed.completedMergedChunks)
         {
             if (!chunk)
             {
@@ -6771,287 +3882,49 @@ namespace dolbuto
 
     void Renderer::startChunkLoadWorker()
     {
-        stopChunkLoadWorker_ = false;
-        chunkLoadWorker_ = std::thread(&Renderer::chunkLoadWorkerLoop, this);
+        chunkLoadSystem_.start([this](int chunkX, int chunkZ)
+        {
+            return saveSystem_.load(chunkX, chunkZ);
+        });
     }
 
     void Renderer::stopChunkLoadWorker()
     {
-        {
-            std::lock_guard<std::mutex> lock(chunkLoadJobMutex_);
-            stopChunkLoadWorker_ = true;
-            chunkLoadJobs_.clear();
-        }
-        chunkLoadJobCondition_.notify_all();
-
-        if (chunkLoadWorker_.joinable())
-        {
-            chunkLoadWorker_.join();
-        }
-
-        {
-            std::lock_guard<std::mutex> lock(chunkLoadJobMutex_);
-            completedChunkLoads_.clear();
-            requestedChunkLoads_.clear();
-        }
+        chunkLoadSystem_.stop();
     }
 
     void Renderer::enqueueChunkLoadJob(int chunkX, int chunkZ, uint64_t generation)
     {
-        const uint64_t key = chunkKey(chunkX, chunkZ);
-        {
-            std::lock_guard<std::mutex> lock(chunkLoadJobMutex_);
-            if (!requestedChunkLoads_.insert(key).second)
-            {
-                return;
-            }
-            chunkLoadJobs_.push_back(ChunkLoadJob{chunkX, chunkZ, generation});
-        }
-        chunkLoadJobCondition_.notify_one();
-    }
-
-    void Renderer::chunkLoadWorkerLoop()
-    {
-        for (;;)
-        {
-            ChunkLoadJob job{};
-            {
-                std::unique_lock<std::mutex> lock(chunkLoadJobMutex_);
-                chunkLoadJobCondition_.wait(lock, [this]
-                {
-                    return stopChunkLoadWorker_ || !chunkLoadJobs_.empty();
-                });
-
-                if (chunkLoadJobs_.empty())
-                {
-                    if (stopChunkLoadWorker_)
-                    {
-                        return;
-                    }
-                    continue;
-                }
-
-                job = chunkLoadJobs_.front();
-                chunkLoadJobs_.pop_front();
-            }
-
-            CompletedChunkLoad completed{};
-            completed.chunkX = job.chunkX;
-            completed.chunkZ = job.chunkZ;
-            completed.generation = job.generation;
-            completed.snapshot = loadChunkSnapshot(job.chunkX, job.chunkZ);
-
-            {
-                std::lock_guard<std::mutex> lock(chunkLoadJobMutex_);
-                completedChunkLoads_.push_back(std::move(completed));
-            }
-        }
+        chunkLoadSystem_.enqueue(chunkX, chunkZ, generation);
     }
 
     void Renderer::startSaveWorker()
     {
-        stopSaveWorker_ = false;
-        saveWorker_ = std::thread(&Renderer::saveWorkerLoop, this);
+        saveSystem_.start(activeWorldDirectory_, [this](const SaveChunkSnapshot& snapshot, bool savedChunkData)
+        {
+            if (!savedChunkData)
+            {
+                return;
+            }
+
+            const uint64_t runtimeKey = chunkKey(snapshot.chunkX, snapshot.chunkZ);
+            auto runtimeIt = runtimeChunks_.find(runtimeKey);
+            if (runtimeIt != runtimeChunks_.end() &&
+                runtimeIt->second.data &&
+                runtimeIt->second.data->revision == snapshot.revision)
+            {
+                runtimeIt->second.hasSavedBacking = true;
+                if (runtimeIt->second.dataDirtySerial == snapshot.dataDirtySerial)
+                {
+                    runtimeIt->second.dataDirtyForSave = false;
+                }
+            }
+        });
     }
 
     void Renderer::stopSaveWorker()
     {
-        {
-            std::lock_guard<std::mutex> lock(saveJobMutex_);
-            stopSaveWorker_ = true;
-        }
-        saveJobCondition_.notify_all();
-
-        if (saveWorker_.joinable())
-        {
-            saveWorker_.join();
-        }
-    }
-
-    void Renderer::saveWorkerLoop()
-    {
-        for (;;)
-        {
-            SaveChunkSnapshot snapshot{};
-            {
-                std::unique_lock<std::mutex> lock(saveJobMutex_);
-                saveJobCondition_.wait(lock, [this]
-                {
-                    return stopSaveWorker_ || !saveJobs_.empty();
-                });
-
-                if (saveJobs_.empty())
-                {
-                    if (stopSaveWorker_)
-                    {
-                        return;
-                    }
-                    continue;
-                }
-
-                snapshot = std::move(saveJobs_.front());
-                saveJobs_.pop_front();
-            }
-
-            try
-            {
-                const bool savedChunkData = snapshot.hasData;
-                saveChunkSnapshot(snapshot);
-                const uint64_t storageKey = storageChunkKey(snapshot.chunkX, snapshot.chunkZ);
-                const uint64_t runtimeKey = chunkKey(snapshot.chunkX, snapshot.chunkZ);
-                {
-                    std::lock_guard<std::mutex> lock(saveJobMutex_);
-                    const auto pendingIt = pendingSaveSnapshots_.find(storageKey);
-                    if (pendingIt != pendingSaveSnapshots_.end() &&
-                        pendingIt->second.hasData == snapshot.hasData &&
-                        pendingIt->second.revision == snapshot.revision &&
-                        pendingIt->second.dataDirtySerial == snapshot.dataDirtySerial &&
-                        pendingIt->second.genState == snapshot.genState)
-                    {
-                        pendingSaveSnapshots_.erase(pendingIt);
-                    }
-                }
-                if (savedChunkData)
-                {
-                    auto runtimeIt = runtimeChunks_.find(runtimeKey);
-                    if (runtimeIt != runtimeChunks_.end() &&
-                        runtimeIt->second.data &&
-                        runtimeIt->second.data->revision == snapshot.revision)
-                    {
-                        runtimeIt->second.hasSavedBacking = true;
-                        if (runtimeIt->second.dataDirtySerial == snapshot.dataDirtySerial)
-                        {
-                            runtimeIt->second.dataDirtyForSave = false;
-                        }
-                    }
-                    saveChunkDoneCount_.fetch_add(1, std::memory_order_relaxed);
-                }
-                else
-                {
-                    saveFeatureDoneCount_.fetch_add(1, std::memory_order_relaxed);
-                }
-            }
-            catch (...)
-            {
-                saveFailedCount_.fetch_add(1, std::memory_order_relaxed);
-            }
-        }
-    }
-
-    void Renderer::terrainWorkerLoop()
-    {
-        for (;;)
-        {
-            TerrainJob job{};
-            {
-                std::unique_lock<std::mutex> lock(terrainJobMutex_);
-                terrainJobCondition_.wait(lock, [this]
-                {
-                    return stopTerrainWorkers_ ||
-                        !terrainMeshJobs_.empty() ||
-                        !terrainFinalizeJobs_.empty() ||
-                        !terrainFeatureJobs_.empty();
-                });
-
-                if (stopTerrainWorkers_)
-                {
-                    return;
-                }
-
-                auto stageRank = [](TerrainJob::Type type)
-                {
-                    switch (type)
-                    {
-                    case TerrainJob::Type::BuildChunkMesh:
-                        return 0;
-                    case TerrainJob::Type::FinalizeFeatures:
-                        return 1;
-                    case TerrainJob::Type::BuildFeaturing:
-                        return 2;
-                    }
-                    return 3;
-                };
-
-                auto jobLess = [&](const TerrainJob& left, const TerrainJob& right)
-                {
-                    if (left.priority != right.priority)
-                    {
-                        return left.priority < right.priority;
-                    }
-                    const int leftStage = stageRank(left.type);
-                    const int rightStage = stageRank(right.type);
-                    if (leftStage != rightStage)
-                    {
-                        return leftStage < rightStage;
-                    }
-                    return left.sequence < right.sequence;
-                };
-
-                auto bestQueue = &terrainFeatureJobs_;
-                auto bestIt = terrainFeatureJobs_.begin();
-                bool hasBest = bestIt != terrainFeatureJobs_.end();
-                auto considerQueue = [&](std::deque<TerrainJob>& jobs)
-                {
-                    for (auto it = jobs.begin(); it != jobs.end(); ++it)
-                    {
-                        if (!hasBest || jobLess(*it, *bestIt))
-                        {
-                            bestQueue = &jobs;
-                            bestIt = it;
-                            hasBest = true;
-                        }
-                    }
-                };
-
-                considerQueue(terrainFinalizeJobs_);
-                considerQueue(terrainMeshJobs_);
-
-                if (hasBest)
-                {
-                    job = std::move(*bestIt);
-                    bestQueue->erase(bestIt);
-                }
-            }
-
-            if (job.generation != terrainGeneration_.load())
-            {
-                continue;
-            }
-
-            if (job.type == TerrainJob::Type::BuildFeaturing)
-            {
-                std::shared_ptr<ChunkData> chunk = buildChunkData(job.chunkX, job.chunkZ);
-                chunk->generation = job.generation;
-                chunk->revision = 0;
-                const std::array<int, Renderer::ChunkColumnCount> heights = buildChunkHeightmap(job.chunkX, job.chunkZ);
-                std::array<FeatureWriteListPtr, FeatureNeighborCount> outgoingFeatureSlots = buildTreeFeatures(chunk, heights);
-                std::lock_guard<std::mutex> lock(terrainJobMutex_);
-                completedChunkData_.push_back(CompletedChunkData{std::move(chunk), std::move(outgoingFeatureSlots)});
-            }
-            else if (job.type == TerrainJob::Type::FinalizeFeatures && job.chunk)
-            {
-                applyFeatureWrites(job.chunk, job.incomingFeatureSlots);
-                std::lock_guard<std::mutex> lock(terrainJobMutex_);
-                completedMergedChunks_.push_back(std::move(job.chunk));
-            }
-            else if (job.meshChunks[4])
-            {
-                if (job.revision != job.meshChunks[4]->revision)
-                {
-                    CompletedChunkMesh mesh{};
-                    mesh.generation = job.generation;
-                    mesh.revision = job.revision;
-                    mesh.chunkX = job.chunkX;
-                    mesh.chunkZ = job.chunkZ;
-                    std::lock_guard<std::mutex> lock(terrainJobMutex_);
-                    completedChunkMeshes_.push_back(std::move(mesh));
-                    continue;
-                }
-                CompletedChunkMesh mesh = buildChunkMesh(job.meshChunks, job.generation);
-                std::lock_guard<std::mutex> lock(terrainJobMutex_);
-                completedChunkMeshes_.push_back(std::move(mesh));
-            }
-        }
+        saveSystem_.stop();
     }
 
     void Renderer::markRuntimeChunkDataDirty(RuntimeChunk& chunk)
@@ -7066,23 +3939,7 @@ namespace dolbuto
 
     void Renderer::enqueueTerrainJob(TerrainJob job)
     {
-        {
-            std::lock_guard<std::mutex> lock(terrainJobMutex_);
-            job.sequence = ++terrainJobSequence_;
-            if (job.type == TerrainJob::Type::BuildFeaturing)
-            {
-                terrainFeatureJobs_.push_back(std::move(job));
-            }
-            else if (job.type == TerrainJob::Type::FinalizeFeatures)
-            {
-                terrainFinalizeJobs_.push_back(std::move(job));
-            }
-            else
-            {
-                terrainMeshJobs_.push_back(std::move(job));
-            }
-        }
-        terrainJobCondition_.notify_one();
+        terrainJobSystem_.enqueue(std::move(job));
     }
 
     void Renderer::processCompletedTerrainJobs()
@@ -7092,71 +3949,43 @@ namespace dolbuto
         std::vector<std::shared_ptr<ChunkData>> completedMergedChunks;
         std::vector<CompletedChunkMesh> completedMeshes;
         std::vector<CompletedChunkLoad> completedLoads;
+        std::vector<uint64_t> uploadChunkKeys;
+        uploadChunkKeys.reserve(static_cast<size_t>(maxTerrainUploadChunksPerFrame_));
+        uint32_t uploadChunkCount = 0;
+        auto canUploadChunk = [&](uint64_t key) -> bool
         {
-            std::lock_guard<std::mutex> lock(terrainJobMutex_);
-            while (!completedChunkData_.empty())
+            for (uint64_t uploadKey : uploadChunkKeys)
             {
-                completedChunks.push_back(std::move(completedChunkData_.front()));
-                completedChunkData_.pop_front();
-            }
-            while (!completedMergedChunks_.empty())
-            {
-                completedMergedChunks.push_back(std::move(completedMergedChunks_.front()));
-                completedMergedChunks_.pop_front();
+                if (uploadKey == key)
+                {
+                    return true;
+                }
             }
 
-            std::vector<uint64_t> uploadChunkKeys;
-            uploadChunkKeys.reserve(static_cast<size_t>(maxTerrainUploadChunksPerFrame_));
-            uint32_t uploadChunkCount = 0;
-            auto canUploadChunk = [&](uint64_t key) -> bool
+            if (uploadChunkCount >= static_cast<uint32_t>(maxTerrainUploadChunksPerFrame_))
             {
-                for (uint64_t uploadKey : uploadChunkKeys)
-                {
-                    if (uploadKey == key)
-                    {
-                        return true;
-                    }
-                }
-
-                if (uploadChunkCount >= static_cast<uint32_t>(maxTerrainUploadChunksPerFrame_))
-                {
-                    return false;
-                }
-
-                uploadChunkKeys.push_back(key);
-                ++uploadChunkCount;
-                return true;
-            };
-
-            while (!completedChunkMeshes_.empty())
-            {
-                const CompletedChunkMesh& frontMesh = completedChunkMeshes_.front();
-                const uint64_t key = chunkKey(frontMesh.chunkX, frontMesh.chunkZ);
-                if (frontMesh.generation != generation || desiredRenderChunks_.find(key) == desiredRenderChunks_.end())
-                {
-                    completedChunkMeshes_.pop_front();
-                    continue;
-                }
-
-                if (!canUploadChunk(key))
-                {
-                    break;
-                }
-
-                completedMeshes.push_back(std::move(completedChunkMeshes_.front()));
-                completedChunkMeshes_.pop_front();
+                return false;
             }
-        }
-        {
-            std::lock_guard<std::mutex> lock(chunkLoadJobMutex_);
-            while (!completedChunkLoads_.empty())
+
+            uploadChunkKeys.push_back(key);
+            ++uploadChunkCount;
+            return true;
+        };
+
+        world::TerrainCompletedBatch terrainCompleted = terrainJobSystem_.drainCompleted(
+            [&](const CompletedChunkMesh& mesh)
             {
-                const uint64_t key = chunkKey(completedChunkLoads_.front().chunkX, completedChunkLoads_.front().chunkZ);
-                requestedChunkLoads_.erase(key);
-                completedLoads.push_back(std::move(completedChunkLoads_.front()));
-                completedChunkLoads_.pop_front();
-            }
-        }
+                const uint64_t key = chunkKey(mesh.chunkX, mesh.chunkZ);
+                return mesh.generation != generation || desiredRenderChunks_.find(key) == desiredRenderChunks_.end();
+            },
+            [&](const CompletedChunkMesh& mesh)
+            {
+                return canUploadChunk(chunkKey(mesh.chunkX, mesh.chunkZ));
+            });
+        completedChunks = std::move(terrainCompleted.completedChunks);
+        completedMergedChunks = std::move(terrainCompleted.completedMergedChunks);
+        completedMeshes = std::move(terrainCompleted.completedMeshes);
+        completedLoads = chunkLoadSystem_.drainCompleted();
 
         for (CompletedChunkLoad& completed : completedLoads)
         {
@@ -7189,7 +4018,8 @@ namespace dolbuto
                 {
                     if ((loaded.genState == ChunkGenState::Full || loaded.genState == ChunkGenState::Meshed) && loaded.data)
                     {
-                        if (applyFeatureWrites(loaded.data, pendingIncomingFeatureSlots))
+                        const world::TerrainBuilder terrainBuilder(terrainBuilderConfig());
+                        if (terrainBuilder.applyFeatureWrites(loaded.data, pendingIncomingFeatureSlots))
                         {
                             loaded.genState = ChunkGenState::Full;
                         }
@@ -7436,7 +4266,7 @@ namespace dolbuto
         }
     }
 
-    Renderer::RuntimeChunk& Renderer::ensureRuntimeChunk(int chunkX, int chunkZ, uint64_t generation)
+    RuntimeChunk& Renderer::ensureRuntimeChunk(int chunkX, int chunkZ, uint64_t generation)
     {
         const uint64_t key = chunkKey(chunkX, chunkZ);
 
@@ -7580,7 +4410,7 @@ namespace dolbuto
         chunk.buildQueuedTicket = generation;
     }
 
-    Renderer::SaveChunkSnapshot Renderer::makeSaveSnapshot(const RuntimeChunk& chunk) const
+    SaveChunkSnapshot Renderer::makeSaveSnapshot(const RuntimeChunk& chunk) const
     {
         SaveChunkSnapshot snapshot{};
         snapshot.chunkX = chunk.chunkX;
@@ -7605,92 +4435,7 @@ namespace dolbuto
 
     void Renderer::enqueueSaveSnapshot(SaveChunkSnapshot snapshot)
     {
-        const uint64_t key = storageChunkKey(snapshot.chunkX, snapshot.chunkZ);
-        if (snapshot.genState == ChunkGenState::Meshed)
-        {
-            snapshot.genState = ChunkGenState::Full;
-        }
-
-        const auto hasIncomingFeatureSlots = [](const SaveChunkSnapshot& value)
-        {
-            for (const FeatureWriteListPtr& slot : value.incomingFeatureSlots)
-            {
-                if (slot && !slot->empty())
-                {
-                    return true;
-                }
-            }
-            return false;
-        };
-
-        if (snapshot.hasData && !snapshot.forceSave)
-        {
-            return;
-        }
-        if (!snapshot.hasData && snapshot.incomingFeatureMask == 0 && !hasIncomingFeatureSlots(snapshot))
-        {
-            return;
-        }
-
-        if (snapshot.genState == ChunkGenState::Full)
-        {
-            snapshot.incomingFeatureMask = 0;
-            snapshot.incomingFeatureSlots = {};
-            if (snapshot.hasData)
-            {
-                std::lock_guard<std::mutex> lock(savedChunkMutex_);
-                const auto savedIt = savedCleanRevisions_.find(key);
-                if (!snapshot.forceSave && savedIt != savedCleanRevisions_.end() && savedIt->second == snapshot.revision)
-                {
-                    return;
-                }
-            }
-        }
-
-        {
-            std::lock_guard<std::mutex> lock(saveJobMutex_);
-            SaveChunkSnapshot& pending = pendingSaveSnapshots_[key];
-            if (snapshot.hasData)
-            {
-                const SaveChunkSnapshot previous = pending;
-                if (snapshot.hasSavedBacking && !snapshot.forceSave && previous.hasData &&
-                    previous.genState == ChunkGenState::Full &&
-                    (snapshot.genState != ChunkGenState::Full || previous.revision > snapshot.revision))
-                {
-                    return;
-                }
-                pending = snapshot;
-                if (pending.genState != ChunkGenState::Full)
-                {
-                    pending.incomingFeatureMask |= previous.incomingFeatureMask;
-                    for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
-                    {
-                        if (!pending.incomingFeatureSlots[slot])
-                        {
-                            pending.incomingFeatureSlots[slot] = previous.incomingFeatureSlots[slot];
-                        }
-                    }
-                }
-            }
-            else
-            {
-                if (pending.chunkX == 0 && pending.chunkZ == 0 && key != storageChunkKey(0, 0))
-                {
-                    pending.chunkX = snapshot.chunkX;
-                    pending.chunkZ = snapshot.chunkZ;
-                }
-                pending.incomingFeatureMask |= snapshot.incomingFeatureMask;
-                for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
-                {
-                    if (snapshot.incomingFeatureSlots[slot])
-                    {
-                        pending.incomingFeatureSlots[slot] = snapshot.incomingFeatureSlots[slot];
-                    }
-                }
-            }
-            saveJobs_.push_back(std::move(snapshot));
-        }
-        saveJobCondition_.notify_one();
+        saveSystem_.enqueue(std::move(snapshot));
     }
 
     void Renderer::enqueueSaveAllRuntimeChunks()
@@ -7748,15 +4493,7 @@ namespace dolbuto
         stopSaveWorker();
         vkDeviceWaitIdle(device_);
         destroyAllTerrainChunks();
-        {
-            std::lock_guard<std::mutex> lock(savedChunkMutex_);
-            savedCleanRevisions_.clear();
-            pendingSaveSnapshots_.clear();
-        }
-        {
-            std::lock_guard<std::mutex> lock(regionHeaderCacheMutex_);
-            regionHeaderCache_.clear();
-        }
+        saveSystem_.clear();
         terrainLoadRequested_ = false;
         blockBreakParticles_.clear();
         resetBlockBreaking();
@@ -7779,796 +4516,7 @@ namespace dolbuto
         log::info("Game scene unloaded.");
     }
 
-    void Renderer::saveChunkSnapshot(const SaveChunkSnapshot& snapshot)
-    {
-        const auto chunkHasIncomingFeatureSlots = [](const SaveChunkSnapshot& value)
-        {
-            for (const FeatureWriteListPtr& slot : value.incomingFeatureSlots)
-            {
-                if (slot && !slot->empty())
-                {
-                    return true;
-                }
-            }
-            return false;
-        };
-
-        if (!snapshot.hasData && snapshot.incomingFeatureMask == 0 && !chunkHasIncomingFeatureSlots(snapshot))
-        {
-            return;
-        }
-
-        auto serializePayload = [&](const SaveChunkSnapshot& value)
-        {
-            std::vector<uint8_t> payload;
-            writeU8(payload, static_cast<uint8_t>(value.genState));
-            writeU8(payload, value.incomingFeatureMask);
-            for (const FeatureWriteListPtr& slot : value.incomingFeatureSlots)
-            {
-                const size_t count = slot ? slot->size() : 0;
-                writeU16(payload, static_cast<uint16_t>(std::min<size_t>(count, std::numeric_limits<uint16_t>::max())));
-            }
-
-            const std::vector<uint16_t>* blocks = nullptr;
-            if (value.chunkData && !value.chunkData->blocks.empty())
-            {
-                blocks = &value.chunkData->blocks;
-            }
-            else if (!value.blocks.empty())
-            {
-                blocks = &value.blocks;
-            }
-
-            const std::vector<uint16_t>* fluids = nullptr;
-            if (value.chunkData && !value.chunkData->fluids.empty())
-            {
-                fluids = &value.chunkData->fluids;
-            }
-            else if (!value.fluids.empty())
-            {
-                fluids = &value.fluids;
-            }
-
-            const std::array<uint8_t, ChunkColumnCount>* temperature = value.chunkData ? &value.chunkData->temperature : &value.temperature;
-            const std::array<uint8_t, ChunkColumnCount>* precipitation = value.chunkData ? &value.chunkData->precipitation : &value.precipitation;
-
-            auto writeRuns = [&](const std::vector<uint16_t>* values)
-            {
-                if (!value.hasData || !values || values->empty())
-                {
-                    writeU32(payload, 0);
-                    return;
-                }
-
-                const size_t runCountOffset = payload.size();
-                writeU32(payload, 0);
-                uint32_t runCount = 0;
-                uint32_t current = (*values)[0];
-                uint32_t count = 1;
-                for (size_t i = 1; i < values->size(); ++i)
-                {
-                    const uint32_t item = (*values)[i];
-                    if (item == current && count < std::numeric_limits<uint32_t>::max())
-                    {
-                        ++count;
-                        continue;
-                    }
-                    writeU32(payload, current);
-                    writeU32(payload, count);
-                    ++runCount;
-                    current = item;
-                    count = 1;
-                }
-                writeU32(payload, current);
-                writeU32(payload, count);
-                ++runCount;
-                writeU32At(payload, runCountOffset, runCount);
-            };
-
-            writeRuns(blocks);
-            writeRuns(fluids);
-            if (value.hasData)
-            {
-                payload.insert(payload.end(), temperature->begin(), temperature->end());
-                payload.insert(payload.end(), precipitation->begin(), precipitation->end());
-            }
-
-            for (const FeatureWriteListPtr& slot : value.incomingFeatureSlots)
-            {
-                if (!slot)
-                {
-                    continue;
-                }
-
-                size_t written = 0;
-                for (const FeatureWrite& write : *slot)
-                {
-                    if (written >= std::numeric_limits<uint16_t>::max())
-                    {
-                        break;
-                    }
-                    writeU8(payload, static_cast<uint8_t>(std::clamp(write.localX, 0, ChunkSizeX - 1)));
-                    writeU8(payload, static_cast<uint8_t>(std::clamp(write.localZ, 0, ChunkSizeZ - 1)));
-                    writeU16(payload, static_cast<uint16_t>(std::clamp(write.y, 0, ChunkSizeY - 1)));
-                    writeU32(payload, write.block);
-                    ++written;
-                }
-            }
-
-            const std::vector<WorldEntity>* entities = value.chunkData ? &value.chunkData->entities : &value.entities;
-            const size_t maxEntityCount = std::min<size_t>(entities ? entities->size() : 0, std::numeric_limits<uint16_t>::max());
-            const size_t entityCountOffset = payload.size();
-            writeU16(payload, 0);
-            uint16_t writtenEntities = 0;
-            const float worldXStart = static_cast<float>(value.chunkX * ChunkSizeX);
-            const float worldZStart = static_cast<float>(value.chunkZ * ChunkSizeZ);
-            for (size_t i = 0; entities && i < maxEntityCount; ++i)
-            {
-                const WorldEntity& entity = (*entities)[i];
-                if (entity.type != WorldEntityType::DroppedItem ||
-                    entity.entityId == 0 ||
-                    entity.droppedItem.stack.itemId == 0 ||
-                    entity.droppedItem.stack.count == 0)
-                {
-                    continue;
-                }
-
-                writeU16(payload, static_cast<uint16_t>(entity.type));
-                writeU64(payload, entity.entityId);
-                writeF32(payload, std::clamp(entity.position.x - worldXStart, 0.0f, static_cast<float>(ChunkSizeX) - 0.0001f));
-                writeF32(payload, entity.position.y);
-                writeF32(payload, std::clamp(entity.position.z - worldZStart, 0.0f, static_cast<float>(ChunkSizeZ) - 0.0001f));
-                writeF32(payload, entity.velocity.x);
-                writeF32(payload, entity.velocity.y);
-                writeF32(payload, entity.velocity.z);
-                writeU8(payload, static_cast<uint8_t>(entity.flags & WorldEntityFlagGrounded));
-                writeU16(payload, entity.droppedItem.stack.itemId);
-                writeU16(payload, entity.droppedItem.stack.count);
-                ++writtenEntities;
-            }
-            payload[entityCountOffset] = static_cast<uint8_t>(writtenEntities & 0xFFu);
-            payload[entityCountOffset + 1] = static_cast<uint8_t>((writtenEntities >> 8u) & 0xFFu);
-            writeU64(payload, value.revision);
-            return payload;
-        };
-
-        auto deserializePayload = [&](const std::vector<uint8_t>& payload, int chunkX, int chunkZ) -> std::optional<SaveChunkSnapshot>
-        {
-            try
-            {
-                SaveChunkSnapshot value{};
-                value.chunkX = chunkX;
-                value.chunkZ = chunkZ;
-                size_t offset = 0;
-                value.genState = static_cast<ChunkGenState>(readU8(payload, offset));
-                value.incomingFeatureMask = readU8(payload, offset);
-                std::array<uint16_t, FeatureNeighborCount> featureCounts{};
-                for (uint16_t& count : featureCounts)
-                {
-                    count = readU16(payload, offset);
-                }
-
-                const uint32_t blockRunCount = readU32(payload, offset);
-                if (blockRunCount > 0)
-                {
-                    value.hasData = true;
-                    value.blocks.reserve(ChunkBlockCount);
-                    uint64_t totalCount = 0;
-                    for (uint32_t run = 0; run < blockRunCount; ++run)
-                    {
-                        const uint16_t block = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
-                        const uint32_t count = readU32(payload, offset);
-                        totalCount += count;
-                        if (totalCount > ChunkBlockCount)
-                        {
-                            return std::nullopt;
-                        }
-                        value.blocks.insert(value.blocks.end(), count, block);
-                    }
-                    if (value.blocks.size() != ChunkBlockCount)
-                    {
-                        return std::nullopt;
-                    }
-                }
-
-                const uint32_t fluidRunCount = readU32(payload, offset);
-                if (fluidRunCount > 0)
-                {
-                    value.hasData = true;
-                    value.fluids.reserve(ChunkBlockCount);
-                    uint64_t totalCount = 0;
-                    for (uint32_t run = 0; run < fluidRunCount; ++run)
-                    {
-                        const uint16_t fluid = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
-                        const uint32_t count = readU32(payload, offset);
-                        totalCount += count;
-                        if (totalCount > ChunkBlockCount)
-                        {
-                            return std::nullopt;
-                        }
-                        value.fluids.insert(value.fluids.end(), count, fluid);
-                    }
-                    if (value.fluids.size() != ChunkBlockCount)
-                    {
-                        return std::nullopt;
-                    }
-                }
-
-                if (value.hasData)
-                {
-                    for (uint8_t& item : value.temperature)
-                    {
-                        item = readU8(payload, offset);
-                    }
-                    for (uint8_t& item : value.precipitation)
-                    {
-                        item = readU8(payload, offset);
-                    }
-                }
-
-                for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
-                {
-                    if (featureCounts[slot] == 0)
-                    {
-                        continue;
-                    }
-                    auto writes = std::make_shared<FeatureWriteList>();
-                    writes->reserve(featureCounts[slot]);
-                    for (uint16_t i = 0; i < featureCounts[slot]; ++i)
-                    {
-                        FeatureWrite write{};
-                        write.localX = readU8(payload, offset);
-                        write.localZ = readU8(payload, offset);
-                        write.y = readU16(payload, offset);
-                        write.block = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
-                        writes->push_back(write);
-                    }
-                    value.incomingFeatureSlots[slot] = std::move(writes);
-                }
-                if (offset + 8 != payload.size() && offset + 2 <= payload.size())
-                {
-                    const uint16_t entityCount = readU16(payload, offset);
-                    value.entities.reserve(entityCount);
-                    const float worldXStart = static_cast<float>(chunkX * ChunkSizeX);
-                    const float worldZStart = static_cast<float>(chunkZ * ChunkSizeZ);
-                    for (uint16_t i = 0; i < entityCount; ++i)
-                    {
-                        WorldEntity entity{};
-                        entity.type = static_cast<WorldEntityType>(readU16(payload, offset));
-                        entity.entityId = readU64(payload, offset);
-                        const float localX = readF32(payload, offset);
-                        const float y = readF32(payload, offset);
-                        const float localZ = readF32(payload, offset);
-                        entity.position = {
-                            worldXStart + std::clamp(localX, 0.0f, static_cast<float>(ChunkSizeX) - 0.0001f),
-                            y,
-                            worldZStart + std::clamp(localZ, 0.0f, static_cast<float>(ChunkSizeZ) - 0.0001f)
-                        };
-                        entity.previousPosition = entity.position;
-                        entity.velocity.x = readF32(payload, offset);
-                        entity.velocity.y = readF32(payload, offset);
-                        entity.velocity.z = readF32(payload, offset);
-                        entity.flags = static_cast<uint8_t>(readU8(payload, offset) & WorldEntityFlagGrounded);
-
-                        if (entity.type != WorldEntityType::DroppedItem)
-                        {
-                            return std::nullopt;
-                        }
-                        entity.droppedItem.stack.itemId = readU16(payload, offset);
-                        entity.droppedItem.stack.count = readU16(payload, offset);
-                        if (entity.entityId != 0 &&
-                            entity.droppedItem.stack.itemId != 0 &&
-                            entity.droppedItem.stack.count != 0)
-                        {
-                            value.entities.push_back(entity);
-                        }
-                    }
-                }
-                if (offset + 8 <= payload.size())
-                {
-                    value.revision = readU64(payload, offset);
-                }
-                return value;
-            }
-            catch (...)
-            {
-                return std::nullopt;
-            }
-        };
-
-        auto applySavedIncomingFeatureSlots = [&](SaveChunkSnapshot& value)
-        {
-            if (!value.hasData)
-            {
-                return false;
-            }
-
-            bool changed = false;
-            for (const FeatureWriteListPtr& writes : value.incomingFeatureSlots)
-            {
-                if (!writes)
-                {
-                    continue;
-                }
-                for (const FeatureWrite& write : *writes)
-                {
-                    if (write.block != BlockLeaves ||
-                        write.localX < 0 || write.localX >= ChunkSizeX ||
-                        write.localZ < 0 || write.localZ >= ChunkSizeZ ||
-                        write.y < 0 || write.y >= ChunkSizeY)
-                    {
-                        continue;
-                    }
-
-                    const size_t index = static_cast<size_t>((write.y * ChunkSizeZ + write.localZ) * ChunkSizeX + write.localX);
-                    uint16_t& existing = value.blocks[index];
-                    if (existing == BlockAir || existing == BlockPlant)
-                    {
-                        existing = BlockLeaves;
-                        changed = true;
-                    }
-                }
-            }
-            return changed;
-        };
-
-        const int storageChunkX = wrapChunkCoordinate(snapshot.chunkX);
-        const int storageChunkZ = wrapChunkCoordinate(snapshot.chunkZ);
-        const int regionX = storageChunkX / RegionSizeChunks;
-        const int regionZ = storageChunkZ / RegionSizeChunks;
-        const int localX = storageChunkX % RegionSizeChunks;
-        const int localZ = storageChunkZ % RegionSizeChunks;
-        const size_t entryIndex = static_cast<size_t>(localZ * RegionSizeChunks + localX);
-        const std::filesystem::path regionDirectory = activeWorldDirectory_ / "regions";
-        std::filesystem::create_directories(regionDirectory);
-        const std::filesystem::path regionPath = regionDirectory / ("r." + std::to_string(regionX) + "." + std::to_string(regionZ) + ".region");
-
-        std::lock_guard<std::mutex> regionIoLock(regionIoMutex_);
-        if (!std::filesystem::exists(regionPath))
-        {
-            std::ofstream createFile(regionPath, std::ios::binary);
-            std::vector<uint8_t> emptyHeader(RegionSectorSize, 0);
-            createFile.write(reinterpret_cast<const char*>(emptyHeader.data()), static_cast<std::streamsize>(emptyHeader.size()));
-        }
-
-        std::fstream file(regionPath, std::ios::binary | std::ios::in | std::ios::out);
-        if (!file.is_open())
-        {
-            return;
-        }
-
-        std::vector<uint8_t> header(RegionSectorSize, 0);
-        file.seekg(0);
-        file.read(reinterpret_cast<char*>(header.data()), static_cast<std::streamsize>(header.size()));
-
-        const size_t entryOffset = entryIndex * RegionChunkEntrySize;
-        const uint32_t existingOffsetSector = readU32At(header, entryOffset);
-        const uint32_t existingSectorCount = readU32At(header, entryOffset + 4);
-        const uint32_t existingStoredSize = readU32At(header, entryOffset + 8);
-        const uint32_t existingRawSize = readU32At(header, entryOffset + 12);
-
-        std::optional<SaveChunkSnapshot> existingSnapshot;
-        if (existingOffsetSector != 0 && existingSectorCount != 0 && existingStoredSize != 0 && existingRawSize != 0)
-        {
-            std::vector<uint8_t> stored(existingStoredSize);
-            file.seekg(static_cast<std::streamoff>(static_cast<uint64_t>(existingOffsetSector) * RegionSectorSize));
-            file.read(reinterpret_cast<char*>(stored.data()), static_cast<std::streamsize>(stored.size()));
-            try
-            {
-                existingSnapshot = deserializePayload(lz4DecodeBlock(stored, existingRawSize), snapshot.chunkX, snapshot.chunkZ);
-            }
-            catch (...)
-            {
-                existingSnapshot.reset();
-            }
-        }
-
-        SaveChunkSnapshot merged = existingSnapshot.value_or(SaveChunkSnapshot{});
-        if (!existingSnapshot)
-        {
-            merged.chunkX = snapshot.chunkX;
-            merged.chunkZ = snapshot.chunkZ;
-            merged.genState = ChunkGenState::Empty;
-        }
-
-        if (snapshot.hasData)
-        {
-            const std::optional<SaveChunkSnapshot> previous = existingSnapshot;
-            if (snapshot.hasSavedBacking && !snapshot.forceSave && previous && previous->hasData &&
-                previous->genState == ChunkGenState::Full &&
-                (snapshot.genState != ChunkGenState::Full || previous->revision > snapshot.revision))
-            {
-                return;
-            }
-            merged = snapshot;
-            if (merged.genState == ChunkGenState::Meshed)
-            {
-                merged.genState = ChunkGenState::Full;
-            }
-            if (merged.genState == ChunkGenState::Full)
-            {
-                merged.incomingFeatureMask = 0;
-                merged.incomingFeatureSlots = {};
-            }
-            else if (previous)
-            {
-                merged.incomingFeatureMask |= previous->incomingFeatureMask;
-                for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
-                {
-                    if (!merged.incomingFeatureSlots[slot])
-                    {
-                        merged.incomingFeatureSlots[slot] = previous->incomingFeatureSlots[slot];
-                    }
-                }
-            }
-        }
-        else
-        {
-            if (merged.genState != ChunkGenState::Full)
-            {
-                merged.incomingFeatureMask |= snapshot.incomingFeatureMask;
-            }
-            for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
-            {
-                if (!snapshot.incomingFeatureSlots[slot])
-                {
-                    continue;
-                }
-                if (merged.genState == ChunkGenState::Full && merged.hasData)
-                {
-                    std::array<FeatureWriteListPtr, FeatureNeighborCount> singleSlot{};
-                    singleSlot[slot] = snapshot.incomingFeatureSlots[slot];
-                    merged.incomingFeatureSlots = singleSlot;
-                    if (applySavedIncomingFeatureSlots(merged))
-                    {
-                        merged.revision += 1;
-                    }
-                    merged.incomingFeatureSlots = {};
-                    merged.incomingFeatureMask = 0;
-                }
-                else
-                {
-                    merged.incomingFeatureSlots[slot] = snapshot.incomingFeatureSlots[slot];
-                    merged.incomingFeatureMask |= static_cast<uint8_t>(1u << static_cast<uint32_t>(slot));
-                }
-            }
-        }
-
-        if (merged.genState == ChunkGenState::Meshed)
-        {
-            merged.genState = ChunkGenState::Full;
-        }
-        if (merged.genState == ChunkGenState::Full)
-        {
-            merged.incomingFeatureSlots = {};
-            merged.incomingFeatureMask = 0;
-        }
-
-        const std::vector<uint8_t> rawPayload = serializePayload(merged);
-        const std::vector<uint8_t> storedPayload = lz4EncodeLiteralBlock(rawPayload);
-        const uint32_t storedSize = static_cast<uint32_t>(storedPayload.size());
-        const uint32_t rawSize = static_cast<uint32_t>(rawPayload.size());
-        const uint32_t sectorCount = (storedSize + RegionSectorSize - 1u) / RegionSectorSize;
-
-        file.seekp(0, std::ios::end);
-        std::streamoff endOffset = file.tellp();
-        const uint32_t paddingBefore = static_cast<uint32_t>((RegionSectorSize - (static_cast<uint64_t>(endOffset) % RegionSectorSize)) % RegionSectorSize);
-        if (paddingBefore > 0)
-        {
-            std::vector<uint8_t> padding(paddingBefore, 0);
-            file.write(reinterpret_cast<const char*>(padding.data()), static_cast<std::streamsize>(padding.size()));
-            endOffset += paddingBefore;
-        }
-
-        const uint32_t offsetSector = static_cast<uint32_t>(static_cast<uint64_t>(endOffset) / RegionSectorSize);
-        file.write(reinterpret_cast<const char*>(storedPayload.data()), static_cast<std::streamsize>(storedPayload.size()));
-        const uint32_t paddingAfter = sectorCount * RegionSectorSize - storedSize;
-        if (paddingAfter > 0)
-        {
-            std::vector<uint8_t> padding(paddingAfter, 0);
-            file.write(reinterpret_cast<const char*>(padding.data()), static_cast<std::streamsize>(padding.size()));
-        }
-
-        writeU32At(header, entryOffset, offsetSector);
-        writeU32At(header, entryOffset + 4, sectorCount);
-        writeU32At(header, entryOffset + 8, storedSize);
-        writeU32At(header, entryOffset + 12, rawSize);
-        file.seekp(0);
-        file.write(reinterpret_cast<const char*>(header.data()), static_cast<std::streamsize>(header.size()));
-
-        {
-            std::lock_guard<std::mutex> lock(regionHeaderCacheMutex_);
-            RegionHeaderCache& cache = regionHeaderCache_[chunkKey(regionX, regionZ)];
-            cache.exists = true;
-            cache.entries[entryIndex] = RegionChunkEntry{
-                offsetSector,
-                sectorCount,
-                storedSize,
-                rawSize};
-        }
-
-        if (merged.genState == ChunkGenState::Full && merged.hasData)
-        {
-            std::lock_guard<std::mutex> lock(savedChunkMutex_);
-            savedCleanRevisions_[storageChunkKey(merged.chunkX, merged.chunkZ)] = merged.revision;
-        }
-    }
-
-    std::optional<Renderer::SaveChunkSnapshot> Renderer::loadChunkSnapshot(int chunkX, int chunkZ)
-    {
-        const uint64_t key = storageChunkKey(chunkX, chunkZ);
-        auto loadMiss = [this]() -> std::optional<SaveChunkSnapshot>
-        {
-            loadMissCount_.fetch_add(1, std::memory_order_relaxed);
-            return std::nullopt;
-        };
-
-        {
-            std::lock_guard<std::mutex> lock(saveJobMutex_);
-            const auto pendingIt = pendingSaveSnapshots_.find(key);
-            if (pendingIt != pendingSaveSnapshots_.end())
-            {
-                loadPendingHitCount_.fetch_add(1, std::memory_order_relaxed);
-                SaveChunkSnapshot snapshot = pendingIt->second;
-                snapshot.chunkX = chunkX;
-                snapshot.chunkZ = chunkZ;
-                return snapshot;
-            }
-        }
-
-        std::lock_guard<std::mutex> regionIoLock(regionIoMutex_);
-        const int storageChunkX = wrapChunkCoordinate(chunkX);
-        const int storageChunkZ = wrapChunkCoordinate(chunkZ);
-        const int regionX = storageChunkX / RegionSizeChunks;
-        const int regionZ = storageChunkZ / RegionSizeChunks;
-        const int localX = storageChunkX % RegionSizeChunks;
-        const int localZ = storageChunkZ % RegionSizeChunks;
-        const size_t entryIndex = static_cast<size_t>(localZ * RegionSizeChunks + localX);
-        const std::filesystem::path regionPath = activeWorldDirectory_ /
-            "regions" /
-            ("r." + std::to_string(regionX) + "." + std::to_string(regionZ) + ".region");
-
-        const uint64_t regionCacheKey = chunkKey(regionX, regionZ);
-        RegionChunkEntry entry{};
-        bool regionExists = false;
-        bool regionCached = false;
-        {
-            std::lock_guard<std::mutex> lock(regionHeaderCacheMutex_);
-            const auto cacheIt = regionHeaderCache_.find(regionCacheKey);
-            if (cacheIt != regionHeaderCache_.end())
-            {
-                regionCached = true;
-                regionExists = cacheIt->second.exists;
-                if (regionExists)
-                {
-                    entry = cacheIt->second.entries[entryIndex];
-                }
-            }
-        }
-
-        if (!regionCached)
-        {
-            RegionHeaderCache cache{};
-            std::ifstream headerFile(regionPath, std::ios::binary);
-            if (headerFile.is_open())
-            {
-                std::vector<uint8_t> header(RegionSectorSize, 0);
-                headerFile.read(reinterpret_cast<char*>(header.data()), static_cast<std::streamsize>(header.size()));
-                if (headerFile)
-                {
-                    cache.exists = true;
-                    for (size_t i = 0; i < cache.entries.size(); ++i)
-                    {
-                        const size_t entryOffset = i * RegionChunkEntrySize;
-                        cache.entries[i] = RegionChunkEntry{
-                            readU32At(header, entryOffset),
-                            readU32At(header, entryOffset + 4),
-                            readU32At(header, entryOffset + 8),
-                            readU32At(header, entryOffset + 12)};
-                    }
-                    entry = cache.entries[entryIndex];
-                    regionExists = true;
-                }
-            }
-
-            {
-                std::lock_guard<std::mutex> lock(regionHeaderCacheMutex_);
-                const auto cacheIt = regionHeaderCache_.find(regionCacheKey);
-                if (cacheIt == regionHeaderCache_.end())
-                {
-                    regionHeaderCache_.emplace(regionCacheKey, cache);
-                }
-                else if (!cacheIt->second.exists && cache.exists)
-                {
-                    cacheIt->second = cache;
-                }
-            }
-        }
-
-        if (!regionExists ||
-            entry.offsetSector == 0 ||
-            entry.sectorCount == 0 ||
-            entry.storedSize == 0 ||
-            entry.rawSize == 0)
-        {
-            return loadMiss();
-        }
-
-        std::ifstream file(regionPath, std::ios::binary);
-        if (!file.is_open())
-        {
-            return loadMiss();
-        }
-
-        std::vector<uint8_t> stored(entry.storedSize);
-        file.seekg(static_cast<std::streamoff>(static_cast<uint64_t>(entry.offsetSector) * RegionSectorSize));
-        file.read(reinterpret_cast<char*>(stored.data()), static_cast<std::streamsize>(stored.size()));
-        if (!file)
-        {
-            return loadMiss();
-        }
-
-        std::vector<uint8_t> payload;
-        try
-        {
-            payload = lz4DecodeBlock(stored, entry.rawSize);
-        }
-        catch (...)
-        {
-            return loadMiss();
-        }
-
-        try
-        {
-            SaveChunkSnapshot snapshot{};
-            snapshot.chunkX = chunkX;
-            snapshot.chunkZ = chunkZ;
-            size_t offset = 0;
-            snapshot.genState = static_cast<ChunkGenState>(readU8(payload, offset));
-            snapshot.incomingFeatureMask = readU8(payload, offset);
-            std::array<uint16_t, FeatureNeighborCount> featureCounts{};
-            for (uint16_t& count : featureCounts)
-            {
-                count = readU16(payload, offset);
-            }
-
-            const uint32_t blockRunCount = readU32(payload, offset);
-            if (blockRunCount > 0)
-            {
-                snapshot.hasData = true;
-                snapshot.blocks.reserve(ChunkBlockCount);
-                uint64_t totalCount = 0;
-                for (uint32_t run = 0; run < blockRunCount; ++run)
-                {
-                    const uint16_t block = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
-                    const uint32_t count = readU32(payload, offset);
-                    totalCount += count;
-                    if (totalCount > ChunkBlockCount)
-                    {
-                        return loadMiss();
-                    }
-                    snapshot.blocks.insert(snapshot.blocks.end(), count, block);
-                }
-                if (snapshot.blocks.size() != ChunkBlockCount)
-                {
-                    return loadMiss();
-                }
-            }
-
-            const uint32_t fluidRunCount = readU32(payload, offset);
-            if (fluidRunCount > 0)
-            {
-                snapshot.hasData = true;
-                snapshot.fluids.reserve(ChunkBlockCount);
-                uint64_t totalCount = 0;
-                for (uint32_t run = 0; run < fluidRunCount; ++run)
-                {
-                    const uint16_t fluid = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
-                    const uint32_t count = readU32(payload, offset);
-                    totalCount += count;
-                    if (totalCount > ChunkBlockCount)
-                    {
-                        return loadMiss();
-                    }
-                    snapshot.fluids.insert(snapshot.fluids.end(), count, fluid);
-                }
-                if (snapshot.fluids.size() != ChunkBlockCount)
-                {
-                    return loadMiss();
-                }
-            }
-
-            if (snapshot.hasData)
-            {
-                for (uint8_t& item : snapshot.temperature)
-                {
-                    item = readU8(payload, offset);
-                }
-                for (uint8_t& item : snapshot.precipitation)
-                {
-                    item = readU8(payload, offset);
-                }
-            }
-
-            for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
-            {
-                if (featureCounts[slot] == 0)
-                {
-                    continue;
-                }
-
-                auto writes = std::make_shared<FeatureWriteList>();
-                writes->reserve(featureCounts[slot]);
-                for (uint16_t i = 0; i < featureCounts[slot]; ++i)
-                {
-                    FeatureWrite write{};
-                    write.localX = readU8(payload, offset);
-                    write.localZ = readU8(payload, offset);
-                    write.y = readU16(payload, offset);
-                    write.block = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
-                    writes->push_back(write);
-                }
-                snapshot.incomingFeatureSlots[slot] = std::move(writes);
-            }
-            if (offset + 8 != payload.size() && offset + 2 <= payload.size())
-            {
-                const uint16_t entityCount = readU16(payload, offset);
-                snapshot.entities.reserve(entityCount);
-                const float worldXStart = static_cast<float>(chunkX * ChunkSizeX);
-                const float worldZStart = static_cast<float>(chunkZ * ChunkSizeZ);
-                for (uint16_t i = 0; i < entityCount; ++i)
-                {
-                    WorldEntity entity{};
-                    entity.type = static_cast<WorldEntityType>(readU16(payload, offset));
-                    entity.entityId = readU64(payload, offset);
-                    const float localX = readF32(payload, offset);
-                    const float y = readF32(payload, offset);
-                    const float localZ = readF32(payload, offset);
-                    entity.position = {
-                        worldXStart + std::clamp(localX, 0.0f, static_cast<float>(ChunkSizeX) - 0.0001f),
-                        y,
-                        worldZStart + std::clamp(localZ, 0.0f, static_cast<float>(ChunkSizeZ) - 0.0001f)
-                    };
-                    entity.previousPosition = entity.position;
-                    entity.velocity.x = readF32(payload, offset);
-                    entity.velocity.y = readF32(payload, offset);
-                    entity.velocity.z = readF32(payload, offset);
-                    entity.flags = static_cast<uint8_t>(readU8(payload, offset) & WorldEntityFlagGrounded);
-
-                    if (entity.type != WorldEntityType::DroppedItem)
-                    {
-                        return loadMiss();
-                    }
-                    entity.droppedItem.stack.itemId = readU16(payload, offset);
-                    entity.droppedItem.stack.count = readU16(payload, offset);
-                    if (entity.entityId != 0 &&
-                        entity.droppedItem.stack.itemId != 0 &&
-                        entity.droppedItem.stack.count != 0)
-                    {
-                        snapshot.entities.push_back(entity);
-                    }
-                }
-            }
-            if (offset + 8 <= payload.size())
-            {
-                snapshot.revision = readU64(payload, offset);
-            }
-
-            if (snapshot.genState == ChunkGenState::Full && snapshot.hasData)
-            {
-                std::lock_guard<std::mutex> lock(savedChunkMutex_);
-                savedCleanRevisions_[key] = snapshot.revision;
-            }
-            loadRegionHitCount_.fetch_add(1, std::memory_order_relaxed);
-            return snapshot;
-        }
-        catch (...)
-        {
-            return loadMiss();
-        }
-    }
-
-    Renderer::RuntimeChunk Renderer::runtimeChunkFromSnapshot(const SaveChunkSnapshot& snapshot, uint64_t generation)
+    RuntimeChunk Renderer::runtimeChunkFromSnapshot(const SaveChunkSnapshot& snapshot, uint64_t generation)
     {
         RuntimeChunk chunk{};
         chunk.chunkX = snapshot.chunkX;
@@ -8642,379 +4590,54 @@ namespace dolbuto
 
         if (chunk.genState == ChunkGenState::Full)
         {
-            std::lock_guard<std::mutex> lock(savedChunkMutex_);
-            savedCleanRevisions_[storageChunkKey(chunk.chunkX, chunk.chunkZ)] = chunk.data ? chunk.data->revision : 0;
+        saveSystem_.markClean(chunk.chunkX, chunk.chunkZ, chunk.data ? chunk.data->revision : 0);
         }
         return chunk;
     }
 
-    std::shared_ptr<Renderer::ChunkData> Renderer::buildChunkData(int chunkX, int chunkZ) const
+    world::TerrainBuilderConfig Renderer::terrainBuilderConfig() const
     {
-        auto chunk = std::make_shared<ChunkData>();
-        chunk->chunkX = chunkX;
-        chunk->chunkZ = chunkZ;
-        chunk->blocks.assign(ChunkBlockCount, BlockAir);
-        chunk->fluids.assign(ChunkBlockCount, FluidNone);
-        chunk->fluidSubchunkCounts.fill(0);
-        chunk->emptySubchunks.fill(true);
-        populateChunkClimate(*chunk);
-
-        std::array<int, Renderer::ChunkColumnCount> heights = buildChunkHeightmap(chunkX, chunkZ);
-        std::array<int, Renderer::ChunkColumnCount> terrainTopY{};
-        std::array<int, Renderer::ChunkColumnCount> bedrockHeights{};
-        terrainTopY.fill(-1);
-        int maxHeight = 0;
-        int minHeight = ChunkSizeY;
-        for (size_t column = 0; column < heights.size(); ++column)
-        {
-            const int localX = static_cast<int>(column % ChunkSizeX);
-            const int localZ = static_cast<int>(column / ChunkSizeX);
-            const int height = heights[column];
-            bedrockHeights[column] = bedrockHeightAt(chunkX * ChunkSizeX + localX, chunkZ * ChunkSizeZ + localZ);
-            maxHeight = std::max(maxHeight, height);
-            minHeight = std::min(minHeight, height);
-            if (height > 0)
-            {
-                terrainTopY[column] = std::min(height - 1, ChunkSizeY - 1);
-            }
-        }
-
-        const int solidHeightLimit = std::min(maxHeight, ChunkSizeY);
-        const int filledSubchunks = std::min(SubchunksPerChunk, (solidHeightLimit + SubchunkSize - 1) / SubchunkSize);
-        for (int subchunkY = 0; subchunkY < filledSubchunks; ++subchunkY)
-        {
-            chunk->emptySubchunks[static_cast<size_t>(subchunkY)] = false;
-        }
-
-        constexpr size_t BlocksPerLayer = ChunkSizeX * ChunkSizeZ;
-        const int worldXStart = chunkX * ChunkSizeX;
-        const int worldZStart = chunkZ * ChunkSizeZ;
-        const int commonSolidHeight = std::clamp(minHeight, 0, solidHeightLimit);
-        for (int y = 0; y < solidHeightLimit; ++y)
-        {
-            uint16_t* layer = chunk->blocks.data() + static_cast<size_t>(y) * BlocksPerLayer;
-            if (y < commonSolidHeight)
-            {
-                std::fill(layer, layer + BlocksPerLayer, BlockRock);
-                continue;
-            }
-
-            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-            {
-                for (int localX = 0; localX < ChunkSizeX; ++localX)
-                {
-                    const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                    if (y < heights[column])
-                    {
-                        layer[column] = BlockRock;
-                    }
-                }
-            }
-        }
-
-        constexpr uint16_t FullWater = packFluid(FluidWater, FluidFullAmount);
-        const int seaY = std::clamp(seaLevel_, 0, ChunkSizeY - 1);
-        const int waterStartY = std::clamp(minHeight, 0, seaY + 1);
-        for (int y = waterStartY; y <= seaY; ++y)
-        {
-            uint16_t* fluidLayer = chunk->fluids.data() + static_cast<size_t>(y) * BlocksPerLayer;
-            uint16_t& fluidSubchunkCount = chunk->fluidSubchunkCounts[static_cast<size_t>(y / SubchunkSize)];
-            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-            {
-                for (int localX = 0; localX < ChunkSizeX; ++localX)
-                {
-                    const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                    if (y >= heights[column])
-                    {
-                        fluidLayer[column] = FullWater;
-                        ++fluidSubchunkCount;
-                    }
-                }
-            }
-        }
-
-        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-        {
-            for (int localX = 0; localX < ChunkSizeX; ++localX)
-            {
-                const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                const int bedrockHeight = bedrockHeights[column];
-                for (int y = 0; y < bedrockHeight && y < ChunkSizeY; ++y)
-                {
-                    const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-                    chunk->blocks[index] = BlockBedrock;
-                    chunk->emptySubchunks[static_cast<size_t>(y / SubchunkSize)] = false;
-                    uint16_t& fluid = chunk->fluids[index];
-                    if (fluidId(fluid) != FluidNone && fluidAmount(fluid) != 0)
-                    {
-                        fluid = FluidNone;
-                        uint16_t& count = chunk->fluidSubchunkCounts[static_cast<size_t>(y / SubchunkSize)];
-                        if (count > 0)
-                        {
-                            --count;
-                        }
-                    }
-                }
-            }
-        }
-
-        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-        {
-            for (int localX = 0; localX < ChunkSizeX; ++localX)
-            {
-                const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                const int surfaceY = terrainTopY[column];
-                if (surfaceY < 0 || surfaceY >= ChunkSizeY)
-                {
-                    continue;
-                }
-
-                const size_t surfaceIndex = static_cast<size_t>((surfaceY * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-                if (surfaceIndex >= chunk->blocks.size() || chunk->blocks[surfaceIndex] == BlockBedrock)
-                {
-                    continue;
-                }
-
-                const int aboveY = surfaceY + 1;
-                const bool waterAbove = aboveY >= 0 && aboveY < ChunkSizeY &&
-                    chunk->fluids[static_cast<size_t>((aboveY * ChunkSizeZ + localZ) * ChunkSizeX + localX)] != FluidNone;
-                const uint16_t surfaceBlock = waterAbove ? BlockSand : BlockGrass;
-                const uint16_t subsurfaceBlock = waterAbove ? BlockSand : BlockDirt;
-                chunk->blocks[surfaceIndex] = surfaceBlock;
-
-                const int bedrockHeight = bedrockHeights[column];
-                const int subsurfaceStartY = std::max(bedrockHeight, surfaceY - 4);
-                for (int y = subsurfaceStartY; y < surfaceY; ++y)
-                {
-                    if (y < 0 || y >= ChunkSizeY)
-                    {
-                        continue;
-                    }
-                    const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-                    if (index < chunk->blocks.size() && chunk->blocks[index] != BlockBedrock)
-                    {
-                        chunk->blocks[index] = subsurfaceBlock;
-                    }
-                }
-            }
-        }
-
-        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-        {
-            for (int localX = 0; localX < ChunkSizeX; ++localX)
-            {
-                const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                const int surfaceY = terrainTopY[column];
-                const int placeY = surfaceY + 1;
-                if (surfaceY < 0 || placeY >= ChunkSizeY)
-                {
-                    continue;
-                }
-
-                const size_t topIndex = static_cast<size_t>((surfaceY * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-                const size_t plantIndex = static_cast<size_t>((placeY * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-                if (topIndex < chunk->blocks.size() &&
-                    plantIndex < chunk->blocks.size() &&
-                    chunk->blocks[topIndex] == BlockGrass)
-                {
-                    const uint8_t placement = worldRandom8(worldXStart + localX, placeY, worldZStart + localZ, PlantPlacementSalt);
-                    uint16_t placedBlock = BlockAir;
-                    if (placement <= PlantPlacementMax)
-                    {
-                        placedBlock = BlockPlant;
-                    }
-                    else if (placement <= StonePlacementMax)
-                    {
-                        placedBlock = BlockStoneProp;
-                    }
-                    else if (placement <= BranchPlacementMax)
-                    {
-                        placedBlock = BlockBranchProp;
-                    }
-
-                    if (placedBlock != BlockAir)
-                    {
-                        chunk->blocks[plantIndex] = placedBlock;
-                        chunk->emptySubchunks[static_cast<size_t>(placeY / SubchunkSize)] = false;
-                    }
-                }
-            }
-        }
-
-        return chunk;
+        world::TerrainBuilderConfig config{};
+        config.heightLut = heightLut_;
+        config.activeWorldSeedSalt = activeWorldSeedSalt_;
+        config.seaLevel = seaLevel_;
+        config.terrainNoiseFeatureScale = terrainNoiseFeatureScale_;
+        config.terrainNoiseOctaveCount = terrainNoiseOctaveCount_;
+        config.terrainNoiseLacunarity = terrainNoiseLacunarity_;
+        config.terrainNoiseGain = terrainNoiseGain_;
+        config.terrainNoiseSimplexScale = terrainNoiseSimplexScale_;
+        config.terrainDomainWarpEnabled = terrainDomainWarpEnabled_;
+        config.terrainDomainWarpAmplitude = terrainDomainWarpAmplitude_;
+        config.terrainDomainWarpFrequency = terrainDomainWarpFrequency_;
+        config.terrainDomainWarpOctaveCount = terrainDomainWarpOctaveCount_;
+        config.terrainDomainWarpGain = terrainDomainWarpGain_;
+        config.temperatureNoiseStrength = temperatureNoiseStrength_;
+        config.temperatureNoiseFeatureScale = temperatureNoiseFeatureScale_;
+        config.temperatureNoiseOctaveCount = temperatureNoiseOctaveCount_;
+        config.temperatureNoiseLacunarity = temperatureNoiseLacunarity_;
+        config.temperatureNoiseGain = temperatureNoiseGain_;
+        config.temperatureNoiseSimplexScale = temperatureNoiseSimplexScale_;
+        config.precipitationNoiseFeatureScale = precipitationNoiseFeatureScale_;
+        config.precipitationNoiseOctaveCount = precipitationNoiseOctaveCount_;
+        config.precipitationNoiseLacunarity = precipitationNoiseLacunarity_;
+        config.precipitationNoiseGain = precipitationNoiseGain_;
+        config.precipitationNoiseSimplexScale = precipitationNoiseSimplexScale_;
+        return config;
     }
 
-    std::array<Renderer::FeatureWriteListPtr, Renderer::FeatureNeighborCount> Renderer::buildTreeFeatures(const std::shared_ptr<Renderer::ChunkData>& chunk, const std::array<int, Renderer::ChunkColumnCount>& heights) const
+    std::shared_ptr<ChunkData> Renderer::buildChunkData(int chunkX, int chunkZ) const
     {
-        std::array<FeatureWriteListPtr, FeatureNeighborCount> outgoingSlots{};
-        for (FeatureWriteListPtr& slot : outgoingSlots)
-        {
-            slot = std::make_shared<FeatureWriteList>();
-        }
-
-        auto outgoingSlotForTarget = [&](int targetChunkX, int targetChunkZ) -> FeatureWriteList*
-        {
-            const int offsetX = targetChunkX - chunk->chunkX;
-            const int offsetZ = targetChunkZ - chunk->chunkZ;
-            const std::optional<size_t> slotIndex = featureNeighborIndex(offsetX, offsetZ);
-            if (!slotIndex)
-            {
-                return nullptr;
-            }
-            return outgoingSlots[*slotIndex].get();
-        };
-
-        auto canPlaceTrunk = [](uint16_t existing)
-        {
-            return existing == BlockAir || existing == BlockPlant || existing == BlockLeaves;
-        };
-
-        auto canPlaceLeaves = [](uint16_t existing)
-        {
-            return existing == BlockAir || existing == BlockPlant;
-        };
-
-        auto setInternalBlock = [&](int localX, int y, int localZ, uint16_t block)
-        {
-            if (localX < 0 || localX >= ChunkSizeX || localZ < 0 || localZ >= ChunkSizeZ || y < 0 || y >= ChunkSizeY)
-            {
-                return;
-            }
-
-            const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-            uint16_t& existing = chunk->blocks[index];
-            const bool canPlace = block == BlockTrunk ? canPlaceTrunk(existing) : canPlaceLeaves(existing);
-            if (canPlace)
-            {
-                existing = block;
-                chunk->emptySubchunks[static_cast<size_t>(y / SubchunkSize)] = false;
-            }
-        };
-
-        auto emitLeaves = [&](int worldX, int y, int worldZ)
-        {
-            if (y < 0 || y >= ChunkSizeY)
-            {
-                return;
-            }
-
-            const int targetChunkX = floorDiv(worldX, ChunkSizeX);
-            const int targetChunkZ = floorDiv(worldZ, ChunkSizeZ);
-            if (targetChunkX == chunk->chunkX && targetChunkZ == chunk->chunkZ)
-            {
-                setInternalBlock(positiveModulo(worldX, ChunkSizeX), y, positiveModulo(worldZ, ChunkSizeZ), BlockLeaves);
-                return;
-            }
-
-            FeatureWriteList* writes = outgoingSlotForTarget(targetChunkX, targetChunkZ);
-            if (writes == nullptr)
-            {
-                return;
-            }
-
-            writes->push_back(FeatureWrite{
-                positiveModulo(worldX, ChunkSizeX),
-                y,
-                positiveModulo(worldZ, ChunkSizeZ),
-                BlockLeaves});
-        };
-
-        const int worldXStart = chunk->chunkX * ChunkSizeX;
-        const int worldZStart = chunk->chunkZ * ChunkSizeZ;
-        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-        {
-            for (int localX = 0; localX < ChunkSizeX; ++localX)
-            {
-                const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                const int height = std::clamp(heights[column], 0, ChunkSizeY);
-                if (height <= 0 || height + 5 >= ChunkSizeY)
-                {
-                    continue;
-                }
-
-                const int worldX = worldXStart + localX;
-                const int worldZ = worldZStart + localZ;
-                const uint8_t vegetationRandom = worldRandom8(worldX, height, worldZ, PlantPlacementSalt);
-                if (vegetationRandom < TreePlacementMin || vegetationRandom > TreePlacementMax)
-                {
-                    continue;
-                }
-
-                const size_t topIndex = static_cast<size_t>(((height - 1) * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-                if (topIndex >= chunk->blocks.size() || chunk->blocks[topIndex] != BlockGrass)
-                {
-                    continue;
-                }
-
-                for (int y = height; y <= height + 3; ++y)
-                {
-                    setInternalBlock(localX, y, localZ, BlockTrunk);
-                }
-
-                for (int y = height + 2; y <= height + 3; ++y)
-                {
-                    for (int dz = -2; dz <= 2; ++dz)
-                    {
-                        for (int dx = -2; dx <= 2; ++dx)
-                        {
-                            if (std::abs(dx) == 2 && std::abs(dz) == 2)
-                            {
-                                continue;
-                            }
-                            emitLeaves(worldX + dx, y, worldZ + dz);
-                        }
-                    }
-                }
-
-                for (int dz = -1; dz <= 1; ++dz)
-                {
-                    for (int dx = -1; dx <= 1; ++dx)
-                    {
-                        emitLeaves(worldX + dx, height + 4, worldZ + dz);
-                    }
-                }
-            }
-        }
-
-        return outgoingSlots;
+        return world::TerrainBuilder(terrainBuilderConfig()).buildChunkData(chunkX, chunkZ);
     }
 
-    bool Renderer::applyFeatureWrites(const std::shared_ptr<Renderer::ChunkData>& chunk, const std::array<FeatureWriteListPtr, FeatureNeighborCount>& incomingFeatureSlots) const
+    std::array<FeatureWriteListPtr, FeatureNeighborCount> Renderer::buildTreeFeatures(const std::shared_ptr<ChunkData>& chunk, const std::array<int, ChunkColumnCount>& heights) const
     {
-        bool changed = false;
-        for (const FeatureWriteListPtr& writes : incomingFeatureSlots)
-        {
-            if (!writes)
-            {
-                continue;
-            }
+        return world::TerrainBuilder(terrainBuilderConfig()).buildTreeFeatures(chunk, heights);
+    }
 
-            for (const FeatureWrite& write : *writes)
-            {
-                if (write.block != BlockLeaves ||
-                    write.localX < 0 || write.localX >= ChunkSizeX ||
-                    write.localZ < 0 || write.localZ >= ChunkSizeZ ||
-                    write.y < 0 || write.y >= ChunkSizeY)
-                {
-                    continue;
-                }
-
-                const size_t index = static_cast<size_t>((write.y * ChunkSizeZ + write.localZ) * ChunkSizeX + write.localX);
-                uint16_t& existing = chunk->blocks[index];
-                if (existing == BlockAir || existing == BlockPlant)
-                {
-                    existing = BlockLeaves;
-                    chunk->emptySubchunks[static_cast<size_t>(write.y / SubchunkSize)] = false;
-                    changed = true;
-                }
-            }
-        }
-
-        if (changed)
-        {
-            ++chunk->revision;
-        }
-        return changed;
+    bool Renderer::applyFeatureWrites(const std::shared_ptr<ChunkData>& chunk, const std::array<FeatureWriteListPtr, FeatureNeighborCount>& incomingFeatureSlots) const
+    {
+        return world::TerrainBuilder(terrainBuilderConfig()).applyFeatureWrites(chunk, incomingFeatureSlots);
     }
 
     void Renderer::acceptFeatureSlot(int targetChunkX, int targetChunkZ, size_t sourceSlot, FeatureWriteListPtr writes)
@@ -9041,7 +4664,7 @@ namespace dolbuto
         {
             std::array<FeatureWriteListPtr, FeatureNeighborCount> singleSlot{};
             singleSlot[sourceSlot] = std::move(writes);
-            if (applyFeatureWrites(target.data, singleSlot))
+            if (world::TerrainBuilder(terrainBuilderConfig()).applyFeatureWrites(target.data, singleSlot))
             {
                 target.genState = ChunkGenState::Full;
                 tryQueueMeshesAround(targetChunkX, targetChunkZ);
@@ -9079,8 +4702,9 @@ namespace dolbuto
         });
         if (!hasOutgoingSlots && sourceChunk.data)
         {
-            const std::array<int, Renderer::ChunkColumnCount> heights = buildChunkHeightmap(sourceChunk.chunkX, sourceChunk.chunkZ);
-            sourceChunk.outgoingFeatureSlots = buildTreeFeatures(sourceChunk.data, heights);
+            const world::TerrainBuilder terrainBuilder(terrainBuilderConfig());
+            const std::array<int, ChunkColumnCount> heights = terrainBuilder.buildChunkHeightmap(sourceChunk.chunkX, sourceChunk.chunkZ);
+            sourceChunk.outgoingFeatureSlots = terrainBuilder.buildTreeFeatures(sourceChunk.data, heights);
         }
 
         for (size_t slot = 0; slot < FeatureNeighborOffsets.size(); ++slot)
@@ -9420,156 +5044,25 @@ namespace dolbuto
         debugTextBatchDirty_ = true;
     }
 
-    std::vector<uint16_t> Renderer::buildMeshingBlocks(const std::shared_ptr<Renderer::ChunkData>& chunk) const
+    TerrainBuildData Renderer::buildEditedSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, int subchunkY) const
     {
-        std::vector<uint16_t> meshingBlocks(MeshingBlockCount, BlockAir);
-
-        auto meshingIndex = [](int x, int y, int z) -> size_t
-        {
-            return static_cast<size_t>((y * MeshingSizeZ + z) * MeshingSizeX + x);
-        };
-
-        for (int y = 0; y < ChunkSizeY; ++y)
-        {
-            for (int z = 0; z < ChunkSizeZ; ++z)
+        return world::TerrainMesher().buildEditedSubchunkMesh(
+            chunk,
+            subchunkY,
+            [this](int x, int y, int z)
             {
-                for (int x = 0; x < ChunkSizeX; ++x)
-                {
-                    const size_t sourceIndex = static_cast<size_t>((y * ChunkSizeZ + z) * ChunkSizeX + x);
-                    meshingBlocks[meshingIndex(x + MeshingBorder, y, z + MeshingBorder)] = chunk->blocks[sourceIndex];
-                }
-            }
-        }
-
-        std::unordered_map<uint64_t, std::array<int, Renderer::ChunkColumnCount>> heightCache;
-        auto heightAtWorldColumn = [&](int worldX, int worldZ) -> int
-        {
-            const int neighborChunkX = floorDiv(worldX, ChunkSizeX);
-            const int neighborChunkZ = floorDiv(worldZ, ChunkSizeZ);
-            const uint64_t key = chunkKey(neighborChunkX, neighborChunkZ);
-            auto it = heightCache.find(key);
-            if (it == heightCache.end())
+                return blockAtWorld(x, y, z);
+            },
+            [this](const std::shared_ptr<ChunkData>& sourceChunk, int sourceSubchunkY, const world::TerrainMesher::BlockSampler& blockAt)
             {
-                it = heightCache.emplace(key, buildChunkHeightmap(neighborChunkX, neighborChunkZ)).first;
-            }
-
-            const int localX = positiveModulo(worldX, ChunkSizeX);
-            const int localZ = positiveModulo(worldZ, ChunkSizeZ);
-            return std::clamp(it->second[localZ * ChunkSizeX + localX], 0, ChunkSizeY);
-        };
-
-        const int worldXStart = chunk->chunkX * ChunkSizeX;
-        const int worldZStart = chunk->chunkZ * ChunkSizeZ;
-        for (int meshZ = 0; meshZ < MeshingSizeZ; ++meshZ)
-        {
-            for (int meshX = 0; meshX < MeshingSizeX; ++meshX)
-            {
-                const bool insideCenter =
-                    meshX >= MeshingBorder &&
-                    meshX < MeshingBorder + ChunkSizeX &&
-                    meshZ >= MeshingBorder &&
-                    meshZ < MeshingBorder + ChunkSizeZ;
-                if (insideCenter)
-                {
-                    continue;
-                }
-
-                const int worldX = worldXStart + meshX - MeshingBorder;
-                const int worldZ = worldZStart + meshZ - MeshingBorder;
-                const int height = heightAtWorldColumn(worldX, worldZ);
-                for (int y = 0; y < height; ++y)
-                {
-                    meshingBlocks[meshingIndex(meshX, y, meshZ)] = generatedTerrainBlockForColumn(worldX, y, worldZ, height, seaLevel_);
-                }
-            }
-        }
-
-        return meshingBlocks;
+                return buildSubchunkMesh(sourceChunk, sourceSubchunkY, blockAt);
+            });
     }
 
-    Renderer::TerrainBuildData Renderer::buildSubchunkMesh(const std::shared_ptr<Renderer::ChunkData>& chunk, const std::vector<uint16_t>& meshingBlocks, int subchunkY) const
-    {
-        auto blockAt = [&](int localX, int y, int localZ) -> uint16_t
-        {
-            if (y < 0 || y >= ChunkSizeY)
-            {
-                return BlockAir;
-            }
-
-            const int meshX = localX + MeshingBorder;
-            const int meshZ = localZ + MeshingBorder;
-            if (meshX < 0 || meshX >= MeshingSizeX || meshZ < 0 || meshZ >= MeshingSizeZ)
-            {
-                return BlockAir;
-            }
-            return meshingBlocks[static_cast<size_t>((y * MeshingSizeZ + meshZ) * MeshingSizeX + meshX)];
-        };
-
-        return buildSubchunkMesh(chunk, subchunkY, blockAt);
-    }
-
-    Renderer::TerrainBuildData Renderer::buildEditedSubchunkMesh(const std::shared_ptr<Renderer::ChunkData>& chunk, int subchunkY) const
-    {
-        constexpr int EditMeshingSizeY = SubchunkSize + MeshingBorder * 2;
-        std::vector<uint16_t> meshingBlocks(static_cast<size_t>(MeshingSizeX * EditMeshingSizeY * MeshingSizeZ), BlockAir);
-        const int worldXStart = chunk->chunkX * ChunkSizeX;
-        const int worldYStart = subchunkY * SubchunkSize;
-        const int worldZStart = chunk->chunkZ * ChunkSizeZ;
-        const int yBase = worldYStart - MeshingBorder;
-
-        auto meshingIndex = [](int x, int y, int z) -> size_t
-        {
-            return static_cast<size_t>((y * MeshingSizeZ + z) * MeshingSizeX + x);
-        };
-
-        for (int meshY = 0; meshY < EditMeshingSizeY; ++meshY)
-        {
-            const int worldY = yBase + meshY;
-            if (worldY < 0 || worldY >= ChunkSizeY)
-            {
-                continue;
-            }
-
-            for (int meshZ = 0; meshZ < MeshingSizeZ; ++meshZ)
-            {
-                const int worldZ = worldZStart + meshZ - MeshingBorder;
-                for (int meshX = 0; meshX < MeshingSizeX; ++meshX)
-                {
-                    const int worldX = worldXStart + meshX - MeshingBorder;
-                    meshingBlocks[meshingIndex(meshX, meshY, meshZ)] = blockAtWorld(worldX, worldY, worldZ);
-                }
-            }
-        }
-
-        auto blockAt = [&](int localX, int y, int localZ) -> uint16_t
-        {
-            if (y < 0 || y >= ChunkSizeY)
-            {
-                return BlockAir;
-            }
-
-            const int meshY = y - yBase;
-            if (meshY < 0 || meshY >= EditMeshingSizeY)
-            {
-                return BlockAir;
-            }
-
-            const int meshX = localX + MeshingBorder;
-            const int meshZ = localZ + MeshingBorder;
-            if (meshX < 0 || meshX >= MeshingSizeX || meshZ < 0 || meshZ >= MeshingSizeZ)
-            {
-                return BlockAir;
-            }
-            return meshingBlocks[meshingIndex(meshX, meshY, meshZ)];
-        };
-
-        return buildSubchunkMesh(chunk, subchunkY, blockAt);
-    }
-
-    Renderer::TerrainBuildData Renderer::buildSubchunkMesh(
-        const std::shared_ptr<Renderer::ChunkData>& chunk,
+    TerrainBuildData Renderer::buildSubchunkMesh(
+        const std::shared_ptr<ChunkData>& chunk,
         int subchunkY,
-        const std::function<uint16_t(int, int, int)>& blockAt) const
+        const world::TerrainMesher::BlockSampler& blockAt) const
     {
         TerrainBuildData result{};
 
@@ -9917,7 +5410,7 @@ namespace dolbuto
                 return;
             }
 
-            const PropMesh& mesh = meshIt->second;
+            const assets::PropMesh& mesh = meshIt->second;
             const uint32_t textureLayer = blockFaceTextureLayer(block, 0);
             const float mipDistanceScale = blockDefinition(block).mipDistanceScale;
             const std::array<float, 2> offset = randomBlockOffset(block, x, y, z);
@@ -9926,7 +5419,7 @@ namespace dolbuto
             const float originZ = static_cast<float>(z) - 0.5f + offset[1];
             const uint8_t rotation = topFaceRotation(block, x, y, z);
 
-            for (size_t offset = 0; offset + DpmQuadRenderFloatCount <= mesh.quads.size(); offset += DpmQuadRenderFloatCount)
+            for (size_t offset = 0; offset + assets::PropQuadRenderFloatCount <= mesh.quads.size(); offset += assets::PropQuadRenderFloatCount)
             {
                 std::array<TerrainVertex, 4> quad{};
                 size_t cursor = offset;
@@ -10184,291 +5677,19 @@ namespace dolbuto
         return result;
     }
 
-    Renderer::TerrainBuildData Renderer::buildFluidSubchunkMesh(const std::array<std::shared_ptr<Renderer::ChunkData>, 9>& chunks, int subchunkY) const
+    CompletedChunkMesh Renderer::buildChunkMesh(const std::array<std::shared_ptr<ChunkData>, 9>& chunks, uint64_t generation) const
     {
-        TerrainBuildData result{};
-        if (subchunkY < 0 || subchunkY >= SubchunksPerChunk || !chunks[4])
-        {
-            return result;
-        }
-
-        const std::shared_ptr<ChunkData>& chunk = chunks[4];
-        if (chunk->fluids.size() != ChunkBlockCount)
-        {
-            return result;
-        }
-
-        auto sampleChunk = [&](int localX, int localZ, int& sampleX, int& sampleZ) -> const std::shared_ptr<ChunkData>&
-        {
-            int chunkOffsetX = 0;
-            int chunkOffsetZ = 0;
-            sampleX = localX;
-            sampleZ = localZ;
-            if (sampleX < 0)
+        return world::TerrainMesher().buildChunkMesh(
+            chunks,
+            generation,
+            [this](const std::shared_ptr<ChunkData>& chunk, int subchunkY, const world::TerrainMesher::BlockSampler& blockAt)
             {
-                chunkOffsetX = -1;
-                sampleX += ChunkSizeX;
-            }
-            else if (sampleX >= ChunkSizeX)
+                return buildSubchunkMesh(chunk, subchunkY, blockAt);
+            },
+            [this](uint16_t block)
             {
-                chunkOffsetX = 1;
-                sampleX -= ChunkSizeX;
-            }
-
-            if (sampleZ < 0)
-            {
-                chunkOffsetZ = -1;
-                sampleZ += ChunkSizeZ;
-            }
-            else if (sampleZ >= ChunkSizeZ)
-            {
-                chunkOffsetZ = 1;
-                sampleZ -= ChunkSizeZ;
-            }
-
-            static const std::shared_ptr<ChunkData> EmptyChunk;
-            if (sampleX < 0 || sampleX >= ChunkSizeX || sampleZ < 0 || sampleZ >= ChunkSizeZ)
-            {
-                return EmptyChunk;
-            }
-            return chunks[static_cast<size_t>((chunkOffsetZ + 1) * 3 + (chunkOffsetX + 1))];
-        };
-
-        auto blockAt = [&](int localX, int y, int localZ) -> uint16_t
-        {
-            if (y < 0 || y >= ChunkSizeY)
-            {
-                return BlockAir;
-            }
-
-            int sampleX = localX;
-            int sampleZ = localZ;
-            const std::shared_ptr<ChunkData>& sample = sampleChunk(localX, localZ, sampleX, sampleZ);
-            if (!sample || sample->blocks.size() != ChunkBlockCount)
-            {
-                return BlockAir;
-            }
-
-            return sample->blocks[static_cast<size_t>((y * ChunkSizeZ + sampleZ) * ChunkSizeX + sampleX)];
-        };
-
-        auto fluidAt = [&](int localX, int y, int localZ) -> uint16_t
-        {
-            if (y < 0 || y >= ChunkSizeY)
-            {
-                return FluidNone;
-            }
-
-            int sampleX = localX;
-            int sampleZ = localZ;
-            const std::shared_ptr<ChunkData>& sample = sampleChunk(localX, localZ, sampleX, sampleZ);
-            if (!sample || sample->fluids.size() != ChunkBlockCount)
-            {
-                return FluidNone;
-            }
-
-            return sample->fluids[static_cast<size_t>((y * ChunkSizeZ + sampleZ) * ChunkSizeX + sampleX)];
-        };
-
-        auto blockOccludesFluid = [&](uint16_t block)
-        {
-            return block != BlockAir && blockDefinition(block).faceOcclusion == BlockFaceOcclusion::Opaque;
-        };
-
-        auto fluidRenderHeight = [&](int localX, int y, int localZ, uint16_t fluid)
-        {
-            if (fluidId(fluid) != FluidWater)
-            {
-                return 0.0f;
-            }
-            if (fluidId(fluidAt(localX, y + 1, localZ)) == FluidWater)
-            {
-                return 1.0f;
-            }
-            return fluidSurfaceHeight(fluidAmount(fluid));
-        };
-
-        auto appendQuad = [&](TerrainVertex a, TerrainVertex b, TerrainVertex c, TerrainVertex d)
-        {
-            a.textureLayer = 0.0f;
-            b.textureLayer = 0.0f;
-            c.textureLayer = 0.0f;
-            d.textureLayer = 0.0f;
-            a.mipDistanceScale = FluidMipDistanceScale;
-            b.mipDistanceScale = FluidMipDistanceScale;
-            c.mipDistanceScale = FluidMipDistanceScale;
-            d.mipDistanceScale = FluidMipDistanceScale;
-
-            const uint32_t baseIndex = static_cast<uint32_t>(result.vertices.size());
-            result.vertices.push_back(a);
-            result.vertices.push_back(b);
-            result.vertices.push_back(c);
-            result.vertices.push_back(d);
-            result.indices.push_back(baseIndex);
-            result.indices.push_back(baseIndex + 1);
-            result.indices.push_back(baseIndex + 2);
-            result.indices.push_back(baseIndex);
-            result.indices.push_back(baseIndex + 2);
-            result.indices.push_back(baseIndex + 3);
-        };
-
-        auto appendFluidFace = [&](int localX, int y, int localZ, int face, float sideBottom, float sideTop)
-        {
-            const int worldX = chunk->chunkX * ChunkSizeX + localX;
-            const int worldZ = chunk->chunkZ * ChunkSizeZ + localZ;
-            const float x0 = static_cast<float>(worldX) - 0.5f;
-            const float x1 = static_cast<float>(worldX) + 0.5f;
-            const float y0 = static_cast<float>(y) + sideBottom;
-            const float y1 = static_cast<float>(y) + sideTop;
-            const float z0 = static_cast<float>(worldZ) - 0.5f;
-            const float z1 = static_cast<float>(worldZ) + 0.5f;
-
-            if (face == 0)
-            {
-                appendQuad({x0, y1, z0, 0.0f, 0.0f, 1.0f}, {x0, y1, z1, 0.0f, 1.0f, 1.0f}, {x1, y1, z1, 1.0f, 1.0f, 1.0f}, {x1, y1, z0, 1.0f, 0.0f, 1.0f});
-            }
-            else if (face == 1)
-            {
-                appendQuad({x0, y0, z1, 0.0f, 0.0f, 1.0f}, {x0, y0, z0, 0.0f, 1.0f, 1.0f}, {x1, y0, z0, 1.0f, 1.0f, 1.0f}, {x1, y0, z1, 1.0f, 0.0f, 1.0f});
-            }
-            else if (face == 2)
-            {
-                appendQuad({x1, y0, z0, 0.0f, 1.0f, 1.0f}, {x1, y1, z0, 0.0f, 0.0f, 1.0f}, {x1, y1, z1, 1.0f, 0.0f, 1.0f}, {x1, y0, z1, 1.0f, 1.0f, 1.0f});
-            }
-            else if (face == 3)
-            {
-                appendQuad({x0, y0, z1, 0.0f, 1.0f, 1.0f}, {x0, y1, z1, 0.0f, 0.0f, 1.0f}, {x0, y1, z0, 1.0f, 0.0f, 1.0f}, {x0, y0, z0, 1.0f, 1.0f, 1.0f});
-            }
-            else if (face == 4)
-            {
-                appendQuad({x1, y0, z1, 0.0f, 1.0f, 1.0f}, {x1, y1, z1, 0.0f, 0.0f, 1.0f}, {x0, y1, z1, 1.0f, 0.0f, 1.0f}, {x0, y0, z1, 1.0f, 1.0f, 1.0f});
-            }
-            else
-            {
-                appendQuad({x0, y0, z0, 0.0f, 1.0f, 1.0f}, {x0, y1, z0, 0.0f, 0.0f, 1.0f}, {x1, y1, z0, 1.0f, 0.0f, 1.0f}, {x1, y0, z0, 1.0f, 1.0f, 1.0f});
-            }
-        };
-
-        result.vertices.reserve(256);
-        result.indices.reserve(384);
-
-        const int yStart = subchunkY * SubchunkSize;
-        const int yEnd = yStart + SubchunkSize;
-        for (int y = yStart; y < yEnd; ++y)
-        {
-            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-            {
-                for (int localX = 0; localX < ChunkSizeX; ++localX)
-                {
-                    const uint16_t fluid = fluidAt(localX, y, localZ);
-                    const uint16_t id = fluidId(fluid);
-                    const uint16_t amount = fluidAmount(fluid);
-                    if (id != FluidWater || amount == 0 || blockOccludesFluid(blockAt(localX, y, localZ)))
-                    {
-                        continue;
-                    }
-
-                    const float height = fluidRenderHeight(localX, y, localZ, fluid);
-                    if (fluidId(fluidAt(localX, y + 1, localZ)) != FluidWater && !blockOccludesFluid(blockAt(localX, y + 1, localZ)))
-                    {
-                        appendFluidFace(localX, y, localZ, 0, 0.0f, height);
-                    }
-                    if (fluidId(fluidAt(localX, y - 1, localZ)) != FluidWater && !blockOccludesFluid(blockAt(localX, y - 1, localZ)))
-                    {
-                        appendFluidFace(localX, y, localZ, 1, 0.0f, height);
-                    }
-
-                    const std::array<std::array<int, 3>, 4> sideOffsets = {{{1, 0, 2}, {-1, 0, 3}, {0, 1, 4}, {0, -1, 5}}};
-                    for (const std::array<int, 3>& side : sideOffsets)
-                    {
-                        const int neighborX = localX + side[0];
-                        const int neighborZ = localZ + side[1];
-                        if (blockOccludesFluid(blockAt(neighborX, y, neighborZ)))
-                        {
-                            continue;
-                        }
-
-                        const uint16_t neighborFluid = fluidAt(neighborX, y, neighborZ);
-                        const float neighborHeight = fluidRenderHeight(neighborX, y, neighborZ, neighborFluid);
-                        if (neighborHeight >= height)
-                        {
-                            continue;
-                        }
-                        appendFluidFace(localX, y, localZ, side[2], neighborHeight, height);
-                    }
-                }
-            }
-        }
-
-        return result;
-    }
-
-    Renderer::CompletedChunkMesh Renderer::buildChunkMesh(const std::array<std::shared_ptr<Renderer::ChunkData>, 9>& chunks, uint64_t generation) const
-    {
-        const std::shared_ptr<ChunkData>& chunk = chunks[4];
-        CompletedChunkMesh result{};
-        result.generation = generation;
-        result.revision = chunk->revision;
-        result.chunkX = chunk->chunkX;
-        result.chunkZ = chunk->chunkZ;
-
-        auto blockAt = [&](int localX, int y, int localZ) -> uint16_t
-        {
-            if (y < 0 || y >= ChunkSizeY)
-            {
-                return BlockAir;
-            }
-
-            int chunkOffsetX = 0;
-            int chunkOffsetZ = 0;
-            int sampleX = localX;
-            int sampleZ = localZ;
-            if (sampleX < 0)
-            {
-                chunkOffsetX = -1;
-                sampleX += ChunkSizeX;
-            }
-            else if (sampleX >= ChunkSizeX)
-            {
-                chunkOffsetX = 1;
-                sampleX -= ChunkSizeX;
-            }
-
-            if (sampleZ < 0)
-            {
-                chunkOffsetZ = -1;
-                sampleZ += ChunkSizeZ;
-            }
-            else if (sampleZ >= ChunkSizeZ)
-            {
-                chunkOffsetZ = 1;
-                sampleZ -= ChunkSizeZ;
-            }
-
-            if (sampleX < 0 || sampleX >= ChunkSizeX || sampleZ < 0 || sampleZ >= ChunkSizeZ)
-            {
-                return BlockAir;
-            }
-
-            const std::shared_ptr<ChunkData>& sampleChunk = chunks[static_cast<size_t>((chunkOffsetZ + 1) * 3 + (chunkOffsetX + 1))];
-            if (!sampleChunk)
-            {
-                return BlockAir;
-            }
-
-            const size_t index = static_cast<size_t>((y * ChunkSizeZ + sampleZ) * ChunkSizeX + sampleX);
-            return sampleChunk->blocks[index];
-        };
-
-        for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
-        {
-            result.solidSubchunks[static_cast<size_t>(subchunkY)] = buildSubchunkMesh(chunk, subchunkY, blockAt);
-            if (chunk->fluidSubchunkCounts[static_cast<size_t>(subchunkY)] > 0)
-            {
-                result.fluidSubchunks[static_cast<size_t>(subchunkY)] = buildFluidSubchunkMesh(chunks, subchunkY);
-            }
-        }
-        return result;
+                return block != BlockAir && blockDefinition(block).faceOcclusion == BlockFaceOcclusion::Opaque;
+            });
     }
 
     bool Renderer::chunkMeshReady(uint64_t key) const
@@ -10573,151 +5794,12 @@ namespace dolbuto
         terrainVertexText_ = "QUADS: " + std::to_string(terrainVertexCount_);
     }
 
-    std::array<int, Renderer::ChunkColumnCount> Renderer::buildChunkHeightmap(int chunkX, int chunkZ) const
+    std::array<int, ChunkColumnCount> Renderer::buildChunkHeightmap(int chunkX, int chunkZ) const
     {
-        std::array<int, Renderer::ChunkColumnCount> heights{};
-        auto generator = terrainNoiseGenerator(
-            terrainNoiseSimplexScale_,
-            terrainNoiseOctaveCount_,
-            terrainNoiseLacunarity_,
-            terrainNoiseGain_);
-        if (!generator)
-        {
-            heights.fill(heightFromLut(heightLut_, 0.0f));
-            return heights;
-        }
-
-        constexpr float TwoPi = 6.28318530718f;
-        const float angleScale = TwoPi / static_cast<float>(TerrainTilePeriod);
-        const float radius = static_cast<float>(TerrainTilePeriod) / (TwoPi * terrainNoiseFeatureScale_);
-
-        std::array<float, ChunkSizeX> xCos{};
-        std::array<float, ChunkSizeX> xSin{};
-        std::array<float, ChunkSizeZ> zCos{};
-        std::array<float, ChunkSizeZ> zSin{};
-        for (int localX = 0; localX < ChunkSizeX; ++localX)
-        {
-            const int worldX = chunkX * ChunkSizeX + localX;
-            const float angle = static_cast<float>(positiveModulo(worldX, TerrainTilePeriod)) * angleScale;
-            xCos[localX] = std::cos(angle) * radius;
-            xSin[localX] = std::sin(angle) * radius;
-        }
-        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-        {
-            const int worldZ = chunkZ * ChunkSizeZ + localZ;
-            const float angle = static_cast<float>(positiveModulo(worldZ, TerrainTilePeriod)) * angleScale;
-            zCos[localZ] = std::cos(angle) * radius;
-            zSin[localZ] = std::sin(angle) * radius;
-        }
-
-        std::array<float, ChunkSizeX * ChunkSizeZ> xPositions{};
-        std::array<float, ChunkSizeX * ChunkSizeZ> yPositions{};
-        std::array<float, ChunkSizeX * ChunkSizeZ> zPositions{};
-        std::array<float, ChunkSizeX * ChunkSizeZ> wPositions{};
-        std::array<float, ChunkSizeX * ChunkSizeZ> noise{};
-        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-        {
-            for (int localX = 0; localX < ChunkSizeX; ++localX)
-            {
-                const size_t index = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                xPositions[index] = xCos[localX];
-                yPositions[index] = zCos[localZ];
-                zPositions[index] = xSin[localX];
-                wPositions[index] = zSin[localZ];
-            }
-        }
-
-        if (terrainDomainWarpEnabled_ && terrainDomainWarpAmplitude_ > 0.0f)
-        {
-            auto warpGenerator = terrainNoiseGenerator(
-                terrainDomainWarpFrequency_,
-                terrainDomainWarpOctaveCount_,
-                DefaultTerrainNoiseLacunarity,
-                terrainDomainWarpGain_);
-            if (warpGenerator)
-            {
-                std::array<float, ChunkSizeX * ChunkSizeZ> xWarp{};
-                std::array<float, ChunkSizeX * ChunkSizeZ> yWarp{};
-                std::array<float, ChunkSizeX * ChunkSizeZ> zWarp{};
-                std::array<float, ChunkSizeX * ChunkSizeZ> wWarp{};
-
-                warpGenerator->GenPositionArray4D(
-                    xWarp.data(),
-                    static_cast<int>(xWarp.size()),
-                    xPositions.data(),
-                    yPositions.data(),
-                    zPositions.data(),
-                    wPositions.data(),
-                    0.0f,
-                    0.0f,
-                    0.0f,
-                    0.0f,
-                    terrainSeed(101));
-                warpGenerator->GenPositionArray4D(
-                    yWarp.data(),
-                    static_cast<int>(yWarp.size()),
-                    xPositions.data(),
-                    yPositions.data(),
-                    zPositions.data(),
-                    wPositions.data(),
-                    0.0f,
-                    0.0f,
-                    0.0f,
-                    0.0f,
-                    terrainSeed(202));
-                warpGenerator->GenPositionArray4D(
-                    zWarp.data(),
-                    static_cast<int>(zWarp.size()),
-                    xPositions.data(),
-                    yPositions.data(),
-                    zPositions.data(),
-                    wPositions.data(),
-                    0.0f,
-                    0.0f,
-                    0.0f,
-                    0.0f,
-                    terrainSeed(303));
-                warpGenerator->GenPositionArray4D(
-                    wWarp.data(),
-                    static_cast<int>(wWarp.size()),
-                    xPositions.data(),
-                    yPositions.data(),
-                    zPositions.data(),
-                    wPositions.data(),
-                    0.0f,
-                    0.0f,
-                    0.0f,
-                    0.0f,
-                    terrainSeed(404));
-
-                for (size_t i = 0; i < xPositions.size(); ++i)
-                {
-                    xPositions[i] += xWarp[i] * terrainDomainWarpAmplitude_;
-                    yPositions[i] += yWarp[i] * terrainDomainWarpAmplitude_;
-                    zPositions[i] += zWarp[i] * terrainDomainWarpAmplitude_;
-                    wPositions[i] += wWarp[i] * terrainDomainWarpAmplitude_;
-                }
-            }
-        }
-
-        generator->GenPositionArray4D(
-            noise.data(),
-            static_cast<int>(noise.size()),
-            xPositions.data(),
-            yPositions.data(),
-            zPositions.data(),
-            wPositions.data(),
-            0.0f,
-            0.0f,
-            0.0f,
-            0.0f,
-            terrainSeed());
-
-        convertNoiseToHeights(heightLut_, noise, heights);
-        return heights;
+        return world::TerrainBuilder(terrainBuilderConfig()).buildChunkHeightmap(chunkX, chunkZ);
     }
 
-    Renderer::PackedTerrainQuad Renderer::packTerrainQuad(const TerrainVertex& a, const TerrainVertex& b, const TerrainVertex& c, const TerrainVertex& d) const
+    PackedTerrainQuad Renderer::packTerrainQuad(const TerrainVertex& a, const TerrainVertex& b, const TerrainVertex& c, const TerrainVertex& d) const
     {
         auto encodeSignedFixed = [](float value) -> uint32_t
         {
@@ -10783,7 +5865,7 @@ namespace dolbuto
         return packed;
     }
 
-    std::vector<Renderer::PackedTerrainQuad> Renderer::buildPackedTerrainQuads(const TerrainBuildData& buildData) const
+    std::vector<PackedTerrainQuad> Renderer::buildPackedTerrainQuads(const TerrainBuildData& buildData) const
     {
         std::vector<PackedTerrainQuad> quads;
         quads.reserve(buildData.vertices.size() / 4u);
@@ -11114,192 +6196,55 @@ namespace dolbuto
 
     void Renderer::initializeRmlUi()
     {
-        rmlSystemInterface_ = std::make_unique<RmlGlfwSystemInterface>(window_);
-        Rml::SetSystemInterface(rmlSystemInterface_.get());
-        Rml::SetRenderInterface(this);
-        if (!Rml::Initialise())
+        ui_.initialize(
+            window_,
+            assetDirectory(),
+            static_cast<int>(swapchainExtent_.width),
+            static_cast<int>(swapchainExtent_.height),
+            this);
+        ui_.setClickCallback([this]()
         {
-            log::warn("RmlUi initialization failed.");
-            Rml::SetSystemInterface(nullptr);
-            rmlSystemInterface_.reset();
-            return;
-        }
-
-        rmlInitialized_ = true;
-        const std::filesystem::path assetDir = assetDirectory();
-        const std::filesystem::path fontPath = assetDir / "fonts" / "VCR_OSD_MONO.ttf";
-        if (!Rml::LoadFontFace(fontPath.string(), true))
-        {
-            log::warn("RmlUi font load failed: " + fontPath.string());
-        }
-
-        rmlContext_ = Rml::CreateContext("main", Rml::Vector2i(static_cast<int>(swapchainExtent_.width), static_cast<int>(swapchainExtent_.height)), this);
-        if (rmlContext_ == nullptr)
-        {
-            log::warn("RmlUi context creation failed.");
-            return;
-        }
-
-        const std::filesystem::path uiDir = assetDir / "ui";
-        rmlLobbyDocument_ = rmlContext_->LoadDocument((uiDir / "lobby.rml").string());
-        rmlWorldSelectDocument_ = rmlContext_->LoadDocument((uiDir / "world_select.rml").string());
-        rmlWorldCreateDocument_ = rmlContext_->LoadDocument((uiDir / "world_create.rml").string());
-        rmlHudDocument_ = rmlContext_->LoadDocument((uiDir / "hud.rml").string());
-        rmlInventoryDocument_ = rmlContext_->LoadDocument((uiDir / "inventory.rml").string());
-        rmlPauseDocument_ = rmlContext_->LoadDocument((uiDir / "pause.rml").string());
-
-        attachRmlUiEvents(rmlLobbyDocument_);
-        attachRmlUiEvents(rmlWorldSelectDocument_);
-        attachRmlUiEvents(rmlWorldCreateDocument_);
-        attachRmlUiEvents(rmlHudDocument_);
-        attachRmlUiEvents(rmlInventoryDocument_);
-        attachRmlUiEvents(rmlPauseDocument_);
-
+            audio_.playButtonClick();
+        });
         updateHotbarScopeClass();
         updateInventoryUi();
         updateInventoryDebugSlots();
-        setRmlUiDocument(0);
     }
 
     void Renderer::shutdownRmlUi()
     {
-        if (!rmlInitialized_)
-        {
-            return;
-        }
-
-        if (rmlLobbyDocument_ != nullptr)
-        {
-            rmlLobbyDocument_->Close();
-            rmlLobbyDocument_ = nullptr;
-        }
-        if (rmlWorldSelectDocument_ != nullptr)
-        {
-            rmlWorldSelectDocument_->Close();
-            rmlWorldSelectDocument_ = nullptr;
-        }
-        if (rmlWorldCreateDocument_ != nullptr)
-        {
-            rmlWorldCreateDocument_->Close();
-            rmlWorldCreateDocument_ = nullptr;
-        }
-        if (rmlHudDocument_ != nullptr)
-        {
-            rmlHudDocument_->Close();
-            rmlHudDocument_ = nullptr;
-        }
-        if (rmlInventoryDocument_ != nullptr)
-        {
-            rmlInventoryDocument_->Close();
-            rmlInventoryDocument_ = nullptr;
-        }
-        if (rmlPauseDocument_ != nullptr)
-        {
-            rmlPauseDocument_->Close();
-            rmlPauseDocument_ = nullptr;
-        }
-        Rml::RemoveContext("main");
-        rmlContext_ = nullptr;
-        Rml::Shutdown();
-        Rml::SetSystemInterface(nullptr);
-        rmlSystemInterface_.reset();
-        rmlInitialized_ = false;
-        activeRmlMenuOverlayMode_ = -1;
-    }
-
-    void Renderer::attachRmlUiEvents(Rml::ElementDocument* document)
-    {
-        if (document == nullptr)
-        {
-            return;
-        }
-
-        constexpr std::array<const char*, 8> ButtonIds = {
-            "start",
-            "exit",
-            "new-world",
-            "create-world",
-            "back-to-lobby",
-            "back-to-world-select",
-            "resume",
-            "exit-to-lobby"
-        };
-        for (const char* id : ButtonIds)
-        {
-            if (Rml::Element* element = document->GetElementById(id))
-            {
-                element->AddEventListener("click", this);
-            }
-        }
-    }
-
-    void Renderer::setRmlUiDocument(int menuOverlayMode)
-    {
-        if (activeRmlMenuOverlayMode_ == menuOverlayMode)
-        {
-            return;
-        }
-
-        if (activeRmlMenuOverlayMode_ == 5 && menuOverlayMode != 5)
-        {
-            closeInventoryInteraction();
-        }
-
-        activeRmlMenuOverlayMode_ = menuOverlayMode;
-        if (rmlLobbyDocument_ != nullptr)
-        {
-            menuOverlayMode == 1 ? rmlLobbyDocument_->Show() : rmlLobbyDocument_->Hide();
-        }
-        if (rmlWorldSelectDocument_ != nullptr)
-        {
-            menuOverlayMode == 3 ? rmlWorldSelectDocument_->Show() : rmlWorldSelectDocument_->Hide();
-        }
-        if (rmlWorldCreateDocument_ != nullptr)
-        {
-            menuOverlayMode == 4 ? rmlWorldCreateDocument_->Show() : rmlWorldCreateDocument_->Hide();
-        }
-        if (rmlHudDocument_ != nullptr)
-        {
-            (menuOverlayMode == 0 || menuOverlayMode == 5) ? rmlHudDocument_->Show() : rmlHudDocument_->Hide();
-        }
-        if (rmlInventoryDocument_ != nullptr)
-        {
-            menuOverlayMode == 5 ? rmlInventoryDocument_->Show() : rmlInventoryDocument_->Hide();
-        }
-        if (rmlPauseDocument_ != nullptr)
-        {
-            menuOverlayMode == 2 ? rmlPauseDocument_->Show() : rmlPauseDocument_->Hide();
-        }
+        ui_.shutdown();
     }
 
     bool Renderer::renderRmlUi(VkCommandBuffer commandBuffer, int menuOverlayMode, bool hudVisible)
     {
-        if (!rmlInitialized_ || rmlContext_ == nullptr)
+        if (!ui_.available())
         {
             return false;
         }
 
         const int effectiveMenuOverlayMode = hudVisible ? menuOverlayMode : (menuOverlayMode == 0 ? -1 : menuOverlayMode);
-        setRmlUiDocument(effectiveMenuOverlayMode);
-        rmlContext_->SetDimensions(Rml::Vector2i(static_cast<int>(swapchainExtent_.width), static_cast<int>(swapchainExtent_.height)));
-        rmlContext_->Update();
+        if (ui_.activeMenuOverlayMode() == 5 && effectiveMenuOverlayMode != 5)
+        {
+            closeInventoryInteraction();
+        }
         rmlUiVertexOffset_ = 0;
         rmlUiIndexOffset_ = 0;
         rmlCommandBuffer_ = commandBuffer;
-        rmlContext_->Render();
+        const bool rendered = ui_.render(
+            effectiveMenuOverlayMode,
+            static_cast<int>(swapchainExtent_.width),
+            static_cast<int>(swapchainExtent_.height));
         rmlCommandBuffer_ = VK_NULL_HANDLE;
-        return true;
+        return rendered;
     }
 
     void Renderer::uiMouseMove(double x, double y)
     {
         rmlMouseX_ = x;
         rmlMouseY_ = y;
-        if (rmlContext_ != nullptr)
-        {
-            rmlContext_->ProcessMouseMove(static_cast<int>(std::round(x)), static_cast<int>(std::round(y)), currentRmlKeyModifiers());
-        }
-        if (activeRmlMenuOverlayMode_ == 5)
+        ui_.processMouseMove(x, y);
+        if (ui_.activeMenuOverlayMode() == 5)
         {
             updateItemTooltipUi();
             updateInventoryCursorUi();
@@ -11308,25 +6253,11 @@ namespace dolbuto
 
     void Renderer::uiMouseButton(int button, bool pressed, int modifiers)
     {
-        if (rmlContext_ == nullptr)
-        {
-            return;
-        }
-
-        int rmlButton = 0;
-        if (button == GLFW_MOUSE_BUTTON_RIGHT)
-        {
-            rmlButton = 1;
-        }
-        else if (button == GLFW_MOUSE_BUTTON_MIDDLE)
-        {
-            rmlButton = 2;
-        }
+        ui_.processMouseButton(button, pressed, modifiers);
 
         if (pressed)
         {
-            rmlContext_->ProcessMouseButtonDown(rmlButton, rmlKeyModifiersFromGlfw(modifiers));
-            if (activeRmlMenuOverlayMode_ == 5 && (button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT))
+            if (ui_.activeMenuOverlayMode() == 5 && (button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT))
             {
                 if (const std::optional<size_t> slot = inventorySlotAt(rmlMouseX_, rmlMouseY_); slot.has_value())
                 {
@@ -11334,65 +6265,38 @@ namespace dolbuto
                 }
             }
         }
-        else
-        {
-            rmlContext_->ProcessMouseButtonUp(rmlButton, rmlKeyModifiersFromGlfw(modifiers));
-        }
     }
 
     void Renderer::uiMouseWheel(double yOffset)
     {
-        if (rmlContext_ != nullptr)
-        {
-            rmlContext_->ProcessMouseWheel(static_cast<float>(-yOffset), currentRmlKeyModifiers());
-        }
+        ui_.processMouseWheel(yOffset);
     }
 
     void Renderer::uiTextInput(unsigned int codepoint)
     {
-        if (rmlContext_ != nullptr)
-        {
-            rmlContext_->ProcessTextInput(static_cast<Rml::Character>(codepoint));
-        }
+        ui_.processTextInput(codepoint);
     }
 
     void Renderer::uiKey(int key, bool pressed, int modifiers)
     {
-        if (rmlContext_ == nullptr)
-        {
-            return;
-        }
-
-        const Rml::Input::KeyIdentifier identifier = rmlKeyFromGlfw(key);
-        if (identifier == Rml::Input::KI_UNKNOWN)
-        {
-            return;
-        }
-
         if (pressed)
         {
-            if (activeRmlMenuOverlayMode_ == 5 && ((key >= GLFW_KEY_0 && key <= GLFW_KEY_9)))
+            if (ui_.activeMenuOverlayMode() == 5 && ((key >= GLFW_KEY_0 && key <= GLFW_KEY_9)))
             {
                 handleInventoryHotbarSwapKey(key);
             }
-            rmlContext_->ProcessKeyDown(identifier, rmlKeyModifiersFromGlfw(modifiers));
         }
-        else
-        {
-            rmlContext_->ProcessKeyUp(identifier, rmlKeyModifiersFromGlfw(modifiers));
-        }
+        ui_.processKey(key, pressed, modifiers);
     }
 
     std::optional<std::string> Renderer::consumeUiAction()
     {
-        std::optional<std::string> action = std::move(pendingUiAction_);
-        pendingUiAction_.reset();
-        return action;
+        return ui_.consumeAction();
     }
 
     bool Renderer::rmlUiAvailable() const
     {
-        return rmlInitialized_ && rmlContext_ != nullptr;
+        return ui_.available();
     }
 
     void Renderer::setHotbarSelectedSlot(int slot)
@@ -11403,141 +6307,30 @@ namespace dolbuto
 
     void Renderer::updateHotbarScopeClass()
     {
-        if (rmlHudDocument_ == nullptr)
-        {
-            return;
-        }
-
-        Rml::Element* scope = rmlHudDocument_->GetElementById("hotbar-scope");
-        if (scope == nullptr)
-        {
-            return;
-        }
-
-        scope->SetAttribute("class", Rml::String("hotbar-scope hotbar-slot-") + std::to_string(hotbarSelectedSlot_));
-    }
-
-    std::string Renderer::inventoryDebugSlotRml(size_t slotIndex, bool inventorySlot) const
-    {
-        int sourceX = 0;
-        int sourceY = 0;
-        if (inventorySlot)
-        {
-            constexpr int Padding = 4;
-            constexpr int Step = 17;
-            constexpr int HotbarY = 77;
-            const int col = static_cast<int>(slotIndex % 10u);
-            sourceX = Padding + col * Step;
-            if (slotIndex < 10u)
-            {
-                sourceY = HotbarY;
-            }
-            else
-            {
-                const int group = static_cast<int>(slotIndex / 10u);
-                sourceY = Padding + (4 - group) * Step;
-            }
-        }
-        else
-        {
-            constexpr int HotbarStartX = 3;
-            constexpr int HotbarStartY = 3;
-            constexpr int Step = 17;
-            sourceX = HotbarStartX + static_cast<int>(slotIndex) * Step;
-            sourceY = HotbarStartY;
-        }
-
-        constexpr int Scale = 4;
-        const int hotbarOffsetX = inventorySlot ? 0 : 4;
-        const int hotbarOffsetY = inventorySlot ? 0 : 4;
-        const int left = sourceX * Scale + hotbarOffsetX;
-        const int top = sourceY * Scale + hotbarOffsetY;
-
-        std::string rml;
-        rml += "<div class=\"slot-debug\" style=\"left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px;\">";
-        rml += std::to_string(slotIndex);
-        rml += "</div>";
-        return rml;
+        ui_.setHotbarScopeClass(hotbarSelectedSlot_);
     }
 
     void Renderer::updateInventoryDebugSlots()
     {
-        if (rmlHudDocument_ != nullptr)
+        std::string hotbarRml;
+        std::string inventoryRml;
+        if (inventoryDebugSlotsVisible_)
         {
-            if (Rml::Element* hotbarItems = rmlHudDocument_->GetElementById("hotbar-debug-slots"))
+            for (size_t i = 0; i < 10u; ++i)
             {
-                hotbarItems->SetAttribute("class", inventoryDebugSlotsVisible_ ? "hotbar-items" : "hotbar-items ui-hidden");
-                std::string rml;
-                if (inventoryDebugSlotsVisible_)
-                {
-                    for (size_t i = 0; i < 10u; ++i)
-                    {
-                        rml += inventoryDebugSlotRml(i, false);
-                    }
-                }
-                hotbarItems->SetInnerRML(rml);
+                hotbarRml += ui::inventoryDebugSlotRml(i, false);
+            }
+            for (size_t i = 0; i < 50u; ++i)
+            {
+                inventoryRml += ui::inventoryDebugSlotRml(i, true);
             }
         }
-
-        if (rmlInventoryDocument_ != nullptr)
-        {
-            if (Rml::Element* inventoryItems = rmlInventoryDocument_->GetElementById("inventory-debug-slots"))
-            {
-                inventoryItems->SetAttribute("class", inventoryDebugSlotsVisible_ ? "inventory-items" : "inventory-items ui-hidden");
-                std::string rml;
-                if (inventoryDebugSlotsVisible_)
-                {
-                    for (size_t i = 0; i < 50u; ++i)
-                    {
-                        rml += inventoryDebugSlotRml(i, true);
-                    }
-                }
-                inventoryItems->SetInnerRML(rml);
-            }
-        }
+        ui_.setInventoryDebugSlots(hotbarRml, inventoryRml, inventoryDebugSlotsVisible_);
     }
 
     std::optional<size_t> Renderer::inventorySlotAt(double x, double y) const
     {
-        if (swapchainExtent_.width == 0 || swapchainExtent_.height == 0)
-        {
-            return std::nullopt;
-        }
-
-        const int panelLeft = static_cast<int>(swapchainExtent_.width) / 2 - 354;
-        const int panelTop = static_cast<int>(swapchainExtent_.height) - 388;
-        const int localX = static_cast<int>(std::floor(x)) - panelLeft;
-        const int localY = static_cast<int>(std::floor(y)) - panelTop;
-        if (localX < 0 || localY < 0 || localX >= 708 || localY >= 388)
-        {
-            return std::nullopt;
-        }
-
-        constexpr int Scale = 4;
-        constexpr int SlotSize = 64;
-        constexpr int Padding = 4;
-        constexpr int Step = 17;
-        constexpr int HotbarY = 77;
-        for (size_t slotIndex = 0; slotIndex < playerInventorySlots_.size(); ++slotIndex)
-        {
-            const int col = static_cast<int>(slotIndex % 10u);
-            const int sourceX = Padding + col * Step;
-            int sourceY = HotbarY;
-            if (slotIndex >= 10u)
-            {
-                const int group = static_cast<int>(slotIndex / 10u);
-                sourceY = Padding + (4 - group) * Step;
-            }
-
-            const int left = sourceX * Scale;
-            const int top = sourceY * Scale;
-            if (localX >= left && localX < left + SlotSize && localY >= top && localY < top + SlotSize)
-            {
-                return slotIndex;
-            }
-        }
-
-        return std::nullopt;
+        return ui::inventorySlotAt(x, y, swapchainExtent_.width, swapchainExtent_.height, playerInventorySlots_.size());
     }
 
     void Renderer::handleInventorySlotClick(size_t slotIndex, int button, int modifiers)
@@ -11686,51 +6479,18 @@ namespace dolbuto
         updateInventoryCursorUi();
     }
 
-    std::string Renderer::itemStackContentRml(const ItemStack& stack, int itemLeft, int itemTop) const
+    ui::InventoryItemView Renderer::inventoryItemView(const ItemStack& stack) const
     {
+        ui::InventoryItemView item{};
+        item.itemId = stack.itemId;
+        item.count = stack.count;
         if (stack.itemId == 0 || stack.count == 0 || static_cast<size_t>(stack.itemId) >= itemDefinitions_.size())
         {
-            return {};
+            return item;
         }
 
         const ItemDefinition& definition = itemDefinitions_[stack.itemId];
-        if (definition.slotTexture.empty() || definition.slotTexture == "none")
-        {
-            return {};
-        }
-
-        constexpr int SlotSize = 64;
-        constexpr int CountBoxWidth = 48;
-        constexpr int CountRightInset = 2;
-        const int countLeft = itemLeft + SlotSize - CountBoxWidth - CountRightInset;
-        const int countTop = itemTop + 40;
-        const std::string src = "../textures/item/" + definition.slotTexture + ".png";
-
-        std::string rml;
-        rml += "<img class=\"slot-item\" src=\"" + escapeRml(src) + "\" style=\"left: " + std::to_string(itemLeft) + "px; top: " + std::to_string(itemTop) + "px;\"/>";
-        if (stack.count > 1)
-        {
-            rml += "<div class=\"slot-count\" style=\"left: " + std::to_string(countLeft) + "px; top: " + std::to_string(countTop) + "px;\">";
-            rml += std::to_string(stack.count);
-            rml += "</div>";
-        }
-        return rml;
-    }
-
-    std::string Renderer::itemTooltipRml(const ItemStack& stack) const
-    {
-        if (stack.itemId == 0 || stack.count == 0 || static_cast<size_t>(stack.itemId) >= itemDefinitions_.size())
-        {
-            return {};
-        }
-
-        const ItemDefinition& definition = itemDefinitions_[stack.itemId];
-        if (definition.key.empty() || definition.key == "none")
-        {
-            return {};
-        }
-
-        auto renderTypeText = [](ItemRenderType type)
+        const auto renderTypeText = [](ItemRenderType type)
         {
             switch (type)
             {
@@ -11740,311 +6500,99 @@ namespace dolbuto
             return "unknown";
         };
 
-        std::string rml;
-        rml += "<div class=\"item-tooltip-title\">" + escapeRml(definition.name) + "</div>";
-        auto line = [&](std::string_view key, const std::string& value)
-        {
-            rml += "<div class=\"item-tooltip-line\">" + std::string(key) + ": " + escapeRml(value) + "</div>";
-        };
-        line("ID", std::to_string(stack.itemId));
-        line("KEY", definition.key);
-        line("COUNT", std::to_string(stack.count) + " / " + std::to_string(definition.stackSize));
-        line("STACK_SIZE", std::to_string(definition.stackSize));
-        line("SLOT_TEXTURE", definition.slotTexture);
-        line("DROPPED_RENDER", renderTypeText(definition.droppedRender));
-        line("DROPPED_TEXTURE", definition.droppedTexture);
-        line("HELD_RENDER", renderTypeText(definition.heldRender));
-        line("HELD_TEXTURE", definition.heldTexture);
-        return rml;
-    }
-
-    std::string Renderer::itemSlotImageRml(size_t slotIndex, bool inventorySlot) const
-    {
-        if (slotIndex >= playerInventorySlots_.size())
-        {
-            return {};
-        }
-
-        int sourceX = 0;
-        int sourceY = 0;
-        if (inventorySlot)
-        {
-            constexpr int Padding = 4;
-            constexpr int Step = 17;
-            constexpr int HotbarY = 77;
-            const int col = static_cast<int>(slotIndex % 10u);
-            sourceX = Padding + col * Step;
-            if (slotIndex < 10u)
-            {
-                sourceY = HotbarY;
-            }
-            else
-            {
-                const int group = static_cast<int>(slotIndex / 10u);
-                sourceY = Padding + (4 - group) * Step;
-            }
-        }
-        else
-        {
-            constexpr int HotbarStartX = 3;
-            constexpr int HotbarStartY = 3;
-            constexpr int Step = 17;
-            sourceX = HotbarStartX + static_cast<int>(slotIndex) * Step;
-            sourceY = HotbarStartY;
-        }
-
-        constexpr int Scale = 4;
-        const int hotbarOffsetX = inventorySlot ? 0 : 4;
-        const int hotbarOffsetY = inventorySlot ? 0 : 4;
-        const int left = sourceX * Scale + hotbarOffsetX;
-        const int top = sourceY * Scale + hotbarOffsetY;
-
-        std::string rml;
-        if (!inventorySlot)
-        {
-            rml += "<div class=\"hotbar-slot-background\" style=\"left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px;\"></div>";
-        }
-        else
-        {
-            rml += "<div class=\"inventory-slot-cell\" style=\"left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px;\">";
-        }
-
-        const ItemStack& stack = playerInventorySlots_[slotIndex];
-        const int itemLeft = inventorySlot ? 0 : left;
-        const int itemTop = inventorySlot ? 0 : top;
-        rml += itemStackContentRml(stack, itemLeft, itemTop);
-        if (inventorySlot)
-        {
-            rml += "</div>";
-        }
-        return rml;
+        item.stackSize = definition.stackSize;
+        item.name = definition.name;
+        item.key = definition.key;
+        item.slotTexture = definition.slotTexture;
+        item.droppedRender = renderTypeText(definition.droppedRender);
+        item.droppedTexture = definition.droppedTexture;
+        item.heldRender = renderTypeText(definition.heldRender);
+        item.heldTexture = definition.heldTexture;
+        return item;
     }
 
     void Renderer::updateInventoryUi()
     {
-        if (rmlHudDocument_ != nullptr)
+        std::string hotbarRml;
+        for (size_t i = 0; i < 10u; ++i)
         {
-            if (Rml::Element* hotbarItems = rmlHudDocument_->GetElementById("hotbar-items"))
-            {
-                std::string rml;
-                for (size_t i = 0; i < 10u; ++i)
-                {
-                    rml += itemSlotImageRml(i, false);
-                }
-                hotbarItems->SetInnerRML(rml);
-            }
+            hotbarRml += ui::itemSlotImageRml(i, false, inventoryItemView(playerInventorySlots_[i]));
         }
 
-        if (rmlInventoryDocument_ != nullptr)
+        std::string inventoryRml;
+        for (size_t i = 0; i < playerInventorySlots_.size(); ++i)
         {
-            if (Rml::Element* inventoryItems = rmlInventoryDocument_->GetElementById("inventory-items"))
-            {
-                std::string rml;
-                for (size_t i = 0; i < playerInventorySlots_.size(); ++i)
-                {
-                    rml += itemSlotImageRml(i, true);
-                }
-                inventoryItems->SetInnerRML(rml);
-            }
+            inventoryRml += ui::itemSlotImageRml(i, true, inventoryItemView(playerInventorySlots_[i]));
         }
+
+        ui_.setInventoryItems(hotbarRml, inventoryRml);
         updateInventoryCursorUi();
     }
 
     void Renderer::updateInventoryCursorUi()
     {
-        if (rmlInventoryDocument_ == nullptr)
-        {
-            return;
-        }
-
-        Rml::Element* cursor = rmlInventoryDocument_->GetElementById("inventory-cursor-item");
-        if (cursor == nullptr)
-        {
-            return;
-        }
-
         if (inventoryCursorStack_.itemId == 0 || inventoryCursorStack_.count == 0)
         {
-            cursor->SetAttribute("class", "cursor-item-layer ui-hidden");
-            cursor->SetInnerRML("");
+            ui_.setInventoryCursorItem("", false);
             return;
         }
 
-        cursor->SetAttribute("class", "cursor-item-layer");
         const int left = static_cast<int>(std::round(rmlMouseX_)) - 32;
         const int top = static_cast<int>(std::round(rmlMouseY_)) - 32;
-        cursor->SetInnerRML(itemStackContentRml(inventoryCursorStack_, left, top));
+        ui_.setInventoryCursorItem(ui::itemStackContentRml(inventoryItemView(inventoryCursorStack_), left, top), true);
     }
 
     void Renderer::updateItemTooltipUi()
     {
-        if (rmlInventoryDocument_ == nullptr)
-        {
-            return;
-        }
-
-        Rml::Element* tooltip = rmlInventoryDocument_->GetElementById("item-tooltip");
-        if (tooltip == nullptr)
-        {
-            return;
-        }
-
         if (inventoryCursorStack_.itemId != 0 && inventoryCursorStack_.count != 0)
         {
-            tooltip->SetAttribute("class", "item-tooltip ui-hidden");
-            tooltip->SetInnerRML("");
+            ui_.hideItemTooltip();
             return;
         }
 
         const std::optional<size_t> hoveredSlot = inventorySlotAt(rmlMouseX_, rmlMouseY_);
         if (!hoveredSlot.has_value())
         {
-            tooltip->SetAttribute("class", "item-tooltip ui-hidden");
-            tooltip->SetInnerRML("");
+            ui_.hideItemTooltip();
             return;
         }
 
-        const ItemStack& stack = playerInventorySlots_[*hoveredSlot];
-        const std::string rml = itemTooltipRml(stack);
+        const ui::InventoryItemView item = inventoryItemView(playerInventorySlots_[*hoveredSlot]);
+        const std::string rml = ui::itemTooltipRml(item);
         if (rml.empty())
         {
-            tooltip->SetAttribute("class", "item-tooltip ui-hidden");
-            tooltip->SetInnerRML("");
+            ui_.hideItemTooltip();
             return;
         }
 
-        constexpr int Padding = 10;
-        constexpr int TitleHeight = 22;
-        constexpr int TitleMargin = 4;
-        constexpr int LineHeight = 18;
-        constexpr int LineCount = 9;
-        constexpr int MinWidth = 180;
-        constexpr int MaxWidth = 520;
-        constexpr int TitleCharWidth = 12;
-        constexpr int LineCharWidth = 8;
-        constexpr int Height = Padding * 2 + TitleHeight + TitleMargin + LineHeight * LineCount;
-        constexpr int MouseOffset = 16;
-        auto renderTypeText = [](ItemRenderType type)
+        const std::optional<ui::TooltipLayout> layout = ui::itemTooltipLayout(item, rmlMouseX_, rmlMouseY_, swapchainExtent_.width, swapchainExtent_.height);
+        if (!layout.has_value())
         {
-            switch (type)
-            {
-            case ItemRenderType::ExtrudedSprite:
-                return "extruded_sprite";
-            }
-            return "unknown";
-        };
-        auto lineText = [](std::string_view key, const std::string& value)
-        {
-            return std::string(key) + ": " + value;
-        };
-
-        const ItemDefinition& definition = itemDefinitions_[stack.itemId];
-        int contentWidth = static_cast<int>(definition.name.size()) * TitleCharWidth;
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("ID", std::to_string(stack.itemId)).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("KEY", definition.key).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("COUNT", std::to_string(stack.count) + " / " + std::to_string(definition.stackSize)).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("STACK_SIZE", std::to_string(definition.stackSize)).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("SLOT_TEXTURE", definition.slotTexture).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("DROPPED_RENDER", renderTypeText(definition.droppedRender)).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("DROPPED_TEXTURE", definition.droppedTexture).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("HELD_RENDER", renderTypeText(definition.heldRender)).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("HELD_TEXTURE", definition.heldTexture).size()) * LineCharWidth);
-        const int Width = std::clamp(contentWidth + Padding * 2, MinWidth, MaxWidth);
-
-        int left = static_cast<int>(std::round(rmlMouseX_)) + MouseOffset;
-        int top = static_cast<int>(std::round(rmlMouseY_)) + MouseOffset;
-        const int screenWidth = static_cast<int>(swapchainExtent_.width);
-        const int screenHeight = static_cast<int>(swapchainExtent_.height);
-        if (left + Width > screenWidth)
-        {
-            left = static_cast<int>(std::round(rmlMouseX_)) - Width - MouseOffset;
+            ui_.hideItemTooltip();
+            return;
         }
-        if (top + Height > screenHeight)
-        {
-            top = static_cast<int>(std::round(rmlMouseY_)) - Height - MouseOffset;
-        }
-        left = std::clamp(left, 0, std::max(0, screenWidth - Width));
-        top = std::clamp(top, 0, std::max(0, screenHeight - Height));
 
-        tooltip->SetAttribute("class", "item-tooltip");
-        tooltip->SetAttribute("style", "left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px; width: " + std::to_string(Width) + "px; height: " + std::to_string(Height) + "px;");
-        tooltip->SetInnerRML(rml);
+        ui_.showItemTooltip(rml, layout->left, layout->top, layout->width, layout->height);
     }
 
     void Renderer::setWorldList(const std::vector<WorldListItem>& worlds)
     {
-        if (rmlWorldSelectDocument_ == nullptr)
+        std::vector<ui::WorldListEntry> entries;
+        entries.reserve(worlds.size());
+        for (const WorldListItem& world : worlds)
         {
-            return;
+            entries.push_back(ui::WorldListEntry{
+                world.name,
+                world.createdText,
+                world.lastPlayedText
+            });
         }
-
-        Rml::Element* list = rmlWorldSelectDocument_->GetElementById("world-list");
-        if (list == nullptr)
-        {
-            return;
-        }
-
-        std::string rml;
-        if (worlds.empty())
-        {
-            rml =
-                "<div class=\"world-row large\">"
-                "<div class=\"world-name\">No worlds yet</div>"
-                "<div class=\"world-meta\">Create a new world to begin</div>"
-                "</div>";
-        }
-        else
-        {
-            for (size_t i = 0; i < worlds.size(); ++i)
-            {
-                rml += "<div id=\"world-open-" + std::to_string(i) + "\" class=\"world-row large\">";
-                rml += "<div class=\"world-name\">" + escapeRml(worlds[i].name) + "</div>";
-                rml += "<div class=\"world-meta\">CREATED " + escapeRml(worlds[i].createdText) + " / LAST " + escapeRml(worlds[i].lastPlayedText) + "</div>";
-                rml += "</div>";
-            }
-        }
-
-        list->SetInnerRML(rml);
-        for (size_t i = 0; i < worlds.size(); ++i)
-        {
-            if (Rml::Element* element = rmlWorldSelectDocument_->GetElementById("world-open-" + std::to_string(i)))
-            {
-                element->AddEventListener("dblclick", this);
-            }
-        }
+        ui_.setWorldList(entries);
     }
 
     std::string Renderer::uiInputValue(std::string_view id) const
     {
-        if (rmlContext_ == nullptr)
-        {
-            return {};
-        }
-
-        for (Rml::ElementDocument* document : {rmlLobbyDocument_, rmlWorldSelectDocument_, rmlWorldCreateDocument_, rmlHudDocument_, rmlInventoryDocument_, rmlPauseDocument_})
-        {
-            if (document == nullptr)
-            {
-                continue;
-            }
-            Rml::Element* element = document->GetElementById(std::string(id));
-            if (element == nullptr)
-            {
-                continue;
-            }
-            if (auto* input = dynamic_cast<Rml::ElementFormControlInput*>(element))
-            {
-                return input->GetValue();
-            }
-            return element->GetAttribute<Rml::String>("value", "");
-        }
-
-        return {};
-    }
-
-    int Renderer::terrainSeed(int offset) const
-    {
-        return TerrainNoiseSeed + activeWorldSeedSalt_ + offset;
+        return ui_.inputValue(id);
     }
 
     int Renderer::temperatureSeed() const
@@ -12055,114 +6603,6 @@ namespace dolbuto
     int Renderer::precipitationSeed() const
     {
         return PrecipitationNoiseSeed + activeWorldSeedSalt_;
-    }
-
-    std::string Renderer::escapeRml(std::string_view text)
-    {
-        std::string escaped;
-        escaped.reserve(text.size());
-        for (const char c : text)
-        {
-            switch (c)
-            {
-            case '&': escaped += "&amp;"; break;
-            case '<': escaped += "&lt;"; break;
-            case '>': escaped += "&gt;"; break;
-            case '"': escaped += "&quot;"; break;
-            default: escaped.push_back(c); break;
-            }
-        }
-        return escaped;
-    }
-
-    Rml::Input::KeyIdentifier Renderer::rmlKeyFromGlfw(int key) const
-    {
-        if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z)
-        {
-            return static_cast<Rml::Input::KeyIdentifier>(Rml::Input::KI_A + (key - GLFW_KEY_A));
-        }
-        if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
-        {
-            return static_cast<Rml::Input::KeyIdentifier>(Rml::Input::KI_0 + (key - GLFW_KEY_0));
-        }
-
-        switch (key)
-        {
-        case GLFW_KEY_SPACE: return Rml::Input::KI_SPACE;
-        case GLFW_KEY_BACKSPACE: return Rml::Input::KI_BACK;
-        case GLFW_KEY_TAB: return Rml::Input::KI_TAB;
-        case GLFW_KEY_ENTER: return Rml::Input::KI_RETURN;
-        case GLFW_KEY_ESCAPE: return Rml::Input::KI_ESCAPE;
-        case GLFW_KEY_LEFT: return Rml::Input::KI_LEFT;
-        case GLFW_KEY_RIGHT: return Rml::Input::KI_RIGHT;
-        case GLFW_KEY_UP: return Rml::Input::KI_UP;
-        case GLFW_KEY_DOWN: return Rml::Input::KI_DOWN;
-        case GLFW_KEY_DELETE: return Rml::Input::KI_DELETE;
-        case GLFW_KEY_HOME: return Rml::Input::KI_HOME;
-        case GLFW_KEY_END: return Rml::Input::KI_END;
-        case GLFW_KEY_MINUS: return Rml::Input::KI_OEM_MINUS;
-        case GLFW_KEY_EQUAL: return Rml::Input::KI_OEM_PLUS;
-        case GLFW_KEY_COMMA: return Rml::Input::KI_OEM_COMMA;
-        case GLFW_KEY_PERIOD: return Rml::Input::KI_OEM_PERIOD;
-        default: return Rml::Input::KI_UNKNOWN;
-        }
-    }
-
-    int Renderer::rmlKeyModifiersFromGlfw(int modifiers) const
-    {
-        int rmlModifiers = 0;
-        if ((modifiers & GLFW_MOD_CONTROL) != 0)
-        {
-            rmlModifiers |= Rml::Input::KM_CTRL;
-        }
-        if ((modifiers & GLFW_MOD_SHIFT) != 0)
-        {
-            rmlModifiers |= Rml::Input::KM_SHIFT;
-        }
-        if ((modifiers & GLFW_MOD_ALT) != 0)
-        {
-            rmlModifiers |= Rml::Input::KM_ALT;
-        }
-        if ((modifiers & GLFW_MOD_SUPER) != 0)
-        {
-            rmlModifiers |= Rml::Input::KM_META;
-        }
-        if ((modifiers & GLFW_MOD_CAPS_LOCK) != 0)
-        {
-            rmlModifiers |= Rml::Input::KM_CAPSLOCK;
-        }
-        if ((modifiers & GLFW_MOD_NUM_LOCK) != 0)
-        {
-            rmlModifiers |= Rml::Input::KM_NUMLOCK;
-        }
-        return rmlModifiers;
-    }
-
-    int Renderer::currentRmlKeyModifiers() const
-    {
-        if (window_ == nullptr)
-        {
-            return 0;
-        }
-
-        int modifiers = 0;
-        if (glfwGetKey(window_, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS)
-        {
-            modifiers |= GLFW_MOD_CONTROL;
-        }
-        if (glfwGetKey(window_, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS)
-        {
-            modifiers |= GLFW_MOD_SHIFT;
-        }
-        if (glfwGetKey(window_, GLFW_KEY_LEFT_ALT) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS)
-        {
-            modifiers |= GLFW_MOD_ALT;
-        }
-        if (glfwGetKey(window_, GLFW_KEY_LEFT_SUPER) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_SUPER) == GLFW_PRESS)
-        {
-            modifiers |= GLFW_MOD_SUPER;
-        }
-        return rmlKeyModifiersFromGlfw(modifiers);
     }
 
     void Renderer::cleanupSwapchain()
@@ -13295,25 +7735,6 @@ namespace dolbuto
         };
     }
 
-    void Renderer::ProcessEvent(Rml::Event& event)
-    {
-        Rml::Element* target = event.GetCurrentElement();
-        if (target == nullptr)
-        {
-            target = event.GetTargetElement();
-        }
-        if (target == nullptr)
-        {
-            return;
-        }
-
-        if (event.GetType() == "click")
-        {
-            playSfx2D(buttonClickSound_);
-        }
-        pendingUiAction_ = target->GetId();
-    }
-
     uint32_t Renderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const
     {
         VkPhysicalDeviceMemoryProperties memoryProperties{};
@@ -13948,7 +8369,7 @@ namespace dolbuto
         }
     }
 
-    const Renderer::BlockDefinition& Renderer::blockDefinition(uint16_t block) const
+    const BlockDefinition& Renderer::blockDefinition(uint16_t block) const
     {
         static const BlockDefinition fallback{};
         if (static_cast<size_t>(block) >= blockDefinitions_.size())
@@ -14518,7 +8939,7 @@ namespace dolbuto
         return chunkKey(chunkX, chunkZ);
     }
 
-    Renderer::RuntimeChunk* Renderer::runtimeChunkForEntity(const WorldEntity& entity)
+    RuntimeChunk* Renderer::runtimeChunkForEntity(const WorldEntity& entity)
     {
         const uint64_t key = entityChunkKey(entity);
         auto chunkIt = runtimeChunks_.find(key);
@@ -14529,7 +8950,7 @@ namespace dolbuto
         return &chunkIt->second;
     }
 
-    const Renderer::RuntimeChunk* Renderer::runtimeChunkForEntity(const WorldEntity& entity) const
+    const RuntimeChunk* Renderer::runtimeChunkForEntity(const WorldEntity& entity) const
     {
         const uint64_t key = entityChunkKey(entity);
         auto chunkIt = runtimeChunks_.find(key);
@@ -15815,7 +10236,7 @@ namespace dolbuto
         return noise;
     }
 
-    std::array<float, Renderer::ChunkColumnCount> Renderer::buildChunkTileableClimateNoise(
+    std::array<float, ChunkColumnCount> Renderer::buildChunkTileableClimateNoise(
         int chunkX,
         int chunkZ,
         float featureScale,
@@ -15825,53 +10246,15 @@ namespace dolbuto
         float gain,
         int seed) const
     {
-        std::array<float, Renderer::ChunkColumnCount> noise{};
-        auto generator = terrainNoiseGenerator(simplexScale, octaveCount, lacunarity, gain);
-        if (!generator)
-        {
-            return noise;
-        }
-
-        constexpr float TwoPi = 6.28318530718f;
-        const float angleScale = TwoPi / static_cast<float>(TerrainTilePeriod);
-        const float radius = static_cast<float>(TerrainTilePeriod) / (TwoPi * featureScale);
-        std::array<float, ChunkColumnCount> xPositions{};
-        std::array<float, ChunkColumnCount> yPositions{};
-        std::array<float, ChunkColumnCount> zPositions{};
-        std::array<float, ChunkColumnCount> wPositions{};
-
-        const int worldXStart = chunkX * ChunkSizeX;
-        const int worldZStart = chunkZ * ChunkSizeZ;
-        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-        {
-            const float zAngle = static_cast<float>(positiveModulo(worldZStart + localZ, TerrainTilePeriod)) * angleScale;
-            const float zCos = std::cos(zAngle) * radius;
-            const float zSin = std::sin(zAngle) * radius;
-            for (int localX = 0; localX < ChunkSizeX; ++localX)
-            {
-                const float xAngle = static_cast<float>(positiveModulo(worldXStart + localX, TerrainTilePeriod)) * angleScale;
-                const size_t index = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                xPositions[index] = std::cos(xAngle) * radius;
-                yPositions[index] = zCos;
-                zPositions[index] = std::sin(xAngle) * radius;
-                wPositions[index] = zSin;
-            }
-        }
-
-        generator->GenPositionArray4D(
-            noise.data(),
-            static_cast<int>(noise.size()),
-            xPositions.data(),
-            yPositions.data(),
-            zPositions.data(),
-            wPositions.data(),
-            0.0f,
-            0.0f,
-            0.0f,
-            0.0f,
+        return world::TerrainBuilder(terrainBuilderConfig()).buildChunkTileableClimateNoise(
+            chunkX,
+            chunkZ,
+            featureScale,
+            simplexScale,
+            octaveCount,
+            lacunarity,
+            gain,
             seed);
-
-        return noise;
     }
 
     float Renderer::sampleTileableClimateNoise(
@@ -15919,54 +10302,17 @@ namespace dolbuto
 
     void Renderer::populateChunkClimate(ChunkData& chunk) const
     {
-        const std::array<float, ChunkColumnCount> temperatureNoise = buildChunkTileableClimateNoise(
-            chunk.chunkX,
-            chunk.chunkZ,
-            temperatureNoiseFeatureScale_,
-            temperatureNoiseSimplexScale_,
-            temperatureNoiseOctaveCount_,
-            temperatureNoiseLacunarity_,
-            temperatureNoiseGain_,
-            temperatureSeed());
-        const std::array<float, ChunkColumnCount> precipitationNoise = buildChunkTileableClimateNoise(
-            chunk.chunkX,
-            chunk.chunkZ,
-            precipitationNoiseFeatureScale_,
-            precipitationNoiseSimplexScale_,
-            precipitationNoiseOctaveCount_,
-            precipitationNoiseLacunarity_,
-            precipitationNoiseGain_,
-            precipitationSeed());
-
-        const int worldZStart = chunk.chunkZ * ChunkSizeZ;
-        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-        {
-            const int wrappedZ = wrapBlockCoordinate(worldZStart + localZ);
-            for (int localX = 0; localX < ChunkSizeX; ++localX)
-            {
-                const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                chunk.temperature[column] = encodeClimateValue(temperatureAtWrapped(wrappedZ, temperatureNoise[column]));
-                chunk.precipitation[column] = encodeClimateValue(precipitationAtNoise(precipitationNoise[column]));
-            }
-        }
-    }
-
-    float Renderer::baseTemperatureAtWrappedZ(int wrappedZ) const
-    {
-        const float normalizedZ = static_cast<float>(positiveModulo(wrappedZ, WorldSizeBlocks)) / static_cast<float>(WorldSizeBlocks);
-        return std::clamp(1.0f - std::abs(normalizedZ * 2.0f - 1.0f), 0.0f, 1.0f);
+        world::TerrainBuilder(terrainBuilderConfig()).populateChunkClimate(chunk);
     }
 
     float Renderer::temperatureAtWrapped(int wrappedZ, float noise) const
     {
-        const float base = baseTemperatureAtWrappedZ(wrappedZ);
-        const float midLatitudeMask = 1.0f - std::abs(base * 2.0f - 1.0f);
-        return std::clamp(base + noise * temperatureNoiseStrength_ * midLatitudeMask, 0.0f, 1.0f);
+        return world::TerrainBuilder(terrainBuilderConfig()).temperatureAtWrapped(wrappedZ, noise);
     }
 
     float Renderer::precipitationAtNoise(float noise) const
     {
-        return std::clamp(noise * 0.5f + 0.5f, 0.0f, 1.0f);
+        return world::TerrainBuilder(terrainBuilderConfig()).precipitationAtNoise(noise);
     }
 
     void Renderer::drawClimateOverlay(VkCommandBuffer commandBuffer, int mode) const

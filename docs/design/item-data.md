@@ -13,6 +13,9 @@
 assets/data/items.json
 ```
 
+정의 파일 파싱은 `src/data/DataLoaders.h/.cpp`의 `data::parseItemDefinitions`가 맡는다.
+렌더러는 파싱된 아이템 정의를 받아 아이템 ID별 `ItemDefinition`, 아이템 텍스처 레이어, 드랍/인벤토리용 스프라이트 메쉬를 구성한다.
+
 아이템 텍스처는 다음 위치에 저장한다.
 
 ```text

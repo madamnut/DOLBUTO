@@ -1,39 +1,46 @@
 #pragma once
 
+#include "assets/PropModelLoader.h"
+#include "audio/AudioSystem.h"
 #include "camera/Camera.h"
+#include "items/ItemData.h"
+#include "renderer/TerrainTypes.h"
+#include "save/SaveSystem.h"
+#include "ui/InventoryUi.h"
+#include "ui/UiSystem.h"
+#include "world/BlockData.h"
+#include "world/ChunkLoadSystem.h"
+#include "world/TerrainBuilder.h"
+#include "world/TerrainJobSystem.h"
+#include "world/TerrainMesher.h"
+#include "world/WorldTypes.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
 #include <RmlUi/Core.h>
-#include <RmlUi/Core/EventListener.h>
-#include <RmlUi/Core/Input.h>
 #include <RmlUi/Core/RenderInterface.h>
-#include <RmlUi/Core/SystemInterface.h>
 
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <filesystem>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <random>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 namespace dolbuto
 {
-    class Renderer : public Rml::RenderInterface, public Rml::EventListener
+    class Renderer : public Rml::RenderInterface
     {
     public:
         explicit Renderer(GLFWwindow* window);
@@ -97,10 +104,6 @@ namespace dolbuto
         std::optional<std::string> consumeUiAction();
 
     private:
-        static constexpr std::size_t ChunkColumnCount = 16u * 16u;
-        static constexpr std::size_t ChunkBlockCount = 16u * 512u * 16u;
-        static constexpr std::size_t SubchunkCount = 512u / 16u;
-
         struct QueueFamilyIndices
         {
             uint32_t graphics = UINT32_MAX;
@@ -220,18 +223,6 @@ namespace dolbuto
             std::vector<TextVertex> fill;
         };
 
-        struct TerrainVertex
-        {
-            float x = 0.0f;
-            float y = 0.0f;
-            float z = 0.0f;
-            float u = 0.0f;
-            float v = 0.0f;
-            float ao = 1.0f;
-            float textureLayer = 0.0f;
-            float mipDistanceScale = 1.0f;
-        };
-
         struct BlockBreakParticle
         {
             Vec3 position{};
@@ -244,62 +235,6 @@ namespace dolbuto
             float v0 = 0.0f;
             float u1 = 1.0f;
             float v1 = 1.0f;
-        };
-
-        struct ItemStack
-        {
-            uint16_t itemId = 0;
-            uint16_t count = 0;
-        };
-
-        enum class WorldEntityType : uint16_t
-        {
-            None = 0,
-            DroppedItem = 1
-        };
-
-        enum class MusicScene : uint8_t
-        {
-            None = 0,
-            Lobby = 1,
-            Game = 2
-        };
-
-        enum class MusicTrackType : uint8_t
-        {
-            Ogg = 0,
-            Wav = 1
-        };
-
-        struct MusicTrack
-        {
-            std::filesystem::path path;
-            MusicTrackType type = MusicTrackType::Ogg;
-        };
-
-        struct DroppedItemEntityData
-        {
-            ItemStack stack{};
-        };
-
-        struct WorldEntity
-        {
-            uint64_t entityId = 0;
-            WorldEntityType type = WorldEntityType::None;
-            Vec3 previousPosition{};
-            Vec3 position{};
-            Vec3 velocity{};
-            uint8_t flags = 0;
-            DroppedItemEntityData droppedItem{};
-            float age = 0.0f;
-            float renderRotationX = 0.0f;
-            float renderRotation = 0.0f;
-            float renderRotationZ = 0.0f;
-            float renderSpinX = 0.0f;
-            float renderSpin = 0.0f;
-            float renderSpinZ = 0.0f;
-            bool collecting = false;
-            float collectAge = 0.0f;
         };
 
         struct ItemSpriteQuad
@@ -348,25 +283,6 @@ namespace dolbuto
             DroppedItemInstance instance{};
         };
 
-        struct PackedTerrainQuad
-        {
-            uint32_t p0x = 0;
-            uint32_t p0y = 0;
-            uint32_t p0z = 0;
-            uint32_t edgeUxy = 0;
-            uint32_t edgeUzVx = 0;
-            uint32_t edgeVyz = 0;
-            uint32_t uv0 = 0;
-            uint32_t uvU = 0;
-            uint32_t uvV = 0;
-            uint32_t material = 0;
-        };
-
-        struct PropMesh
-        {
-            std::vector<float> quads;
-        };
-
         struct TerrainPush
         {
             float mvp[16]{};
@@ -390,250 +306,10 @@ namespace dolbuto
             VkDeviceSize bufferOffset = 0;
         };
 
-        struct TerrainMesh
-        {
-            VkBuffer vertexBuffer = VK_NULL_HANDLE;
-            VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
-            VkBuffer indexBuffer = VK_NULL_HANDLE;
-            VkDeviceMemory indexMemory = VK_NULL_HANDLE;
-            VkDescriptorSet vertexDescriptorSet = VK_NULL_HANDLE;
-            uint32_t vertexCount = 0;
-            uint32_t indexCount = 0;
-        };
-
-        struct TerrainBuildData
-        {
-            std::vector<TerrainVertex> vertices;
-            std::vector<uint32_t> indices;
-        };
-
-        struct BlockTextureLayers
-        {
-            std::array<uint32_t, 6> faces{};
-        };
-
-        enum class ItemRenderType : uint8_t
-        {
-            ExtrudedSprite
-        };
-
-        struct BlockDrop
-        {
-            uint16_t itemId = 0;
-            uint16_t min = 1;
-            uint16_t max = 1;
-            float chance = 1.0f;
-        };
-
-        struct ItemDefinition
-        {
-            std::string key = "none";
-            std::string name = "None";
-            std::string slotTexture = "none";
-            std::string droppedTexture = "none";
-            std::string heldTexture = "none";
-            uint16_t stackSize = 0;
-            uint32_t droppedTextureLayer = 0;
-            uint32_t heldTextureLayer = 0;
-            ItemRenderType droppedRender = ItemRenderType::ExtrudedSprite;
-            ItemRenderType heldRender = ItemRenderType::ExtrudedSprite;
-        };
-
-        enum class BlockRenderType : uint8_t
-        {
-            None,
-            Cube,
-            Cross,
-            Prop
-        };
-
-        enum class BlockFaceOcclusion : uint8_t
-        {
-            None,
-            Opaque,
-            Cutout
-        };
-
-        enum class BlockAlphaMode : uint8_t
-        {
-            Opaque,
-            Cutout,
-            Blend
-        };
-
-        struct BlockDefinition
-        {
-            std::string name = "unknown";
-            BlockRenderType renderType = BlockRenderType::None;
-            bool directional = false;
-            bool collision = false;
-            bool ao = false;
-            BlockFaceOcclusion faceOcclusion = BlockFaceOcclusion::None;
-            bool sameBlockFaceCulling = false;
-            BlockAlphaMode alphaMode = BlockAlphaMode::Opaque;
-            float alphaCutoff = 0.5f;
-            float mipDistanceScale = 1.0f;
-            float hardness = -1.0f;
-            bool randomOffset = false;
-            std::vector<BlockDrop> drops;
-        };
-
         struct ChunkOffset
         {
             int x = 0;
             int z = 0;
-        };
-
-        struct ChunkData
-        {
-            uint64_t generation = 0;
-            uint64_t revision = 0;
-            int chunkX = 0;
-            int chunkZ = 0;
-            std::vector<uint16_t> blocks;
-            std::vector<uint16_t> fluids;
-            std::array<uint8_t, ChunkColumnCount> temperature{};
-            std::array<uint8_t, ChunkColumnCount> precipitation{};
-            std::vector<WorldEntity> entities;
-            std::array<uint16_t, SubchunkCount> fluidSubchunkCounts{};
-            std::array<bool, SubchunkCount> emptySubchunks{};
-        };
-
-        enum class ChunkGenState : uint8_t
-        {
-            Empty,
-            Featuring,
-            Full,
-            Meshed
-        };
-
-        struct FeatureWrite
-        {
-            int localX = 0;
-            int y = 0;
-            int localZ = 0;
-            uint16_t block = 0;
-        };
-
-        using FeatureWriteList = std::vector<FeatureWrite>;
-        using FeatureWriteListPtr = std::shared_ptr<FeatureWriteList>;
-        static constexpr size_t FeatureNeighborCount = 8;
-
-        struct CompletedChunkData
-        {
-            std::shared_ptr<ChunkData> chunk;
-            std::array<FeatureWriteListPtr, FeatureNeighborCount> outgoingFeatureSlots{};
-        };
-
-        struct TerrainJob
-        {
-            enum class Type
-            {
-                BuildFeaturing,
-                FinalizeFeatures,
-                BuildChunkMesh
-            };
-
-            Type type = Type::BuildFeaturing;
-            uint64_t generation = 0;
-            uint64_t revision = 0;
-            uint32_t priority = UINT32_MAX;
-            uint64_t sequence = 0;
-            int chunkX = 0;
-            int chunkZ = 0;
-            std::shared_ptr<ChunkData> chunk;
-            std::array<FeatureWriteListPtr, FeatureNeighborCount> incomingFeatureSlots{};
-            std::array<std::shared_ptr<ChunkData>, 9> meshChunks{};
-        };
-
-        struct CompletedChunkMesh
-        {
-            uint64_t generation = 0;
-            uint64_t revision = 0;
-            int chunkX = 0;
-            int chunkZ = 0;
-            std::array<TerrainBuildData, SubchunkCount> solidSubchunks;
-            std::array<TerrainBuildData, SubchunkCount> fluidSubchunks;
-        };
-
-        struct RuntimeChunk
-        {
-            ChunkGenState genState = ChunkGenState::Empty;
-            int chunkX = 0;
-            int chunkZ = 0;
-            std::shared_ptr<ChunkData> data;
-            std::array<FeatureWriteListPtr, FeatureNeighborCount> incomingFeatureSlots{};
-            std::array<FeatureWriteListPtr, FeatureNeighborCount> outgoingFeatureSlots{};
-            uint8_t incomingFeatureMask = 0;
-            uint64_t outgoingPublishedTicket = 0;
-            uint64_t renderTicket = 0;
-            uint64_t meshTicket = 0;
-            uint64_t fullTicket = 0;
-            uint64_t featuringTicket = 0;
-            uint32_t bestPriority = UINT32_MAX;
-            uint64_t buildQueuedTicket = 0;
-            uint64_t finalizeQueuedTicket = 0;
-            uint64_t meshQueuedTicket = 0;
-            bool hasSavedBacking = false;
-            bool dataDirtyForSave = false;
-            uint64_t dataDirtySerial = 0;
-            bool snapshotLoadRequested = false;
-            bool snapshotLoadFinished = false;
-        };
-
-        struct SaveChunkSnapshot
-        {
-            int chunkX = 0;
-            int chunkZ = 0;
-            ChunkGenState genState = ChunkGenState::Empty;
-            uint64_t revision = 0;
-            bool hasData = false;
-            bool forceSave = false;
-            bool hasSavedBacking = false;
-            uint64_t dataDirtySerial = 0;
-            std::shared_ptr<const ChunkData> chunkData;
-            std::vector<uint16_t> blocks;
-            std::vector<uint16_t> fluids;
-            std::array<uint8_t, ChunkColumnCount> temperature{};
-            std::array<uint8_t, ChunkColumnCount> precipitation{};
-            std::vector<WorldEntity> entities;
-            std::array<FeatureWriteListPtr, FeatureNeighborCount> incomingFeatureSlots{};
-            uint8_t incomingFeatureMask = 0;
-        };
-
-        struct ChunkLoadJob
-        {
-            int chunkX = 0;
-            int chunkZ = 0;
-            uint64_t generation = 0;
-        };
-
-        struct CompletedChunkLoad
-        {
-            int chunkX = 0;
-            int chunkZ = 0;
-            uint64_t generation = 0;
-            std::optional<SaveChunkSnapshot> snapshot;
-        };
-
-        struct WorldEntityHandle
-        {
-            uint64_t chunkKey = 0;
-            size_t index = 0;
-        };
-
-        struct RegionChunkEntry
-        {
-            uint32_t offsetSector = 0;
-            uint32_t sectorCount = 0;
-            uint32_t storedSize = 0;
-            uint32_t rawSize = 0;
-        };
-
-        struct RegionHeaderCache
-        {
-            bool exists = false;
-            std::array<RegionChunkEntry, 16u * 16u> entries{};
         };
 
         struct ChunkRenderData
@@ -704,12 +380,7 @@ namespace dolbuto
         void initializeRmlUi();
         void shutdownRmlUi();
         bool renderRmlUi(VkCommandBuffer commandBuffer, int menuOverlayMode, bool hudVisible);
-        void setRmlUiDocument(int menuOverlayMode);
         void updateHotbarScopeClass();
-        void attachRmlUiEvents(Rml::ElementDocument* document);
-        Rml::Input::KeyIdentifier rmlKeyFromGlfw(int key) const;
-        int rmlKeyModifiersFromGlfw(int modifiers) const;
-        int currentRmlKeyModifiers() const;
         void createPlayerMesh();
         void loadWorldConfig();
         void loadRenderConfig();
@@ -721,12 +392,9 @@ namespace dolbuto
         void stopTerrainWorkers();
         void startChunkLoadWorker();
         void stopChunkLoadWorker();
-        void chunkLoadWorkerLoop();
         void enqueueChunkLoadJob(int chunkX, int chunkZ, uint64_t generation);
         void startSaveWorker();
         void stopSaveWorker();
-        void saveWorkerLoop();
-        void terrainWorkerLoop();
         void enqueueTerrainJob(TerrainJob job);
         void processCompletedTerrainJobs();
         uint32_t processPendingTerrainUnloads();
@@ -740,9 +408,8 @@ namespace dolbuto
         SaveChunkSnapshot makeSaveSnapshot(const RuntimeChunk& chunk) const;
         void enqueueSaveSnapshot(SaveChunkSnapshot snapshot);
         void enqueueSaveAllRuntimeChunks();
-        void saveChunkSnapshot(const SaveChunkSnapshot& snapshot);
-        std::optional<SaveChunkSnapshot> loadChunkSnapshot(int chunkX, int chunkZ);
         RuntimeChunk runtimeChunkFromSnapshot(const SaveChunkSnapshot& snapshot, uint64_t generation);
+        world::TerrainBuilderConfig terrainBuilderConfig() const;
         std::shared_ptr<ChunkData> buildChunkData(int chunkX, int chunkZ) const;
         std::array<FeatureWriteListPtr, FeatureNeighborCount> buildTreeFeatures(const std::shared_ptr<ChunkData>& chunk, const std::array<int, ChunkColumnCount>& heights) const;
         bool applyFeatureWrites(const std::shared_ptr<ChunkData>& chunk, const std::array<FeatureWriteListPtr, FeatureNeighborCount>& incomingFeatureSlots) const;
@@ -757,11 +424,8 @@ namespace dolbuto
         void rebuildChunkDerivedCaches(ChunkData& chunk) const;
         void rebuildSubchunkMeshNow(int chunkX, int chunkZ, int subchunkY);
         void rebuildEditedChunkMeshes(int blockX, int blockY, int blockZ);
-        std::vector<uint16_t> buildMeshingBlocks(const std::shared_ptr<ChunkData>& chunk) const;
-        TerrainBuildData buildSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, const std::vector<uint16_t>& meshingBlocks, int subchunkY) const;
         TerrainBuildData buildEditedSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, int subchunkY) const;
-        TerrainBuildData buildSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, int subchunkY, const std::function<uint16_t(int, int, int)>& blockAt) const;
-        TerrainBuildData buildFluidSubchunkMesh(const std::array<std::shared_ptr<ChunkData>, 9>& chunks, int subchunkY) const;
+        TerrainBuildData buildSubchunkMesh(const std::shared_ptr<ChunkData>& chunk, int subchunkY, const world::TerrainMesher::BlockSampler& blockAt) const;
         CompletedChunkMesh buildChunkMesh(const std::array<std::shared_ptr<ChunkData>, 9>& chunks, uint64_t generation) const;
         bool chunkMeshReady(uint64_t key) const;
         void destroyChunkRenderData(ChunkRenderData& chunk);
@@ -832,21 +496,8 @@ namespace dolbuto
         void drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition);
         void initializeAudio();
         void shutdownAudio();
-        void loadAudioAssets();
-        void loadMusicAssets();
-        uint32_t loadWavSound(const std::filesystem::path& path, bool forceMono = false);
-        uint32_t acquireAudioSource();
         void updateAudioListener(const Camera& camera, Vec3 cameraPosition);
         void updateMusicPlayback(int menuOverlayMode, bool gameSceneRenderEnabled);
-        bool startMusicTrack(size_t trackIndex);
-        bool fillMusicStreamBuffer(uint32_t buffer);
-        bool updateMusicStream();
-        void resetMusicPlayback(MusicScene scene);
-        void stopMusicPlayback();
-        void closeMusicStream();
-        void scheduleNextMusic();
-        void playSfx2D(uint32_t buffer, float gain = 1.0f);
-        void playSfx3D(uint32_t buffer, Vec3 position, float gain = 1.0f);
         void playBlockBreakSound(int x, int y, int z);
         void playBlockPlaceSound(int x, int y, int z);
         void playItemPickupSound();
@@ -870,7 +521,6 @@ namespace dolbuto
         void updateDroppedItemsTick(Vec3 playerPosition, float dt);
         void drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition);
         void updateInventoryDebugSlots();
-        std::string inventoryDebugSlotRml(size_t slotIndex, bool inventorySlot) const;
         uint16_t addItemToPlayerInventory(ItemStack stack);
         uint16_t addItemToInventoryRange(ItemStack& stack, size_t begin, size_t end);
         bool inventoryStackCanMerge(const ItemStack& slot, const ItemStack& stack) const;
@@ -879,10 +529,8 @@ namespace dolbuto
         void handleInventoryHotbarSwapKey(int key);
         void updateInventoryCursorUi();
         void updateItemTooltipUi();
-        std::string itemTooltipRml(const ItemStack& stack) const;
         void updateInventoryUi();
-        std::string itemSlotImageRml(size_t slotIndex, bool inventorySlot) const;
-        std::string itemStackContentRml(const ItemStack& stack, int itemLeft, int itemTop) const;
+        ui::InventoryItemView inventoryItemView(const ItemStack& stack) const;
         ItemSpriteMesh buildItemSpriteMesh(const std::filesystem::path& path) const;
         void drawSprite(VkCommandBuffer commandBuffer, const Texture& texture, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
         void drawSpriteDescriptor(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet, SpriteRect rect, UvRect uv = {}, Color color = {}) const;
@@ -893,7 +541,6 @@ namespace dolbuto
         std::array<float, ChunkColumnCount> buildChunkTileableClimateNoise(int chunkX, int chunkZ, float featureScale, float simplexScale, int octaveCount, float lacunarity, float gain, int seed) const;
         float sampleTileableClimateNoise(int wrappedX, int wrappedZ, float featureScale, float simplexScale, int octaveCount, float lacunarity, float gain, int seed) const;
         void populateChunkClimate(ChunkData& chunk) const;
-        float baseTemperatureAtWrappedZ(int wrappedZ) const;
         float temperatureAtWrapped(int wrappedZ, float noise) const;
         float precipitationAtNoise(float noise) const;
         void drawClimateOverlay(VkCommandBuffer commandBuffer, int mode) const;
@@ -911,10 +558,8 @@ namespace dolbuto
         bool projectSkyDirection(const Camera& camera, float aspect, const std::array<float, 3>& direction, SpriteRect& rect) const;
         std::string readCpuName() const;
         std::string formatVersion(uint32_t version) const;
-        int terrainSeed(int offset = 0) const;
         int temperatureSeed() const;
         int precipitationSeed() const;
-        static std::string escapeRml(std::string_view text);
         void updateTerrainDebugText();
         void updateVramText();
 
@@ -926,7 +571,6 @@ namespace dolbuto
         void ReleaseTexture(Rml::TextureHandle texture) override;
         void EnableScissorRegion(bool enable) override;
         void SetScissorRegion(Rml::Rectanglei region) override;
-        void ProcessEvent(Rml::Event& event) override;
 
         GLFWwindow* window_ = nullptr;
 
@@ -1078,41 +722,6 @@ namespace dolbuto
         std::unordered_map<uint64_t, ChunkRenderData> terrainChunks_;
         std::deque<uint64_t> pendingUnloadChunks_;
         std::deque<RetiredChunkRenderData> retiredTerrainChunks_;
-        std::vector<std::thread> terrainWorkers_;
-        std::thread chunkLoadWorker_;
-        std::thread saveWorker_;
-        std::mutex terrainJobMutex_;
-        std::condition_variable terrainJobCondition_;
-        std::deque<TerrainJob> terrainFeatureJobs_;
-        std::deque<TerrainJob> terrainFinalizeJobs_;
-        std::deque<TerrainJob> terrainMeshJobs_;
-        uint64_t terrainJobSequence_ = 0;
-        std::deque<CompletedChunkData> completedChunkData_;
-        std::deque<std::shared_ptr<ChunkData>> completedMergedChunks_;
-        std::deque<CompletedChunkMesh> completedChunkMeshes_;
-        bool stopTerrainWorkers_ = false;
-        std::mutex chunkLoadJobMutex_;
-        std::condition_variable chunkLoadJobCondition_;
-        std::deque<ChunkLoadJob> chunkLoadJobs_;
-        std::deque<CompletedChunkLoad> completedChunkLoads_;
-        std::unordered_set<uint64_t> requestedChunkLoads_;
-        bool stopChunkLoadWorker_ = false;
-        std::mutex saveJobMutex_;
-        std::condition_variable saveJobCondition_;
-        std::deque<SaveChunkSnapshot> saveJobs_;
-        bool stopSaveWorker_ = false;
-        std::atomic<uint64_t> saveChunkDoneCount_{0};
-        std::atomic<uint64_t> saveFeatureDoneCount_{0};
-        std::atomic<uint64_t> saveFailedCount_{0};
-        std::atomic<uint64_t> loadPendingHitCount_{0};
-        std::atomic<uint64_t> loadRegionHitCount_{0};
-        std::atomic<uint64_t> loadMissCount_{0};
-        std::mutex savedChunkMutex_;
-        std::unordered_map<uint64_t, uint64_t> savedCleanRevisions_;
-        std::unordered_map<uint64_t, SaveChunkSnapshot> pendingSaveSnapshots_;
-        std::mutex regionIoMutex_;
-        std::mutex regionHeaderCacheMutex_;
-        std::unordered_map<uint64_t, RegionHeaderCache> regionHeaderCache_;
         std::array<uint16_t, 1024> heightLut_{};
         VkDeviceSize localMemoryHeapSize_ = 0;
         uint32_t localMemoryHeapIndex_ = UINT32_MAX;
@@ -1136,23 +745,13 @@ namespace dolbuto
         Texture terrainTextureArray_;
         Texture fluidTextureArray_;
         Texture itemTextureArray_;
-        std::unique_ptr<Rml::SystemInterface> rmlSystemInterface_;
-        bool rmlInitialized_ = false;
-        Rml::Context* rmlContext_ = nullptr;
-        Rml::ElementDocument* rmlLobbyDocument_ = nullptr;
-        Rml::ElementDocument* rmlWorldSelectDocument_ = nullptr;
-        Rml::ElementDocument* rmlWorldCreateDocument_ = nullptr;
-        Rml::ElementDocument* rmlHudDocument_ = nullptr;
-        Rml::ElementDocument* rmlInventoryDocument_ = nullptr;
-        Rml::ElementDocument* rmlPauseDocument_ = nullptr;
+        ui::UiSystem ui_;
         int hotbarSelectedSlot_ = 0;
-        int activeRmlMenuOverlayMode_ = -1;
         VkCommandBuffer rmlCommandBuffer_ = VK_NULL_HANDLE;
         bool rmlScissorEnabled_ = false;
         VkRect2D rmlScissor_{};
         size_t rmlUiVertexOffset_ = 0;
         size_t rmlUiIndexOffset_ = 0;
-        std::optional<std::string> pendingUiAction_;
         std::vector<Texture> sceneColorTargets_;
         std::vector<Texture> sceneDepthTargets_;
         std::vector<VkFramebuffer> sceneFramebuffers_;
@@ -1163,36 +762,13 @@ namespace dolbuto
         std::vector<ItemSpriteMesh> itemSpriteMeshes_;
         std::vector<ItemSpriteGpuMesh> itemSpriteGpuMeshes_;
         std::unordered_map<std::string, uint16_t> itemIdByKey_;
-        void* audioDevice_ = nullptr;
-        void* audioContext_ = nullptr;
-        bool audioAvailable_ = false;
-        std::array<uint32_t, 16> audioSources_{};
-        size_t nextAudioSource_ = 0;
-        uint32_t blockBreakSound_ = 0;
-        uint32_t buttonClickSound_ = 0;
-        uint32_t blockPlaceSound_ = 0;
-        uint32_t itemPickupSound_ = 0;
-        uint32_t musicSource_ = 0;
-        std::vector<MusicTrack> musicTracks_;
-        std::array<uint32_t, 3> musicStreamBuffers_{};
-        void* musicDecoder_ = nullptr;
-        int musicStreamChannels_ = 0;
-        int musicStreamSampleRate_ = 0;
-        int musicStreamFormat_ = 0;
-        std::vector<int16_t> musicStreamPcm_;
-        bool musicStreamActive_ = false;
-        bool musicStreamFinished_ = false;
-        uint32_t musicLazyBuffer_ = 0;
-        MusicScene activeMusicScene_ = MusicScene::None;
-        double nextMusicStartTime_ = 0.0;
-        size_t lastMusicTrackIndex_ = static_cast<size_t>(-1);
-        std::mt19937 musicRandom_{std::random_device{}()};
+        audio::AudioSystem audio_;
         std::array<ItemStack, 50> playerInventorySlots_{};
         ItemStack inventoryCursorStack_{};
         double rmlMouseX_ = 0.0;
         double rmlMouseY_ = 0.0;
         bool inventoryDebugSlotsVisible_ = false;
-        std::unordered_map<uint16_t, PropMesh> propMeshesByBlock_;
+        std::unordered_map<uint16_t, assets::PropMesh> propMeshesByBlock_;
         std::array<FontCharacter, 95> fontCharacters_{};
 
         std::vector<VkSemaphore> imageAvailableSemaphores_;
@@ -1204,5 +780,8 @@ namespace dolbuto
         double accumulatedCpuFrameMs_ = 0.0;
         double accumulatedGpuFrameMs_ = 0.0;
         uint32_t performanceSampleCount_ = 0;
+        save::SaveSystem saveSystem_;
+        world::ChunkLoadSystem chunkLoadSystem_;
+        world::TerrainJobSystem terrainJobSystem_;
     };
 }

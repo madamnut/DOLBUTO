@@ -33,6 +33,13 @@
 - terrain은 index buffer 없이 `vkCmdDraw`를 사용한다.
 - player는 별도 vertex/index 경로를 유지한다.
 
+렌더링 지형 데이터 타입은 `src/renderer/TerrainTypes.h`에 둔다.
+현재 포함 타입은 `TerrainVertex`, `PackedTerrainQuad`, `TerrainMesh`, `TerrainBuildData`이다.
+`src/world/TerrainMesher.h/.cpp`는 chunk mesh와 편집 subchunk mesh의 CPU orchestration을 맡는다.
+solid subchunk의 greedy meshing 본체와 Vulkan 업로드는 아직 `Renderer`가 담당한다.
+fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
+초기 청크 지형 생성과 feature 반영은 `src/world/TerrainBuilder.h/.cpp`로 분리되어 있다.
+
 ## 메모리
 
 지형 최종 버퍼는 `DEVICE_LOCAL` 메모리에 둔다.
@@ -85,6 +92,7 @@ assets/textures/block/breaking/destroy_stage_9.png
 - `.dpm`은 quad 위치, UV, normal을 저장하며 magic 값과 version field는 없다.
 - 시작 시 없거나 오래된 `.dpm` 파일은 대응하는 `.glb` 파일에서 다시 생성한다.
 - `.glb` 변환 중 원본 triangle pair는 다시 quad로 병합한다.
+- `.glb` 파싱, `.dpm` 변환/검증, 렌더링용 quad 로드는 `src/assets/PropModelLoader.h/.cpp`가 맡는다.
 - subchunk meshing 중 prop quad는 블록 위치에 추가된다.
 - prop quad는 원본 모델 winding에 의존하지 않도록 양면으로 방출한다.
 - `randomOffset` prop 블록은 렌더링되는 X/Z 메시 위치만 중심에서 최대 `0.2`블록까지 오프셋한다.
@@ -125,6 +133,7 @@ assets/textures/block/breaking/destroy_stage_9.png
 유체는 depth test를 유지하므로 블록, cutout 지형, 선택 외곽선, 플레이어가 scene depth buffer를 통해 유체를 가릴 수 있다.
 유체 pipeline은 `fluid.frag`를 사용한다.
 `fluid.frag`는 fluid texture array를 샘플링하고 render config의 고정 alpha 값을 적용한다.
+`config/render.json` 파일 읽기와 값 검증은 `src/config/ConfigLoaders.h/.cpp`의 `config::loadRenderConfig`가 맡는다.
 물 normal mapping, Fresnel alpha, depth absorption, SSR은 현재 렌더러에 포함되어 있지 않다.
 
 ## 블록 파괴 파티클

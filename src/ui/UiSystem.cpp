@@ -1,0 +1,584 @@
+#include "ui/UiSystem.h"
+
+#include "platform/Log.h"
+#include "ui/RmlInput.h"
+
+#include <GLFW/glfw3.h>
+
+#include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/Element.h>
+#include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/Elements/ElementFormControlInput.h>
+#include <RmlUi/Core/Event.h>
+#include <RmlUi/Core/SystemInterface.h>
+
+#include <array>
+#include <cmath>
+#include <utility>
+
+namespace dolbuto::ui
+{
+    namespace
+    {
+        class RmlGlfwSystemInterface final : public Rml::SystemInterface
+        {
+        public:
+            explicit RmlGlfwSystemInterface(GLFWwindow* window)
+                : window_(window)
+            {
+            }
+
+            double GetElapsedTime() override
+            {
+                return glfwGetTime();
+            }
+
+            void SetClipboardText(const Rml::String& text) override
+            {
+                if (window_ != nullptr)
+                {
+                    glfwSetClipboardString(window_, text.c_str());
+                }
+            }
+
+            void GetClipboardText(Rml::String& text) override
+            {
+                text.clear();
+                if (window_ == nullptr)
+                {
+                    return;
+                }
+
+                const char* clipboard = glfwGetClipboardString(window_);
+                if (clipboard != nullptr)
+                {
+                    text = clipboard;
+                }
+            }
+
+        private:
+            GLFWwindow* window_ = nullptr;
+        };
+    }
+
+    std::string escapeRml(std::string_view text)
+    {
+        std::string escaped;
+        escaped.reserve(text.size());
+        for (const char c : text)
+        {
+            switch (c)
+            {
+            case '&': escaped += "&amp;"; break;
+            case '<': escaped += "&lt;"; break;
+            case '>': escaped += "&gt;"; break;
+            case '"': escaped += "&quot;"; break;
+            default: escaped.push_back(c); break;
+            }
+        }
+        return escaped;
+    }
+
+    bool UiSystem::initialize(
+        GLFWwindow* window,
+        const std::filesystem::path& assetDirectory,
+        int width,
+        int height,
+        Rml::RenderInterface* renderInterface)
+    {
+        window_ = window;
+        systemInterface_ = std::make_unique<RmlGlfwSystemInterface>(window);
+        Rml::SetSystemInterface(systemInterface_.get());
+        Rml::SetRenderInterface(renderInterface);
+        if (!Rml::Initialise())
+        {
+            log::warn("RmlUi initialization failed.");
+            Rml::SetRenderInterface(nullptr);
+            Rml::SetSystemInterface(nullptr);
+            systemInterface_.reset();
+            return false;
+        }
+
+        initialized_ = true;
+        const std::filesystem::path fontPath = assetDirectory / "fonts" / "VCR_OSD_MONO.ttf";
+        if (!Rml::LoadFontFace(fontPath.string(), true))
+        {
+            log::warn("RmlUi font load failed: " + fontPath.string());
+        }
+
+        context_ = Rml::CreateContext("main", Rml::Vector2i(width, height), renderInterface);
+        if (context_ == nullptr)
+        {
+            log::warn("RmlUi context creation failed.");
+            return false;
+        }
+
+        const std::filesystem::path uiDir = assetDirectory / "ui";
+        lobbyDocument_ = context_->LoadDocument((uiDir / "lobby.rml").string());
+        worldSelectDocument_ = context_->LoadDocument((uiDir / "world_select.rml").string());
+        worldCreateDocument_ = context_->LoadDocument((uiDir / "world_create.rml").string());
+        hudDocument_ = context_->LoadDocument((uiDir / "hud.rml").string());
+        inventoryDocument_ = context_->LoadDocument((uiDir / "inventory.rml").string());
+        pauseDocument_ = context_->LoadDocument((uiDir / "pause.rml").string());
+
+        attachDocumentEvents(lobbyDocument_);
+        attachDocumentEvents(worldSelectDocument_);
+        attachDocumentEvents(worldCreateDocument_);
+        attachDocumentEvents(hudDocument_);
+        attachDocumentEvents(inventoryDocument_);
+        attachDocumentEvents(pauseDocument_);
+
+        setDocument(0);
+        return true;
+    }
+
+    void UiSystem::shutdown()
+    {
+        if (!initialized_)
+        {
+            return;
+        }
+
+        closeDocument(lobbyDocument_);
+        closeDocument(worldSelectDocument_);
+        closeDocument(worldCreateDocument_);
+        closeDocument(hudDocument_);
+        closeDocument(inventoryDocument_);
+        closeDocument(pauseDocument_);
+
+        if (context_ != nullptr)
+        {
+            Rml::RemoveContext("main");
+            context_ = nullptr;
+        }
+
+        Rml::Shutdown();
+        Rml::SetRenderInterface(nullptr);
+        Rml::SetSystemInterface(nullptr);
+        systemInterface_.reset();
+        window_ = nullptr;
+        initialized_ = false;
+        activeMenuOverlayMode_ = -1;
+        pendingAction_.reset();
+    }
+
+    bool UiSystem::available() const
+    {
+        return initialized_ && context_ != nullptr;
+    }
+
+    bool UiSystem::render(int menuOverlayMode, int width, int height)
+    {
+        if (!available())
+        {
+            return false;
+        }
+
+        setDocument(menuOverlayMode);
+        context_->SetDimensions(Rml::Vector2i(width, height));
+        context_->Update();
+        context_->Render();
+        return true;
+    }
+
+    int UiSystem::activeMenuOverlayMode() const
+    {
+        return activeMenuOverlayMode_;
+    }
+
+    Rml::Context* UiSystem::context() const
+    {
+        return context_;
+    }
+
+    Rml::ElementDocument* UiSystem::lobbyDocument() const
+    {
+        return lobbyDocument_;
+    }
+
+    Rml::ElementDocument* UiSystem::worldSelectDocument() const
+    {
+        return worldSelectDocument_;
+    }
+
+    Rml::ElementDocument* UiSystem::worldCreateDocument() const
+    {
+        return worldCreateDocument_;
+    }
+
+    Rml::ElementDocument* UiSystem::hudDocument() const
+    {
+        return hudDocument_;
+    }
+
+    Rml::ElementDocument* UiSystem::inventoryDocument() const
+    {
+        return inventoryDocument_;
+    }
+
+    Rml::ElementDocument* UiSystem::pauseDocument() const
+    {
+        return pauseDocument_;
+    }
+
+    void UiSystem::attachActionEvent(Rml::Element* element, const Rml::String& eventType)
+    {
+        if (element != nullptr)
+        {
+            element->AddEventListener(eventType, this);
+        }
+    }
+
+    void UiSystem::setClickCallback(std::function<void()> callback)
+    {
+        clickCallback_ = std::move(callback);
+    }
+
+    std::optional<std::string> UiSystem::consumeAction()
+    {
+        std::optional<std::string> action = std::move(pendingAction_);
+        pendingAction_.reset();
+        return action;
+    }
+
+    std::string UiSystem::inputValue(std::string_view id) const
+    {
+        if (context_ == nullptr)
+        {
+            return {};
+        }
+
+        for (Rml::ElementDocument* document : {lobbyDocument_, worldSelectDocument_, worldCreateDocument_, hudDocument_, inventoryDocument_, pauseDocument_})
+        {
+            if (document == nullptr)
+            {
+                continue;
+            }
+            Rml::Element* element = document->GetElementById(std::string(id));
+            if (element == nullptr)
+            {
+                continue;
+            }
+            if (auto* input = dynamic_cast<Rml::ElementFormControlInput*>(element))
+            {
+                return input->GetValue();
+            }
+            return element->GetAttribute<Rml::String>("value", "");
+        }
+
+        return {};
+    }
+
+    void UiSystem::setHotbarScopeClass(int selectedSlot)
+    {
+        if (hudDocument_ == nullptr)
+        {
+            return;
+        }
+
+        Rml::Element* scope = hudDocument_->GetElementById("hotbar-scope");
+        if (scope == nullptr)
+        {
+            return;
+        }
+
+        scope->SetAttribute("class", Rml::String("hotbar-scope hotbar-slot-") + std::to_string(selectedSlot));
+    }
+
+    void UiSystem::setInventoryDebugSlots(std::string_view hotbarRml, std::string_view inventoryRml, bool visible)
+    {
+        if (hudDocument_ != nullptr)
+        {
+            if (Rml::Element* hotbarItems = hudDocument_->GetElementById("hotbar-debug-slots"))
+            {
+                hotbarItems->SetAttribute("class", visible ? "hotbar-items" : "hotbar-items ui-hidden");
+                hotbarItems->SetInnerRML(std::string(hotbarRml));
+            }
+        }
+
+        if (inventoryDocument_ != nullptr)
+        {
+            if (Rml::Element* inventoryItems = inventoryDocument_->GetElementById("inventory-debug-slots"))
+            {
+                inventoryItems->SetAttribute("class", visible ? "inventory-items" : "inventory-items ui-hidden");
+                inventoryItems->SetInnerRML(std::string(inventoryRml));
+            }
+        }
+    }
+
+    void UiSystem::setInventoryItems(std::string_view hotbarRml, std::string_view inventoryRml)
+    {
+        if (hudDocument_ != nullptr)
+        {
+            if (Rml::Element* hotbarItems = hudDocument_->GetElementById("hotbar-items"))
+            {
+                hotbarItems->SetInnerRML(std::string(hotbarRml));
+            }
+        }
+
+        if (inventoryDocument_ != nullptr)
+        {
+            if (Rml::Element* inventoryItems = inventoryDocument_->GetElementById("inventory-items"))
+            {
+                inventoryItems->SetInnerRML(std::string(inventoryRml));
+            }
+        }
+    }
+
+    void UiSystem::setInventoryCursorItem(std::string_view rml, bool visible)
+    {
+        if (inventoryDocument_ == nullptr)
+        {
+            return;
+        }
+
+        Rml::Element* cursor = inventoryDocument_->GetElementById("inventory-cursor-item");
+        if (cursor == nullptr)
+        {
+            return;
+        }
+
+        cursor->SetAttribute("class", visible ? "cursor-item-layer" : "cursor-item-layer ui-hidden");
+        cursor->SetInnerRML(std::string(rml));
+    }
+
+    void UiSystem::hideItemTooltip()
+    {
+        if (inventoryDocument_ == nullptr)
+        {
+            return;
+        }
+
+        Rml::Element* tooltip = inventoryDocument_->GetElementById("item-tooltip");
+        if (tooltip == nullptr)
+        {
+            return;
+        }
+
+        tooltip->SetAttribute("class", "item-tooltip ui-hidden");
+        tooltip->SetInnerRML("");
+    }
+
+    void UiSystem::showItemTooltip(std::string_view rml, int left, int top, int width, int height)
+    {
+        if (inventoryDocument_ == nullptr)
+        {
+            return;
+        }
+
+        Rml::Element* tooltip = inventoryDocument_->GetElementById("item-tooltip");
+        if (tooltip == nullptr)
+        {
+            return;
+        }
+
+        tooltip->SetAttribute("class", "item-tooltip");
+        tooltip->SetAttribute(
+            "style",
+            "left: " + std::to_string(left) +
+            "px; top: " + std::to_string(top) +
+            "px; width: " + std::to_string(width) +
+            "px; height: " + std::to_string(height) + "px;");
+        tooltip->SetInnerRML(std::string(rml));
+    }
+
+    void UiSystem::setWorldList(const std::vector<WorldListEntry>& worlds)
+    {
+        if (worldSelectDocument_ == nullptr)
+        {
+            return;
+        }
+
+        Rml::Element* list = worldSelectDocument_->GetElementById("world-list");
+        if (list == nullptr)
+        {
+            return;
+        }
+
+        std::string rml;
+        if (worlds.empty())
+        {
+            rml =
+                "<div class=\"world-row large\">"
+                "<div class=\"world-name\">No worlds yet</div>"
+                "<div class=\"world-meta\">Create a new world to begin</div>"
+                "</div>";
+        }
+        else
+        {
+            for (size_t i = 0; i < worlds.size(); ++i)
+            {
+                rml += "<div id=\"world-open-" + std::to_string(i) + "\" class=\"world-row large\">";
+                rml += "<div class=\"world-name\">" + escapeRml(worlds[i].name) + "</div>";
+                rml += "<div class=\"world-meta\">CREATED " + escapeRml(worlds[i].createdText) + " / LAST " + escapeRml(worlds[i].lastPlayedText) + "</div>";
+                rml += "</div>";
+            }
+        }
+
+        list->SetInnerRML(rml);
+        for (size_t i = 0; i < worlds.size(); ++i)
+        {
+            attachActionEvent(worldSelectDocument_->GetElementById("world-open-" + std::to_string(i)), "dblclick");
+        }
+    }
+
+    void UiSystem::processMouseMove(double x, double y)
+    {
+        if (context_ != nullptr)
+        {
+            context_->ProcessMouseMove(static_cast<int>(std::round(x)), static_cast<int>(std::round(y)), currentRmlKeyModifiers(window_));
+        }
+    }
+
+    void UiSystem::processMouseButton(int button, bool pressed, int modifiers)
+    {
+        if (context_ == nullptr)
+        {
+            return;
+        }
+
+        int rmlButton = 0;
+        if (button == GLFW_MOUSE_BUTTON_RIGHT)
+        {
+            rmlButton = 1;
+        }
+        else if (button == GLFW_MOUSE_BUTTON_MIDDLE)
+        {
+            rmlButton = 2;
+        }
+
+        if (pressed)
+        {
+            context_->ProcessMouseButtonDown(rmlButton, rmlKeyModifiersFromGlfw(modifiers));
+        }
+        else
+        {
+            context_->ProcessMouseButtonUp(rmlButton, rmlKeyModifiersFromGlfw(modifiers));
+        }
+    }
+
+    void UiSystem::processMouseWheel(double yOffset)
+    {
+        if (context_ != nullptr)
+        {
+            context_->ProcessMouseWheel(static_cast<float>(-yOffset), currentRmlKeyModifiers(window_));
+        }
+    }
+
+    void UiSystem::processTextInput(unsigned int codepoint)
+    {
+        if (context_ != nullptr)
+        {
+            context_->ProcessTextInput(static_cast<Rml::Character>(codepoint));
+        }
+    }
+
+    bool UiSystem::processKey(int key, bool pressed, int modifiers)
+    {
+        if (context_ == nullptr)
+        {
+            return false;
+        }
+
+        const Rml::Input::KeyIdentifier identifier = rmlKeyFromGlfw(key);
+        if (identifier == Rml::Input::KI_UNKNOWN)
+        {
+            return false;
+        }
+
+        if (pressed)
+        {
+            context_->ProcessKeyDown(identifier, rmlKeyModifiersFromGlfw(modifiers));
+        }
+        else
+        {
+            context_->ProcessKeyUp(identifier, rmlKeyModifiersFromGlfw(modifiers));
+        }
+        return true;
+    }
+
+    void UiSystem::ProcessEvent(Rml::Event& event)
+    {
+        Rml::Element* target = event.GetCurrentElement();
+        if (target == nullptr)
+        {
+            target = event.GetTargetElement();
+        }
+        if (target == nullptr)
+        {
+            return;
+        }
+
+        if (event.GetType() == "click" && clickCallback_)
+        {
+            clickCallback_();
+        }
+        pendingAction_ = target->GetId();
+    }
+
+    void UiSystem::attachDocumentEvents(Rml::ElementDocument* document)
+    {
+        if (document == nullptr)
+        {
+            return;
+        }
+
+        constexpr std::array<const char*, 8> ButtonIds = {
+            "start",
+            "exit",
+            "new-world",
+            "create-world",
+            "back-to-lobby",
+            "back-to-world-select",
+            "resume",
+            "exit-to-lobby"
+        };
+        for (const char* id : ButtonIds)
+        {
+            attachActionEvent(document->GetElementById(id), "click");
+        }
+    }
+
+    void UiSystem::setDocument(int menuOverlayMode)
+    {
+        if (activeMenuOverlayMode_ == menuOverlayMode)
+        {
+            return;
+        }
+
+        activeMenuOverlayMode_ = menuOverlayMode;
+        if (lobbyDocument_ != nullptr)
+        {
+            menuOverlayMode == 1 ? lobbyDocument_->Show() : lobbyDocument_->Hide();
+        }
+        if (worldSelectDocument_ != nullptr)
+        {
+            menuOverlayMode == 3 ? worldSelectDocument_->Show() : worldSelectDocument_->Hide();
+        }
+        if (worldCreateDocument_ != nullptr)
+        {
+            menuOverlayMode == 4 ? worldCreateDocument_->Show() : worldCreateDocument_->Hide();
+        }
+        if (hudDocument_ != nullptr)
+        {
+            (menuOverlayMode == 0 || menuOverlayMode == 5) ? hudDocument_->Show() : hudDocument_->Hide();
+        }
+        if (inventoryDocument_ != nullptr)
+        {
+            menuOverlayMode == 5 ? inventoryDocument_->Show() : inventoryDocument_->Hide();
+        }
+        if (pauseDocument_ != nullptr)
+        {
+            menuOverlayMode == 2 ? pauseDocument_->Show() : pauseDocument_->Hide();
+        }
+    }
+
+    void UiSystem::closeDocument(Rml::ElementDocument*& document)
+    {
+        if (document != nullptr)
+        {
+            document->Close();
+            document = nullptr;
+        }
+    }
+}

@@ -8,6 +8,9 @@
 assets/data/blocks.json
 ```
 
+정의 파일 파싱은 `src/data/DataLoaders.h/.cpp`의 `data::parseBlockDefinitions`가 맡는다.
+렌더러는 파싱된 블록 정의를 받아 블록 ID별 `BlockDefinition`, 텍스처 레이어, 드랍 테이블, 소품 모델 캐시를 구성한다.
+
 ## 블록 드랍
 
 블록 정의는 `drops` 배열을 포함한다.
@@ -230,7 +233,7 @@ fluids: uint16_t packed fluid 배열
 런타임/캐시 모델은 `assets/textures/block/model/{model}.dpm`에 저장한다.
 텍스처는 `assets/textures/block/{texture}.png`에 저장한다.
 
-시작 시 렌더러는 블록 데이터가 사용하는 소품 모델을 확인한다.
+시작 시 렌더러는 블록 데이터가 사용하는 소품 모델 이름을 수집하고 `src/assets/PropModelLoader.h/.cpp`에 변환/로드를 위임한다.
 `{model}.dpm`이 없거나, 파일 크기 기준으로 유효하지 않거나, `{model}.glb`보다 오래된 경우 `.glb` 파일을 `.dpm`으로 변환하려고 시도한다.
 두 파일이 모두 없거나 변환에 실패하면 런타임 로그에 경고를 기록한다.
 
@@ -244,7 +247,7 @@ repeat quadCount:
   float normal[3]
 ```
 
-런타임 소품 렌더링은 `.dpm`을 블록 ID 메쉬 캐시에 로드한다.
+런타임 소품 렌더링은 `PropModelLoader`가 `.dpm`에서 읽은 렌더링용 quad 배열을 블록 ID 메쉬 캐시에 저장한다.
 서브청크 메싱 중 각 소품 블록은 캐시된 쿼드를 일반 지형 메쉬에 추가한다.
 GLB 삼각형 쌍은 변환 중 다시 쿼드로 병합한다.
 소품 쿼드는 양면으로 방출하므로 소스 모델의 face winding이 가시성을 결정하지 않는다.

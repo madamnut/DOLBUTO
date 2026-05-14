@@ -154,17 +154,47 @@ add_executable(DOLBUTO
     src/main.cpp
     src/app/Application.cpp
     src/app/Application.h
+    src/assets/PropModelLoader.cpp
+    src/assets/PropModelLoader.h
+    src/audio/AudioSystem.cpp
+    src/audio/AudioSystem.h
     src/camera/Camera.cpp
     src/camera/Camera.h
+    src/config/ConfigLoaders.cpp
+    src/config/ConfigLoaders.h
+    src/data/DataLoaders.cpp
+    src/data/DataLoaders.h
+    src/items/ItemData.h
     src/platform/Log.cpp
     src/platform/Log.h
     src/platform/RuntimePaths.cpp
     src/platform/RuntimePaths.h
     src/renderer/Renderer.cpp
     src/renderer/Renderer.h
+    src/renderer/TerrainTypes.h
+    src/save/SaveFormat.cpp
+    src/save/SaveFormat.h
+    src/save/SaveSystem.cpp
+    src/save/SaveSystem.h
     src/third_party/stb_image.cpp
     src/third_party/stb_image_write.cpp
     src/third_party/stb_vorbis.cpp
+    src/ui/InventoryUi.cpp
+    src/ui/InventoryUi.h
+    src/ui/RmlInput.cpp
+    src/ui/RmlInput.h
+    src/ui/UiSystem.cpp
+    src/ui/UiSystem.h
+    src/world/BlockData.h
+    src/world/ChunkLoadSystem.cpp
+    src/world/ChunkLoadSystem.h
+    src/world/TerrainBuilder.cpp
+    src/world/TerrainBuilder.h
+    src/world/TerrainJobSystem.cpp
+    src/world/TerrainJobSystem.h
+    src/world/TerrainMesher.cpp
+    src/world/TerrainMesher.h
+    src/world/WorldTypes.h
 )
 
 add_dependencies(DOLBUTO DOLBUTOShaders)
