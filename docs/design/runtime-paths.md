@@ -35,7 +35,8 @@ screenshots -> exe 옆/screenshots
 
 ## 사용처
 
-- `Application`: 설정 파일, 창 아이콘
+- `main.cpp`: 창 아이콘
+- `GameClient`: 설정 파일, 월드/플레이어 상태 파일
 - `Renderer`: 에셋, 셰이더, 월드 저장/로드, 스크린샷
 - CMake Release 후처리: exe 옆에 리소스 복사
 

@@ -35,6 +35,9 @@
 
 렌더링 지형 데이터 타입은 `src/renderer/TerrainTypes.h`에 둔다.
 현재 포함 타입은 `TerrainVertex`, `PackedTerrainQuad`, `TerrainMesh`, `TerrainBuildData`이다.
+`src/renderer/RendererUi.cpp`는 RmlUi `RenderInterface` 구현과 UI 입력/인벤토리 표시 갱신을 담는다.
+`src/renderer/RendererDroppedItems.cpp`는 dropped item 아이템 스프라이트 mesh 생성, GPU instance 업로드, draw path를 담는다.
+드롭 아이템 생성/병합/물리 tick/pickup 판정은 `src/world/DroppedItemSystem.h/.cpp`가 담당한다.
 `src/world/TerrainMesher.h/.cpp`는 chunk mesh와 편집 subchunk mesh의 CPU orchestration을 맡는다.
 solid subchunk의 greedy meshing 본체와 Vulkan 업로드는 아직 `Renderer`가 담당한다.
 fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
@@ -195,6 +198,6 @@ OFF -> Temperature -> Precipitation -> OFF
 
 태양과 달 스프라이트는 시간에 따라 변하는 월드 방향에서 투영해 screen-space sprite로 렌더링한다.
 현재 투영 half-size는 화면 너비의 `0.04`이며, 높이는 viewport aspect ratio에 맞게 조정한다.
-렌더러는 Application에서 `worldTicks`를 받아 28800틱 하루 주기를 계산한다.
+렌더러는 `GameClient`에서 `worldTicks`를 받아 28800틱 하루 주기를 계산한다.
 `06H`에는 태양이 동쪽 지평선 근처에 있고, `12H`에는 머리 위에 있으며, `18H`에는 서쪽 지평선 근처에 있다. 달은 반대 방향을 사용한다.
 하늘 각도는 하루 주기 동안 감소하므로 `06H` 시작 시점에서 투영된 태양은 지는 것이 아니라 떠오른다.

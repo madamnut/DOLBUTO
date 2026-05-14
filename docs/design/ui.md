@@ -213,12 +213,12 @@ Vulkan 렌더링 자원과 화면별 RML 내용 갱신은 기존 Vulkan device, 
 - 아이템 정의를 `InventoryUi` 표시 데이터로 변환
 - 인벤토리 슬롯 클릭과 숫자키 핫바 교환 같은 조작 처리
 
-Application은 게임 화면이 아닐 때 GLFW 마우스, 텍스트, 기본 키 입력을 RmlUi context로 전달한다.
+GameClient는 게임 화면이 아닐 때 GLFW 마우스, 텍스트, 기본 키 입력을 RmlUi context로 전달한다.
 인벤토리는 비게임 입력 화면으로 취급하므로 마우스 이동과 클릭은 플레이어 카메라나 블록 상호작용 대신 RmlUi로 전달된다.
 키보드 입력은 GLFW modifier 상태를 RmlUi로 전달해 텍스트 입력창이 Shift+Arrow, Ctrl+C/V 같은 선택 및 편집 단축키를 처리할 수 있게 한다.
 `UiSystem`은 경과 시간과 클립보드 접근을 위해 GLFW 기반의 작은 RmlUi system interface를 제공한다.
-`UiSystem`은 Application에서 들어온 mouse/key/text/wheel 입력을 RmlUi context로 전달한다.
-RmlUi 클릭/더블클릭 이벤트는 `UiSystem`이 action으로 보관하고, Application이 메뉴 action으로 소비한다.
+`UiSystem`은 GameClient에서 들어온 mouse/key/text/wheel 입력을 RmlUi context로 전달한다.
+RmlUi 클릭/더블클릭 이벤트는 `UiSystem`이 action으로 보관하고, GameClient가 메뉴 action으로 소비한다.
 핫바, 인벤토리, 툴팁, 월드 목록은 `UiSystem` 메서드를 통해 문서 element에 반영한다.
 기존 네이티브 메뉴 hit test는 RmlUi를 사용할 수 없을 때의 fallback으로만 유지하며, 정상 RmlUi 메뉴 클릭 뒤에는 실행되면 안 된다.
 현재 메뉴 문서는 주요 layout block에 명시적 absolute positioning을 사용한다.

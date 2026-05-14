@@ -26,8 +26,10 @@ DOLBUTO는 Vulkan/C++ 기반의 샌드박스 복셀 게임이다.
 
 ## 코드 구조
 
-현재 `Renderer`는 Vulkan 렌더링뿐 아니라 월드 런타임, 저장/로드, UI, 오디오, 아이템 렌더링까지 넓은 책임을 아직 많이 가진다.
-0.0.0.2에서는 큰 동작 변경 없이 먼저 공용 타입을 분리하는 방향으로 정리를 시작했다.
+`main.cpp`는 로그 초기화, GLFW/window 생성, 최상위 예외 처리, `GameClient` 실행을 담당한다.
+`src/game/GameClient.h/.cpp`는 클라이언트 런타임 오케스트레이터로서 메인 루프, 입력, 플레이어 상태, 월드 선택/생성, 월드/플레이어 상태 저장, UI action 처리를 담당한다.
+현재 `Renderer`는 Vulkan 렌더링뿐 아니라 월드 런타임, 청크 저장/로드, UI, 오디오, 아이템 렌더링까지 넓은 책임을 아직 많이 가진다.
+0.0.0.2에서는 `GameClient`를 기준으로 전체 흐름과 렌더링 책임을 나누는 방향으로 정리를 진행한다.
 
 현재 분리된 타입 헤더:
 
@@ -49,6 +51,10 @@ src/config/ConfigLoaders.h
 src/config/ConfigLoaders.cpp
 src/assets/PropModelLoader.h
 src/assets/PropModelLoader.cpp
+src/gameplay/BlockInteractionSystem.h
+src/gameplay/BlockInteractionSystem.cpp
+src/gameplay/PlayerInventory.h
+src/gameplay/PlayerInventory.cpp
 src/audio/AudioSystem.h
 src/audio/AudioSystem.cpp
 src/ui/UiSystem.h
@@ -63,17 +69,23 @@ src/save/SaveSystem.h
 src/save/SaveSystem.cpp
 src/world/ChunkLoadSystem.h
 src/world/ChunkLoadSystem.cpp
+src/world/DroppedItemSystem.h
+src/world/DroppedItemSystem.cpp
 src/world/TerrainBuilder.h
 src/world/TerrainBuilder.cpp
 src/world/TerrainJobSystem.h
 src/world/TerrainJobSystem.cpp
 src/world/TerrainMesher.h
 src/world/TerrainMesher.cpp
+src/world/WorldRuntime.h
+src/world/WorldRuntime.cpp
 ```
 
 `DataLoaders`는 `assets/data/blocks.json`과 `assets/data/items.json`의 정의 파싱만 담당한다.
 `ConfigLoaders`는 `config/world.json`과 `config/render.json`의 설정 파일 읽기와 값 검증/클램프를 담당한다.
 `PropModelLoader`는 소품 모델 `.glb` 파싱, `.dpm` 변환/검증, 렌더링용 소품 quad 로드를 담당한다.
+`BlockInteractionSystem`은 블록 좌표 변환, 플레이어 충돌 범위 판정, 블록 레이캐스트, 블록 파괴 진행 상태를 담당한다.
+`PlayerInventory`는 플레이어 인벤토리 슬롯, 임시 커서 스택, 스택 병합, 클릭/Shift-click/핫바 교환 규칙을 담당한다.
 `AudioSystem`은 OpenAL device/context, 효과음 buffer/source pool, 음악 source와 OGG/WAV 재생 상태를 소유한다.
 `UiSystem`은 RmlUi 초기화/종료, context, 문서, 버튼 이벤트 수신, 문서 표시 상태, 문서 element 갱신을 소유한다.
 `InventoryUi`는 인벤토리/핫바 슬롯 좌표, 아이템/툴팁 RML 문자열, 툴팁 위치 계산을 담당하는 표시 helper다.
@@ -81,14 +93,19 @@ src/world/TerrainMesher.cpp
 `SaveFormat`은 region 청크 payload 직렬화/역직렬화, LZ4 block encode/decode, 저장 좌표 래핑 helper를 담당한다.
 `SaveSystem`은 save worker, 저장 큐, pending snapshot, clean revision cache, region header cache, region file IO, 저장/로드 카운터를 소유한다.
 `ChunkLoadSystem`은 chunk-load worker, snapshot load 요청 큐, 완료 큐, 중복 요청 추적을 소유한다.
+`DroppedItemSystem`은 드롭 아이템 엔티티 생성, 청크 소유권 helper, 병합, 물리 tick, 플레이어 pickup 판정을 담당한다.
 `TerrainBuilder`는 높이맵, 초기 청크 블록/유체/기후 데이터, tree feature write 생성과 feature write 반영을 담당한다.
 `TerrainJobSystem`은 terrain worker thread, terrain job 큐, terrain 완료 큐를 소유한다.
 `TerrainMesher`는 chunk mesh와 편집 subchunk mesh의 CPU orchestration을 담당한다.
-텍스처 배열 생성, 아이템 스프라이트 메쉬 생성, Vulkan 리소스 생성은 아직 `Renderer`가 담당한다.
+`WorldRuntime`은 runtime chunk map, chunk key/좌표 helper, runtime block 조회/수정, dirty marking, chunk derived cache 갱신, terrain 완료 결과의 runtime chunk 상태 설치를 소유한다.
+`Renderer` 구현은 `src/renderer/Renderer.cpp`, `src/renderer/RendererUi.cpp`, `src/renderer/RendererDroppedItems.cpp`로 나뉘어 있다.
+`RendererDroppedItems.cpp`는 dropped item의 아이템 스프라이트 mesh, GPU instance 업로드, draw path, Renderer callback 연결을 유지하며, runtime chunk 조회/순회는 `WorldRuntime`을 경유한다.
+텍스처 배열 생성, Vulkan 리소스 생성은 아직 `Renderer`가 담당한다.
 `Renderer`는 오디오 초기화/종료, listener 갱신, 음악 씬 분류, 효과음 발생 시점만 `AudioSystem`에 전달한다.
-`Renderer`는 RmlUi의 Vulkan `RenderInterface`, UI geometry 업로드, 인벤토리 상태/입력 처리, 아이템 정의를 표시용 데이터로 변환하는 역할을 아직 담당한다.
-`Renderer`는 저장할 runtime chunk snapshot 생성과 snapshot에서 runtime chunk를 복원하는 역할을 유지한다.
-`Renderer`는 terrain job callback에서 `TerrainBuilder`와 `TerrainMesher`를 호출하며, solid subchunk mesh 생성 callback과 완료 결과 설치를 아직 담당한다.
+`Renderer`는 RmlUi의 Vulkan `RenderInterface`, UI geometry 업로드, 인벤토리 입력을 `PlayerInventory`에 전달하고 아이템 정의를 표시용 데이터로 변환하는 역할을 아직 담당한다.
+`Renderer`는 블록 상호작용 입력을 `BlockInteractionSystem`에 전달하고 실제 블록 쓰기, mesh 재생성, particle/sound 실행을 담당한다.
+`Renderer`는 runtime chunk를 직접 보관하지 않고 `WorldRuntime`의 조회/순회/생성 API를 통해 접근하며, 저장할 runtime chunk snapshot 생성과 snapshot에서 runtime chunk를 복원하는 역할을 유지한다.
+`Renderer`는 terrain job callback에서 `TerrainBuilder`와 `TerrainMesher`를 호출하며, terrain 완료 결과의 runtime 상태 설치는 `WorldRuntime`에 위임하고 GPU mesh buffer 설치를 담당한다.
 fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
 
 ## 좌표계

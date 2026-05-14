@@ -119,7 +119,7 @@ namespace dolbuto::log
 
     void shutdown()
     {
-        info("Application shutdown");
+        info("GameClient shutdown");
 
         std::lock_guard<std::mutex> lock(logMutex);
         if (sessionFile.is_open())

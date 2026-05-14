@@ -12,6 +12,9 @@
 
 청크/월드 런타임 타입은 `src/world/WorldTypes.h`에 둔다.
 이 파일은 청크 크기 상수, `ChunkData`, `RuntimeChunk`, `ChunkGenState`, feature write, terrain job, save/load snapshot, `WorldEntity` 계열 타입을 가진다.
+runtime chunk map과 chunk key/좌표 helper, block 조회/수정, dirty marking, derived cache 갱신은 `src/world/WorldRuntime.h/.cpp`가 소유한다.
+`Renderer`는 terrain load, save/unload, mesh queue 경로에서 runtime chunk map을 직접 들고 있지 않고 `WorldRuntime`의 API를 통해 조회, 순회, 생성, 삭제한다.
+snapshot load 완료, featuring/full 청크 설치, mesh queued ticket 초기화, Meshed 상태 전환 같은 terrain 완료 결과의 runtime 상태 갱신도 `WorldRuntime`이 담당한다.
 save worker와 region 저장/로드 실행 로직은 `src/save/SaveSystem.h/.cpp`에 둔다.
 chunk-load worker와 snapshot load 요청/완료 큐는 `src/world/ChunkLoadSystem.h/.cpp`에 둔다.
 terrain worker와 terrain job/완료 큐는 `src/world/TerrainJobSystem.h/.cpp`에 둔다.
@@ -150,6 +153,8 @@ chunk-load worker와 save worker가 region payload/header 데이터를 동시에
 
 엔티티는 소유 청크와 함께 이동한다.
 두 청크가 모두 로드된 상태에서 엔티티가 청크 경계를 넘으면 소유권을 대상 청크로 이전한다.
+드롭 아이템 엔티티의 생성, 병합, 물리 tick, pickup 판정, 청크 소유권 helper는 `DroppedItemSystem`이 담당한다.
+렌더러의 드롭 아이템 draw/update 경로는 청크 맵을 직접 소유한 것처럼 접근하지 않고 `WorldRuntime`의 조회/순회 API를 통해 런타임 청크를 읽는다.
 
 ## 게임 씬 언로드
 
@@ -163,7 +168,7 @@ terrain worker 중지
 save worker 비우기
 Vulkan device idle 대기
 로드된 terrain mesh와 retired terrain mesh 파괴
-runtime chunk, desired set, requested job set, unload queue 비우기
+WorldRuntime의 runtime chunk, desired set, requested job set, unload queue 비우기
 terrain load request 초기화
 ```
 

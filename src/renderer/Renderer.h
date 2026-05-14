@@ -3,6 +3,8 @@
 #include "assets/PropModelLoader.h"
 #include "audio/AudioSystem.h"
 #include "camera/Camera.h"
+#include "gameplay/BlockInteractionSystem.h"
+#include "gameplay/PlayerInventory.h"
 #include "items/ItemData.h"
 #include "renderer/TerrainTypes.h"
 #include "save/SaveSystem.h"
@@ -13,6 +15,7 @@
 #include "world/TerrainBuilder.h"
 #include "world/TerrainJobSystem.h"
 #include "world/TerrainMesher.h"
+#include "world/WorldRuntime.h"
 #include "world/WorldTypes.h"
 
 #define GLFW_INCLUDE_VULKAN
@@ -56,12 +59,6 @@ namespace dolbuto
             std::string lastPlayedText;
         };
 
-        struct InventorySlot
-        {
-            uint16_t itemId = 0;
-            uint16_t count = 0;
-        };
-
         void drawFrame(
             const Camera& camera,
             DVec3 cameraPosition,
@@ -91,8 +88,8 @@ namespace dolbuto
         void unloadGameScene();
         void setWorldList(const std::vector<WorldListItem>& worlds);
         void setHotbarSelectedSlot(int slot);
-        std::array<InventorySlot, 50> inventorySnapshot() const;
-        void setInventorySnapshot(const std::array<InventorySlot, 50>& slots);
+        std::array<ItemStack, gameplay::PlayerInventory::SlotCount> inventorySnapshot() const;
+        void setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots);
         std::string uiInputValue(std::string_view id) const;
         void uiMouseMove(double x, double y);
         void uiMouseButton(int button, bool pressed, int modifiers);
@@ -327,26 +324,8 @@ namespace dolbuto
             ChunkRenderData chunk;
         };
 
-        struct BlockRaycastHit
-        {
-            int blockX = 0;
-            int blockY = 0;
-            int blockZ = 0;
-            int previousBlockX = 0;
-            int previousBlockY = 0;
-            int previousBlockZ = 0;
-        };
-
-        struct BlockBreakingState
-        {
-            bool active = false;
-            int x = 0;
-            int y = 0;
-            int z = 0;
-            uint16_t block = 0;
-            float progress = 0.0f;
-            float particleTimer = 0.0f;
-        };
+        using BlockRaycastHit = gameplay::BlockRaycastHit;
+        using BlockBreakingState = gameplay::BlockBreakingState;
 
         void createInstance();
         void createSurface();
@@ -522,8 +501,6 @@ namespace dolbuto
         void drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition);
         void updateInventoryDebugSlots();
         uint16_t addItemToPlayerInventory(ItemStack stack);
-        uint16_t addItemToInventoryRange(ItemStack& stack, size_t begin, size_t end);
-        bool inventoryStackCanMerge(const ItemStack& slot, const ItemStack& stack) const;
         std::optional<size_t> inventorySlotAt(double x, double y) const;
         void handleInventorySlotClick(size_t slotIndex, int button, int modifiers);
         void handleInventoryHotbarSwapKey(int key);
@@ -718,7 +695,7 @@ namespace dolbuto
         std::unordered_set<uint64_t> requestedChunkJobs_;
         std::unordered_set<uint64_t> requestedMeshJobs_;
         std::unordered_set<uint64_t> pendingUnloadSet_;
-        std::unordered_map<uint64_t, RuntimeChunk> runtimeChunks_;
+        world::WorldRuntime worldRuntime_;
         std::unordered_map<uint64_t, ChunkRenderData> terrainChunks_;
         std::deque<uint64_t> pendingUnloadChunks_;
         std::deque<RetiredChunkRenderData> retiredTerrainChunks_;
@@ -763,8 +740,7 @@ namespace dolbuto
         std::vector<ItemSpriteGpuMesh> itemSpriteGpuMeshes_;
         std::unordered_map<std::string, uint16_t> itemIdByKey_;
         audio::AudioSystem audio_;
-        std::array<ItemStack, 50> playerInventorySlots_{};
-        ItemStack inventoryCursorStack_{};
+        gameplay::PlayerInventory playerInventory_;
         double rmlMouseX_ = 0.0;
         double rmlMouseY_ = 0.0;
         bool inventoryDebugSlotsVisible_ = false;

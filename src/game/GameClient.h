@@ -16,14 +16,14 @@ namespace dolbuto
 {
     class Renderer;
 
-    class Application
+    class GameClient
     {
     public:
-        Application();
-        ~Application();
+        explicit GameClient(GLFWwindow* window);
+        ~GameClient();
 
-        Application(const Application&) = delete;
-        Application& operator=(const Application&) = delete;
+        GameClient(const GameClient&) = delete;
+        GameClient& operator=(const GameClient&) = delete;
 
         void run();
 
@@ -61,9 +61,7 @@ namespace dolbuto
             uint64_t lastPlayedUnixSeconds = 0;
         };
 
-        void initWindow();
-        void shutdownWindow();
-        void setWindowIcon();
+        void attachWindowCallbacks();
         void handleMouse(double x, double y);
         void handleMenuClick(double x, double y);
         void toggleFullscreen();

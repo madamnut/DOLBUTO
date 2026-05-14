@@ -1,5 +1,7 @@
-#include "app/Application.h"
+#include "game/GameClient.h"
 
+#include "gameplay/PlayerInventory.h"
+#include "items/ItemData.h"
 #include "platform/Log.h"
 #include "platform/RuntimePaths.h"
 
@@ -7,8 +9,6 @@
 #include <GLFW/glfw3.h>
 
 #include "renderer/Renderer.h"
-
-#include <stb_image.h>
 
 #include <algorithm>
 #include <array>
@@ -31,9 +31,6 @@ namespace dolbuto
 {
     namespace
     {
-        constexpr int WindowWidth = 1280;
-        constexpr int WindowHeight = 720;
-        constexpr const char* WindowTitle = "DOLBUTO";
         constexpr float RadiansToDegrees = 57.2957795131f;
         constexpr float Pi = 3.14159265359f;
         constexpr double EyeHeight = 1.5625;
@@ -45,7 +42,7 @@ namespace dolbuto
         constexpr double DefaultJumpSpeed = 8.4;
         constexpr double DefaultGravity = 32.0;
         constexpr double WorldSizeBlocks = 65536.0;
-        constexpr size_t PlayerInventorySlotCount = 50;
+        constexpr size_t PlayerInventorySlotCount = gameplay::PlayerInventory::SlotCount;
         constexpr size_t PlayerStateBaseFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t);
         constexpr size_t PlayerInventoryFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 2u;
         constexpr size_t PlayerStateFileSize = PlayerStateBaseFileSize + PlayerInventoryFileSize;
@@ -426,9 +423,14 @@ namespace dolbuto
         }
     }
 
-    Application::Application()
+    GameClient::GameClient(GLFWwindow* window)
+        : window_(window)
     {
-        log::initialize();
+        if (window_ == nullptr)
+        {
+            throw std::runtime_error("GameClient requires a valid GLFW window.");
+        }
+
         log::info("DOLBUTO 0.0.0.2 start");
         log::info("Asset directory: " + assetDirectory().string());
         log::info("Config directory: " + configDirectory().string());
@@ -436,14 +438,14 @@ namespace dolbuto
         log::info("Save root directory: " + saveRootDirectory().string());
         log::info("Log directory: " + logDirectory().string());
         loadMovementConfig();
-        initWindow();
+        attachWindowCallbacks();
         renderer_ = std::make_unique<Renderer>(window_);
         setScreen(AppScreen::Lobby);
         fpsSampleStart_ = std::chrono::steady_clock::now();
         lastFrameTime_ = fpsSampleStart_;
     }
 
-    Application::~Application()
+    GameClient::~GameClient()
     {
         if (hasSelectedWorld_)
         {
@@ -455,10 +457,13 @@ namespace dolbuto
             savePlayerState();
         }
         renderer_.reset();
-        shutdownWindow();
+        if (window_ != nullptr)
+        {
+            glfwSetWindowUserPointer(window_, nullptr);
+        }
     }
 
-    void Application::run()
+    void GameClient::run()
     {
         while (!glfwWindowShouldClose(window_))
         {
@@ -598,35 +603,12 @@ namespace dolbuto
         }
     }
 
-    void Application::initWindow()
+    void GameClient::attachWindowCallbacks()
     {
-        if (glfwInit() != GLFW_TRUE)
-        {
-            throw std::runtime_error("Failed to initialize GLFW.");
-        }
-
-        if (glfwVulkanSupported() != GLFW_TRUE)
-        {
-            glfwTerminate();
-            throw std::runtime_error("GLFW could not find Vulkan support.");
-        }
-
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-
-        window_ = glfwCreateWindow(WindowWidth, WindowHeight, WindowTitle, nullptr, nullptr);
-        if (window_ == nullptr)
-        {
-            glfwTerminate();
-            throw std::runtime_error("Failed to create GLFW window.");
-        }
-
-        setWindowIcon();
-
         glfwSetWindowUserPointer(window_, this);
         glfwSetFramebufferSizeCallback(window_, [](GLFWwindow* window, int, int)
         {
-            auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+            auto* app = static_cast<GameClient*>(glfwGetWindowUserPointer(window));
             if (app != nullptr && app->renderer_ != nullptr)
             {
                 app->renderer_->setFramebufferResized();
@@ -635,7 +617,7 @@ namespace dolbuto
 
         glfwSetCursorPosCallback(window_, [](GLFWwindow* window, double x, double y)
         {
-            auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+            auto* app = static_cast<GameClient*>(glfwGetWindowUserPointer(window));
             if (app != nullptr)
             {
                 app->handleMouse(x, y);
@@ -644,13 +626,13 @@ namespace dolbuto
 
         glfwSetKeyCallback(window_, [](GLFWwindow* window, int key, int, int action, int mods)
         {
-            auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-            if (app != nullptr && app->screen_ != Application::AppScreen::Game && app->renderer_ != nullptr &&
+            auto* app = static_cast<GameClient*>(glfwGetWindowUserPointer(window));
+            if (app != nullptr && app->screen_ != GameClient::AppScreen::Game && app->renderer_ != nullptr &&
                 (action == GLFW_PRESS || action == GLFW_REPEAT || action == GLFW_RELEASE))
             {
                 app->renderer_->uiKey(key, action != GLFW_RELEASE, mods);
             }
-            if (key == GLFW_KEY_SPACE && app != nullptr && app->screen_ == Application::AppScreen::Game)
+            if (key == GLFW_KEY_SPACE && app != nullptr && app->screen_ == GameClient::AppScreen::Game)
             {
                 if (action == GLFW_PRESS)
                 {
@@ -665,21 +647,21 @@ namespace dolbuto
 
             if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
             {
-                if (app != nullptr && app->screen_ == Application::AppScreen::Game)
+                if (app != nullptr && app->screen_ == GameClient::AppScreen::Game)
                 {
-                    app->setScreen(Application::AppScreen::Pause);
+                    app->setScreen(GameClient::AppScreen::Pause);
                 }
-                else if (app != nullptr && app->screen_ == Application::AppScreen::Inventory)
+                else if (app != nullptr && app->screen_ == GameClient::AppScreen::Inventory)
                 {
-                    app->setScreen(Application::AppScreen::Game);
+                    app->setScreen(GameClient::AppScreen::Game);
                 }
-                else if (app != nullptr && app->screen_ == Application::AppScreen::Pause)
+                else if (app != nullptr && app->screen_ == GameClient::AppScreen::Pause)
                 {
-                    app->setScreen(Application::AppScreen::Game);
+                    app->setScreen(GameClient::AppScreen::Game);
                 }
-                else if (app != nullptr && (app->screen_ == Application::AppScreen::WorldSelect || app->screen_ == Application::AppScreen::WorldCreate))
+                else if (app != nullptr && (app->screen_ == GameClient::AppScreen::WorldSelect || app->screen_ == GameClient::AppScreen::WorldCreate))
                 {
-                    app->setScreen(app->screen_ == Application::AppScreen::WorldCreate ? Application::AppScreen::WorldSelect : Application::AppScreen::Lobby);
+                    app->setScreen(app->screen_ == GameClient::AppScreen::WorldCreate ? GameClient::AppScreen::WorldSelect : GameClient::AppScreen::Lobby);
                 }
             }
             else if (key == GLFW_KEY_F11 && action == GLFW_PRESS && app != nullptr)
@@ -712,22 +694,22 @@ namespace dolbuto
             }
             else if (key == GLFW_KEY_E && action == GLFW_PRESS && app != nullptr)
             {
-                if (app->screen_ == Application::AppScreen::Game)
+                if (app->screen_ == GameClient::AppScreen::Game)
                 {
-                    app->setScreen(Application::AppScreen::Inventory);
+                    app->setScreen(GameClient::AppScreen::Inventory);
                 }
-                else if (app->screen_ == Application::AppScreen::Inventory)
+                else if (app->screen_ == GameClient::AppScreen::Inventory)
                 {
-                    app->setScreen(Application::AppScreen::Game);
+                    app->setScreen(GameClient::AppScreen::Game);
                 }
             }
-            else if (const int slot = hotbarSlotFromKey(key); action == GLFW_PRESS && app != nullptr && app->screen_ == Application::AppScreen::Game && slot >= 0)
+            else if (const int slot = hotbarSlotFromKey(key); action == GLFW_PRESS && app != nullptr && app->screen_ == GameClient::AppScreen::Game && slot >= 0)
             {
                 app->setHotbarSelectedSlot(slot);
             }
             else if (key == GLFW_KEY_F && action == GLFW_PRESS && app != nullptr)
             {
-                if (app->screen_ == Application::AppScreen::Game && app->renderer_ != nullptr)
+                if (app->screen_ == GameClient::AppScreen::Game && app->renderer_ != nullptr)
                 {
                     app->renderer_->pickupDroppedItemInView(
                         {app->playerPosition_.x, app->playerPosition_.y + EyeHeight, app->playerPosition_.z},
@@ -736,7 +718,7 @@ namespace dolbuto
             }
             else if (key == GLFW_KEY_Q && action == GLFW_PRESS && app != nullptr)
             {
-                if (app->screen_ == Application::AppScreen::Game && app->renderer_ != nullptr)
+                if (app->screen_ == GameClient::AppScreen::Game && app->renderer_ != nullptr)
                 {
                     const bool wholeStack = (mods & GLFW_MOD_SHIFT) != 0;
                     app->renderer_->dropSelectedHotbarItem(
@@ -747,7 +729,7 @@ namespace dolbuto
             }
             else if (key == GLFW_KEY_V && action == GLFW_PRESS && app != nullptr)
             {
-                if (app->screen_ == Application::AppScreen::Game)
+                if (app->screen_ == GameClient::AppScreen::Game)
                 {
                     app->moveMode_ = app->moveMode_ == MoveMode::Fly ? MoveMode::Ground : MoveMode::Fly;
                     app->verticalVelocity_ = 0.0;
@@ -759,8 +741,8 @@ namespace dolbuto
 
         glfwSetCharCallback(window_, [](GLFWwindow* window, unsigned int codepoint)
         {
-            auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-            if (app != nullptr && app->screen_ != Application::AppScreen::Game && app->renderer_ != nullptr)
+            auto* app = static_cast<GameClient*>(glfwGetWindowUserPointer(window));
+            if (app != nullptr && app->screen_ != GameClient::AppScreen::Game && app->renderer_ != nullptr)
             {
                 app->renderer_->uiTextInput(codepoint);
             }
@@ -768,13 +750,13 @@ namespace dolbuto
 
         glfwSetMouseButtonCallback(window_, [](GLFWwindow* window, int button, int action, int mods)
         {
-            auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+            auto* app = static_cast<GameClient*>(glfwGetWindowUserPointer(window));
             if (app == nullptr)
             {
                 return;
             }
 
-            if (app->screen_ != Application::AppScreen::Game)
+            if (app->screen_ != GameClient::AppScreen::Game)
             {
                 double x = 0.0;
                 double y = 0.0;
@@ -842,13 +824,13 @@ namespace dolbuto
 
         glfwSetScrollCallback(window_, [](GLFWwindow* window, double, double yOffset)
         {
-            auto* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+            auto* app = static_cast<GameClient*>(glfwGetWindowUserPointer(window));
             if (app == nullptr)
             {
                 return;
             }
 
-            if (app->screen_ == Application::AppScreen::Game)
+            if (app->screen_ == GameClient::AppScreen::Game)
             {
                 if (yOffset > 0.0)
                 {
@@ -874,40 +856,7 @@ namespace dolbuto
         setMouseCaptured(false);
     }
 
-    void Application::setWindowIcon()
-    {
-        const std::filesystem::path path = assetDirectory() / "textures" / "icon" / "icon.png";
-
-        int width = 0;
-        int height = 0;
-        int channels = 0;
-        unsigned char* pixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
-        if (pixels == nullptr)
-        {
-            return;
-        }
-
-        GLFWimage icon{};
-        icon.width = width;
-        icon.height = height;
-        icon.pixels = pixels;
-        glfwSetWindowIcon(window_, 1, &icon);
-
-        stbi_image_free(pixels);
-    }
-
-    void Application::shutdownWindow()
-    {
-        if (window_ != nullptr)
-        {
-            glfwDestroyWindow(window_);
-            window_ = nullptr;
-        }
-
-        glfwTerminate();
-    }
-
-    void Application::handleMouse(double x, double y)
+    void GameClient::handleMouse(double x, double y)
     {
         if (screen_ != AppScreen::Game)
         {
@@ -936,7 +885,7 @@ namespace dolbuto
         lastMouseY_ = y;
     }
 
-    void Application::toggleFullscreen()
+    void GameClient::toggleFullscreen()
     {
         fullscreen_ = !fullscreen_;
 
@@ -960,7 +909,7 @@ namespace dolbuto
         }
     }
 
-    void Application::setHotbarSelectedSlot(int slot)
+    void GameClient::setHotbarSelectedSlot(int slot)
     {
         hotbarSelectedSlot_ = std::clamp(slot, 0, 9);
         if (renderer_ != nullptr)
@@ -969,22 +918,22 @@ namespace dolbuto
         }
     }
 
-    void Application::cycleHotbarSelectedSlot(int delta)
+    void GameClient::cycleHotbarSelectedSlot(int delta)
     {
         setHotbarSelectedSlot((hotbarSelectedSlot_ + delta + 10) % 10);
     }
 
-    void Application::setMouseCaptured(bool captured)
+    void GameClient::setMouseCaptured(bool captured)
     {
         mouseCaptured_ = captured;
         firstMouse_ = true;
         glfwSetInputMode(window_, GLFW_CURSOR, captured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
     }
 
-    void Application::handleMenuClick(double x, double y)
+    void GameClient::handleMenuClick(double x, double y)
     {
-        int width = WindowWidth;
-        int height = WindowHeight;
+        int width = windowedWidth_;
+        int height = windowedHeight_;
         glfwGetWindowSize(window_, &width, &height);
 
         if (screen_ == AppScreen::Lobby)
@@ -1025,7 +974,7 @@ namespace dolbuto
         }
     }
 
-    void Application::setScreen(AppScreen screen)
+    void GameClient::setScreen(AppScreen screen)
     {
         screen_ = screen;
         if (screen_ == AppScreen::WorldSelect)
@@ -1054,7 +1003,7 @@ namespace dolbuto
         }
     }
 
-    void Application::enterGameScene()
+    void GameClient::enterGameScene()
     {
         if (!hasSelectedWorld_)
         {
@@ -1073,17 +1022,17 @@ namespace dolbuto
         setScreen(AppScreen::Game);
     }
 
-    std::filesystem::path Application::playerStatePath() const
+    std::filesystem::path GameClient::playerStatePath() const
     {
         return selectedWorldDirectory_ / "player.dat";
     }
 
-    std::filesystem::path Application::worldStatePath() const
+    std::filesystem::path GameClient::worldStatePath() const
     {
         return selectedWorldDirectory_ / "world.dat";
     }
 
-    void Application::resetPlayerRuntimeState()
+    void GameClient::resetPlayerRuntimeState()
     {
         playerPosition_ = {0.0, 300.0, 0.0};
         previousPlayerPosition_ = playerPosition_;
@@ -1096,7 +1045,7 @@ namespace dolbuto
         physicsAccumulator_ = 0.0;
     }
 
-    void Application::refreshWorldList()
+    void GameClient::refreshWorldList()
     {
         availableWorlds_.clear();
         const std::filesystem::path root = saveRootDirectory();
@@ -1170,7 +1119,7 @@ namespace dolbuto
         }
     }
 
-    void Application::openWorldByIndex(size_t index)
+    void GameClient::openWorldByIndex(size_t index)
     {
         if (index >= availableWorlds_.size())
         {
@@ -1189,7 +1138,7 @@ namespace dolbuto
         enterGameScene();
     }
 
-    void Application::createWorldFromUi()
+    void GameClient::createWorldFromUi()
     {
         const std::string rawName = renderer_ != nullptr ? renderer_->uiInputValue("new-world-name") : "New World";
         const std::string rawSeed = renderer_ != nullptr ? renderer_->uiInputValue("new-world-seed") : "";
@@ -1228,7 +1177,7 @@ namespace dolbuto
         }
     }
 
-    void Application::returnToLobbyScene()
+    void GameClient::returnToLobbyScene()
     {
         if (renderer_ != nullptr)
         {
@@ -1248,7 +1197,7 @@ namespace dolbuto
         setScreen(AppScreen::Lobby);
     }
 
-    void Application::cycleViewMode()
+    void GameClient::cycleViewMode()
     {
         if (viewMode_ == ViewMode::FirstPerson)
         {
@@ -1264,7 +1213,7 @@ namespace dolbuto
         }
     }
 
-    void Application::loadMovementConfig()
+    void GameClient::loadMovementConfig()
     {
         flyMoveSpeed_ = DefaultFlyMoveSpeed;
         groundMoveSpeed_ = DefaultGroundMoveSpeed;
@@ -1301,7 +1250,7 @@ namespace dolbuto
         }
     }
 
-    void Application::loadWorldState()
+    void GameClient::loadWorldState()
     {
         worldTicks_ = DefaultWorldTicks;
         if (worldCreatedUnixSeconds_ == 0)
@@ -1341,7 +1290,7 @@ namespace dolbuto
         }
     }
 
-    void Application::saveWorldState()
+    void GameClient::saveWorldState()
     {
         if (!hasSelectedWorld_)
         {
@@ -1384,7 +1333,7 @@ namespace dolbuto
         }
     }
 
-    void Application::loadPlayerState()
+    void GameClient::loadPlayerState()
     {
         std::ifstream file(playerStatePath(), std::ios::binary);
         if (!file.is_open())
@@ -1413,8 +1362,8 @@ namespace dolbuto
             const float pitch = readF32(bytes, offset);
             const uint8_t moveMode = readU8(bytes, offset);
             const double verticalVelocity = readF64(bytes, offset);
-            std::array<Renderer::InventorySlot, PlayerInventorySlotCount> inventorySlots{};
-            for (Renderer::InventorySlot& slot : inventorySlots)
+            std::array<ItemStack, PlayerInventorySlotCount> inventorySlots{};
+            for (ItemStack& slot : inventorySlots)
             {
                 slot.itemId = readU16(bytes, offset);
                 slot.count = readU16(bytes, offset);
@@ -1455,7 +1404,7 @@ namespace dolbuto
         }
     }
 
-    void Application::savePlayerState() const
+    void GameClient::savePlayerState() const
     {
         if (!hasSelectedWorld_)
         {
@@ -1475,10 +1424,10 @@ namespace dolbuto
             writeF32(bytes, camera_.pitch());
             writeU8(bytes, static_cast<uint8_t>(moveMode_ == MoveMode::Fly ? 0u : 1u));
             writeF64(bytes, verticalVelocity_);
-            const std::array<Renderer::InventorySlot, PlayerInventorySlotCount> inventorySlots = renderer_ != nullptr
+            const std::array<ItemStack, PlayerInventorySlotCount> inventorySlots = renderer_ != nullptr
                 ? renderer_->inventorySnapshot()
-                : std::array<Renderer::InventorySlot, PlayerInventorySlotCount>{};
-            for (const Renderer::InventorySlot& slot : inventorySlots)
+                : std::array<ItemStack, PlayerInventorySlotCount>{};
+            for (const ItemStack& slot : inventorySlots)
             {
                 writeU16(bytes, slot.itemId);
                 writeU16(bytes, slot.count);
@@ -1505,7 +1454,7 @@ namespace dolbuto
         }
     }
 
-    DVec3 Application::interpolatedPlayerPosition(double alpha) const
+    DVec3 GameClient::interpolatedPlayerPosition(double alpha) const
     {
         return {
             previousPlayerPosition_.x + (playerPosition_.x - previousPlayerPosition_.x) * alpha,
@@ -1514,7 +1463,7 @@ namespace dolbuto
         };
     }
 
-    void Application::updatePlayer(double fixedDeltaSeconds, bool allowInput)
+    void GameClient::updatePlayer(double fixedDeltaSeconds, bool allowInput)
     {
         constexpr double MaxCollisionStep = 0.25;
 
@@ -1665,7 +1614,7 @@ namespace dolbuto
         }
     }
 
-    void Application::updateDebugText()
+    void GameClient::updateDebugText()
     {
         ++fpsSampleFrames_;
 

@@ -152,8 +152,12 @@ add_custom_target(DOLBUTOShaders DEPENDS ${SHADER_OUTPUTS})
 add_executable(DOLBUTO
     ${DOLBUTO_WINDOWS_RESOURCE}
     src/main.cpp
-    src/app/Application.cpp
-    src/app/Application.h
+    src/game/GameClient.cpp
+    src/game/GameClient.h
+    src/gameplay/BlockInteractionSystem.cpp
+    src/gameplay/BlockInteractionSystem.h
+    src/gameplay/PlayerInventory.cpp
+    src/gameplay/PlayerInventory.h
     src/assets/PropModelLoader.cpp
     src/assets/PropModelLoader.h
     src/audio/AudioSystem.cpp
@@ -170,8 +174,10 @@ add_executable(DOLBUTO
     src/platform/RuntimePaths.cpp
     src/platform/RuntimePaths.h
     src/renderer/Renderer.cpp
+    src/renderer/RendererDroppedItems.cpp
     src/renderer/Renderer.h
     src/renderer/TerrainTypes.h
+    src/renderer/RendererUi.cpp
     src/save/SaveFormat.cpp
     src/save/SaveFormat.h
     src/save/SaveSystem.cpp
@@ -188,12 +194,16 @@ add_executable(DOLBUTO
     src/world/BlockData.h
     src/world/ChunkLoadSystem.cpp
     src/world/ChunkLoadSystem.h
+    src/world/DroppedItemSystem.cpp
+    src/world/DroppedItemSystem.h
     src/world/TerrainBuilder.cpp
     src/world/TerrainBuilder.h
     src/world/TerrainJobSystem.cpp
     src/world/TerrainJobSystem.h
     src/world/TerrainMesher.cpp
     src/world/TerrainMesher.h
+    src/world/WorldRuntime.cpp
+    src/world/WorldRuntime.h
     src/world/WorldTypes.h
 )
 
@@ -213,6 +223,11 @@ target_compile_definitions(DOLBUTO
         DOLBUTO_SAVE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/saves"
         DOLBUTO_SHADER_DIR="${SHADER_OUTPUT_DIR}"
         DOLBUTO_LOG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/logs"
+)
+
+target_compile_options(DOLBUTO
+    PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
 )
 
 target_link_libraries(DOLBUTO

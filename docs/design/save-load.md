@@ -70,7 +70,9 @@ region 인덱스는 파일명으로 구분한다.
 
 저장은 `src/save/SaveSystem.h/.cpp`의 save worker가 담당한다.
 `SaveSystem`은 저장 큐, pending snapshot, clean revision cache, region header cache, region file IO, 저장/로드 카운터를 소유한다.
-`Renderer`는 runtime chunk에서 `SaveChunkSnapshot`을 만들고, 저장 완료 callback에서 런타임 청크의 saved backing/dirty 상태를 갱신한다.
+`WorldRuntime`은 runtime chunk dirty serial/dirty flag 갱신을 담당한다.
+`Renderer`는 `WorldRuntime` API로 runtime chunk를 조회/순회해 `SaveChunkSnapshot`을 만들고, 저장 완료 callback에서 런타임 청크의 saved backing/dirty 상태를 갱신한다.
+snapshot load 완료 후 기존 render/full/mesh/feature ticket 보존과 loaded runtime chunk 설치는 `WorldRuntime`의 상태 설치 API를 통해 처리한다.
 `ChunkLoadSystem`은 비동기 snapshot load 요청을 받아 `SaveSystem`의 load 함수를 호출하고 완료 결과를 main thread가 drain할 수 있게 보관한다.
 
 저장 대상:

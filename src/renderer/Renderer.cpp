@@ -5,6 +5,7 @@
 #include "data/DataLoaders.h"
 #include "platform/Log.h"
 #include "platform/RuntimePaths.h"
+#include "world/DroppedItemSystem.h"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -117,35 +118,11 @@ namespace dolbuto
         constexpr uint8_t ClimateMinByte = 0;
         constexpr uint8_t ClimateMaxByte = 255;
         constexpr size_t MaxBlockBreakParticles = 2048;
-        constexpr size_t MaxDroppedItems = 1024;
         constexpr uint32_t BlockBreakParticleCount = 24;
         constexpr float BlockBreakParticleGravity = 22.0f;
         constexpr float BlockBreakParticleDrag = 0.92f;
-        constexpr float BlockBreakPower = 1.0f;
-        constexpr float BlockMiningParticleInterval = 0.12f;
         constexpr size_t BlockBreakingStageCount = 10;
-        constexpr float DroppedItemGravity = 32.0f;
-        constexpr float DroppedItemDrag = 0.94f;
-        constexpr float DroppedItemSize = 0.68f;
-        constexpr float DroppedItemThickness = 0.05f;
-        constexpr float DroppedItemTickSeconds = 1.0f / 20.0f;
-        constexpr float DroppedItemMaxFrameSeconds = 0.25f;
-        constexpr float DroppedItemCollisionRadius = 0.22f;
-        constexpr float DroppedItemWallBounce = 0.25f;
-        constexpr float DroppedItemWallFriction = 0.65f;
-        constexpr float DroppedItemPickupBaseSpeed = 7.0f;
-        constexpr float DroppedItemPickupAcceleration = 256.0f;
-        constexpr float DroppedItemPickupMaxSpeed = 52.0f;
-        constexpr float DroppedItemRenderDistance = 48.0f;
-        constexpr float DroppedItemRenderDistanceSquared = DroppedItemRenderDistance * DroppedItemRenderDistance;
-        constexpr float DroppedItemMergeAxisDistance = 0.75f;
-        constexpr float DroppedItemMergeBounceVelocity = 2.0f;
-        constexpr float DroppedItemManualDropForwardOffset = 0.75f;
-        constexpr float DroppedItemManualDropForwardVelocity = 7.0f;
-        constexpr float DroppedItemManualDropUpVelocity = 1.5f;
-        constexpr size_t MaxDroppedItemRenderInstances = MaxDroppedItems * 4u;
-        constexpr uint8_t WorldEntityFlagGrounded = 1u << 0u;
-        constexpr uint32_t BlockDropSalt = 0xD90210A5u;
+        constexpr size_t MaxDroppedItemRenderInstances = world::DroppedItemSystem::MaxDroppedItemRenderInstances;
         constexpr uint32_t TopFaceRotationSalt = 0x51A7E001u;
         constexpr uint32_t PlantPlacementSalt = 0x9A7D3E21u;
         constexpr uint8_t PlantPlacementMax = 151;
@@ -223,8 +200,7 @@ namespace dolbuto
 
         int positiveModulo(int value, int divisor)
         {
-            int result = value % divisor;
-            return result < 0 ? result + divisor : result;
+            return world::WorldRuntime::positiveModulo(value, divisor);
         }
 
         int wrapBlockCoordinate(int value)
@@ -362,13 +338,7 @@ namespace dolbuto
 
         int floorDiv(int value, int divisor)
         {
-            int result = value / divisor;
-            const int remainder = value % divisor;
-            if (remainder != 0 && ((remainder < 0) != (divisor < 0)))
-            {
-                --result;
-            }
-            return result;
+            return world::WorldRuntime::floorDiv(value, divisor);
         }
 
         int centerGroupCoordinate(int chunkCoordinate)
@@ -378,18 +348,17 @@ namespace dolbuto
 
         int blockCoordinateXz(double worldCoordinate)
         {
-            return static_cast<int>(std::floor(worldCoordinate + 0.5));
+            return world::WorldRuntime::blockCoordinateXz(worldCoordinate);
         }
 
         int blockCoordinateY(double worldCoordinate)
         {
-            return static_cast<int>(std::floor(worldCoordinate));
+            return world::WorldRuntime::blockCoordinateY(worldCoordinate);
         }
 
         uint64_t chunkKey(int chunkX, int chunkZ)
         {
-            return (static_cast<uint64_t>(static_cast<uint32_t>(chunkX)) << 32u) |
-                static_cast<uint64_t>(static_cast<uint32_t>(chunkZ));
+            return world::WorldRuntime::chunkKey(chunkX, chunkZ);
         }
 
         struct FeatureNeighborOffset
@@ -1106,39 +1075,9 @@ namespace dolbuto
 
     bool Renderer::playerColliderIntersectsTerrain(DVec3 playerPosition) const
     {
-        constexpr double HalfWidth = 0.3;
-        constexpr double Height = 1.75;
-        constexpr double Epsilon = 0.000001;
-
-        const double minX = playerPosition.x - HalfWidth;
-        const double maxX = playerPosition.x + HalfWidth;
-        const double minY = playerPosition.y;
-        const double maxY = playerPosition.y + Height;
-        const double minZ = playerPosition.z - HalfWidth;
-        const double maxZ = playerPosition.z + HalfWidth;
-
-        const int blockMinX = blockCoordinateXz(minX);
-        const int blockMaxX = blockCoordinateXz(maxX - Epsilon);
-        const int blockMinY = blockCoordinateY(minY);
-        const int blockMaxY = blockCoordinateY(maxY - Epsilon);
-        const int blockMinZ = blockCoordinateXz(minZ);
-        const int blockMaxZ = blockCoordinateXz(maxZ - Epsilon);
-
-        for (int y = blockMinY; y <= blockMaxY; ++y)
-        {
-            for (int z = blockMinZ; z <= blockMaxZ; ++z)
-            {
-                for (int x = blockMinX; x <= blockMaxX; ++x)
-                {
-                    if (terrainCellBlocksPlayer(x, y, z))
-                    {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
+        return gameplay::BlockInteractionSystem::playerColliderIntersectsTerrain(
+            playerPosition,
+            [this](int x, int y, int z) { return terrainCellBlocksPlayer(x, y, z); });
     }
 
     bool Renderer::editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition)
@@ -1170,60 +1109,22 @@ namespace dolbuto
 
     void Renderer::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3, float deltaSeconds)
     {
-        if (!breaking || deltaSeconds <= 0.0f)
-        {
-            resetBlockBreaking();
-            return;
-        }
+        const gameplay::BlockBreakingUpdate update = gameplay::BlockInteractionSystem::updateBreaking(
+            blockBreaking_,
+            origin,
+            direction,
+            breaking,
+            deltaSeconds,
+            [this](int x, int y, int z) { return blockAtWorld(x, y, z); },
+            [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); });
 
-        BlockRaycastHit hit{};
-        if (!raycastBlock(origin, direction, hit))
+        if (update.spawnMiningParticle)
         {
-            resetBlockBreaking();
-            return;
+            spawnBlockMiningParticle(update.hit, update.block);
         }
-
-        const uint16_t block = blockAtWorld(hit.blockX, hit.blockY, hit.blockZ);
-        const BlockDefinition& definition = blockDefinition(block);
-        if (block == BlockAir || definition.renderType == BlockRenderType::None || definition.hardness < 0.0f)
+        if (update.breakBlock)
         {
-            resetBlockBreaking();
-            return;
-        }
-
-        if (definition.hardness <= 0.0f)
-        {
-            breakBlockAtHit(hit);
-            resetBlockBreaking();
-            return;
-        }
-
-        if (!blockBreaking_.active ||
-            blockBreaking_.x != hit.blockX ||
-            blockBreaking_.y != hit.blockY ||
-            blockBreaking_.z != hit.blockZ ||
-            blockBreaking_.block != block)
-        {
-            blockBreaking_ = {};
-            blockBreaking_.active = true;
-            blockBreaking_.x = hit.blockX;
-            blockBreaking_.y = hit.blockY;
-            blockBreaking_.z = hit.blockZ;
-            blockBreaking_.block = block;
-        }
-
-        blockBreaking_.progress = std::min(1.0f, blockBreaking_.progress + deltaSeconds * BlockBreakPower / definition.hardness);
-        blockBreaking_.particleTimer += deltaSeconds;
-        if (blockBreaking_.particleTimer >= BlockMiningParticleInterval)
-        {
-            blockBreaking_.particleTimer = 0.0f;
-            spawnBlockMiningParticle(hit, block);
-        }
-
-        if (blockBreaking_.progress >= 1.0f)
-        {
-            breakBlockAtHit(hit);
-            resetBlockBreaking();
+            breakBlockAtHit(update.hit);
         }
     }
 
@@ -1235,14 +1136,14 @@ namespace dolbuto
             return false;
         }
 
-        auto chunkIt = runtimeChunks_.find(itemHandle.chunkKey);
-        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data ||
-            itemHandle.index >= chunkIt->second.data->entities.size())
+        RuntimeChunk* chunk = worldRuntime_.find(itemHandle.chunkKey);
+        if (chunk == nullptr || !chunk->data ||
+            itemHandle.index >= chunk->data->entities.size())
         {
             return false;
         }
 
-        WorldEntity& item = chunkIt->second.data->entities[itemHandle.index];
+        WorldEntity& item = chunk->data->entities[itemHandle.index];
         item.collecting = true;
         item.collectAge = 0.0f;
         setWorldEntityGrounded(item, false);
@@ -1251,62 +1152,37 @@ namespace dolbuto
         item.renderSpinX = 8.0f;
         item.renderSpin = 8.0f;
         item.renderSpinZ = 8.0f;
-        markRuntimeChunkDataDirty(chunkIt->second);
+        markRuntimeChunkDataDirty(*chunk);
         return true;
     }
 
     bool Renderer::dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction)
     {
         const size_t slotIndex = static_cast<size_t>(std::clamp(hotbarSelectedSlot_, 0, 9));
-        ItemStack& slot = playerInventorySlots_[slotIndex];
+        const ItemStack& slot = playerInventory_.slot(slotIndex);
         if (slot.itemId == 0 || slot.count == 0 || static_cast<size_t>(slot.itemId) >= itemDefinitions_.size())
         {
             return false;
         }
 
-        Vec3 dropDirection = normalize(direction);
-        if (dropDirection.x == 0.0f && dropDirection.y == 0.0f && dropDirection.z == 0.0f)
-        {
-            dropDirection = {0.0f, 0.0f, 1.0f};
-        }
-
         const uint16_t dropCount = wholeStack ? slot.count : 1u;
-        WorldEntity item{};
-        item.entityId = allocateWorldEntityId();
-        item.type = WorldEntityType::DroppedItem;
-        item.position = {
-            static_cast<float>(playerPosition.x) + dropDirection.x * DroppedItemManualDropForwardOffset,
-            static_cast<float>(playerPosition.y) + 0.875f + dropDirection.y * DroppedItemManualDropForwardOffset,
-            static_cast<float>(playerPosition.z) + dropDirection.z * DroppedItemManualDropForwardOffset
-        };
-        item.previousPosition = item.position;
-        item.velocity = {
-            dropDirection.x * DroppedItemManualDropForwardVelocity,
-            dropDirection.y * DroppedItemManualDropForwardVelocity + DroppedItemManualDropUpVelocity,
-            dropDirection.z * DroppedItemManualDropForwardVelocity
-        };
-        item.droppedItem.stack.itemId = slot.itemId;
-        item.droppedItem.stack.count = dropCount;
-
-        static thread_local std::mt19937 manualDropRandom{std::random_device{}()};
-        std::uniform_real_distribution<float> angleDistribution(0.0f, 6.2831853f);
-        std::uniform_real_distribution<float> spinDistribution(-8.0f, 8.0f);
-        item.renderRotationX = angleDistribution(manualDropRandom);
-        item.renderRotation = angleDistribution(manualDropRandom);
-        item.renderRotationZ = angleDistribution(manualDropRandom);
-        item.renderSpinX = spinDistribution(manualDropRandom);
-        item.renderSpin = spinDistribution(manualDropRandom);
-        item.renderSpinZ = spinDistribution(manualDropRandom);
+        ItemStack dropStack{};
+        dropStack.itemId = slot.itemId;
+        dropStack.count = dropCount;
+        WorldEntity item = world::DroppedItemSystem::createManualDropEntity(
+            dropStack,
+            playerPosition,
+            direction,
+            [this]() { return allocateWorldEntityId(); });
 
         if (!addWorldEntity(std::move(item)))
         {
             return false;
         }
 
-        slot.count = static_cast<uint16_t>(slot.count - dropCount);
-        if (slot.count == 0)
+        if (!playerInventory_.removeFromSlot(slotIndex, dropCount))
         {
-            slot.itemId = 0;
+            return false;
         }
         updateInventoryUi();
         return true;
@@ -1325,133 +1201,33 @@ namespace dolbuto
             return stack.count;
         }
 
-        addItemToInventoryRange(stack, 0, playerInventorySlots_.size());
+        stack.count = playerInventory_.add(stack, itemDefinitions_);
         updateInventoryUi();
         return stack.count;
     }
 
-    std::array<Renderer::InventorySlot, 50> Renderer::inventorySnapshot() const
+    std::array<ItemStack, gameplay::PlayerInventory::SlotCount> Renderer::inventorySnapshot() const
     {
-        std::array<InventorySlot, 50> slots{};
-        for (size_t i = 0; i < slots.size() && i < playerInventorySlots_.size(); ++i)
-        {
-            slots[i].itemId = playerInventorySlots_[i].itemId;
-            slots[i].count = playerInventorySlots_[i].count;
-        }
-        return slots;
+        return playerInventory_.snapshot();
     }
 
-    void Renderer::setInventorySnapshot(const std::array<InventorySlot, 50>& slots)
+    void Renderer::setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots)
     {
-        playerInventorySlots_.fill(ItemStack{});
-        for (size_t i = 0; i < slots.size() && i < playerInventorySlots_.size(); ++i)
-        {
-            const InventorySlot& source = slots[i];
-            if (source.itemId == 0 || source.count == 0 || static_cast<size_t>(source.itemId) >= itemDefinitions_.size())
-            {
-                continue;
-            }
-
-            const uint16_t maxStack = itemDefinitions_[source.itemId].stackSize;
-            if (maxStack == 0)
-            {
-                continue;
-            }
-
-            playerInventorySlots_[i].itemId = source.itemId;
-            playerInventorySlots_[i].count = std::min(source.count, maxStack);
-        }
-
-        inventoryCursorStack_ = {};
+        playerInventory_.setSlots(slots, itemDefinitions_);
         updateInventoryUi();
         updateInventoryDebugSlots();
         updateInventoryCursorUi();
         updateItemTooltipUi();
     }
 
-    uint16_t Renderer::addItemToInventoryRange(ItemStack& stack, size_t begin, size_t end)
-    {
-        if (stack.itemId == 0 || stack.count == 0 || static_cast<size_t>(stack.itemId) >= itemDefinitions_.size())
-        {
-            return stack.count;
-        }
-
-        end = std::min(end, playerInventorySlots_.size());
-        if (begin >= end)
-        {
-            return stack.count;
-        }
-
-        const uint16_t maxStack = itemDefinitions_[stack.itemId].stackSize;
-        if (maxStack == 0)
-        {
-            return stack.count;
-        }
-
-        for (size_t i = begin; i < end && stack.count > 0; ++i)
-        {
-            ItemStack& slot = playerInventorySlots_[i];
-            if (!inventoryStackCanMerge(slot, stack))
-            {
-                continue;
-            }
-
-            const uint16_t available = static_cast<uint16_t>(maxStack - slot.count);
-            const uint16_t moved = std::min(available, stack.count);
-            slot.count = static_cast<uint16_t>(slot.count + moved);
-            stack.count = static_cast<uint16_t>(stack.count - moved);
-        }
-
-        for (size_t i = begin; i < end && stack.count > 0; ++i)
-        {
-            ItemStack& slot = playerInventorySlots_[i];
-            if (slot.itemId != 0 || slot.count != 0)
-            {
-                continue;
-            }
-
-            const uint16_t moved = std::min(maxStack, stack.count);
-            slot.itemId = stack.itemId;
-            slot.count = moved;
-            stack.count = static_cast<uint16_t>(stack.count - moved);
-        }
-
-        return stack.count;
-    }
-
-    bool Renderer::inventoryStackCanMerge(const ItemStack& slot, const ItemStack& stack) const
-    {
-        if (slot.itemId == 0 || stack.itemId == 0 || slot.itemId != stack.itemId || static_cast<size_t>(slot.itemId) >= itemDefinitions_.size())
-        {
-            return false;
-        }
-        return slot.count < itemDefinitions_[slot.itemId].stackSize;
-    }
-
     bool Renderer::blockIntersectsPlayerCollider(int x, int y, int z, uint16_t block, DVec3 playerPosition) const
     {
-        if (!blockDefinition(block).collision)
-        {
-            return false;
-        }
-
-        constexpr double HalfWidth = 0.3;
-        constexpr double Height = 1.75;
-        constexpr double Epsilon = 0.000001;
-
-        const double minX = playerPosition.x - HalfWidth;
-        const double maxX = playerPosition.x + HalfWidth;
-        const double minY = playerPosition.y;
-        const double maxY = playerPosition.y + Height;
-        const double minZ = playerPosition.z - HalfWidth;
-        const double maxZ = playerPosition.z + HalfWidth;
-
-        return x >= blockCoordinateXz(minX) &&
-            x <= blockCoordinateXz(maxX - Epsilon) &&
-            y >= blockCoordinateY(minY) &&
-            y <= blockCoordinateY(maxY - Epsilon) &&
-            z >= blockCoordinateXz(minZ) &&
-            z <= blockCoordinateXz(maxZ - Epsilon);
+        return gameplay::BlockInteractionSystem::blockIntersectsPlayerCollider(
+            x,
+            y,
+            z,
+            blockDefinition(block),
+            playerPosition);
     }
 
     void Renderer::updateBlockSelection(DVec3 origin, Vec3 direction)
@@ -1495,10 +1271,10 @@ namespace dolbuto
 
         float temperature = 0.0f;
         float precipitation = 0.0f;
-        const auto chunkIt = runtimeChunks_.find(chunkKey(chunkX, chunkZ));
-        if (chunkIt != runtimeChunks_.end() && chunkIt->second.data)
+        const RuntimeChunk* chunk = worldRuntime_.find(chunkKey(chunkX, chunkZ));
+        if (chunk != nullptr && chunk->data)
         {
-            const ChunkData& data = *chunkIt->second.data;
+            const ChunkData& data = *chunk->data;
             temperature = decodeClimateValue(data.temperature[column]);
             precipitation = decodeClimateValue(data.precipitation[column]);
         }
@@ -3673,7 +3449,7 @@ namespace dolbuto
         const size_t runtimeCapacity = static_cast<size_t>(loadedChunkDiameter_ + 4) * static_cast<size_t>(loadedChunkDiameter_ + 4);
         const size_t featureCapacity = static_cast<size_t>(loadedChunkDiameter_ + 2) * static_cast<size_t>(loadedChunkDiameter_ + 2);
         const size_t renderCapacity = static_cast<size_t>(loadedChunkDiameter_) * static_cast<size_t>(loadedChunkDiameter_);
-        runtimeChunks_.reserve(runtimeCapacity + 256u);
+        worldRuntime_.reserve(runtimeCapacity + 256u);
         droppedItemCountsByChunk_.reserve(runtimeCapacity + 256u);
         terrainChunks_.reserve(renderCapacity + 256u);
         pendingUnloadSet_.reserve(runtimeCapacity + 256u);
@@ -3689,7 +3465,7 @@ namespace dolbuto
 
         terrainJobSystem_.clearQueuedJobsAndMeshes();
 
-        for (auto& entry : runtimeChunks_)
+        for (auto& entry : worldRuntime_.chunks())
         {
             entry.second.bestPriority = UINT32_MAX;
         }
@@ -3740,7 +3516,7 @@ namespace dolbuto
             }
         }
 
-        for (const auto& entry : runtimeChunks_)
+        for (const auto& entry : worldRuntime_.chunks())
         {
             if (desiredTerrainChunks_.find(entry.first) == desiredTerrainChunks_.end())
             {
@@ -3908,15 +3684,15 @@ namespace dolbuto
             }
 
             const uint64_t runtimeKey = chunkKey(snapshot.chunkX, snapshot.chunkZ);
-            auto runtimeIt = runtimeChunks_.find(runtimeKey);
-            if (runtimeIt != runtimeChunks_.end() &&
-                runtimeIt->second.data &&
-                runtimeIt->second.data->revision == snapshot.revision)
+            RuntimeChunk* runtimeChunk = worldRuntime_.find(runtimeKey);
+            if (runtimeChunk != nullptr &&
+                runtimeChunk->data &&
+                runtimeChunk->data->revision == snapshot.revision)
             {
-                runtimeIt->second.hasSavedBacking = true;
-                if (runtimeIt->second.dataDirtySerial == snapshot.dataDirtySerial)
+                runtimeChunk->hasSavedBacking = true;
+                if (runtimeChunk->dataDirtySerial == snapshot.dataDirtySerial)
                 {
-                    runtimeIt->second.dataDirtyForSave = false;
+                    runtimeChunk->dataDirtyForSave = false;
                 }
             }
         });
@@ -3929,12 +3705,7 @@ namespace dolbuto
 
     void Renderer::markRuntimeChunkDataDirty(RuntimeChunk& chunk)
     {
-        chunk.dataDirtyForSave = true;
-        ++chunk.dataDirtySerial;
-        if (chunk.dataDirtySerial == 0)
-        {
-            chunk.dataDirtySerial = 1;
-        }
+        world::WorldRuntime::markDataDirty(chunk);
     }
 
     void Renderer::enqueueTerrainJob(TerrainJob job)
@@ -3990,36 +3761,27 @@ namespace dolbuto
         for (CompletedChunkLoad& completed : completedLoads)
         {
             const uint64_t key = chunkKey(completed.chunkX, completed.chunkZ);
-            auto chunkIt = runtimeChunks_.find(key);
-            if (chunkIt == runtimeChunks_.end())
+            RuntimeChunk* existingChunk = worldRuntime_.finishSnapshotLoad(key);
+            if (existingChunk == nullptr)
             {
                 continue;
             }
 
-            RuntimeChunk& existing = chunkIt->second;
-            existing.snapshotLoadRequested = false;
-            existing.snapshotLoadFinished = true;
+            const world::WorldRuntime::RuntimeChunkLoadState loadState = world::WorldRuntime::captureLoadState(*existingChunk);
             if (desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
             {
                 continue;
             }
 
-            const uint64_t renderTicket = existing.renderTicket;
-            const uint64_t meshTicket = existing.meshTicket;
-            const uint64_t fullTicket = existing.fullTicket;
-            const uint64_t featuringTicket = existing.featuringTicket;
-            const uint32_t bestPriority = existing.bestPriority;
-            const std::array<FeatureWriteListPtr, FeatureNeighborCount> pendingIncomingFeatureSlots = existing.incomingFeatureSlots;
-            const uint8_t pendingIncomingFeatureMask = existing.incomingFeatureMask;
             if (completed.snapshot)
             {
                 RuntimeChunk loaded = runtimeChunkFromSnapshot(*completed.snapshot, generation);
-                if (pendingIncomingFeatureMask != 0)
+                if (loadState.incomingFeatureMask != 0)
                 {
                     if ((loaded.genState == ChunkGenState::Full || loaded.genState == ChunkGenState::Meshed) && loaded.data)
                     {
                         const world::TerrainBuilder terrainBuilder(terrainBuilderConfig());
-                        if (terrainBuilder.applyFeatureWrites(loaded.data, pendingIncomingFeatureSlots))
+                        if (terrainBuilder.applyFeatureWrites(loaded.data, loadState.incomingFeatureSlots))
                         {
                             loaded.genState = ChunkGenState::Full;
                         }
@@ -4029,47 +3791,40 @@ namespace dolbuto
                         for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
                         {
                             const uint8_t bit = static_cast<uint8_t>(1u << static_cast<uint32_t>(slot));
-                            if ((pendingIncomingFeatureMask & bit) != 0 && pendingIncomingFeatureSlots[slot] && !loaded.incomingFeatureSlots[slot])
+                            if ((loadState.incomingFeatureMask & bit) != 0 && loadState.incomingFeatureSlots[slot] && !loaded.incomingFeatureSlots[slot])
                             {
-                                loaded.incomingFeatureSlots[slot] = pendingIncomingFeatureSlots[slot];
+                                loaded.incomingFeatureSlots[slot] = loadState.incomingFeatureSlots[slot];
                                 loaded.incomingFeatureMask |= bit;
                             }
                         }
                     }
                 }
-                loaded.renderTicket = renderTicket;
-                loaded.meshTicket = meshTicket;
-                loaded.fullTicket = fullTicket;
-                loaded.featuringTicket = featuringTicket;
-                loaded.bestPriority = bestPriority;
-                loaded.snapshotLoadRequested = false;
-                loaded.snapshotLoadFinished = true;
-                chunkIt->second = std::move(loaded);
+                worldRuntime_.installLoadedChunk(std::move(loaded), loadState);
                 refreshDroppedItemChunkTracking(key);
             }
 
             if (desiredRenderChunks_.find(key) != desiredRenderChunks_.end())
             {
-                wantRender(completed.chunkX, completed.chunkZ, bestPriority);
+                wantRender(completed.chunkX, completed.chunkZ, loadState.bestPriority);
             }
-            else if (meshTicket == generation)
+            else if (loadState.meshTicket == generation)
             {
-                wantMesh(completed.chunkX, completed.chunkZ, bestPriority);
+                wantMesh(completed.chunkX, completed.chunkZ, loadState.bestPriority);
             }
-            else if (fullTicket == generation)
+            else if (loadState.fullTicket == generation)
             {
-                wantFull(completed.chunkX, completed.chunkZ, bestPriority);
+                wantFull(completed.chunkX, completed.chunkZ, loadState.bestPriority);
             }
-            else if (featuringTicket == generation)
+            else if (loadState.featuringTicket == generation)
             {
-                wantFeaturing(completed.chunkX, completed.chunkZ, bestPriority);
+                wantFeaturing(completed.chunkX, completed.chunkZ, loadState.bestPriority);
             }
 
-            auto readyIt = runtimeChunks_.find(key);
-            if (readyIt != runtimeChunks_.end() &&
-                readyIt->second.data &&
-                (readyIt->second.genState == ChunkGenState::Full ||
-                    readyIt->second.genState == ChunkGenState::Meshed))
+            const RuntimeChunk* readyChunk = worldRuntime_.find(key);
+            if (readyChunk != nullptr &&
+                readyChunk->data &&
+                (readyChunk->genState == ChunkGenState::Full ||
+                    readyChunk->genState == ChunkGenState::Meshed))
             {
                 tryQueueMeshesAround(completed.chunkX, completed.chunkZ);
             }
@@ -4113,14 +3868,8 @@ namespace dolbuto
                 }
                 continue;
             }
-            RuntimeChunk& runtimeChunk = runtimeChunks_[key];
-            runtimeChunk.chunkX = chunk->chunkX;
-            runtimeChunk.chunkZ = chunk->chunkZ;
-            runtimeChunk.data = chunk;
+            RuntimeChunk& runtimeChunk = worldRuntime_.installFeaturingChunk(chunk, std::move(completed.outgoingFeatureSlots));
             refreshDroppedItemChunkTracking(key);
-            runtimeChunk.outgoingFeatureSlots = std::move(completed.outgoingFeatureSlots);
-            runtimeChunk.genState = ChunkGenState::Featuring;
-            runtimeChunk.buildQueuedTicket = 0;
             publishFeatureSlots(runtimeChunk);
             tryQueueFeatureFinalize(key);
             tryQueueMeshesAround(chunk->chunkX, chunk->chunkZ);
@@ -4146,15 +3895,8 @@ namespace dolbuto
                 enqueueSaveSnapshot(std::move(snapshot));
                 continue;
             }
-            RuntimeChunk& runtimeChunk = runtimeChunks_[key];
-            runtimeChunk.chunkX = chunk->chunkX;
-            runtimeChunk.chunkZ = chunk->chunkZ;
-            runtimeChunk.data = chunk;
+            worldRuntime_.installFullChunk(chunk);
             refreshDroppedItemChunkTracking(key);
-            runtimeChunk.incomingFeatureSlots = {};
-            runtimeChunk.incomingFeatureMask = 0;
-            runtimeChunk.finalizeQueuedTicket = 0;
-            runtimeChunk.genState = ChunkGenState::Full;
             tryQueueMeshesAround(chunk->chunkX, chunk->chunkZ);
         }
 
@@ -4162,17 +3904,13 @@ namespace dolbuto
         {
             const uint64_t key = chunkKey(mesh.chunkX, mesh.chunkZ);
             requestedMeshJobs_.erase(key);
-            auto runtimeIt = runtimeChunks_.find(key);
-            if (runtimeIt != runtimeChunks_.end())
-            {
-                runtimeIt->second.meshQueuedTicket = 0;
-            }
+            worldRuntime_.clearMeshQueued(key);
 
             if (mesh.generation != generation || desiredRenderChunks_.find(key) == desiredRenderChunks_.end())
             {
                 continue;
             }
-            if (runtimeIt == runtimeChunks_.end() || !runtimeIt->second.data || mesh.revision != runtimeIt->second.data->revision)
+            if (!worldRuntime_.meshRevisionMatches(key, mesh.revision))
             {
                 tryQueueMeshIfReady(mesh.chunkX, mesh.chunkZ);
                 continue;
@@ -4188,7 +3926,7 @@ namespace dolbuto
             renderData.chunkZ = mesh.chunkZ;
             createChunkTerrainBuffers(mesh.solidSubchunks, renderData.solidSubchunks);
             createChunkTerrainBuffers(mesh.fluidSubchunks, renderData.fluidSubchunks);
-            runtimeIt->second.genState = ChunkGenState::Meshed;
+            worldRuntime_.markMeshed(key);
         }
 
         if (!completedChunks.empty() || !completedMergedChunks.empty() || !completedMeshes.empty())
@@ -4221,13 +3959,13 @@ namespace dolbuto
                     std::move(renderIt->second)});
                 terrainChunks_.erase(renderIt);
             }
-            auto runtimeIt = runtimeChunks_.find(key);
-            if (runtimeIt != runtimeChunks_.end())
+            RuntimeChunk* runtimeChunk = worldRuntime_.find(key);
+            if (runtimeChunk != nullptr)
             {
-                enqueueSaveSnapshot(makeSaveSnapshot(runtimeIt->second));
+                enqueueSaveSnapshot(makeSaveSnapshot(*runtimeChunk));
             }
             removeDroppedItemChunkTracking(key);
-            runtimeChunks_.erase(key);
+            worldRuntime_.erase(key);
             requestedChunkJobs_.erase(key);
             requestedMeshJobs_.erase(key);
             pendingUnloadSet_.erase(key);
@@ -4273,21 +4011,15 @@ namespace dolbuto
         desiredTerrainChunks_.insert(key);
         pendingUnloadSet_.erase(key);
 
-        auto chunkIt = runtimeChunks_.find(key);
-        if (chunkIt == runtimeChunks_.end())
+        bool created = false;
+        RuntimeChunk& chunk = worldRuntime_.ensureChunkShell(chunkX, chunkZ, created);
+        if (created)
         {
-            RuntimeChunk chunk{};
-            chunk.chunkX = chunkX;
-            chunk.chunkZ = chunkZ;
             chunk.snapshotLoadRequested = true;
             chunk.snapshotLoadFinished = false;
-            chunkIt = runtimeChunks_.emplace(key, std::move(chunk)).first;
             enqueueChunkLoadJob(chunkX, chunkZ, generation);
         }
 
-        RuntimeChunk& chunk = chunkIt->second;
-        chunk.chunkX = chunkX;
-        chunk.chunkZ = chunkZ;
         if (!chunk.data && !chunk.snapshotLoadRequested && !chunk.snapshotLoadFinished)
         {
             chunk.snapshotLoadRequested = true;
@@ -4354,14 +4086,13 @@ namespace dolbuto
             wantFeaturing(chunkX + offset.x, chunkZ + offset.z, priority);
         }
 
-        RuntimeChunk& current = runtimeChunks_[key];
-        if (current.genState == ChunkGenState::Featuring)
+        if (chunk.genState == ChunkGenState::Featuring)
         {
-            publishFeatureSlots(current);
+            publishFeatureSlots(chunk);
         }
-        else if (current.genState == ChunkGenState::Full || current.genState == ChunkGenState::Meshed)
+        else if (chunk.genState == ChunkGenState::Full || chunk.genState == ChunkGenState::Meshed)
         {
-            publishFeatureSlots(current);
+            publishFeatureSlots(chunk);
         }
         tryQueueFeatureFinalize(key);
     }
@@ -4440,7 +4171,7 @@ namespace dolbuto
 
     void Renderer::enqueueSaveAllRuntimeChunks()
     {
-        for (const auto& entry : runtimeChunks_)
+        for (const auto& entry : worldRuntime_.chunks())
         {
             enqueueSaveSnapshot(makeSaveSnapshot(entry.second));
         }
@@ -4461,8 +4192,7 @@ namespace dolbuto
         resetBlockBreaking();
         nextWorldEntityId_ = 1;
         resetDroppedItemTracking();
-        playerInventorySlots_.fill(ItemStack{});
-        inventoryCursorStack_ = {};
+        playerInventory_.clear();
         updateInventoryUi();
         updateInventoryDebugSlots();
         lastParticleUpdateTime_ = glfwGetTime();
@@ -4499,8 +4229,7 @@ namespace dolbuto
         resetBlockBreaking();
         nextWorldEntityId_ = 1;
         resetDroppedItemTracking();
-        playerInventorySlots_.fill(ItemStack{});
-        inventoryCursorStack_ = {};
+        playerInventory_.clear();
         updateInventoryUi();
         updateInventoryDebugSlots();
         lastParticleUpdateTime_ = 0.0;
@@ -4648,17 +4377,16 @@ namespace dolbuto
         }
 
         const uint64_t targetKey = chunkKey(targetChunkX, targetChunkZ);
-        auto existingTarget = runtimeChunks_.find(targetKey);
-        if (existingTarget == runtimeChunks_.end() && desiredTerrainChunks_.find(targetKey) == desiredTerrainChunks_.end())
+        RuntimeChunk* existingTarget = worldRuntime_.find(targetKey);
+        if (existingTarget == nullptr && desiredTerrainChunks_.find(targetKey) == desiredTerrainChunks_.end())
         {
             return;
         }
 
-        RuntimeChunk& target = existingTarget != runtimeChunks_.end()
-            ? existingTarget->second
-            : runtimeChunks_[targetKey];
-        target.chunkX = targetChunkX;
-        target.chunkZ = targetChunkZ;
+        bool created = false;
+        RuntimeChunk& target = existingTarget != nullptr
+            ? *existingTarget
+            : worldRuntime_.ensureChunkShell(targetChunkX, targetChunkZ, created);
 
         if ((target.genState == ChunkGenState::Full || target.genState == ChunkGenState::Meshed) && target.data)
         {
@@ -4723,23 +4451,22 @@ namespace dolbuto
 
     void Renderer::tryQueueFeatureFinalize(uint64_t key)
     {
-        auto chunkIt = runtimeChunks_.find(key);
-        if (chunkIt == runtimeChunks_.end())
+        RuntimeChunk* chunk = worldRuntime_.find(key);
+        if (chunk == nullptr)
         {
             return;
         }
 
-        RuntimeChunk& chunk = chunkIt->second;
         const uint64_t generation = terrainGeneration_.load();
-        if (chunk.fullTicket != generation ||
-            chunk.genState != ChunkGenState::Featuring ||
-            !chunk.data ||
-            chunk.finalizeQueuedTicket == generation)
+        if (chunk->fullTicket != generation ||
+            chunk->genState != ChunkGenState::Featuring ||
+            !chunk->data ||
+            chunk->finalizeQueuedTicket == generation)
         {
             return;
         }
 
-        if ((chunk.incomingFeatureMask & AllFeatureSourcesMask) != AllFeatureSourcesMask)
+        if ((chunk->incomingFeatureMask & AllFeatureSourcesMask) != AllFeatureSourcesMask)
         {
             return;
         }
@@ -4747,26 +4474,26 @@ namespace dolbuto
         TerrainJob job{};
         job.type = TerrainJob::Type::FinalizeFeatures;
         job.generation = generation;
-        job.priority = chunk.bestPriority;
-        job.chunkX = chunk.chunkX;
-        job.chunkZ = chunk.chunkZ;
-        job.chunk = chunk.data;
-        job.incomingFeatureSlots = chunk.incomingFeatureSlots;
-        chunk.finalizeQueuedTicket = generation;
+        job.priority = chunk->bestPriority;
+        job.chunkX = chunk->chunkX;
+        job.chunkZ = chunk->chunkZ;
+        job.chunk = chunk->data;
+        job.incomingFeatureSlots = chunk->incomingFeatureSlots;
+        chunk->finalizeQueuedTicket = generation;
         enqueueTerrainJob(std::move(job));
     }
 
     void Renderer::tryQueueMeshIfReady(int chunkX, int chunkZ)
     {
         const uint64_t key = chunkKey(chunkX, chunkZ);
-        auto targetIt = runtimeChunks_.find(key);
+        RuntimeChunk* target = worldRuntime_.find(key);
         const uint64_t generation = terrainGeneration_.load();
-        if (targetIt == runtimeChunks_.end() ||
+        if (target == nullptr ||
             desiredRenderChunks_.find(key) == desiredRenderChunks_.end() ||
-            targetIt->second.meshTicket != generation ||
+            target->meshTicket != generation ||
             requestedMeshJobs_.find(key) != requestedMeshJobs_.end() ||
-            targetIt->second.meshQueuedTicket == generation ||
-            (targetIt->second.genState != ChunkGenState::Full && targetIt->second.genState != ChunkGenState::Meshed))
+            target->meshQueuedTicket == generation ||
+            (target->genState != ChunkGenState::Full && target->genState != ChunkGenState::Meshed))
         {
             return;
         }
@@ -4776,13 +4503,13 @@ namespace dolbuto
         {
             for (int dx = -1; dx <= 1; ++dx)
             {
-                const auto chunkIt = runtimeChunks_.find(chunkKey(chunkX + dx, chunkZ + dz));
-                if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data ||
-                    chunkIt->second.genState == ChunkGenState::Empty)
+                const RuntimeChunk* chunk = worldRuntime_.find(chunkKey(chunkX + dx, chunkZ + dz));
+                if (chunk == nullptr || !chunk->data ||
+                    chunk->genState == ChunkGenState::Empty)
                 {
                     return;
                 }
-                chunks[static_cast<size_t>((dz + 1) * 3 + (dx + 1))] = chunkIt->second.data;
+                chunks[static_cast<size_t>((dz + 1) * 3 + (dx + 1))] = chunk->data;
             }
         }
 
@@ -4795,12 +4522,12 @@ namespace dolbuto
         job.type = TerrainJob::Type::BuildChunkMesh;
         job.generation = generation;
         job.revision = chunks[4]->revision;
-        job.priority = targetIt->second.bestPriority;
+        job.priority = target->bestPriority;
         job.chunkX = chunkX;
         job.chunkZ = chunkZ;
         job.meshChunks = chunks;
         requestedMeshJobs_.insert(key);
-        targetIt->second.meshQueuedTicket = generation;
+        target->meshQueuedTicket = generation;
         enqueueTerrainJob(std::move(job));
     }
 
@@ -4817,105 +4544,17 @@ namespace dolbuto
 
     bool Renderer::setBlockAtWorld(int x, int y, int z, uint16_t block)
     {
-        if (y < 0 || y >= ChunkSizeY)
-        {
-            return false;
-        }
-
-        const int chunkX = floorDiv(x, ChunkSizeX);
-        const int chunkZ = floorDiv(z, ChunkSizeZ);
-        const uint64_t key = chunkKey(chunkX, chunkZ);
-        auto chunkIt = runtimeChunks_.find(key);
-        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data ||
-            (chunkIt->second.genState != ChunkGenState::Full && chunkIt->second.genState != ChunkGenState::Meshed))
-        {
-            return false;
-        }
-
-        const std::shared_ptr<ChunkData>& chunk = chunkIt->second.data;
-        const int localX = positiveModulo(x, ChunkSizeX);
-        const int localZ = positiveModulo(z, ChunkSizeZ);
-        const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-        if (index >= chunk->blocks.size() || chunk->blocks[index] == block)
-        {
-            return false;
-        }
-
-        chunk->blocks[index] = block;
-        ++chunk->revision;
-        markRuntimeChunkDataDirty(chunkIt->second);
-        updateChunkEmptySubchunk(chunk, y / SubchunkSize);
-        return true;
+        return worldRuntime_.setBlockAtWorld(x, y, z, block);
     }
 
     void Renderer::updateChunkEmptySubchunk(const std::shared_ptr<ChunkData>& chunk, int subchunkY)
     {
-        if (!chunk || subchunkY < 0 || subchunkY >= SubchunksPerChunk)
-        {
-            return;
-        }
-
-        const int yStart = subchunkY * SubchunkSize;
-        const int yEnd = yStart + SubchunkSize;
-        bool empty = true;
-        for (int y = yStart; y < yEnd && empty; ++y)
-        {
-            for (int z = 0; z < ChunkSizeZ && empty; ++z)
-            {
-                for (int x = 0; x < ChunkSizeX; ++x)
-                {
-                    const size_t index = static_cast<size_t>((y * ChunkSizeZ + z) * ChunkSizeX + x);
-                    if (index < chunk->blocks.size() && chunk->blocks[index] != BlockAir)
-                    {
-                        empty = false;
-                        break;
-                    }
-                }
-            }
-        }
-
-        chunk->emptySubchunks[static_cast<size_t>(subchunkY)] = empty;
+        world::WorldRuntime::updateChunkEmptySubchunk(chunk, subchunkY);
     }
 
     void Renderer::rebuildChunkDerivedCaches(ChunkData& chunk) const
     {
-        chunk.emptySubchunks.fill(true);
-        chunk.fluidSubchunkCounts.fill(0);
-        if (chunk.blocks.size() != ChunkBlockCount)
-        {
-            return;
-        }
-        if (chunk.fluids.size() != ChunkBlockCount)
-        {
-            chunk.fluids.assign(ChunkBlockCount, FluidNone);
-        }
-
-        constexpr size_t BlocksPerLayer = ChunkSizeX * ChunkSizeZ;
-        for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
-        {
-            bool empty = true;
-            uint16_t fluidCount = 0;
-            const int yStart = subchunkY * SubchunkSize;
-            const int yEnd = yStart + SubchunkSize;
-            for (int y = yStart; y < yEnd; ++y)
-            {
-                const size_t layerOffset = static_cast<size_t>(y) * BlocksPerLayer;
-                for (size_t column = 0; column < BlocksPerLayer; ++column)
-                {
-                    const size_t index = layerOffset + column;
-                    if (chunk.blocks[index] != BlockAir)
-                    {
-                        empty = false;
-                    }
-                    if (fluidId(chunk.fluids[index]) != FluidNone && fluidAmount(chunk.fluids[index]) != 0)
-                    {
-                        ++fluidCount;
-                    }
-                }
-            }
-            chunk.emptySubchunks[static_cast<size_t>(subchunkY)] = empty;
-            chunk.fluidSubchunkCounts[static_cast<size_t>(subchunkY)] = fluidCount;
-        }
+        world::WorldRuntime::rebuildDerivedCaches(chunk);
     }
 
     void Renderer::rebuildSubchunkMeshNow(int chunkX, int chunkZ, int subchunkY)
@@ -4926,24 +4565,24 @@ namespace dolbuto
         }
 
         const uint64_t key = chunkKey(chunkX, chunkZ);
-        auto chunkIt = runtimeChunks_.find(key);
-        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
+        RuntimeChunk* chunk = worldRuntime_.find(key);
+        if (chunk == nullptr || !chunk->data || desiredTerrainChunks_.find(key) == desiredTerrainChunks_.end())
         {
             return;
         }
 
         const uint64_t generation = terrainGeneration_.load();
-        chunkIt->second.data->generation = generation;
-        const uint64_t revision = chunkIt->second.data->revision;
-        TerrainBuildData mesh = buildEditedSubchunkMesh(chunkIt->second.data, subchunkY);
+        chunk->data->generation = generation;
+        const uint64_t revision = chunk->data->revision;
+        TerrainBuildData mesh = buildEditedSubchunkMesh(chunk->data, subchunkY);
 
         requestedMeshJobs_.erase(key);
-        chunkIt->second.meshQueuedTicket = 0;
+        chunk->meshQueuedTicket = 0;
         ChunkRenderData& renderData = terrainChunks_[key];
-        renderData.revision = chunkIt->second.data->revision;
+        renderData.revision = chunk->data->revision;
         renderData.chunkX = chunkX;
         renderData.chunkZ = chunkZ;
-        if (chunkIt->second.data->revision != revision || chunkIt->second.data->generation != generation)
+        if (chunk->data->revision != revision || chunk->data->generation != generation)
         {
             return;
         }
@@ -4959,8 +4598,8 @@ namespace dolbuto
                 std::move(retired)});
         }
         createTerrainBuffer(mesh, targetMesh);
-        renderData.revision = chunkIt->second.data->revision;
-        chunkIt->second.genState = ChunkGenState::Meshed;
+        renderData.revision = chunk->data->revision;
+        chunk->genState = ChunkGenState::Meshed;
     }
 
     void Renderer::rebuildEditedChunkMeshes(int blockX, int blockY, int blockZ)
@@ -5699,8 +5338,8 @@ namespace dolbuto
         {
             return false;
         }
-        auto chunkIt = runtimeChunks_.find(key);
-        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data || renderIt->second.revision != chunkIt->second.data->revision)
+        const RuntimeChunk* chunk = worldRuntime_.find(key);
+        if (chunk == nullptr || !chunk->data || renderIt->second.revision != chunk->data->revision)
         {
             return false;
         }
@@ -5753,7 +5392,7 @@ namespace dolbuto
         desiredTerrainChunks_.clear();
         desiredFeatureChunks_.clear();
         desiredRenderChunks_.clear();
-        runtimeChunks_.clear();
+        worldRuntime_.clear();
         resetDroppedItemTracking();
     }
 
@@ -6192,407 +5831,6 @@ namespace dolbuto
                 throw std::runtime_error("Failed to create sync objects.");
             }
         }
-    }
-
-    void Renderer::initializeRmlUi()
-    {
-        ui_.initialize(
-            window_,
-            assetDirectory(),
-            static_cast<int>(swapchainExtent_.width),
-            static_cast<int>(swapchainExtent_.height),
-            this);
-        ui_.setClickCallback([this]()
-        {
-            audio_.playButtonClick();
-        });
-        updateHotbarScopeClass();
-        updateInventoryUi();
-        updateInventoryDebugSlots();
-    }
-
-    void Renderer::shutdownRmlUi()
-    {
-        ui_.shutdown();
-    }
-
-    bool Renderer::renderRmlUi(VkCommandBuffer commandBuffer, int menuOverlayMode, bool hudVisible)
-    {
-        if (!ui_.available())
-        {
-            return false;
-        }
-
-        const int effectiveMenuOverlayMode = hudVisible ? menuOverlayMode : (menuOverlayMode == 0 ? -1 : menuOverlayMode);
-        if (ui_.activeMenuOverlayMode() == 5 && effectiveMenuOverlayMode != 5)
-        {
-            closeInventoryInteraction();
-        }
-        rmlUiVertexOffset_ = 0;
-        rmlUiIndexOffset_ = 0;
-        rmlCommandBuffer_ = commandBuffer;
-        const bool rendered = ui_.render(
-            effectiveMenuOverlayMode,
-            static_cast<int>(swapchainExtent_.width),
-            static_cast<int>(swapchainExtent_.height));
-        rmlCommandBuffer_ = VK_NULL_HANDLE;
-        return rendered;
-    }
-
-    void Renderer::uiMouseMove(double x, double y)
-    {
-        rmlMouseX_ = x;
-        rmlMouseY_ = y;
-        ui_.processMouseMove(x, y);
-        if (ui_.activeMenuOverlayMode() == 5)
-        {
-            updateItemTooltipUi();
-            updateInventoryCursorUi();
-        }
-    }
-
-    void Renderer::uiMouseButton(int button, bool pressed, int modifiers)
-    {
-        ui_.processMouseButton(button, pressed, modifiers);
-
-        if (pressed)
-        {
-            if (ui_.activeMenuOverlayMode() == 5 && (button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT))
-            {
-                if (const std::optional<size_t> slot = inventorySlotAt(rmlMouseX_, rmlMouseY_); slot.has_value())
-                {
-                    handleInventorySlotClick(*slot, button, modifiers);
-                }
-            }
-        }
-    }
-
-    void Renderer::uiMouseWheel(double yOffset)
-    {
-        ui_.processMouseWheel(yOffset);
-    }
-
-    void Renderer::uiTextInput(unsigned int codepoint)
-    {
-        ui_.processTextInput(codepoint);
-    }
-
-    void Renderer::uiKey(int key, bool pressed, int modifiers)
-    {
-        if (pressed)
-        {
-            if (ui_.activeMenuOverlayMode() == 5 && ((key >= GLFW_KEY_0 && key <= GLFW_KEY_9)))
-            {
-                handleInventoryHotbarSwapKey(key);
-            }
-        }
-        ui_.processKey(key, pressed, modifiers);
-    }
-
-    std::optional<std::string> Renderer::consumeUiAction()
-    {
-        return ui_.consumeAction();
-    }
-
-    bool Renderer::rmlUiAvailable() const
-    {
-        return ui_.available();
-    }
-
-    void Renderer::setHotbarSelectedSlot(int slot)
-    {
-        hotbarSelectedSlot_ = std::clamp(slot, 0, 9);
-        updateHotbarScopeClass();
-    }
-
-    void Renderer::updateHotbarScopeClass()
-    {
-        ui_.setHotbarScopeClass(hotbarSelectedSlot_);
-    }
-
-    void Renderer::updateInventoryDebugSlots()
-    {
-        std::string hotbarRml;
-        std::string inventoryRml;
-        if (inventoryDebugSlotsVisible_)
-        {
-            for (size_t i = 0; i < 10u; ++i)
-            {
-                hotbarRml += ui::inventoryDebugSlotRml(i, false);
-            }
-            for (size_t i = 0; i < 50u; ++i)
-            {
-                inventoryRml += ui::inventoryDebugSlotRml(i, true);
-            }
-        }
-        ui_.setInventoryDebugSlots(hotbarRml, inventoryRml, inventoryDebugSlotsVisible_);
-    }
-
-    std::optional<size_t> Renderer::inventorySlotAt(double x, double y) const
-    {
-        return ui::inventorySlotAt(x, y, swapchainExtent_.width, swapchainExtent_.height, playerInventorySlots_.size());
-    }
-
-    void Renderer::handleInventorySlotClick(size_t slotIndex, int button, int modifiers)
-    {
-        if (slotIndex >= playerInventorySlots_.size())
-        {
-            return;
-        }
-
-        ItemStack& slot = playerInventorySlots_[slotIndex];
-        const bool shift = (modifiers & GLFW_MOD_SHIFT) != 0;
-        if (shift && inventoryCursorStack_.itemId == 0 && slot.itemId != 0 && slot.count != 0)
-        {
-            ItemStack moving = slot;
-            slot = {};
-            if (slotIndex < 10u)
-            {
-                addItemToInventoryRange(moving, 10, playerInventorySlots_.size());
-            }
-            else
-            {
-                addItemToInventoryRange(moving, 0, 10);
-            }
-            slot = moving.count == 0 ? ItemStack{} : moving;
-            updateInventoryUi();
-            updateItemTooltipUi();
-            return;
-        }
-
-        if (button == GLFW_MOUSE_BUTTON_LEFT)
-        {
-            if (inventoryCursorStack_.itemId == 0 || inventoryCursorStack_.count == 0)
-            {
-                inventoryCursorStack_ = slot;
-                slot = {};
-            }
-            else if (slot.itemId == 0 || slot.count == 0)
-            {
-                slot = inventoryCursorStack_;
-                inventoryCursorStack_ = {};
-            }
-            else if (inventoryStackCanMerge(slot, inventoryCursorStack_))
-            {
-                const uint16_t maxStack = itemDefinitions_[slot.itemId].stackSize;
-                const uint16_t moved = std::min(static_cast<uint16_t>(maxStack - slot.count), inventoryCursorStack_.count);
-                slot.count = static_cast<uint16_t>(slot.count + moved);
-                inventoryCursorStack_.count = static_cast<uint16_t>(inventoryCursorStack_.count - moved);
-                if (inventoryCursorStack_.count == 0)
-                {
-                    inventoryCursorStack_ = {};
-                }
-            }
-            else
-            {
-                std::swap(slot, inventoryCursorStack_);
-            }
-        }
-        else if (button == GLFW_MOUSE_BUTTON_RIGHT)
-        {
-            if (inventoryCursorStack_.itemId == 0 || inventoryCursorStack_.count == 0)
-            {
-                if (slot.itemId != 0 && slot.count != 0)
-                {
-                    const uint16_t taken = static_cast<uint16_t>((slot.count + 1u) / 2u);
-                    inventoryCursorStack_.itemId = slot.itemId;
-                    inventoryCursorStack_.count = taken;
-                    slot.count = static_cast<uint16_t>(slot.count - taken);
-                    if (slot.count == 0)
-                    {
-                        slot = {};
-                    }
-                }
-            }
-            else if (slot.itemId == 0 || slot.count == 0)
-            {
-                slot.itemId = inventoryCursorStack_.itemId;
-                slot.count = 1;
-                inventoryCursorStack_.count = static_cast<uint16_t>(inventoryCursorStack_.count - 1u);
-                if (inventoryCursorStack_.count == 0)
-                {
-                    inventoryCursorStack_ = {};
-                }
-            }
-            else if (inventoryStackCanMerge(slot, inventoryCursorStack_))
-            {
-                slot.count = static_cast<uint16_t>(slot.count + 1u);
-                inventoryCursorStack_.count = static_cast<uint16_t>(inventoryCursorStack_.count - 1u);
-                if (inventoryCursorStack_.count == 0)
-                {
-                    inventoryCursorStack_ = {};
-                }
-            }
-        }
-
-        updateInventoryUi();
-        updateItemTooltipUi();
-    }
-
-    void Renderer::handleInventoryHotbarSwapKey(int key)
-    {
-        if (inventoryCursorStack_.itemId != 0 || inventoryCursorStack_.count != 0)
-        {
-            return;
-        }
-
-        int hotbarSlot = -1;
-        if (key >= GLFW_KEY_1 && key <= GLFW_KEY_9)
-        {
-            hotbarSlot = key - GLFW_KEY_1;
-        }
-        else if (key == GLFW_KEY_0)
-        {
-            hotbarSlot = 9;
-        }
-        if (hotbarSlot < 0)
-        {
-            return;
-        }
-
-        const std::optional<size_t> hoveredSlot = inventorySlotAt(rmlMouseX_, rmlMouseY_);
-        if (!hoveredSlot.has_value() || *hoveredSlot == static_cast<size_t>(hotbarSlot))
-        {
-            return;
-        }
-
-        std::swap(playerInventorySlots_[*hoveredSlot], playerInventorySlots_[static_cast<size_t>(hotbarSlot)]);
-        updateInventoryUi();
-        updateItemTooltipUi();
-    }
-
-    void Renderer::closeInventoryInteraction()
-    {
-        if (inventoryCursorStack_.itemId != 0 && inventoryCursorStack_.count != 0)
-        {
-            const uint16_t remaining = addItemToPlayerInventory(inventoryCursorStack_);
-            if (remaining == 0)
-            {
-                inventoryCursorStack_ = {};
-            }
-            else
-            {
-                inventoryCursorStack_.count = remaining;
-            }
-        }
-        updateItemTooltipUi();
-        updateInventoryCursorUi();
-    }
-
-    ui::InventoryItemView Renderer::inventoryItemView(const ItemStack& stack) const
-    {
-        ui::InventoryItemView item{};
-        item.itemId = stack.itemId;
-        item.count = stack.count;
-        if (stack.itemId == 0 || stack.count == 0 || static_cast<size_t>(stack.itemId) >= itemDefinitions_.size())
-        {
-            return item;
-        }
-
-        const ItemDefinition& definition = itemDefinitions_[stack.itemId];
-        const auto renderTypeText = [](ItemRenderType type)
-        {
-            switch (type)
-            {
-            case ItemRenderType::ExtrudedSprite:
-                return "extruded_sprite";
-            }
-            return "unknown";
-        };
-
-        item.stackSize = definition.stackSize;
-        item.name = definition.name;
-        item.key = definition.key;
-        item.slotTexture = definition.slotTexture;
-        item.droppedRender = renderTypeText(definition.droppedRender);
-        item.droppedTexture = definition.droppedTexture;
-        item.heldRender = renderTypeText(definition.heldRender);
-        item.heldTexture = definition.heldTexture;
-        return item;
-    }
-
-    void Renderer::updateInventoryUi()
-    {
-        std::string hotbarRml;
-        for (size_t i = 0; i < 10u; ++i)
-        {
-            hotbarRml += ui::itemSlotImageRml(i, false, inventoryItemView(playerInventorySlots_[i]));
-        }
-
-        std::string inventoryRml;
-        for (size_t i = 0; i < playerInventorySlots_.size(); ++i)
-        {
-            inventoryRml += ui::itemSlotImageRml(i, true, inventoryItemView(playerInventorySlots_[i]));
-        }
-
-        ui_.setInventoryItems(hotbarRml, inventoryRml);
-        updateInventoryCursorUi();
-    }
-
-    void Renderer::updateInventoryCursorUi()
-    {
-        if (inventoryCursorStack_.itemId == 0 || inventoryCursorStack_.count == 0)
-        {
-            ui_.setInventoryCursorItem("", false);
-            return;
-        }
-
-        const int left = static_cast<int>(std::round(rmlMouseX_)) - 32;
-        const int top = static_cast<int>(std::round(rmlMouseY_)) - 32;
-        ui_.setInventoryCursorItem(ui::itemStackContentRml(inventoryItemView(inventoryCursorStack_), left, top), true);
-    }
-
-    void Renderer::updateItemTooltipUi()
-    {
-        if (inventoryCursorStack_.itemId != 0 && inventoryCursorStack_.count != 0)
-        {
-            ui_.hideItemTooltip();
-            return;
-        }
-
-        const std::optional<size_t> hoveredSlot = inventorySlotAt(rmlMouseX_, rmlMouseY_);
-        if (!hoveredSlot.has_value())
-        {
-            ui_.hideItemTooltip();
-            return;
-        }
-
-        const ui::InventoryItemView item = inventoryItemView(playerInventorySlots_[*hoveredSlot]);
-        const std::string rml = ui::itemTooltipRml(item);
-        if (rml.empty())
-        {
-            ui_.hideItemTooltip();
-            return;
-        }
-
-        const std::optional<ui::TooltipLayout> layout = ui::itemTooltipLayout(item, rmlMouseX_, rmlMouseY_, swapchainExtent_.width, swapchainExtent_.height);
-        if (!layout.has_value())
-        {
-            ui_.hideItemTooltip();
-            return;
-        }
-
-        ui_.showItemTooltip(rml, layout->left, layout->top, layout->width, layout->height);
-    }
-
-    void Renderer::setWorldList(const std::vector<WorldListItem>& worlds)
-    {
-        std::vector<ui::WorldListEntry> entries;
-        entries.reserve(worlds.size());
-        for (const WorldListItem& world : worlds)
-        {
-            entries.push_back(ui::WorldListEntry{
-                world.name,
-                world.createdText,
-                world.lastPlayedText
-            });
-        }
-        ui_.setWorldList(entries);
-    }
-
-    std::string Renderer::uiInputValue(std::string_view id) const
-    {
-        return ui_.inputValue(id);
     }
 
     int Renderer::temperatureSeed() const
@@ -7546,195 +6784,6 @@ namespace dolbuto
         mesh = {};
     }
 
-    Rml::CompiledGeometryHandle Renderer::CompileGeometry(Rml::Span<const Rml::Vertex> vertices, Rml::Span<const int> indices)
-    {
-        auto* geometry = new UiGeometry();
-        geometry->vertices.reserve(vertices.size());
-        geometry->indices.reserve(indices.size());
-
-        for (const Rml::Vertex& vertex : vertices)
-        {
-            UiVertex out{};
-            out.x = vertex.position.x;
-            out.y = vertex.position.y;
-            out.r = static_cast<float>(vertex.colour.red) / 255.0f;
-            out.g = static_cast<float>(vertex.colour.green) / 255.0f;
-            out.b = static_cast<float>(vertex.colour.blue) / 255.0f;
-            out.a = static_cast<float>(vertex.colour.alpha) / 255.0f;
-            out.u = vertex.tex_coord.x;
-            out.v = vertex.tex_coord.y;
-            geometry->vertices.push_back(out);
-        }
-        for (int index : indices)
-        {
-            geometry->indices.push_back(static_cast<uint32_t>(index));
-        }
-
-        return reinterpret_cast<Rml::CompiledGeometryHandle>(geometry);
-    }
-
-    void Renderer::RenderGeometry(Rml::CompiledGeometryHandle handle, Rml::Vector2f translation, Rml::TextureHandle textureHandle)
-    {
-        if (rmlCommandBuffer_ == VK_NULL_HANDLE || uiPipeline_ == VK_NULL_HANDLE || handle == 0)
-        {
-            return;
-        }
-
-        const auto* geometry = reinterpret_cast<const UiGeometry*>(handle);
-        if (geometry->vertices.empty() || geometry->indices.empty() ||
-            rmlUiVertexOffset_ + geometry->vertices.size() > MaxUiVertices ||
-            rmlUiIndexOffset_ + geometry->indices.size() > MaxUiIndices)
-        {
-            return;
-        }
-
-        const VkDeviceSize vertexBytes = sizeof(UiVertex) * geometry->vertices.size();
-        const VkDeviceSize vertexBufferOffset = sizeof(UiVertex) * rmlUiVertexOffset_;
-        void* vertexData = nullptr;
-        vkMapMemory(device_, uiVertexMemory_, vertexBufferOffset, vertexBytes, 0, &vertexData);
-        std::memcpy(vertexData, geometry->vertices.data(), static_cast<size_t>(vertexBytes));
-        vkUnmapMemory(device_, uiVertexMemory_);
-
-        const VkDeviceSize indexBytes = sizeof(uint32_t) * geometry->indices.size();
-        const VkDeviceSize indexBufferOffset = sizeof(uint32_t) * rmlUiIndexOffset_;
-        void* indexData = nullptr;
-        vkMapMemory(device_, uiIndexMemory_, indexBufferOffset, indexBytes, 0, &indexData);
-        std::memcpy(indexData, geometry->indices.data(), static_cast<size_t>(indexBytes));
-        vkUnmapMemory(device_, uiIndexMemory_);
-
-        VkViewport viewport{};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = static_cast<float>(swapchainExtent_.width);
-        viewport.height = static_cast<float>(swapchainExtent_.height);
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-
-        VkRect2D scissor{};
-        scissor.offset = {0, 0};
-        scissor.extent = swapchainExtent_;
-        if (rmlScissorEnabled_)
-        {
-            scissor = rmlScissor_;
-        }
-
-        const Texture* texture = textureHandle == 0 ? &white_ : reinterpret_cast<const Texture*>(textureHandle);
-        const UiPush push{
-            static_cast<float>(swapchainExtent_.width),
-            static_cast<float>(swapchainExtent_.height),
-            translation.x,
-            translation.y
-        };
-
-        vkCmdBindPipeline(rmlCommandBuffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, uiPipeline_);
-        vkCmdSetViewport(rmlCommandBuffer_, 0, 1, &viewport);
-        vkCmdSetScissor(rmlCommandBuffer_, 0, 1, &scissor);
-        vkCmdBindVertexBuffers(rmlCommandBuffer_, 0, 1, &uiVertexBuffer_, &vertexBufferOffset);
-        vkCmdBindIndexBuffer(rmlCommandBuffer_, uiIndexBuffer_, indexBufferOffset, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(rmlCommandBuffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, uiPipelineLayout_, 0, 1, &texture->descriptorSet, 0, nullptr);
-        vkCmdPushConstants(rmlCommandBuffer_, uiPipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UiPush), &push);
-        vkCmdDrawIndexed(rmlCommandBuffer_, static_cast<uint32_t>(geometry->indices.size()), 1, 0, 0, 0);
-
-        rmlUiVertexOffset_ += geometry->vertices.size();
-        rmlUiIndexOffset_ += geometry->indices.size();
-    }
-
-    void Renderer::ReleaseGeometry(Rml::CompiledGeometryHandle geometry)
-    {
-        delete reinterpret_cast<UiGeometry*>(geometry);
-    }
-
-    Rml::TextureHandle Renderer::LoadTexture(Rml::Vector2i& textureDimensions, const Rml::String& source)
-    {
-        std::filesystem::path texturePath(source);
-        if (texturePath.is_relative())
-        {
-            texturePath = (assetDirectory() / "ui" / texturePath).lexically_normal();
-        }
-        if (!std::filesystem::exists(texturePath))
-        {
-            std::string normalized = texturePath.generic_string();
-            const std::string marker = "/textures/";
-            const size_t markerPosition = normalized.find(marker);
-            if (markerPosition != std::string::npos)
-            {
-                const std::string textureTail = normalized.substr(markerPosition + marker.size());
-                const std::filesystem::path remappedPath = assetDirectory() / "textures" / std::filesystem::path(textureTail);
-                if (std::filesystem::exists(remappedPath))
-                {
-                    texturePath = remappedPath;
-                }
-            }
-        }
-
-        int width = 0;
-        int height = 0;
-        int channels = 0;
-        stbi_uc* pixels = stbi_load(texturePath.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
-        if (pixels == nullptr)
-        {
-            log::warn("RmlUi texture load failed: " + texturePath.string());
-            return 0;
-        }
-
-        const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
-        std::vector<unsigned char> premultiplied(pixelCount * 4u);
-        for (size_t i = 0; i < pixelCount; ++i)
-        {
-            const unsigned char alpha = pixels[i * 4u + 3u];
-            premultiplied[i * 4u + 0u] = static_cast<unsigned char>((static_cast<uint32_t>(pixels[i * 4u + 0u]) * alpha) / 255u);
-            premultiplied[i * 4u + 1u] = static_cast<unsigned char>((static_cast<uint32_t>(pixels[i * 4u + 1u]) * alpha) / 255u);
-            premultiplied[i * 4u + 2u] = static_cast<unsigned char>((static_cast<uint32_t>(pixels[i * 4u + 2u]) * alpha) / 255u);
-            premultiplied[i * 4u + 3u] = alpha;
-        }
-        stbi_image_free(pixels);
-
-        Texture texture = createTextureFromRgba(premultiplied.data(), width, height, VK_FORMAT_R8G8B8A8_SRGB);
-        textureDimensions = Rml::Vector2i(width, height);
-        return reinterpret_cast<Rml::TextureHandle>(new Texture(texture));
-    }
-
-    Rml::TextureHandle Renderer::GenerateTexture(Rml::Span<const Rml::byte> source, Rml::Vector2i sourceDimensions)
-    {
-        Texture texture = createTextureFromRgba(
-            reinterpret_cast<const unsigned char*>(source.data()),
-            sourceDimensions.x,
-            sourceDimensions.y,
-            VK_FORMAT_R8G8B8A8_UNORM);
-        return reinterpret_cast<Rml::TextureHandle>(new Texture(texture));
-    }
-
-    void Renderer::ReleaseTexture(Rml::TextureHandle textureHandle)
-    {
-        if (textureHandle == 0)
-        {
-            return;
-        }
-
-        auto* texture = reinterpret_cast<Texture*>(textureHandle);
-        destroyTexture(*texture);
-        delete texture;
-    }
-
-    void Renderer::EnableScissorRegion(bool enable)
-    {
-        rmlScissorEnabled_ = enable;
-    }
-
-    void Renderer::SetScissorRegion(Rml::Rectanglei region)
-    {
-        const int left = std::max(region.Left(), 0);
-        const int top = std::max(region.Top(), 0);
-        const int right = std::min(region.Right(), static_cast<int>(swapchainExtent_.width));
-        const int bottom = std::min(region.Bottom(), static_cast<int>(swapchainExtent_.height));
-
-        rmlScissor_.offset = {left, top};
-        rmlScissor_.extent = {
-            static_cast<uint32_t>(std::max(right - left, 0)),
-            static_cast<uint32_t>(std::max(bottom - top, 0))
-        };
-    }
-
     uint32_t Renderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const
     {
         VkPhysicalDeviceMemoryProperties memoryProperties{};
@@ -8381,111 +7430,17 @@ namespace dolbuto
 
     bool Renderer::raycastBlock(DVec3 origin, Vec3 direction, BlockRaycastHit& hit) const
     {
-        constexpr double MaxInteractionDistance = 8.0;
-        constexpr double Epsilon = 0.000001;
-
-        Vec3 normalizedDirection = normalize(direction);
-        if (normalizedDirection.x == 0.0f && normalizedDirection.y == 0.0f && normalizedDirection.z == 0.0f)
-        {
-            return false;
-        }
-
-        int blockX = blockCoordinateXz(origin.x);
-        int blockY = blockCoordinateY(origin.y);
-        int blockZ = blockCoordinateXz(origin.z);
-        int previousBlockX = blockX;
-        int previousBlockY = blockY;
-        int previousBlockZ = blockZ;
-
-        auto axisTMax = [](double originValue, double directionValue, int block, bool vertical) -> double
-        {
-            if (std::abs(directionValue) <= 0.0)
-            {
-                return std::numeric_limits<double>::infinity();
-            }
-
-            const double boundary = vertical
-                ? (directionValue > 0.0 ? static_cast<double>(block + 1) : static_cast<double>(block))
-                : (directionValue > 0.0 ? static_cast<double>(block) + 0.5 : static_cast<double>(block) - 0.5);
-            return (boundary - originValue) / directionValue;
-        };
-
-        const int stepX = normalizedDirection.x > 0.0f ? 1 : (normalizedDirection.x < 0.0f ? -1 : 0);
-        const int stepY = normalizedDirection.y > 0.0f ? 1 : (normalizedDirection.y < 0.0f ? -1 : 0);
-        const int stepZ = normalizedDirection.z > 0.0f ? 1 : (normalizedDirection.z < 0.0f ? -1 : 0);
-        double tMaxX = axisTMax(origin.x, normalizedDirection.x, blockX, false);
-        double tMaxY = axisTMax(origin.y, normalizedDirection.y, blockY, true);
-        double tMaxZ = axisTMax(origin.z, normalizedDirection.z, blockZ, false);
-        const double tDeltaX = stepX == 0 ? std::numeric_limits<double>::infinity() : 1.0 / std::abs(static_cast<double>(normalizedDirection.x));
-        const double tDeltaY = stepY == 0 ? std::numeric_limits<double>::infinity() : 1.0 / std::abs(static_cast<double>(normalizedDirection.y));
-        const double tDeltaZ = stepZ == 0 ? std::numeric_limits<double>::infinity() : 1.0 / std::abs(static_cast<double>(normalizedDirection.z));
-
-        double traveled = 0.0;
-        while (traveled <= MaxInteractionDistance + Epsilon)
-        {
-            const uint16_t block = blockAtWorld(blockX, blockY, blockZ);
-            if (block != BlockAir && blockDefinition(block).renderType != BlockRenderType::None)
-            {
-                hit.blockX = blockX;
-                hit.blockY = blockY;
-                hit.blockZ = blockZ;
-                hit.previousBlockX = previousBlockX;
-                hit.previousBlockY = previousBlockY;
-                hit.previousBlockZ = previousBlockZ;
-                return true;
-            }
-
-            previousBlockX = blockX;
-            previousBlockY = blockY;
-            previousBlockZ = blockZ;
-            if (tMaxX <= tMaxY && tMaxX <= tMaxZ)
-            {
-                blockX += stepX;
-                traveled = tMaxX;
-                tMaxX += tDeltaX;
-            }
-            else if (tMaxY <= tMaxZ)
-            {
-                blockY += stepY;
-                traveled = tMaxY;
-                tMaxY += tDeltaY;
-            }
-            else
-            {
-                blockZ += stepZ;
-                traveled = tMaxZ;
-                tMaxZ += tDeltaZ;
-            }
-        }
-
-        return false;
+        return gameplay::BlockInteractionSystem::raycastBlock(
+            origin,
+            direction,
+            [this](int x, int y, int z) { return blockAtWorld(x, y, z); },
+            [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); },
+            hit);
     }
 
     uint16_t Renderer::blockAtWorld(int x, int y, int z) const
     {
-        if (y < 0 || y >= ChunkSizeY)
-        {
-            return BlockAir;
-        }
-
-        const int chunkX = floorDiv(x, ChunkSizeX);
-        const int chunkZ = floorDiv(z, ChunkSizeZ);
-        const auto chunkIt = runtimeChunks_.find(chunkKey(chunkX, chunkZ));
-        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data ||
-            (chunkIt->second.genState != ChunkGenState::Full && chunkIt->second.genState != ChunkGenState::Meshed))
-        {
-            return BlockAir;
-        }
-
-        const int localX = positiveModulo(x, ChunkSizeX);
-        const int localZ = positiveModulo(z, ChunkSizeZ);
-        const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-        if (index >= chunkIt->second.data->blocks.size())
-        {
-            return BlockAir;
-        }
-
-        return chunkIt->second.data->blocks[index];
+        return worldRuntime_.blockAtWorld(x, y, z);
     }
 
     bool Renderer::breakBlockAtHit(const BlockRaycastHit& hit)
@@ -8511,38 +7466,16 @@ namespace dolbuto
 
     void Renderer::resetBlockBreaking()
     {
-        blockBreaking_ = {};
+        gameplay::BlockInteractionSystem::resetBreaking(blockBreaking_);
     }
 
     bool Renderer::terrainCellBlocksPlayer(int x, int y, int z) const
     {
-        if (y < 0)
-        {
-            return true;
-        }
-        if (y >= ChunkSizeY)
-        {
-            return false;
-        }
-
-        const int chunkX = floorDiv(x, ChunkSizeX);
-        const int chunkZ = floorDiv(z, ChunkSizeZ);
-        const auto chunkIt = runtimeChunks_.find(chunkKey(chunkX, chunkZ));
-        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data ||
-            (chunkIt->second.genState != ChunkGenState::Full && chunkIt->second.genState != ChunkGenState::Meshed))
-        {
-            return true;
-        }
-
-        const int localX = positiveModulo(x, ChunkSizeX);
-        const int localZ = positiveModulo(z, ChunkSizeZ);
-        const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
-        if (index >= chunkIt->second.data->blocks.size())
-        {
-            return true;
-        }
-
-        return blockDefinition(chunkIt->second.data->blocks[index]).collision;
+        return worldRuntime_.terrainCellBlocksPlayer(
+            x,
+            y,
+            z,
+            [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); });
     }
 
     uint32_t Renderer::blockFaceTextureLayer(uint16_t block, int face) const
@@ -8921,1091 +7854,6 @@ namespace dolbuto
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &particleVertexBuffer_, &vertexOffset);
         vkCmdBindIndexBuffer(commandBuffer, particleIndexBuffer_, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
-    }
-
-    uint64_t Renderer::allocateWorldEntityId()
-    {
-        if (nextWorldEntityId_ == 0)
-        {
-            nextWorldEntityId_ = 1;
-        }
-        return nextWorldEntityId_++;
-    }
-
-    uint64_t Renderer::entityChunkKey(const WorldEntity& entity) const
-    {
-        const int chunkX = floorDiv(blockCoordinateXz(entity.position.x), ChunkSizeX);
-        const int chunkZ = floorDiv(blockCoordinateXz(entity.position.z), ChunkSizeZ);
-        return chunkKey(chunkX, chunkZ);
-    }
-
-    RuntimeChunk* Renderer::runtimeChunkForEntity(const WorldEntity& entity)
-    {
-        const uint64_t key = entityChunkKey(entity);
-        auto chunkIt = runtimeChunks_.find(key);
-        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data)
-        {
-            return nullptr;
-        }
-        return &chunkIt->second;
-    }
-
-    const RuntimeChunk* Renderer::runtimeChunkForEntity(const WorldEntity& entity) const
-    {
-        const uint64_t key = entityChunkKey(entity);
-        auto chunkIt = runtimeChunks_.find(key);
-        if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data)
-        {
-            return nullptr;
-        }
-        return &chunkIt->second;
-    }
-
-    bool Renderer::addWorldEntity(WorldEntity entity)
-    {
-        if (entity.entityId == 0)
-        {
-            entity.entityId = allocateWorldEntityId();
-        }
-
-        if (entity.type == WorldEntityType::DroppedItem)
-        {
-            mergeDroppedItemIntoNearby(entity);
-            if (entity.droppedItem.stack.count == 0)
-            {
-                return true;
-            }
-        }
-
-        RuntimeChunk* chunk = runtimeChunkForEntity(entity);
-        if (chunk == nullptr || !chunk->data)
-        {
-            return false;
-        }
-
-        if (chunk->data->entities.size() >= MaxDroppedItems)
-        {
-            chunk->data->entities.erase(chunk->data->entities.begin());
-        }
-        chunk->data->entities.push_back(std::move(entity));
-        refreshDroppedItemChunkTracking(entityChunkKey(chunk->data->entities.back()));
-        markRuntimeChunkDataDirty(*chunk);
-        return true;
-    }
-
-    size_t Renderer::countDroppedItemsInChunk(const RuntimeChunk& chunk) const
-    {
-        size_t count = 0;
-        if (!chunk.data)
-        {
-            return count;
-        }
-
-        for (const WorldEntity& entity : chunk.data->entities)
-        {
-            if (entity.type == WorldEntityType::DroppedItem &&
-                entity.droppedItem.stack.itemId != 0 &&
-                entity.droppedItem.stack.count != 0)
-            {
-                ++count;
-            }
-        }
-        return count;
-    }
-
-    void Renderer::refreshDroppedItemChunkTracking(uint64_t key)
-    {
-        const auto oldIt = droppedItemCountsByChunk_.find(key);
-        const size_t oldCount = oldIt != droppedItemCountsByChunk_.end() ? oldIt->second : 0u;
-
-        size_t newCount = 0;
-        const auto chunkIt = runtimeChunks_.find(key);
-        if (chunkIt != runtimeChunks_.end())
-        {
-            newCount = countDroppedItemsInChunk(chunkIt->second);
-        }
-
-        if (newCount > 0)
-        {
-            droppedItemCountsByChunk_[key] = newCount;
-        }
-        else if (oldIt != droppedItemCountsByChunk_.end())
-        {
-            droppedItemCountsByChunk_.erase(oldIt);
-        }
-
-        loadedDroppedItemCount_ = loadedDroppedItemCount_ - oldCount + newCount;
-    }
-
-    void Renderer::removeDroppedItemChunkTracking(uint64_t key)
-    {
-        const auto oldIt = droppedItemCountsByChunk_.find(key);
-        if (oldIt == droppedItemCountsByChunk_.end())
-        {
-            return;
-        }
-
-        loadedDroppedItemCount_ -= oldIt->second;
-        droppedItemCountsByChunk_.erase(oldIt);
-    }
-
-    void Renderer::resetDroppedItemTracking()
-    {
-        droppedItemCountsByChunk_.clear();
-        loadedDroppedItemCount_ = 0;
-    }
-
-    uint16_t Renderer::mergeDroppedItemIntoNearby(WorldEntity& source)
-    {
-        ItemStack& sourceStack = source.droppedItem.stack;
-        if (source.type != WorldEntityType::DroppedItem ||
-            source.collecting ||
-            sourceStack.itemId == 0 ||
-            sourceStack.count == 0 ||
-            static_cast<size_t>(sourceStack.itemId) >= itemDefinitions_.size())
-        {
-            return sourceStack.count;
-        }
-
-        const uint16_t maxStack = itemDefinitions_[sourceStack.itemId].stackSize;
-        if (maxStack == 0)
-        {
-            return sourceStack.count;
-        }
-
-        const int sourceChunkX = floorDiv(blockCoordinateXz(source.position.x), ChunkSizeX);
-        const int sourceChunkZ = floorDiv(blockCoordinateXz(source.position.z), ChunkSizeZ);
-        for (int dz = -1; dz <= 1 && sourceStack.count > 0; ++dz)
-        {
-            for (int dx = -1; dx <= 1 && sourceStack.count > 0; ++dx)
-            {
-                const uint64_t key = chunkKey(sourceChunkX + dx, sourceChunkZ + dz);
-                auto chunkIt = runtimeChunks_.find(key);
-                if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data)
-                {
-                    continue;
-                }
-
-                RuntimeChunk& chunk = chunkIt->second;
-                for (WorldEntity& target : chunk.data->entities)
-                {
-                    if (sourceStack.count == 0)
-                    {
-                        break;
-                    }
-                    if (target.entityId == source.entityId ||
-                        target.type != WorldEntityType::DroppedItem ||
-                        target.collecting ||
-                        target.droppedItem.stack.itemId != sourceStack.itemId ||
-                        target.droppedItem.stack.count == 0 ||
-                        target.droppedItem.stack.count >= maxStack)
-                    {
-                        continue;
-                    }
-
-                    const float dxItem = std::abs(target.position.x - source.position.x);
-                    const float dyItem = std::abs(target.position.y - source.position.y);
-                    const float dzItem = std::abs(target.position.z - source.position.z);
-                    if (dxItem > DroppedItemMergeAxisDistance ||
-                        dyItem > DroppedItemMergeAxisDistance ||
-                        dzItem > DroppedItemMergeAxisDistance)
-                    {
-                        continue;
-                    }
-
-                    const uint16_t capacity = static_cast<uint16_t>(maxStack - target.droppedItem.stack.count);
-                    const uint16_t moved = std::min(sourceStack.count, capacity);
-                    if (moved == 0)
-                    {
-                        continue;
-                    }
-
-                    target.droppedItem.stack.count = static_cast<uint16_t>(target.droppedItem.stack.count + moved);
-                    sourceStack.count = static_cast<uint16_t>(sourceStack.count - moved);
-                    target.velocity.y = std::max(target.velocity.y, DroppedItemMergeBounceVelocity);
-                    setWorldEntityGrounded(target, false);
-                    refreshDroppedItemChunkTracking(key);
-                    markRuntimeChunkDataDirty(chunk);
-                }
-            }
-        }
-
-        return sourceStack.count;
-    }
-
-    size_t Renderer::loadedDroppedItemCount() const
-    {
-        return loadedDroppedItemCount_;
-    }
-
-    bool Renderer::worldEntityGrounded(const WorldEntity& entity) const
-    {
-        return (entity.flags & WorldEntityFlagGrounded) != 0;
-    }
-
-    void Renderer::setWorldEntityGrounded(WorldEntity& entity, bool grounded) const
-    {
-        if (grounded)
-        {
-            entity.flags = static_cast<uint8_t>(entity.flags | WorldEntityFlagGrounded);
-        }
-        else
-        {
-            entity.flags = static_cast<uint8_t>(entity.flags & ~WorldEntityFlagGrounded);
-        }
-    }
-
-    void Renderer::spawnBlockDrops(int x, int y, int z, uint16_t block)
-    {
-        const BlockDefinition& definition = blockDefinition(block);
-        if (definition.drops.empty())
-        {
-            return;
-        }
-
-        auto unitRandom = [](uint32_t hash)
-        {
-            return static_cast<float>(hash) / static_cast<float>(std::numeric_limits<uint32_t>::max());
-        };
-        static thread_local std::mt19937 runtimeDropRandom{std::random_device{}()};
-        auto randomRange = [&](float minValue, float maxValue)
-        {
-            std::uniform_real_distribution<float> distribution(minValue, maxValue);
-            return distribution(runtimeDropRandom);
-        };
-
-        for (size_t dropIndex = 0; dropIndex < definition.drops.size(); ++dropIndex)
-        {
-            const BlockDrop& drop = definition.drops[dropIndex];
-            const uint32_t hash = worldRandomHash(x, y, z, BlockDropSalt + static_cast<uint32_t>(dropIndex) * 0x9E3779B9u);
-            if (unitRandom(hash) > drop.chance)
-            {
-                continue;
-            }
-
-            const uint16_t range = static_cast<uint16_t>(drop.max - drop.min + 1u);
-            const uint16_t count = static_cast<uint16_t>(drop.min + (range > 0 ? hash % range : 0u));
-            if (drop.itemId == 0 || count == 0 || static_cast<size_t>(drop.itemId) >= itemDefinitions_.size())
-            {
-                continue;
-            }
-
-            WorldEntity item{};
-            item.entityId = allocateWorldEntityId();
-            item.type = WorldEntityType::DroppedItem;
-            item.position = {
-                static_cast<float>(x) + randomRange(-0.18f, 0.18f),
-                static_cast<float>(y) + 0.5f + randomRange(-0.08f, 0.12f),
-                static_cast<float>(z) + randomRange(-0.18f, 0.18f)
-            };
-            item.previousPosition = item.position;
-            item.velocity = {
-                randomRange(-1.5f, 1.5f),
-                randomRange(2.0f, 3.5f),
-                randomRange(-1.5f, 1.5f)
-            };
-            item.droppedItem.stack.itemId = drop.itemId;
-            item.droppedItem.stack.count = count;
-            item.renderRotationX = randomRange(0.0f, 6.2831853f);
-            item.renderRotation = randomRange(0.0f, 6.2831853f);
-            item.renderRotationZ = randomRange(0.0f, 6.2831853f);
-            item.renderSpinX = randomRange(-8.0f, 8.0f);
-            item.renderSpin = randomRange(-8.0f, 8.0f);
-            item.renderSpinZ = randomRange(-8.0f, 8.0f);
-            if (std::abs(item.renderSpinX) < 2.0f)
-            {
-                item.renderSpinX = item.renderSpinX < 0.0f ? -2.0f : 2.0f;
-            }
-            if (std::abs(item.renderSpin) < 2.0f)
-            {
-                item.renderSpin = item.renderSpin < 0.0f ? -2.0f : 2.0f;
-            }
-            if (std::abs(item.renderSpinZ) < 2.0f)
-            {
-                item.renderSpinZ = item.renderSpinZ < 0.0f ? -2.0f : 2.0f;
-            }
-            addWorldEntity(std::move(item));
-        }
-    }
-
-    bool Renderer::raycastDroppedItem(DVec3 origin, Vec3 direction, WorldEntityHandle& itemHandle) const
-    {
-        constexpr double MaxInteractionDistance = 8.0;
-        constexpr double Epsilon = 0.000001;
-
-        const Vec3 normalizedDirection = normalize(direction);
-        if (normalizedDirection.x == 0.0f && normalizedDirection.y == 0.0f && normalizedDirection.z == 0.0f)
-        {
-            return false;
-        }
-
-        auto rayIntersectsAabb = [&](const WorldEntity& item, double& hitDistance)
-        {
-            const double halfWidth = static_cast<double>(DroppedItemSize) * 0.5;
-            const double minX = static_cast<double>(item.position.x) - halfWidth;
-            const double maxX = static_cast<double>(item.position.x) + halfWidth;
-            const double minY = static_cast<double>(item.position.y);
-            const double maxY = static_cast<double>(item.position.y) + static_cast<double>(DroppedItemThickness);
-            const double minZ = static_cast<double>(item.position.z) - halfWidth;
-            const double maxZ = static_cast<double>(item.position.z) + halfWidth;
-
-            double tMin = 0.0;
-            double tMax = MaxInteractionDistance;
-            auto testAxis = [&](double axisOrigin, double axisDirection, double axisMin, double axisMax)
-            {
-                if (std::abs(axisDirection) < Epsilon)
-                {
-                    return axisOrigin >= axisMin && axisOrigin <= axisMax;
-                }
-
-                double t0 = (axisMin - axisOrigin) / axisDirection;
-                double t1 = (axisMax - axisOrigin) / axisDirection;
-                if (t0 > t1)
-                {
-                    std::swap(t0, t1);
-                }
-                tMin = std::max(tMin, t0);
-                tMax = std::min(tMax, t1);
-                return tMin <= tMax;
-            };
-
-            if (!testAxis(origin.x, normalizedDirection.x, minX, maxX) ||
-                !testAxis(origin.y, normalizedDirection.y, minY, maxY) ||
-                !testAxis(origin.z, normalizedDirection.z, minZ, maxZ))
-            {
-                return false;
-            }
-
-            hitDistance = tMin;
-            return hitDistance >= 0.0 && hitDistance <= MaxInteractionDistance;
-        };
-
-        bool found = false;
-        double bestDistance = MaxInteractionDistance;
-        for (const auto& entry : runtimeChunks_)
-        {
-            const RuntimeChunk& chunk = entry.second;
-            if (!chunk.data)
-            {
-                continue;
-            }
-            for (size_t i = 0; i < chunk.data->entities.size(); ++i)
-            {
-                const WorldEntity& item = chunk.data->entities[i];
-                if (item.type != WorldEntityType::DroppedItem ||
-                    item.droppedItem.stack.itemId == 0 ||
-                    item.droppedItem.stack.count == 0 ||
-                    item.collecting)
-                {
-                    continue;
-                }
-
-                double hitDistance = 0.0;
-                if (rayIntersectsAabb(item, hitDistance) && hitDistance <= bestDistance)
-                {
-                    bestDistance = hitDistance;
-                    itemHandle.chunkKey = entry.first;
-                    itemHandle.index = i;
-                    found = true;
-                }
-            }
-        }
-
-        return found;
-    }
-
-    bool Renderer::droppedItemTouchesPlayerCollider(const WorldEntity& item, Vec3 playerPosition) const
-    {
-        constexpr float PlayerHalfWidth = 0.3f;
-        constexpr float PlayerHeight = 1.75f;
-        const float itemHalfWidth = DroppedItemSize * 0.5f;
-
-        return item.position.x + itemHalfWidth >= playerPosition.x - PlayerHalfWidth &&
-            item.position.x - itemHalfWidth <= playerPosition.x + PlayerHalfWidth &&
-            item.position.y + DroppedItemThickness >= playerPosition.y &&
-            item.position.y <= playerPosition.y + PlayerHeight &&
-            item.position.z + itemHalfWidth >= playerPosition.z - PlayerHalfWidth &&
-            item.position.z - itemHalfWidth <= playerPosition.z + PlayerHalfWidth;
-    }
-
-    void Renderer::updateDroppedItems(Vec3 playerPosition)
-    {
-        const double now = glfwGetTime();
-        if (lastDroppedItemUpdateTime_ <= 0.0)
-        {
-            lastDroppedItemUpdateTime_ = now;
-            droppedItemRenderAlpha_ = 0.0f;
-            return;
-        }
-
-        const float frameDt = static_cast<float>(std::clamp(now - lastDroppedItemUpdateTime_, 0.0, static_cast<double>(DroppedItemMaxFrameSeconds)));
-        lastDroppedItemUpdateTime_ = now;
-        if (frameDt <= 0.0f)
-        {
-            droppedItemRenderAlpha_ = 0.0f;
-            return;
-        }
-        if (loadedDroppedItemCount() == 0)
-        {
-            droppedItemTickAccumulator_ = 0.0f;
-            droppedItemRenderAlpha_ = 0.0f;
-            return;
-        }
-
-        for (auto& entry : runtimeChunks_)
-        {
-            RuntimeChunk& chunk = entry.second;
-            if (!chunk.data)
-            {
-                continue;
-            }
-            for (WorldEntity& item : chunk.data->entities)
-            {
-                if (item.type != WorldEntityType::DroppedItem)
-                {
-                    continue;
-                }
-                if (!worldEntityGrounded(item) || item.collecting)
-                {
-                    item.renderRotationX += item.renderSpinX * frameDt;
-                    item.renderRotation += item.renderSpin * frameDt;
-                    item.renderRotationZ += item.renderSpinZ * frameDt;
-                }
-                else
-                {
-                    item.renderRotationX = 0.0f;
-                    item.renderRotationZ = 0.0f;
-                }
-            }
-        }
-
-        droppedItemTickAccumulator_ += frameDt;
-        while (droppedItemTickAccumulator_ >= DroppedItemTickSeconds)
-        {
-            updateDroppedItemsTick(playerPosition, DroppedItemTickSeconds);
-            droppedItemTickAccumulator_ -= DroppedItemTickSeconds;
-        }
-        droppedItemRenderAlpha_ = std::clamp(droppedItemTickAccumulator_ / DroppedItemTickSeconds, 0.0f, 1.0f);
-    }
-
-    void Renderer::updateDroppedItemsTick(Vec3 playerPosition, float dt)
-    {
-        if (dt <= 0.0f || loadedDroppedItemCount() == 0)
-        {
-            return;
-        }
-
-        constexpr float GroundProbeEpsilon = 0.01f;
-        constexpr float WallProbeHeight = 0.08f;
-        const float drag = std::pow(DroppedItemDrag, dt * 60.0f);
-
-        auto solidAt = [&](float x, float y, float z)
-        {
-            return terrainCellBlocksPlayer(blockCoordinateXz(x), blockCoordinateY(y), blockCoordinateXz(z));
-        };
-        auto supportedByGround = [&](const WorldEntity& item)
-        {
-            return solidAt(item.position.x, item.position.y - GroundProbeEpsilon, item.position.z);
-        };
-        auto sideBlocked = [&](float x, float y, float z)
-        {
-            return solidAt(x, y + WallProbeHeight, z);
-        };
-
-        struct EntityMove
-        {
-            uint64_t targetKey = 0;
-            WorldEntity entity;
-        };
-        std::vector<EntityMove> moves;
-
-        for (auto& entry : runtimeChunks_)
-        {
-            RuntimeChunk& chunk = entry.second;
-            if (!chunk.data)
-            {
-                continue;
-            }
-
-            for (size_t i = 0; i < chunk.data->entities.size();)
-            {
-            WorldEntity& item = chunk.data->entities[i];
-            if (item.type != WorldEntityType::DroppedItem)
-            {
-                ++i;
-                continue;
-            }
-            const uint64_t originalOwnerKey = entry.first;
-            item.previousPosition = item.position;
-            item.age += dt;
-            if (item.collecting)
-            {
-                item.collectAge += dt;
-                const Vec3 target{
-                    playerPosition.x,
-                    playerPosition.y + 0.875f,
-                    playerPosition.z
-                };
-                const Vec3 toTarget{
-                    target.x - item.position.x,
-                    target.y - item.position.y,
-                    target.z - item.position.z
-                };
-                const float distance = std::sqrt(toTarget.x * toTarget.x + toTarget.y * toTarget.y + toTarget.z * toTarget.z);
-                const float speed = std::min(
-                    DroppedItemPickupMaxSpeed,
-                    DroppedItemPickupBaseSpeed + item.collectAge * DroppedItemPickupAcceleration);
-                const float travel = speed * dt;
-                if (distance <= travel || droppedItemTouchesPlayerCollider(item, playerPosition))
-                {
-                    const uint16_t countBeforePickup = item.droppedItem.stack.count;
-                    const uint16_t remaining = addItemToPlayerInventory(item.droppedItem.stack);
-                    if (remaining < countBeforePickup)
-                    {
-                        playItemPickupSound();
-                    }
-                    if (remaining == 0)
-                    {
-                        chunk.data->entities.erase(chunk.data->entities.begin() + static_cast<std::ptrdiff_t>(i));
-                        refreshDroppedItemChunkTracking(entry.first);
-                        markRuntimeChunkDataDirty(chunk);
-                        continue;
-                    }
-
-                    item.droppedItem.stack.count = remaining;
-                    item.collecting = false;
-                    item.collectAge = 0.0f;
-                    item.velocity = {};
-                    item.renderSpinX = 5.0f;
-                    item.renderSpin = 5.0f;
-                    item.renderSpinZ = 5.0f;
-                }
-                else
-                {
-                    const float scale = travel / std::max(distance, 0.0001f);
-                    item.position.x += toTarget.x * scale;
-                    item.position.y += toTarget.y * scale;
-                    item.position.z += toTarget.z * scale;
-                    item.velocity = {};
-                }
-                markRuntimeChunkDataDirty(chunk);
-            }
-            else
-            {
-                if (worldEntityGrounded(item))
-                {
-                    if (supportedByGround(item))
-                    {
-                        item.velocity = {};
-                        item.renderSpinX = 0.0f;
-                        item.renderSpin = 0.0f;
-                        item.renderSpinZ = 0.0f;
-                    }
-                    else
-                    {
-                        setWorldEntityGrounded(item, false);
-                        item.velocity.y = std::min(item.velocity.y, 0.0f);
-                        if (item.renderSpinX == 0.0f)
-                        {
-                            item.renderSpinX = 5.0f;
-                        }
-                        if (item.renderSpin == 0.0f)
-                        {
-                            item.renderSpin = 5.0f;
-                        }
-                        if (item.renderSpinZ == 0.0f)
-                        {
-                            item.renderSpinZ = 5.0f;
-                        }
-                        markRuntimeChunkDataDirty(chunk);
-                    }
-                }
-
-                if (!worldEntityGrounded(item))
-                {
-                    item.velocity.x *= drag;
-                    item.velocity.z *= drag;
-                    item.velocity.y -= DroppedItemGravity * dt;
-
-                    if (item.velocity.x != 0.0f)
-                    {
-                        const float nextX = item.position.x + item.velocity.x * dt;
-                        const float probeX = nextX + (item.velocity.x > 0.0f ? DroppedItemCollisionRadius : -DroppedItemCollisionRadius);
-                        if (sideBlocked(probeX, item.position.y, item.position.z))
-                        {
-                            item.velocity.x = -item.velocity.x * DroppedItemWallBounce;
-                            item.velocity.z *= DroppedItemWallFriction;
-                        }
-                        else
-                        {
-                            item.position.x = nextX;
-                        }
-                    }
-
-                    if (item.velocity.z != 0.0f)
-                    {
-                        const float nextZ = item.position.z + item.velocity.z * dt;
-                        const float probeZ = nextZ + (item.velocity.z > 0.0f ? DroppedItemCollisionRadius : -DroppedItemCollisionRadius);
-                        if (sideBlocked(item.position.x, item.position.y, probeZ))
-                        {
-                            item.velocity.z = -item.velocity.z * DroppedItemWallBounce;
-                            item.velocity.x *= DroppedItemWallFriction;
-                        }
-                        else
-                        {
-                            item.position.z = nextZ;
-                        }
-                    }
-
-                    const float currentY = item.position.y;
-                    const float nextY = currentY + item.velocity.y * dt;
-                    bool landed = false;
-                    if (item.velocity.y < 0.0f)
-                    {
-                        const int startY = blockCoordinateY(currentY - GroundProbeEpsilon);
-                        const int endY = blockCoordinateY(nextY - GroundProbeEpsilon);
-                        for (int groundY = startY; groundY >= endY; --groundY)
-                        {
-                            if (!terrainCellBlocksPlayer(blockCoordinateXz(item.position.x), groundY, blockCoordinateXz(item.position.z)))
-                            {
-                                continue;
-                            }
-
-                            item.position.y = static_cast<float>(groundY + 1);
-                            item.velocity = {};
-                            item.renderRotationX = 0.0f;
-                            item.renderRotation = std::fmod(item.renderRotation, 6.2831853f);
-                            if (item.renderRotation < 0.0f)
-                            {
-                                item.renderRotation += 6.2831853f;
-                            }
-                            item.renderRotationZ = 0.0f;
-                            item.renderSpinX = 0.0f;
-                            item.renderSpin = 0.0f;
-                            item.renderSpinZ = 0.0f;
-                            setWorldEntityGrounded(item, true);
-                            landed = true;
-                            break;
-                        }
-                    }
-
-                    if (!landed)
-                    {
-                        item.position.y = nextY;
-                    }
-                    markRuntimeChunkDataDirty(chunk);
-                }
-            }
-
-            const float moveX = item.position.x - item.previousPosition.x;
-            const float moveY = item.position.y - item.previousPosition.y;
-            const float moveZ = item.position.z - item.previousPosition.z;
-            const bool movedThisTick = moveX * moveX + moveY * moveY + moveZ * moveZ > 0.000001f;
-            if (!item.collecting && movedThisTick)
-            {
-                const uint16_t countBeforeMerge = item.droppedItem.stack.count;
-                mergeDroppedItemIntoNearby(item);
-                if (item.droppedItem.stack.count != countBeforeMerge)
-                {
-                    markRuntimeChunkDataDirty(chunk);
-                }
-                if (item.droppedItem.stack.count == 0)
-                {
-                    chunk.data->entities.erase(chunk.data->entities.begin() + static_cast<std::ptrdiff_t>(i));
-                    refreshDroppedItemChunkTracking(entry.first);
-                    markRuntimeChunkDataDirty(chunk);
-                    continue;
-                }
-            }
-
-            const uint64_t targetOwnerKey = entityChunkKey(item);
-            if (targetOwnerKey != originalOwnerKey)
-            {
-                auto targetIt = runtimeChunks_.find(targetOwnerKey);
-                if (targetIt != runtimeChunks_.end() && targetIt->second.data)
-                {
-                    moves.push_back(EntityMove{targetOwnerKey, item});
-                    chunk.data->entities.erase(chunk.data->entities.begin() + static_cast<std::ptrdiff_t>(i));
-                    refreshDroppedItemChunkTracking(entry.first);
-                    markRuntimeChunkDataDirty(chunk);
-                    continue;
-                }
-            }
-            ++i;
-            }
-        }
-
-        for (EntityMove& move : moves)
-        {
-            auto targetIt = runtimeChunks_.find(move.targetKey);
-            if (targetIt == runtimeChunks_.end() || !targetIt->second.data)
-            {
-                continue;
-            }
-            targetIt->second.data->entities.push_back(std::move(move.entity));
-            refreshDroppedItemChunkTracking(move.targetKey);
-            markRuntimeChunkDataDirty(targetIt->second);
-        }
-    }
-
-    Renderer::ItemSpriteMesh Renderer::buildItemSpriteMesh(const std::filesystem::path& path) const
-    {
-        int width = 0;
-        int height = 0;
-        int channels = 0;
-        stbi_uc* loadedPixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
-        if (loadedPixels == nullptr)
-        {
-            throw std::runtime_error("Failed to load item sprite mesh texture: " + path.string());
-        }
-
-        ItemSpriteMesh mesh{};
-        auto alphaAt = [&](int x, int y)
-        {
-            if (x < 0 || x >= width || y < 0 || y >= height)
-            {
-                return 0u;
-            }
-            const size_t index = (static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)) * 4u + 3u;
-            return static_cast<unsigned int>(loadedPixels[index]);
-        };
-        auto opaqueAt = [&](int x, int y)
-        {
-            return alphaAt(x, y) >= 128u;
-        };
-        auto addQuad = [&](std::array<Vec3, 4> positions, std::array<std::array<float, 2>, 4> uvs, float ao)
-        {
-            ItemSpriteQuad quad{};
-            quad.positions = positions;
-            quad.uvs = uvs;
-            quad.ao = ao;
-            mesh.quads.push_back(quad);
-        };
-
-        addQuad(
-            std::array<Vec3, 4>{Vec3{-0.5f, 0.5f, -0.5f}, Vec3{-0.5f, 0.5f, 0.5f}, Vec3{0.5f, 0.5f, 0.5f}, Vec3{0.5f, 0.5f, -0.5f}},
-            std::array<std::array<float, 2>, 4>{{{0.0f, 1.0f}, {0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}}},
-            1.0f);
-        addQuad(
-            std::array<Vec3, 4>{Vec3{0.5f, -0.5f, -0.5f}, Vec3{0.5f, -0.5f, 0.5f}, Vec3{-0.5f, -0.5f, 0.5f}, Vec3{-0.5f, -0.5f, -0.5f}},
-            std::array<std::array<float, 2>, 4>{{{1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}}},
-            0.82f);
-
-        const float invWidth = width > 0 ? 1.0f / static_cast<float>(width) : 1.0f;
-        const float invHeight = height > 0 ? 1.0f / static_cast<float>(height) : 1.0f;
-        auto addLeftSpan = [&](int x, int y0, int y1)
-        {
-            const float u = (static_cast<float>(x) + 0.5f) * invWidth;
-            const float v0 = static_cast<float>(y0) * invHeight;
-            const float v1 = static_cast<float>(y1) * invHeight;
-            const float localX = static_cast<float>(x) * invWidth - 0.5f;
-            const float localZ0 = 0.5f - v0;
-            const float localZ1 = 0.5f - v1;
-            addQuad(
-                std::array<Vec3, 4>{Vec3{localX, 0.5f, localZ1}, Vec3{localX, -0.5f, localZ1}, Vec3{localX, -0.5f, localZ0}, Vec3{localX, 0.5f, localZ0}},
-                std::array<std::array<float, 2>, 4>{{{u, v1}, {u, v1}, {u, v0}, {u, v0}}},
-                0.72f);
-        };
-        auto addRightSpan = [&](int x, int y0, int y1)
-        {
-            const float u = (static_cast<float>(x) + 0.5f) * invWidth;
-            const float v0 = static_cast<float>(y0) * invHeight;
-            const float v1 = static_cast<float>(y1) * invHeight;
-            const float localX = static_cast<float>(x + 1) * invWidth - 0.5f;
-            const float localZ0 = 0.5f - v0;
-            const float localZ1 = 0.5f - v1;
-            addQuad(
-                std::array<Vec3, 4>{Vec3{localX, 0.5f, localZ0}, Vec3{localX, -0.5f, localZ0}, Vec3{localX, -0.5f, localZ1}, Vec3{localX, 0.5f, localZ1}},
-                std::array<std::array<float, 2>, 4>{{{u, v0}, {u, v0}, {u, v1}, {u, v1}}},
-                0.72f);
-        };
-        auto addTopSpan = [&](int y, int x0, int x1)
-        {
-            const float u0 = static_cast<float>(x0) * invWidth;
-            const float u1 = static_cast<float>(x1) * invWidth;
-            const float v = (static_cast<float>(y) + 0.5f) * invHeight;
-            const float localX0 = u0 - 0.5f;
-            const float localX1 = u1 - 0.5f;
-            const float localZ = 0.5f - static_cast<float>(y) * invHeight;
-            addQuad(
-                std::array<Vec3, 4>{Vec3{localX0, 0.5f, localZ}, Vec3{localX1, 0.5f, localZ}, Vec3{localX1, -0.5f, localZ}, Vec3{localX0, -0.5f, localZ}},
-                std::array<std::array<float, 2>, 4>{{{u0, v}, {u1, v}, {u1, v}, {u0, v}}},
-                0.76f);
-        };
-        auto addBottomSpan = [&](int y, int x0, int x1)
-        {
-            const float u0 = static_cast<float>(x0) * invWidth;
-            const float u1 = static_cast<float>(x1) * invWidth;
-            const float v = (static_cast<float>(y) + 0.5f) * invHeight;
-            const float localX0 = u0 - 0.5f;
-            const float localX1 = u1 - 0.5f;
-            const float localZ = 0.5f - static_cast<float>(y + 1) * invHeight;
-            addQuad(
-                std::array<Vec3, 4>{Vec3{localX1, 0.5f, localZ}, Vec3{localX0, 0.5f, localZ}, Vec3{localX0, -0.5f, localZ}, Vec3{localX1, -0.5f, localZ}},
-                std::array<std::array<float, 2>, 4>{{{u1, v}, {u0, v}, {u0, v}, {u1, v}}},
-                0.70f);
-        };
-
-        for (int x = 0; x < width; ++x)
-        {
-            int leftRunStart = -1;
-            int rightRunStart = -1;
-            for (int y = 0; y <= height; ++y)
-            {
-                const bool leftEdge = y < height && opaqueAt(x, y) && !opaqueAt(x - 1, y);
-                const bool rightEdge = y < height && opaqueAt(x, y) && !opaqueAt(x + 1, y);
-                if (leftEdge && leftRunStart < 0)
-                {
-                    leftRunStart = y;
-                }
-                else if (!leftEdge && leftRunStart >= 0)
-                {
-                    addLeftSpan(x, leftRunStart, y);
-                    leftRunStart = -1;
-                }
-                if (rightEdge && rightRunStart < 0)
-                {
-                    rightRunStart = y;
-                }
-                else if (!rightEdge && rightRunStart >= 0)
-                {
-                    addRightSpan(x, rightRunStart, y);
-                    rightRunStart = -1;
-                }
-            }
-        }
-
-        for (int y = 0; y < height; ++y)
-        {
-            int topRunStart = -1;
-            int bottomRunStart = -1;
-            for (int x = 0; x <= width; ++x)
-            {
-                const bool topEdge = x < width && opaqueAt(x, y) && !opaqueAt(x, y - 1);
-                const bool bottomEdge = x < width && opaqueAt(x, y) && !opaqueAt(x, y + 1);
-                if (topEdge && topRunStart < 0)
-                {
-                    topRunStart = x;
-                }
-                else if (!topEdge && topRunStart >= 0)
-                {
-                    addTopSpan(y, topRunStart, x);
-                    topRunStart = -1;
-                }
-                if (bottomEdge && bottomRunStart < 0)
-                {
-                    bottomRunStart = x;
-                }
-                else if (!bottomEdge && bottomRunStart >= 0)
-                {
-                    addBottomSpan(y, bottomRunStart, x);
-                    bottomRunStart = -1;
-                }
-            }
-        }
-
-        stbi_image_free(loadedPixels);
-        return mesh;
-    }
-
-    void Renderer::drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition)
-    {
-        updateDroppedItems(playerPosition);
-        if (loadedDroppedItemCount() == 0 ||
-            itemPipeline_ == VK_NULL_HANDLE ||
-            droppedItemVertexBuffer_ == VK_NULL_HANDLE ||
-            droppedItemIndexBuffer_ == VK_NULL_HANDLE ||
-            droppedItemInstanceBuffer_ == VK_NULL_HANDLE ||
-            droppedItemInstanceMapped_ == nullptr ||
-            itemTextureArray_.descriptorSet == VK_NULL_HANDLE)
-        {
-            return;
-        }
-
-        const size_t itemCount = std::min(loadedDroppedItemCount(), MaxDroppedItems);
-        std::vector<DroppedItemRenderInstance> renderInstances;
-        renderInstances.reserve(std::min<size_t>(itemCount * 4u, MaxDroppedItemRenderInstances));
-        const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
-        const Frustum frustum = makeFrustum(camera, {}, aspect);
-        auto visualCopyCount = [](uint16_t count) -> size_t
-        {
-            if (count >= 49)
-            {
-                return 4;
-            }
-            if (count >= 17)
-            {
-                return 3;
-            }
-            if (count >= 2)
-            {
-                return 2;
-            }
-            return 1;
-        };
-        const std::array<Vec3, 4> visualOffsets{{
-            {0.0f, 0.0f, 0.0f},
-            {-0.08f, 0.0f, -0.04f},
-            {0.08f, 0.0f, 0.04f},
-            {-0.02f, 0.0f, 0.10f}
-        }};
-
-        size_t renderedItems = 0;
-        for (const auto& trackedChunk : droppedItemCountsByChunk_)
-        {
-            const auto chunkIt = runtimeChunks_.find(trackedChunk.first);
-            if (chunkIt == runtimeChunks_.end() || !chunkIt->second.data)
-            {
-                continue;
-            }
-
-            const RuntimeChunk& chunk = chunkIt->second;
-            const int chunkX = static_cast<int32_t>(static_cast<uint32_t>(trackedChunk.first >> 32u));
-            const int chunkZ = static_cast<int32_t>(static_cast<uint32_t>(trackedChunk.first));
-            const float minX = static_cast<float>(chunkX * ChunkSizeX) - 0.5f - cameraPosition.x;
-            const float maxX = static_cast<float>(chunkX * ChunkSizeX + ChunkSizeX) - 0.5f - cameraPosition.x;
-            const float minY = -cameraPosition.y;
-            const float maxY = static_cast<float>(ChunkSizeY) - cameraPosition.y;
-            const float minZ = static_cast<float>(chunkZ * ChunkSizeZ) - 0.5f - cameraPosition.z;
-            const float maxZ = static_cast<float>(chunkZ * ChunkSizeZ + ChunkSizeZ) - 0.5f - cameraPosition.z;
-            if (!aabbIntersectsFrustum(frustum, {minX, minY, minZ}, {maxX, maxY, maxZ}))
-            {
-                continue;
-            }
-
-            for (const WorldEntity& item : chunk.data->entities)
-            {
-                if (renderedItems >= itemCount || renderInstances.size() >= MaxDroppedItemRenderInstances)
-                {
-                    break;
-                }
-                if (item.type != WorldEntityType::DroppedItem ||
-                    item.droppedItem.stack.itemId == 0 ||
-                    item.droppedItem.stack.count == 0 ||
-                    static_cast<size_t>(item.droppedItem.stack.itemId) >= itemDefinitions_.size())
-                {
-                    continue;
-                }
-
-                const ItemDefinition& definition = itemDefinitions_[item.droppedItem.stack.itemId];
-                if (definition.droppedRender != ItemRenderType::ExtrudedSprite)
-                {
-                    continue;
-                }
-                if (static_cast<size_t>(item.droppedItem.stack.itemId) >= itemSpriteMeshes_.size() ||
-                    itemSpriteMeshes_[item.droppedItem.stack.itemId].quads.empty())
-                {
-                    continue;
-                }
-                if (static_cast<size_t>(item.droppedItem.stack.itemId) >= itemSpriteGpuMeshes_.size() ||
-                    itemSpriteGpuMeshes_[item.droppedItem.stack.itemId].indexCount == 0)
-                {
-                    continue;
-                }
-
-                const Vec3 interpolatedPosition{
-                    item.previousPosition.x + (item.position.x - item.previousPosition.x) * droppedItemRenderAlpha_,
-                    item.previousPosition.y + (item.position.y - item.previousPosition.y) * droppedItemRenderAlpha_,
-                    item.previousPosition.z + (item.position.z - item.previousPosition.z) * droppedItemRenderAlpha_
-                };
-                const float distanceX = interpolatedPosition.x - cameraPosition.x;
-                const float distanceY = interpolatedPosition.y - cameraPosition.y;
-                const float distanceZ = interpolatedPosition.z - cameraPosition.z;
-                if (distanceX * distanceX + distanceY * distanceY + distanceZ * distanceZ > DroppedItemRenderDistanceSquared)
-                {
-                    continue;
-                }
-
-                const float layer = static_cast<float>(definition.droppedTextureLayer);
-                const size_t copies = visualCopyCount(item.droppedItem.stack.count);
-                for (size_t copy = 0; copy < copies && renderInstances.size() < MaxDroppedItemRenderInstances; ++copy)
-                {
-                    const Vec3& offset = visualOffsets[copy];
-                    const float copyRotationY = item.renderRotation + static_cast<float>(copy) * 1.5707963268f;
-                    DroppedItemRenderInstance renderInstance{};
-                    renderInstance.itemId = item.droppedItem.stack.itemId;
-                    renderInstance.instance.centerX = interpolatedPosition.x + offset.x;
-                    renderInstance.instance.centerY = interpolatedPosition.y + DroppedItemThickness * 0.5f + static_cast<float>(copy) * DroppedItemThickness;
-                    renderInstance.instance.centerZ = interpolatedPosition.z + offset.z;
-                    renderInstance.instance.rotationX = item.renderRotationX;
-                    renderInstance.instance.rotationY = copyRotationY;
-                    renderInstance.instance.rotationZ = item.renderRotationZ;
-                    renderInstance.instance.textureLayer = layer;
-                    renderInstance.instance.mipDistanceScale = 1.0f;
-                    renderInstances.push_back(renderInstance);
-                }
-                ++renderedItems;
-            }
-        }
-
-        if (renderInstances.empty())
-        {
-            return;
-        }
-
-        std::sort(renderInstances.begin(), renderInstances.end(), [](const DroppedItemRenderInstance& lhs, const DroppedItemRenderInstance& rhs)
-        {
-            return lhs.itemId < rhs.itemId;
-        });
-
-        auto* mappedInstances = static_cast<DroppedItemInstance*>(droppedItemInstanceMapped_);
-        for (size_t i = 0; i < renderInstances.size(); ++i)
-        {
-            mappedInstances[i] = renderInstances[i].instance;
-        }
-
-        VkViewport viewport{};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = static_cast<float>(swapchainExtent_.width);
-        viewport.height = static_cast<float>(swapchainExtent_.height);
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-        VkRect2D scissor{};
-        scissor.offset = {0, 0};
-        scissor.extent = swapchainExtent_;
-        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-        const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
-        const Mat4 view = viewMatrix(camera, {});
-        const Mat4 mvp = multiply(projection, view);
-
-        TerrainPush push{};
-        std::memcpy(push.mvp, mvp.m, sizeof(push.mvp));
-        push.cameraPosition[0] = cameraPosition.x;
-        push.cameraPosition[1] = cameraPosition.y;
-        push.cameraPosition[2] = cameraPosition.z;
-        push.cameraPosition[3] = static_cast<float>(glfwGetTime());
-
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, itemPipeline_);
-        vkCmdPushConstants(commandBuffer, particlePipelineLayout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, particlePipelineLayout_, 0, 1, &itemTextureArray_.descriptorSet, 0, nullptr);
-        const std::array<VkBuffer, 2> vertexBuffers = {droppedItemVertexBuffer_, droppedItemInstanceBuffer_};
-        const std::array<VkDeviceSize, 2> vertexOffsets = {0, 0};
-        vkCmdBindVertexBuffers(commandBuffer, 0, static_cast<uint32_t>(vertexBuffers.size()), vertexBuffers.data(), vertexOffsets.data());
-        vkCmdBindIndexBuffer(commandBuffer, droppedItemIndexBuffer_, 0, VK_INDEX_TYPE_UINT32);
-        size_t batchStart = 0;
-        while (batchStart < renderInstances.size())
-        {
-            const uint16_t itemId = renderInstances[batchStart].itemId;
-            size_t batchEnd = batchStart + 1u;
-            while (batchEnd < renderInstances.size() && renderInstances[batchEnd].itemId == itemId)
-            {
-                ++batchEnd;
-            }
-
-            const ItemSpriteGpuMesh& mesh = itemSpriteGpuMeshes_[itemId];
-            vkCmdDrawIndexed(
-                commandBuffer,
-                mesh.indexCount,
-                static_cast<uint32_t>(batchEnd - batchStart),
-                mesh.firstIndex,
-                0,
-                static_cast<uint32_t>(batchStart));
-            batchStart = batchEnd;
-        }
     }
 
     void Renderer::drawTerrainMeshBound(VkCommandBuffer commandBuffer, const TerrainMesh& mesh) const
