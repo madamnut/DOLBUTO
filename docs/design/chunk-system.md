@@ -16,14 +16,21 @@ runtime chunk map과 chunk key/좌표 helper, block 조회/수정, dirty marking
 클라이언트의 active world 상태, load order, desired/requested/pending unload set, `WorldRuntime`, `SaveSystem`, `ChunkLoadSystem`, `TerrainJobSystem`은 `src/game/ClientWorldRuntime.h/.cpp`가 소유하는 전환 단계다.
 `Renderer`는 terrain load, save/unload, mesh queue 경로에서 runtime chunk map을 직접 들고 있지 않고 `ClientWorldRuntime`이 소유한 `WorldRuntime`의 API를 통해 조회, 순회, 생성, 삭제한다.
 render/mesh/full/featuring ticket 설정, snapshot load 요청 필요 여부, requested job set 갱신, BuildFeaturing/FinalizeFeatures/BuildChunkMesh job 생성 조건은 `ClientWorldRuntime`이 담당한다.
+render/mesh/full/featuring 요청 cascade, chunk-load 완료 후 ticket 재개, feature finalize queue, mesh retry queue는 `src/game/ClientTerrainCoordinator.h/.cpp`가 담당한다.
 terrain/chunk-load 완료 큐 drain, 완료 결과의 install/save/ignore 판정, mesh 완료의 install/retry/ignore 판정, pending unload 큐 pop/cancel/finish도 `ClientWorldRuntime`이 담당한다.
+terrain/chunk-load 완료 결과를 실제로 순회하면서 runtime 설치, 저장 snapshot enqueue, feature 전파, mesh retry/install 결과 반환을 조율하는 흐름은 `src/game/ClientTerrainCompletionHandler.h/.cpp`가 담당한다.
+terrain scene load request, worker start/stop, completed work drain, pending unload의 world/save 처리는 `src/game/ClientTerrainSceneRuntime.h/.cpp`가 담당한다.
+runtime chunk에서 저장 snapshot을 만들고, 완료된 terrain 결과를 저장 snapshot으로 enqueue하고, 저장 snapshot을 runtime chunk로 복원하는 경계도 `ClientWorldRuntime`이 담당한다.
+incoming/outgoing feature slot 전파 결과 산출은 `ClientWorldRuntime`이 담당하고, 그 결과를 terrain job queue로 연결하는 작업은 `ClientTerrainCoordinator`가 담당한다.
 snapshot load 완료, featuring/full 청크 설치, mesh queued ticket 초기화, Meshed 상태 전환 같은 terrain 완료 결과의 runtime 상태 갱신도 `WorldRuntime`이 담당한다.
+`Renderer`는 terrain scene runtime이 반환한 render reserve/retire 대상, dropped-item tracking refresh, completed mesh GPU 설치만 수행한다.
 save worker와 region 저장/로드 실행 로직은 `src/save/SaveSystem.h/.cpp`에 둔다.
 chunk-load worker와 snapshot load 요청/완료 큐는 `src/world/ChunkLoadSystem.h/.cpp`에 둔다.
 terrain worker와 terrain job/완료 큐는 `src/world/TerrainJobSystem.h/.cpp`에 둔다.
-terrain job callback은 `BuildFeaturing`/`FinalizeFeatures`에서 `src/world/TerrainBuilder.h/.cpp`를 호출해 높이맵, 초기 청크 데이터, tree feature write 생성/반영을 수행한다.
+`BuildFeaturing`/`FinalizeFeatures` terrain job 처리는 `src/game/ClientTerrainJobProcessor.h/.cpp`가 담당하고, 내부에서 `src/world/TerrainBuilder.h/.cpp`를 호출해 높이맵, 초기 청크 데이터, tree feature write 생성/반영을 수행한다.
 `BuildChunkMesh`의 chunk mesh orchestration과 편집 subchunk 주변 block sampling은 `src/world/TerrainMesher.h/.cpp`가 맡는다.
-solid subchunk mesh 생성 본체와 GPU 업로드/설치는 아직 `Renderer`가 맡는다.
+solid/cross/prop subchunk mesh 생성 본체는 `TerrainGeometryBuilder`가 맡고, `RendererTerrainMeshBridge`는 render-dependent mesh job callback과 edited subchunk rebuild에서 이를 `TerrainMesher`에 연결한다.
+`Renderer`는 `RendererTerrainMeshBridge`가 만든 CPU mesh 결과를 GPU 업로드/설치 경계로 넘긴다.
 fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
 
 ## 로딩 중심
@@ -88,13 +95,13 @@ terrainFeatureJobs
 렌더링을 원하면 다음 요청이 파생된다.
 
 ```text
-wantRender
-  -> wantMesh
-      -> wantFull
-          -> wantFeaturing
+requestRenderCascade
+  -> requestMeshCascade
+      -> requestFullCascade
+          -> requestFeaturingCascade
 ```
 
-`wantMesh`는 청크 자체가 Full이어야 하고, 주변 8청크도 메싱 경계용 데이터로 준비되어야 한다.
+`requestMeshCascade`는 청크 자체가 Full이어야 하고, 주변 8청크도 메싱 경계용 데이터로 준비되어야 한다.
 
 ## 언로드
 
@@ -157,11 +164,13 @@ chunk-load worker와 save worker가 region payload/header 데이터를 동시에
 엔티티는 소유 청크와 함께 이동한다.
 두 청크가 모두 로드된 상태에서 엔티티가 청크 경계를 넘으면 소유권을 대상 청크로 이전한다.
 드롭 아이템 엔티티의 생성, 병합, 물리 tick, pickup 판정, 청크 소유권 helper는 `DroppedItemSystem`이 담당한다.
-렌더러의 드롭 아이템 draw/update 경로는 청크 맵을 직접 소유한 것처럼 접근하지 않고 `WorldRuntime`의 조회/순회 API를 통해 런타임 청크를 읽는다.
+드롭 아이템 entity id, 청크별 추적, spawn/drop/pickup/raycast/update 조율은 `DroppedItemRuntime`이 담당하며, `WorldRuntime`의 조회/순회 API를 통해 런타임 청크를 읽는다.
+렌더러의 드롭 아이템 draw 경로는 `DroppedItemRuntime`이 제공하는 추적 상태를 렌더 후보 수집에 전달하고 GPU draw만 조율한다.
 
 ## 게임 씬 언로드
 
 일시정지에서 로비로 돌아가면 로드된 월드 상태를 유지하지 않고 게임 씬을 언로드한다.
+전체 game scene load/unload 순서는 `ClientSceneLifecycle`이 조율하고, terrain worker/save/chunk-load와 pending unload 처리는 `ClientTerrainSceneRuntime`이 담당한다.
 
 언로드 경로는 다음과 같다.
 

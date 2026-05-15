@@ -6,11 +6,9 @@
 #include <stb_image.h>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstring>
 #include <filesystem>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -33,9 +31,9 @@ namespace dolbuto
         {
             audio_.playButtonClick();
         });
-        updateHotbarScopeClass();
+        uiBridge_.updateHotbarScopeClass();
         updateInventoryUi();
-        updateInventoryDebugSlots();
+        uiBridge_.updateInventoryDebugSlots();
     }
 
     void Renderer::shutdownRmlUi()
@@ -68,52 +66,27 @@ namespace dolbuto
 
     void Renderer::uiMouseMove(double x, double y)
     {
-        rmlMouseX_ = x;
-        rmlMouseY_ = y;
-        ui_.processMouseMove(x, y);
-        if (ui_.activeMenuOverlayMode() == 5)
-        {
-            updateItemTooltipUi();
-            updateInventoryCursorUi();
-        }
+        uiBridge_.processMouseMove(x, y, swapchainExtent_.width, swapchainExtent_.height);
     }
 
     void Renderer::uiMouseButton(int button, bool pressed, int modifiers)
     {
-        ui_.processMouseButton(button, pressed, modifiers);
-
-        if (pressed)
-        {
-            if (ui_.activeMenuOverlayMode() == 5 && (button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT))
-            {
-                if (const std::optional<size_t> slot = inventorySlotAt(rmlMouseX_, rmlMouseY_); slot.has_value())
-                {
-                    handleInventorySlotClick(*slot, button, modifiers);
-                }
-            }
-        }
+        uiBridge_.processMouseButton(button, pressed, modifiers, swapchainExtent_.width, swapchainExtent_.height);
     }
 
     void Renderer::uiMouseWheel(double yOffset)
     {
-        ui_.processMouseWheel(yOffset);
+        uiBridge_.processMouseWheel(yOffset);
     }
 
     void Renderer::uiTextInput(unsigned int codepoint)
     {
-        ui_.processTextInput(codepoint);
+        uiBridge_.processTextInput(codepoint);
     }
 
     void Renderer::uiKey(int key, bool pressed, int modifiers)
     {
-        if (pressed)
-        {
-            if (ui_.activeMenuOverlayMode() == 5 && ((key >= GLFW_KEY_0 && key <= GLFW_KEY_9)))
-            {
-                handleInventoryHotbarSwapKey(key);
-            }
-        }
-        ui_.processKey(key, pressed, modifiers);
+        uiBridge_.processKey(key, pressed, modifiers, swapchainExtent_.width, swapchainExtent_.height);
     }
 
     std::optional<std::string> Renderer::consumeUiAction()
@@ -128,201 +101,22 @@ namespace dolbuto
 
     void Renderer::setHotbarSelectedSlot(int slot)
     {
-        hotbarSelectedSlot_ = std::clamp(slot, 0, 9);
-        updateHotbarScopeClass();
-    }
-
-    void Renderer::updateHotbarScopeClass()
-    {
-        ui_.setHotbarScopeClass(hotbarSelectedSlot_);
-    }
-
-    void Renderer::updateInventoryDebugSlots()
-    {
-        std::string hotbarRml;
-        std::string inventoryRml;
-        if (inventoryDebugSlotsVisible_)
-        {
-            for (size_t i = 0; i < 10u; ++i)
-            {
-                hotbarRml += ui::inventoryDebugSlotRml(i, false);
-            }
-            for (size_t i = 0; i < 50u; ++i)
-            {
-                inventoryRml += ui::inventoryDebugSlotRml(i, true);
-            }
-        }
-        ui_.setInventoryDebugSlots(hotbarRml, inventoryRml, inventoryDebugSlotsVisible_);
-    }
-
-    std::optional<size_t> Renderer::inventorySlotAt(double x, double y) const
-    {
-        return ui::inventorySlotAt(x, y, swapchainExtent_.width, swapchainExtent_.height, playerInventory_.slotCount());
-    }
-
-    void Renderer::handleInventorySlotClick(size_t slotIndex, int button, int modifiers)
-    {
-        const bool shift = (modifiers & GLFW_MOD_SHIFT) != 0;
-        gameplay::InventoryClickButton clickButton = gameplay::InventoryClickButton::Left;
-        if (button == GLFW_MOUSE_BUTTON_RIGHT)
-        {
-            clickButton = gameplay::InventoryClickButton::Right;
-        }
-
-        if (playerInventory_.handleSlotClick(slotIndex, clickButton, shift, itemDefinitions_))
-        {
-            updateInventoryUi();
-            updateItemTooltipUi();
-        }
-    }
-
-    void Renderer::handleInventoryHotbarSwapKey(int key)
-    {
-        int hotbarSlot = -1;
-        if (key >= GLFW_KEY_1 && key <= GLFW_KEY_9)
-        {
-            hotbarSlot = key - GLFW_KEY_1;
-        }
-        else if (key == GLFW_KEY_0)
-        {
-            hotbarSlot = 9;
-        }
-        if (hotbarSlot < 0)
-        {
-            return;
-        }
-
-        const std::optional<size_t> hoveredSlot = inventorySlotAt(rmlMouseX_, rmlMouseY_);
-        if (!hoveredSlot.has_value())
-        {
-            return;
-        }
-
-        if (playerInventory_.swapHotbarWithSlot(*hoveredSlot, static_cast<size_t>(hotbarSlot)))
-        {
-            updateInventoryUi();
-            updateItemTooltipUi();
-        }
+        uiBridge_.setHotbarSelectedSlot(slot);
     }
 
     void Renderer::closeInventoryInteraction()
     {
-        playerInventory_.closeCursor(itemDefinitions_);
-        updateItemTooltipUi();
-        updateInventoryCursorUi();
-    }
-
-    ui::InventoryItemView Renderer::inventoryItemView(const ItemStack& stack) const
-    {
-        ui::InventoryItemView item{};
-        item.itemId = stack.itemId;
-        item.count = stack.count;
-        if (stack.itemId == 0 || stack.count == 0 || static_cast<size_t>(stack.itemId) >= itemDefinitions_.size())
-        {
-            return item;
-        }
-
-        const ItemDefinition& definition = itemDefinitions_[stack.itemId];
-        const auto renderTypeText = [](ItemRenderType type)
-        {
-            switch (type)
-            {
-            case ItemRenderType::ExtrudedSprite:
-                return "extruded_sprite";
-            }
-            return "unknown";
-        };
-
-        item.stackSize = definition.stackSize;
-        item.name = definition.name;
-        item.key = definition.key;
-        item.slotTexture = definition.slotTexture;
-        item.droppedRender = renderTypeText(definition.droppedRender);
-        item.droppedTexture = definition.droppedTexture;
-        item.heldRender = renderTypeText(definition.heldRender);
-        item.heldTexture = definition.heldTexture;
-        return item;
+        uiBridge_.closeInventoryInteraction(swapchainExtent_.width, swapchainExtent_.height);
     }
 
     void Renderer::updateInventoryUi()
     {
-        std::string hotbarRml;
-        for (size_t i = 0; i < gameplay::PlayerInventory::HotbarSlotCount; ++i)
-        {
-            hotbarRml += ui::itemSlotImageRml(i, false, inventoryItemView(playerInventory_.slot(i)));
-        }
-
-        std::string inventoryRml;
-        for (size_t i = 0; i < playerInventory_.slotCount(); ++i)
-        {
-            inventoryRml += ui::itemSlotImageRml(i, true, inventoryItemView(playerInventory_.slot(i)));
-        }
-
-        ui_.setInventoryItems(hotbarRml, inventoryRml);
-        updateInventoryCursorUi();
-    }
-
-    void Renderer::updateInventoryCursorUi()
-    {
-        const ItemStack& cursorStack = playerInventory_.cursorStack();
-        if (cursorStack.itemId == 0 || cursorStack.count == 0)
-        {
-            ui_.setInventoryCursorItem("", false);
-            return;
-        }
-
-        const int left = static_cast<int>(std::round(rmlMouseX_)) - 32;
-        const int top = static_cast<int>(std::round(rmlMouseY_)) - 32;
-        ui_.setInventoryCursorItem(ui::itemStackContentRml(inventoryItemView(cursorStack), left, top), true);
-    }
-
-    void Renderer::updateItemTooltipUi()
-    {
-        const ItemStack& cursorStack = playerInventory_.cursorStack();
-        if (cursorStack.itemId != 0 && cursorStack.count != 0)
-        {
-            ui_.hideItemTooltip();
-            return;
-        }
-
-        const std::optional<size_t> hoveredSlot = inventorySlotAt(rmlMouseX_, rmlMouseY_);
-        if (!hoveredSlot.has_value())
-        {
-            ui_.hideItemTooltip();
-            return;
-        }
-
-        const ui::InventoryItemView item = inventoryItemView(playerInventory_.slot(*hoveredSlot));
-        const std::string rml = ui::itemTooltipRml(item);
-        if (rml.empty())
-        {
-            ui_.hideItemTooltip();
-            return;
-        }
-
-        const std::optional<ui::TooltipLayout> layout = ui::itemTooltipLayout(item, rmlMouseX_, rmlMouseY_, swapchainExtent_.width, swapchainExtent_.height);
-        if (!layout.has_value())
-        {
-            ui_.hideItemTooltip();
-            return;
-        }
-
-        ui_.showItemTooltip(rml, layout->left, layout->top, layout->width, layout->height);
+        uiBridge_.updateInventoryUi();
     }
 
     void Renderer::setWorldList(const std::vector<game::WorldListItem>& worlds)
     {
-        std::vector<ui::WorldListEntry> entries;
-        entries.reserve(worlds.size());
-        for (const game::WorldListItem& world : worlds)
-        {
-            entries.push_back(ui::WorldListEntry{
-                world.name,
-                world.createdText,
-                world.lastPlayedText
-            });
-        }
-        ui_.setWorldList(entries);
+        uiBridge_.setWorldList(worlds);
     }
 
     std::string Renderer::uiInputValue(std::string_view id) const
@@ -403,7 +197,7 @@ namespace dolbuto
             scissor = rmlScissor_;
         }
 
-        const Texture* texture = textureHandle == 0 ? &white_ : reinterpret_cast<const Texture*>(textureHandle);
+        const Texture* texture = textureHandle == 0 ? &rendererAssets_.white : reinterpret_cast<const Texture*>(textureHandle);
         const UiPush push{
             static_cast<float>(swapchainExtent_.width),
             static_cast<float>(swapchainExtent_.height),
@@ -474,14 +268,14 @@ namespace dolbuto
         }
         stbi_image_free(pixels);
 
-        Texture texture = createTextureFromRgba(premultiplied.data(), width, height, VK_FORMAT_R8G8B8A8_SRGB);
+        Texture texture = gpuResources_.createTextureFromRgba(premultiplied.data(), width, height, VK_FORMAT_R8G8B8A8_SRGB);
         textureDimensions = Rml::Vector2i(width, height);
         return reinterpret_cast<Rml::TextureHandle>(new Texture(texture));
     }
 
     Rml::TextureHandle Renderer::GenerateTexture(Rml::Span<const Rml::byte> source, Rml::Vector2i sourceDimensions)
     {
-        Texture texture = createTextureFromRgba(
+        Texture texture = gpuResources_.createTextureFromRgba(
             reinterpret_cast<const unsigned char*>(source.data()),
             sourceDimensions.x,
             sourceDimensions.y,
@@ -497,7 +291,7 @@ namespace dolbuto
         }
 
         auto* texture = reinterpret_cast<Texture*>(textureHandle);
-        destroyTexture(*texture);
+        gpuResources_.destroyTexture(*texture);
         delete texture;
     }
 

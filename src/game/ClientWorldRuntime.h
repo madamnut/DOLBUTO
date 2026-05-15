@@ -2,6 +2,7 @@
 
 #include "save/SaveSystem.h"
 #include "world/ChunkLoadSystem.h"
+#include "world/TerrainBuilder.h"
 #include "world/TerrainJobSystem.h"
 #include "world/WorldRuntime.h"
 
@@ -11,6 +12,7 @@
 #include <deque>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <unordered_set>
 #include <vector>
@@ -21,6 +23,7 @@ namespace dolbuto::game
     {
     public:
         using ChunkLoadEnqueue = std::function<void(int, int, uint64_t)>;
+        using EntityNormalizer = std::function<void(WorldEntity&)>;
 
         struct ChunkOffset
         {
@@ -69,6 +72,18 @@ namespace dolbuto::game
             bool desired = false;
         };
 
+        struct ChunkCoordinate
+        {
+            int x = 0;
+            int z = 0;
+        };
+
+        struct FeaturePropagationResult
+        {
+            std::vector<ChunkCoordinate> meshCenters;
+            std::vector<uint64_t> finalizeKeys;
+        };
+
         std::filesystem::path activeWorldDirectory;
         uint64_t activeWorldSeed = 0;
         int activeWorldSeedSalt = 0;
@@ -115,6 +130,16 @@ namespace dolbuto::game
         std::optional<TerrainJob> makeFeatureFinalizeJobIfReady(uint64_t key, uint64_t generation);
         std::optional<TerrainJob> makeMeshJobIfReady(int chunkX, int chunkZ, uint64_t generation, bool meshAlreadyReady);
         ChunkLoadCompletion finishChunkLoad(const CompletedChunkLoad& completed);
+        SaveChunkSnapshot makeSaveSnapshot(const RuntimeChunk& chunk) const;
+        void enqueueSaveSnapshot(SaveChunkSnapshot snapshot);
+        void enqueueChunkDataSnapshot(const std::shared_ptr<ChunkData>& chunk, ChunkGenState genState);
+        void enqueueSaveAllRuntimeChunks();
+        void enqueueCompletedTerrainSnapshots(world::TerrainCompletedBatch& completed);
+        RuntimeChunk runtimeChunkFromSnapshot(const SaveChunkSnapshot& snapshot, uint64_t generation, const EntityNormalizer& normalizeEntity);
+        void mergeLoadStateIncomingFeatures(RuntimeChunk& loaded, const world::WorldRuntime::RuntimeChunkLoadState& loadState, const world::TerrainBuilderConfig& terrainConfig) const;
+        FeaturePropagationResult acceptFeatureSlot(int targetChunkX, int targetChunkZ, size_t sourceSlot, FeatureWriteListPtr writes, const world::TerrainBuilderConfig& terrainConfig);
+        FeaturePropagationResult acceptSavedFeaturingChunkFeatures(const CompletedChunkData& completed, const world::TerrainBuilderConfig& terrainConfig);
+        FeaturePropagationResult publishFeatureSlots(RuntimeChunk& sourceChunk, uint64_t generation, const world::TerrainBuilderConfig& terrainConfig);
         CompletedChunkDecision decideCompletedChunk(const ChunkData& chunk) const;
         CompletedMeshDecision decideCompletedMesh(const CompletedChunkMesh& mesh) const;
         std::optional<uint64_t> takePendingTerrainUnload();

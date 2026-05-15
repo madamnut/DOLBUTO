@@ -53,15 +53,33 @@ src/config/ConfigLoaders.h
 src/config/ConfigLoaders.cpp
 src/assets/PropModelLoader.h
 src/assets/PropModelLoader.cpp
+src/game/ClientContent.h
+src/game/ClientContent.cpp
+src/game/ClientRuntimeFacade.h
+src/game/ClientRuntimeFacade.cpp
+src/game/ClientSceneLifecycle.h
+src/game/ClientSceneLifecycle.cpp
+src/game/ClientTerrainCompletionHandler.h
+src/game/ClientTerrainCompletionHandler.cpp
+src/game/ClientTerrainCoordinator.h
+src/game/ClientTerrainCoordinator.cpp
+src/game/ClientTerrainJobProcessor.h
+src/game/ClientTerrainJobProcessor.cpp
+src/game/ClientTerrainSceneRuntime.h
+src/game/ClientTerrainSceneRuntime.cpp
 src/game/ClientUiTypes.h
 src/game/ClientWorldRuntime.h
 src/game/ClientWorldRuntime.cpp
 src/gameplay/BlockInteractionSystem.h
 src/gameplay/BlockInteractionSystem.cpp
+src/gameplay/ClientGameplayRuntime.h
+src/gameplay/ClientGameplayRuntime.cpp
 src/gameplay/PlayerInventory.h
 src/gameplay/PlayerInventory.cpp
 src/audio/AudioSystem.h
 src/audio/AudioSystem.cpp
+src/ui/ClientUiBridge.h
+src/ui/ClientUiBridge.cpp
 src/ui/UiSystem.h
 src/ui/UiSystem.cpp
 src/ui/InventoryUi.h
@@ -74,6 +92,8 @@ src/save/SaveSystem.h
 src/save/SaveSystem.cpp
 src/world/ChunkLoadSystem.h
 src/world/ChunkLoadSystem.cpp
+src/world/DroppedItemRuntime.h
+src/world/DroppedItemRuntime.cpp
 src/world/DroppedItemSystem.h
 src/world/DroppedItemSystem.cpp
 src/world/TerrainBuilder.h
@@ -89,13 +109,24 @@ src/world/WorldRuntime.cpp
 `DataLoaders`는 `assets/data/blocks.json`과 `assets/data/items.json`의 정의 파싱만 담당한다.
 `ConfigLoaders`는 `config/world.json`과 `config/render.json`의 설정 파일 읽기와 값 검증/클램프를 담당한다.
 `PropModelLoader`는 소품 모델 `.glb` 파싱, `.dpm` 변환/검증, 렌더링용 소품 quad 로드를 담당한다.
+`ClientContent`는 block/item 정의, 텍스처 layer 이름, block drop의 item key 해석, prop model binding을 로드하고 Renderer/Vulkan 타입에 의존하지 않는다.
+`ClientRuntimeFacade`는 `GameClient`가 사용하는 scene/gameplay/UI/render 경계 API를 제공하고 `Renderer` 직접 의존을 감춘다.
+`ClientSceneLifecycle`은 game scene load/unload 순서, active world 설정, gameplay reset, terrain scene runtime start/stop, save flush를 조율하고 Renderer 전용 작업은 hook으로 호출한다.
+`ClientTerrainCompletionHandler`는 terrain/chunk-load 완료 결과를 해석해 runtime 설치, 저장 snapshot enqueue, feature 전파, mesh retry/install 판정을 수행하고 Renderer에는 dropped-item tracking refresh와 GPU mesh install 대상만 반환한다.
+`ClientTerrainCoordinator`는 render/mesh/full/featuring 요청 cascade, feature finalize job queue, mesh retry queue, chunk-load 완료 뒤 ticket 재개를 조율한다.
+`ClientTerrainJobProcessor`는 `BuildFeaturing`과 `FinalizeFeatures` terrain job을 처리하며 `TerrainBuilder`를 호출해 초기 청크 데이터, heightmap, tree feature write 생성/반영을 수행한다.
+`ClientTerrainSceneRuntime`은 terrain scene load request, terrain/chunk-load/save worker lifecycle, completed terrain work drain, pending unload의 world/save 처리를 묶어 Renderer 밖에서 조율한다.
 `ClientUiTypes`는 `GameClient`와 렌더러/UI bridge 사이에서 주고받는 클라이언트 표시 DTO를 담는다.
 `ClientWorldRuntime`은 클라이언트 월드 런타임 전환 계층이며 `WorldRuntime`, `SaveSystem`, `ChunkLoadSystem`, `TerrainJobSystem`, terrain request set, unload queue, load order, active world 상태를 소유한다.
-terrain render/mesh/full/featuring ticket 설정, chunk-load 필요 판단, BuildFeaturing/FinalizeFeatures/BuildChunkMesh job 생성 조건도 `ClientWorldRuntime`이 담당한다.
-terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 판정, pending unload 후보 관리도 `ClientWorldRuntime`이 담당하고 `Renderer`는 저장 snapshot 생성, feature slot 전달, GPU mesh 설치 같은 렌더러 의존 작업만 수행한다.
+terrain render/mesh/full/featuring ticket 설정, chunk-load 필요 판단, BuildFeaturing/FinalizeFeatures/BuildChunkMesh job 생성 조건은 `ClientWorldRuntime`이 제공하고, 요청 cascade와 job enqueue 조율은 `ClientTerrainCoordinator`가 담당한다.
+terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 판정, pending unload 후보 관리, 저장 snapshot 생성/복원, feature slot 전파도 `ClientWorldRuntime`이 담당한다.
+`ClientTerrainSceneRuntime`은 `ClientTerrainCoordinator`가 만든 terrain job을 worker에 전달하고 scene lifecycle을 조율한다.
+`Renderer`는 GPU mesh 설치, 렌더 데이터 detach 같은 렌더러 의존 작업만 수행한다.
 `BlockInteractionSystem`은 블록 좌표 변환, 플레이어 충돌 범위 판정, 블록 레이캐스트, 블록 파괴 진행 상태를 담당한다.
+`ClientGameplayRuntime`은 클라이언트 gameplay 전환 계층이며 `PlayerInventory`, `DroppedItemRuntime`, block breaking 상태를 소유하고 블록 상호작용, 드랍 아이템, 인벤토리 조작을 Renderer/Vulkan 타입 없이 조율한다.
 `PlayerInventory`는 플레이어 인벤토리 슬롯, 임시 커서 스택, 스택 병합, 클릭/Shift-click/핫바 교환 규칙을 담당한다.
 `AudioSystem`은 OpenAL device/context, 효과음 buffer/source pool, 음악 source와 OGG/WAV 재생 상태를 소유한다.
+`ClientUiBridge`는 `UiSystem`과 `ClientGameplayRuntime` 사이에서 hotbar/inventory RML 조립, tooltip/cursor 갱신, slot hit test, world list 표시 변환, UI 입력 기반 인벤토리 조작을 담당한다.
 `UiSystem`은 RmlUi 초기화/종료, context, 문서, 버튼 이벤트 수신, 문서 표시 상태, 문서 element 갱신을 소유한다.
 `InventoryUi`는 인벤토리/핫바 슬롯 좌표, 아이템/툴팁 RML 문자열, 툴팁 위치 계산을 담당하는 표시 helper다.
 `RmlInput`은 GLFW 키/수정키 상태를 RmlUi 입력 값으로 변환한다.
@@ -103,22 +134,46 @@ terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 �
 `SaveSystem`은 save worker, 저장 큐, pending snapshot, clean revision cache, region header cache, region file IO, 저장/로드 카운터를 소유한다.
 `ChunkLoadSystem`은 chunk-load worker, snapshot load 요청 큐, 완료 큐, 중복 요청 추적을 소유한다.
 `DroppedItemSystem`은 드롭 아이템 엔티티 생성, 청크 소유권 helper, 병합, 물리 tick, 플레이어 pickup 판정을 담당한다.
+`DroppedItemRuntime`은 클라이언트 런타임의 드랍 아이템 entity id 할당, 청크별 드랍 아이템 추적, 블록 드롭/수동 드롭 생성 연결, pickup/raycast, tick/update 조율을 담당하며 Renderer/Vulkan 타입에 의존하지 않는다.
 `TerrainBuilder`는 높이맵, 초기 청크 블록/유체/기후 데이터, tree feature write 생성과 feature write 반영을 담당한다.
 `TerrainJobSystem`은 terrain worker thread, terrain job 큐, terrain 완료 큐를 소유한다.
 `TerrainMesher`는 chunk mesh와 편집 subchunk mesh의 CPU orchestration을 담당한다.
 `WorldRuntime`은 runtime chunk map, chunk key/좌표 helper, runtime block 조회/수정, dirty marking, chunk derived cache 갱신, terrain 완료 결과의 runtime chunk 상태 설치를 소유한다.
 `Renderer` 구현은 `src/renderer/Renderer.cpp`, `src/renderer/RendererUi.cpp`, `src/renderer/RendererDroppedItems.cpp`로 나뉘어 있다.
 프레임 렌더링 입력은 `src/renderer/RendererFrame.h`의 `RendererFrame` DTO로 묶어 `GameClient`에서 전달한다.
-`RendererDroppedItems.cpp`는 dropped item의 아이템 스프라이트 mesh, GPU instance 업로드, draw path, Renderer callback 연결을 유지하며, runtime chunk 조회/순회는 `WorldRuntime`을 경유한다.
-텍스처 배열 생성, Vulkan 리소스 생성은 아직 `Renderer`가 담당한다.
+`src/renderer/RendererGpuResources.h/.cpp`는 texture/image/buffer, one-time command, mipmap 생성, descriptor set 업데이트 같은 Vulkan GPU 리소스 helper를 담당한다.
+`src/renderer/RendererAssetStore.h/.cpp`는 `ClientContent`가 제공한 asset 이름을 바탕으로 Vulkan texture array, 기본 UI/sky/player texture, item sprite mesh, prop render mesh를 생성하고 수명을 관리한다.
+`src/renderer/SpriteRenderPath.h/.cpp`는 sprite pipeline push constant, texture descriptor bind, screen-space sprite draw primitive를 담당한다.
+`src/renderer/ScreenPresentation.h/.cpp`는 sky sprite, scene composite, climate overlay, crosshair, fallback menu background/buttons/text, debug text draw timing을 담당한다.
+`src/world/ClimateSystem.h/.cpp`는 climate seed, tileable climate noise sampling, chunk climate population, temperature/precipitation 값 계산을 담당하며 Renderer/Vulkan 타입에 의존하지 않는다.
+`src/renderer/ClimateOverlayTextureBuilder.h/.cpp`는 `ClimateSystem`을 입력으로 temperature/precipitation overlay RGBA pixel 데이터를 생성한다.
+`src/renderer/DebugOverlayText.h/.cpp`는 hardware/performance/terrain/debug 표시 문자열과 text batch dirty 상태를 소유한다.
+`src/renderer/TerrainGeometryBuilder.h/.cpp`는 block 정의, texture layer, prop mesh를 입력으로 받아 solid/cross/prop terrain CPU mesh를 생성하며 Vulkan 타입에 의존하지 않는다.
+`src/renderer/RendererTerrainMeshBridge.h/.cpp`는 `TerrainGeometryBuilder`와 `TerrainMesher`를 연결해 chunk mesh와 edited subchunk mesh의 CPU 조립을 담당한다.
+`src/renderer/TextRenderPath.h/.cpp`는 font atlas 생성, text vertex buffer, text batch 구성, debug/menu text draw submission을 담당한다.
+`src/renderer/TerrainRenderPath.h/.cpp`는 terrain render chunk storage, render chunk 설치/교체/retire 규칙, retired mesh cleanup, packed quad 변환, terrain GPU upload, terrain vertex descriptor set 생성, solid/fluid terrain mesh draw loop와 terrain frustum culling을 담당한다.
+`src/renderer/PlayerMeshRenderPath.h/.cpp`는 player mesh 파일 로드, player vertex/index buffer 생성, 매 프레임 player vertex 갱신, player indexed draw와 buffer 수명을 담당한다.
+`src/renderer/ParticleRenderPath.h/.cpp`는 블록 파괴 파티클과 파괴 오버레이 렌더링 상태, host-visible particle vertex/index buffer, 파티클 갱신과 draw path를 담당한다.
+`src/renderer/DroppedItemRenderCollector.h/.cpp`는 dropped item 렌더 후보 수집, 청크 frustum culling, 거리 culling, stack count별 시각 복제본 생성을 담당한다.
+`src/renderer/DroppedItemRenderPath.h/.cpp`는 dropped item의 아이템 스프라이트 GPU mesh, persistent instance buffer, instance 업로드, item id별 batch draw를 담당한다.
+`src/renderer/ItemSpriteMeshBuilder.h/.cpp`는 아이템 텍스처 alpha에서 드랍 아이템용 extruded sprite mesh를 생성한다.
+`RendererDroppedItems.cpp`는 `DroppedItemRuntime` update 호출, 렌더 후보 수집 입력 조립, push constant 준비, `DroppedItemRenderPath` draw 호출만 담당한다.
+텍스처 배열과 Vulkan buffer/image 생성은 `VulkanResourceManager`를 통해 수행하고, content 정의 해석은 `ClientContent`, GPU asset 생성/해제는 `RendererAssetStore`가 담당한다.
 `Renderer`는 오디오 초기화/종료, listener 갱신, 음악 씬 분류, 효과음 발생 시점만 `AudioSystem`에 전달한다.
-`Renderer`는 RmlUi의 Vulkan `RenderInterface`, UI geometry 업로드, 인벤토리 입력을 `PlayerInventory`에 전달하고 아이템 정의를 표시용 데이터로 변환하는 역할을 아직 담당한다.
-`Renderer`는 블록 상호작용 입력을 `BlockInteractionSystem`에 전달하고 실제 블록 쓰기, mesh 재생성, particle/sound 실행을 담당한다.
+`Renderer`는 RmlUi의 Vulkan `RenderInterface`, UI geometry 업로드, texture load/release, render command 연결을 담당하고 UI 표시 변환과 인벤토리 입력 처리는 `ClientUiBridge`에 위임한다.
+`Renderer`는 블록 상호작용 입력을 `ClientGameplayRuntime`에 전달하고 gameplay 결과에 따른 mesh 재생성, particle/sound 실행을 담당한다.
 `Renderer`는 runtime chunk와 terrain/save/load 시스템을 직접 소유하지 않고 `ClientWorldRuntime`이 소유한 `WorldRuntime`과 worker system을 참조하는 전환 단계에 있다.
-`Renderer`는 저장할 runtime chunk snapshot 생성과 snapshot에서 runtime chunk를 복원하는 역할을 아직 유지한다.
-`Renderer`는 terrain job callback에서 `TerrainBuilder`와 `TerrainMesher`를 호출하며, terrain job enqueue는 `ClientWorldRuntime`이 만든 job을 받아 worker에 넣는 bridge로 남아 있다.
-terrain 완료 결과의 runtime 상태 설치는 `WorldRuntime`에 위임하고 GPU mesh buffer 설치는 `Renderer`가 담당한다.
-fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
+저장할 runtime chunk snapshot 생성, terrain 완료 결과 snapshot 저장 enqueue, snapshot에서 runtime chunk 복원, load-state incoming feature merge는 `ClientWorldRuntime`이 담당한다.
+terrain 요청 cascade, chunk-load 완료 후 ticket 재개, feature finalize/mesh 재시도 queue는 `ClientTerrainCoordinator`가 담당한다.
+terrain/chunk-load 완료 결과의 save/install/ignore/retry 판정 흐름은 `ClientTerrainCompletionHandler`가 담당한다.
+terrain scene load request, worker start/stop, completed work drain, pending unload의 world/save 처리 흐름은 `ClientTerrainSceneRuntime`이 담당한다.
+`Renderer`는 terrain job callback에서 render-dependent `BuildChunkMesh` 경계에 한해 `RendererTerrainMeshBridge`를 호출한다.
+terrain 완료 결과의 runtime 상태 설치는 `WorldRuntime`에 위임하고, solid/cross/prop CPU mesh 생성은 `TerrainGeometryBuilder`, chunk/edited subchunk CPU mesh 조립은 `RendererTerrainMeshBridge`, GPU mesh buffer 설치, render chunk 교체/폐기, edited subchunk 교체, terrain draw loop는 `TerrainRenderPath`가 담당한다.
+fluid subchunk mesh 생성과 불투명 블록 판정 연결은 `RendererTerrainMeshBridge`가 `TerrainMesher` 호출 안에서 처리한다.
+climate 규칙과 chunk climate 채우기는 `ClimateSystem`이 담당하고, climate overlay pixel 생성은 `ClimateOverlayTextureBuilder`가 담당한다.
+screen-space presentation은 `ScreenPresentation`이 담당하고, sprite draw primitive는 `SpriteRenderPath`, debug/menu text state는 `DebugOverlayText`, text atlas와 vertex upload는 `TextRenderPath`가 담당한다.
+`GameClient`는 `ClientRuntimeFacade`를 통해 클라이언트 런타임과 렌더러 경계를 호출한다.
+game scene load/unload의 전체 순서와 정책은 `ClientSceneLifecycle`이 담당하고, `Renderer`는 device idle, terrain render data destroy, particle clear, UI refresh 같은 renderer/UI 경계 hook만 제공한다.
 
 ## 좌표계
 

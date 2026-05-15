@@ -152,6 +152,20 @@ add_custom_target(DOLBUTOShaders DEPENDS ${SHADER_OUTPUTS})
 add_executable(DOLBUTO
     ${DOLBUTO_WINDOWS_RESOURCE}
     src/main.cpp
+    src/game/ClientContent.cpp
+    src/game/ClientContent.h
+    src/game/ClientRuntimeFacade.cpp
+    src/game/ClientRuntimeFacade.h
+    src/game/ClientSceneLifecycle.cpp
+    src/game/ClientSceneLifecycle.h
+    src/game/ClientTerrainCompletionHandler.cpp
+    src/game/ClientTerrainCompletionHandler.h
+    src/game/ClientTerrainCoordinator.cpp
+    src/game/ClientTerrainCoordinator.h
+    src/game/ClientTerrainJobProcessor.cpp
+    src/game/ClientTerrainJobProcessor.h
+    src/game/ClientTerrainSceneRuntime.cpp
+    src/game/ClientTerrainSceneRuntime.h
     src/game/ClientUiTypes.h
     src/game/ClientWorldRuntime.cpp
     src/game/ClientWorldRuntime.h
@@ -159,6 +173,8 @@ add_executable(DOLBUTO
     src/game/GameClient.h
     src/gameplay/BlockInteractionSystem.cpp
     src/gameplay/BlockInteractionSystem.h
+    src/gameplay/ClientGameplayRuntime.cpp
+    src/gameplay/ClientGameplayRuntime.h
     src/gameplay/PlayerInventory.cpp
     src/gameplay/PlayerInventory.h
     src/assets/PropModelLoader.cpp
@@ -178,8 +194,38 @@ add_executable(DOLBUTO
     src/platform/RuntimePaths.h
     src/renderer/Renderer.cpp
     src/renderer/RendererDroppedItems.cpp
+    src/renderer/DroppedItemRenderCollector.cpp
+    src/renderer/DroppedItemRenderCollector.h
+    src/renderer/DroppedItemRenderPath.cpp
+    src/renderer/DroppedItemRenderPath.h
+    src/renderer/ItemSpriteMeshBuilder.cpp
+    src/renderer/ItemSpriteMeshBuilder.h
     src/renderer/RendererFrame.h
+    src/renderer/RendererAssetStore.cpp
+    src/renderer/RendererAssetStore.h
+    src/renderer/RendererGpuResources.cpp
+    src/renderer/RendererGpuResources.h
     src/renderer/Renderer.h
+    src/renderer/RendererTerrainMeshBridge.cpp
+    src/renderer/RendererTerrainMeshBridge.h
+    src/renderer/ClimateOverlayTextureBuilder.cpp
+    src/renderer/ClimateOverlayTextureBuilder.h
+    src/renderer/DebugOverlayText.cpp
+    src/renderer/DebugOverlayText.h
+    src/renderer/ScreenPresentation.cpp
+    src/renderer/ScreenPresentation.h
+    src/renderer/SpriteRenderPath.cpp
+    src/renderer/SpriteRenderPath.h
+    src/renderer/TerrainGeometryBuilder.cpp
+    src/renderer/TerrainGeometryBuilder.h
+    src/renderer/TextRenderPath.cpp
+    src/renderer/TextRenderPath.h
+    src/renderer/ParticleRenderPath.cpp
+    src/renderer/ParticleRenderPath.h
+    src/renderer/PlayerMeshRenderPath.cpp
+    src/renderer/PlayerMeshRenderPath.h
+    src/renderer/TerrainRenderPath.cpp
+    src/renderer/TerrainRenderPath.h
     src/renderer/TerrainTypes.h
     src/renderer/RendererUi.cpp
     src/save/SaveFormat.cpp
@@ -189,6 +235,8 @@ add_executable(DOLBUTO
     src/third_party/stb_image.cpp
     src/third_party/stb_image_write.cpp
     src/third_party/stb_vorbis.cpp
+    src/ui/ClientUiBridge.cpp
+    src/ui/ClientUiBridge.h
     src/ui/InventoryUi.cpp
     src/ui/InventoryUi.h
     src/ui/RmlInput.cpp
@@ -198,6 +246,10 @@ add_executable(DOLBUTO
     src/world/BlockData.h
     src/world/ChunkLoadSystem.cpp
     src/world/ChunkLoadSystem.h
+    src/world/ClimateSystem.cpp
+    src/world/ClimateSystem.h
+    src/world/DroppedItemRuntime.cpp
+    src/world/DroppedItemRuntime.h
     src/world/DroppedItemSystem.cpp
     src/world/DroppedItemSystem.h
     src/world/TerrainBuilder.cpp

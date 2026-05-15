@@ -11,10 +11,14 @@
             "id": "bda38083b81fbad1",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "그래프 뷰"
+              "type": "markdown",
+              "state": {
+                "file": "ui.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "ui"
             }
           }
         ]
@@ -178,12 +182,17 @@
   },
   "active": "bda38083b81fbad1",
   "lastOpenFiles": [
+    "world-generation.md",
+    "runtime-paths.md",
+    "ui.md",
+    "client-architecture.md",
     "project-overview.md",
+    "player.md",
+    "debug-profiling.md",
     "save-load.md",
     "rendering.md",
     "chunk-system.md",
     "block-data.md",
-    "debug-profiling.md",
     "환영합니다!.md"
   ]
 }

@@ -1,7 +1,10 @@
 #include "game/ClientWorldRuntime.h"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
+#include <memory>
+#include <optional>
 #include <utility>
 
 namespace dolbuto::game
@@ -9,6 +12,42 @@ namespace dolbuto::game
     namespace
     {
         constexpr uint8_t AllFeatureSourcesMask = 0xFFu;
+        constexpr uint16_t FluidNone = 0;
+
+        struct FeatureNeighborOffset
+        {
+            int x = 0;
+            int z = 0;
+        };
+
+        constexpr std::array<FeatureNeighborOffset, 8> FeatureNeighborOffsets = {
+            FeatureNeighborOffset{-1, -1},
+            FeatureNeighborOffset{0, -1},
+            FeatureNeighborOffset{1, -1},
+            FeatureNeighborOffset{-1, 0},
+            FeatureNeighborOffset{1, 0},
+            FeatureNeighborOffset{-1, 1},
+            FeatureNeighborOffset{0, 1},
+            FeatureNeighborOffset{1, 1}
+        };
+
+        std::optional<size_t> featureNeighborIndex(int offsetX, int offsetZ)
+        {
+            for (size_t i = 0; i < FeatureNeighborOffsets.size(); ++i)
+            {
+                if (FeatureNeighborOffsets[i].x == offsetX && FeatureNeighborOffsets[i].z == offsetZ)
+                {
+                    return i;
+                }
+            }
+            return std::nullopt;
+        }
+
+        void appendFeatureResult(ClientWorldRuntime::FeaturePropagationResult& target, ClientWorldRuntime::FeaturePropagationResult source)
+        {
+            target.meshCenters.insert(target.meshCenters.end(), source.meshCenters.begin(), source.meshCenters.end());
+            target.finalizeKeys.insert(target.finalizeKeys.end(), source.finalizeKeys.begin(), source.finalizeKeys.end());
+        }
     }
 
     void ClientWorldRuntime::setActiveWorld(std::filesystem::path worldDirectory, uint64_t worldSeed)
@@ -409,6 +448,289 @@ namespace dolbuto::game
         completion.loadState = world::WorldRuntime::captureLoadState(*completion.chunk);
         completion.desired = isTerrainDesired(key);
         return completion;
+    }
+
+    SaveChunkSnapshot ClientWorldRuntime::makeSaveSnapshot(const RuntimeChunk& chunk) const
+    {
+        SaveChunkSnapshot snapshot{};
+        snapshot.chunkX = chunk.chunkX;
+        snapshot.chunkZ = chunk.chunkZ;
+        snapshot.genState = chunk.genState == ChunkGenState::Meshed ? ChunkGenState::Full : chunk.genState;
+        snapshot.incomingFeatureMask = snapshot.genState == ChunkGenState::Full ? 0 : chunk.incomingFeatureMask;
+        if (chunk.data)
+        {
+            snapshot.hasData = true;
+            snapshot.revision = chunk.data->revision;
+            snapshot.hasSavedBacking = chunk.hasSavedBacking;
+            snapshot.forceSave = chunk.dataDirtyForSave || !chunk.hasSavedBacking;
+            snapshot.dataDirtySerial = chunk.dataDirtySerial;
+            snapshot.chunkData = chunk.data;
+        }
+        if (snapshot.genState != ChunkGenState::Full)
+        {
+            snapshot.incomingFeatureSlots = chunk.incomingFeatureSlots;
+        }
+        return snapshot;
+    }
+
+    void ClientWorldRuntime::enqueueSaveSnapshot(SaveChunkSnapshot snapshot)
+    {
+        saveSystem.enqueue(std::move(snapshot));
+    }
+
+    void ClientWorldRuntime::enqueueChunkDataSnapshot(const std::shared_ptr<ChunkData>& chunk, ChunkGenState genState)
+    {
+        if (!chunk)
+        {
+            return;
+        }
+
+        SaveChunkSnapshot snapshot{};
+        snapshot.chunkX = chunk->chunkX;
+        snapshot.chunkZ = chunk->chunkZ;
+        snapshot.genState = genState;
+        snapshot.revision = chunk->revision;
+        snapshot.hasData = true;
+        snapshot.chunkData = chunk;
+        enqueueSaveSnapshot(std::move(snapshot));
+    }
+
+    void ClientWorldRuntime::enqueueSaveAllRuntimeChunks()
+    {
+        for (const auto& entry : worldRuntime.chunks())
+        {
+            enqueueSaveSnapshot(makeSaveSnapshot(entry.second));
+        }
+    }
+
+    void ClientWorldRuntime::enqueueCompletedTerrainSnapshots(world::TerrainCompletedBatch& completed)
+    {
+        for (CompletedChunkData& completedData : completed.completedChunks)
+        {
+            enqueueChunkDataSnapshot(completedData.chunk, ChunkGenState::Featuring);
+        }
+
+        for (const std::shared_ptr<ChunkData>& chunk : completed.completedMergedChunks)
+        {
+            enqueueChunkDataSnapshot(chunk, ChunkGenState::Full);
+        }
+    }
+
+    RuntimeChunk ClientWorldRuntime::runtimeChunkFromSnapshot(
+        const SaveChunkSnapshot& snapshot,
+        uint64_t generation,
+        const EntityNormalizer& normalizeEntity)
+    {
+        RuntimeChunk chunk{};
+        chunk.chunkX = snapshot.chunkX;
+        chunk.chunkZ = snapshot.chunkZ;
+        chunk.genState = snapshot.genState == ChunkGenState::Meshed ? ChunkGenState::Full : snapshot.genState;
+        chunk.incomingFeatureMask = chunk.genState == ChunkGenState::Full ? 0 : snapshot.incomingFeatureMask;
+        chunk.incomingFeatureSlots = chunk.genState == ChunkGenState::Full ? std::array<FeatureWriteListPtr, FeatureNeighborCount>{} : snapshot.incomingFeatureSlots;
+        chunk.hasSavedBacking = true;
+        chunk.dataDirtyForSave = false;
+
+        if (snapshot.hasData &&
+            ((snapshot.chunkData && snapshot.chunkData->blocks.size() == ChunkBlockCount) ||
+                snapshot.blocks.size() == ChunkBlockCount))
+        {
+            auto data = std::make_shared<ChunkData>();
+            if (snapshot.chunkData && snapshot.chunkData->blocks.size() == ChunkBlockCount)
+            {
+                *data = *snapshot.chunkData;
+            }
+            else
+            {
+                data->revision = snapshot.revision;
+                data->chunkX = snapshot.chunkX;
+                data->chunkZ = snapshot.chunkZ;
+                data->blocks = snapshot.blocks;
+                data->fluids = snapshot.fluids;
+                data->temperature = snapshot.temperature;
+                data->precipitation = snapshot.precipitation;
+            }
+            if (data->fluids.size() != ChunkBlockCount)
+            {
+                data->fluids.assign(ChunkBlockCount, FluidNone);
+            }
+            world::WorldRuntime::rebuildDerivedCaches(*data);
+            if (!snapshot.chunkData)
+            {
+                data->entities = snapshot.entities;
+            }
+            data->generation = generation;
+            data->revision = snapshot.revision;
+            data->chunkX = snapshot.chunkX;
+            data->chunkZ = snapshot.chunkZ;
+            for (WorldEntity& entity : data->entities)
+            {
+                if (normalizeEntity)
+                {
+                    normalizeEntity(entity);
+                }
+            }
+            chunk.data = std::move(data);
+        }
+
+        if (chunk.genState == ChunkGenState::Full)
+        {
+            saveSystem.markClean(chunk.chunkX, chunk.chunkZ, chunk.data ? chunk.data->revision : 0);
+        }
+        return chunk;
+    }
+
+    void ClientWorldRuntime::mergeLoadStateIncomingFeatures(
+        RuntimeChunk& loaded,
+        const world::WorldRuntime::RuntimeChunkLoadState& loadState,
+        const world::TerrainBuilderConfig& terrainConfig) const
+    {
+        if (loadState.incomingFeatureMask == 0)
+        {
+            return;
+        }
+
+        if ((loaded.genState == ChunkGenState::Full || loaded.genState == ChunkGenState::Meshed) && loaded.data)
+        {
+            if (world::TerrainBuilder(terrainConfig).applyFeatureWrites(loaded.data, loadState.incomingFeatureSlots))
+            {
+                loaded.genState = ChunkGenState::Full;
+            }
+            return;
+        }
+
+        for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
+        {
+            const uint8_t bit = static_cast<uint8_t>(1u << static_cast<uint32_t>(slot));
+            if ((loadState.incomingFeatureMask & bit) != 0 && loadState.incomingFeatureSlots[slot] && !loaded.incomingFeatureSlots[slot])
+            {
+                loaded.incomingFeatureSlots[slot] = loadState.incomingFeatureSlots[slot];
+                loaded.incomingFeatureMask |= bit;
+            }
+        }
+    }
+
+    ClientWorldRuntime::FeaturePropagationResult ClientWorldRuntime::acceptFeatureSlot(
+        int targetChunkX,
+        int targetChunkZ,
+        size_t sourceSlot,
+        FeatureWriteListPtr writes,
+        const world::TerrainBuilderConfig& terrainConfig)
+    {
+        FeaturePropagationResult result{};
+        if (sourceSlot >= FeatureNeighborCount || !writes)
+        {
+            return result;
+        }
+
+        const uint64_t targetKey = world::WorldRuntime::chunkKey(targetChunkX, targetChunkZ);
+        RuntimeChunk* existingTarget = worldRuntime.find(targetKey);
+        if (existingTarget == nullptr && !isTerrainDesired(targetKey))
+        {
+            return result;
+        }
+
+        bool created = false;
+        RuntimeChunk& target = existingTarget != nullptr
+            ? *existingTarget
+            : worldRuntime.ensureChunkShell(targetChunkX, targetChunkZ, created);
+
+        if ((target.genState == ChunkGenState::Full || target.genState == ChunkGenState::Meshed) && target.data)
+        {
+            std::array<FeatureWriteListPtr, FeatureNeighborCount> singleSlot{};
+            singleSlot[sourceSlot] = std::move(writes);
+            if (world::TerrainBuilder(terrainConfig).applyFeatureWrites(target.data, singleSlot))
+            {
+                target.genState = ChunkGenState::Full;
+                result.meshCenters.push_back({targetChunkX, targetChunkZ});
+            }
+            return result;
+        }
+
+        const uint8_t sourceBit = static_cast<uint8_t>(1u << static_cast<uint32_t>(sourceSlot));
+        if ((target.incomingFeatureMask & sourceBit) != 0)
+        {
+            return result;
+        }
+
+        target.incomingFeatureSlots[sourceSlot] = std::move(writes);
+        target.incomingFeatureMask |= sourceBit;
+        result.finalizeKeys.push_back(targetKey);
+        return result;
+    }
+
+    ClientWorldRuntime::FeaturePropagationResult ClientWorldRuntime::acceptSavedFeaturingChunkFeatures(
+        const CompletedChunkData& completed,
+        const world::TerrainBuilderConfig& terrainConfig)
+    {
+        FeaturePropagationResult result{};
+        if (!completed.chunk)
+        {
+            return result;
+        }
+
+        for (size_t slot = 0; slot < FeatureNeighborOffsets.size(); ++slot)
+        {
+            const int targetChunkX = completed.chunk->chunkX + FeatureNeighborOffsets[slot].x;
+            const int targetChunkZ = completed.chunk->chunkZ + FeatureNeighborOffsets[slot].z;
+            const std::optional<size_t> sourceSlot = featureNeighborIndex(-FeatureNeighborOffsets[slot].x, -FeatureNeighborOffsets[slot].z);
+            if (!sourceSlot)
+            {
+                continue;
+            }
+
+            if (isTerrainDesired(world::WorldRuntime::chunkKey(targetChunkX, targetChunkZ)))
+            {
+                appendFeatureResult(result, acceptFeatureSlot(
+                    targetChunkX,
+                    targetChunkZ,
+                    *sourceSlot,
+                    completed.outgoingFeatureSlots[slot],
+                    terrainConfig));
+            }
+        }
+        return result;
+    }
+
+    ClientWorldRuntime::FeaturePropagationResult ClientWorldRuntime::publishFeatureSlots(
+        RuntimeChunk& sourceChunk,
+        uint64_t generation,
+        const world::TerrainBuilderConfig& terrainConfig)
+    {
+        FeaturePropagationResult result{};
+        if (sourceChunk.genState == ChunkGenState::Empty)
+        {
+            return result;
+        }
+
+        if (sourceChunk.outgoingPublishedTicket == generation)
+        {
+            return result;
+        }
+
+        const bool hasOutgoingSlots = std::any_of(sourceChunk.outgoingFeatureSlots.begin(), sourceChunk.outgoingFeatureSlots.end(), [](const FeatureWriteListPtr& slot)
+        {
+            return slot != nullptr;
+        });
+        if (!hasOutgoingSlots && sourceChunk.data)
+        {
+            const world::TerrainBuilder terrainBuilder(terrainConfig);
+            const std::array<int, ChunkColumnCount> heights = terrainBuilder.buildChunkHeightmap(sourceChunk.chunkX, sourceChunk.chunkZ);
+            sourceChunk.outgoingFeatureSlots = terrainBuilder.buildTreeFeatures(sourceChunk.data, heights);
+        }
+
+        for (size_t slot = 0; slot < FeatureNeighborOffsets.size(); ++slot)
+        {
+            const int targetChunkX = sourceChunk.chunkX + FeatureNeighborOffsets[slot].x;
+            const int targetChunkZ = sourceChunk.chunkZ + FeatureNeighborOffsets[slot].z;
+            const std::optional<size_t> sourceSlot = featureNeighborIndex(-FeatureNeighborOffsets[slot].x, -FeatureNeighborOffsets[slot].z);
+            if (!sourceSlot)
+            {
+                continue;
+            }
+            appendFeatureResult(result, acceptFeatureSlot(targetChunkX, targetChunkZ, *sourceSlot, sourceChunk.outgoingFeatureSlots[slot], terrainConfig));
+        }
+        sourceChunk.outgoingPublishedTicket = generation;
+        return result;
     }
 
     ClientWorldRuntime::CompletedChunkDecision ClientWorldRuntime::decideCompletedChunk(const ChunkData& chunk) const

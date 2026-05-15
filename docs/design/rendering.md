@@ -35,12 +35,32 @@
 
 렌더링 지형 데이터 타입은 `src/renderer/TerrainTypes.h`에 둔다.
 현재 포함 타입은 `TerrainVertex`, `PackedTerrainQuad`, `TerrainMesh`, `TerrainBuildData`이다.
-`src/renderer/RendererUi.cpp`는 RmlUi `RenderInterface` 구현과 UI 입력/인벤토리 표시 갱신을 담는다.
-`src/renderer/RendererDroppedItems.cpp`는 dropped item 아이템 스프라이트 mesh 생성, GPU instance 업로드, draw path를 담는다.
+`src/renderer/RendererGpuResources.h/.cpp`는 `Texture`, buffer upload region, texture/image 생성, render target 생성, mipmap 생성, one-time command buffer, buffer upload, texture descriptor set 업데이트를 담당한다.
+`src/game/ClientContent.h/.cpp`는 block/item 정의와 텍스처 layer 이름을 Renderer/Vulkan 타입 없이 로드한다.
+`src/renderer/RendererAssetStore.h/.cpp`는 `ClientContent`를 입력으로 받아 sky/UI/player/terrain/fluid/item texture, item sprite mesh, prop render mesh를 생성하고 해제한다.
+`src/renderer/SpriteRenderPath.h/.cpp`는 sprite pipeline의 push constant 구성, descriptor bind, 6-vertex draw primitive를 담당한다.
+`src/renderer/ScreenPresentation.h/.cpp`는 sky sprites, scene color target composite, climate overlay, crosshair, fallback menu, debug text 호출을 조율한다.
+`src/world/ClimateSystem.h/.cpp`는 climate seed, tileable climate noise sampling, chunk climate population, temperature/precipitation 계산을 담당한다.
+`src/renderer/ClimateOverlayTextureBuilder.h/.cpp`는 temperature/precipitation overlay texture에 업로드할 RGBA pixel 데이터를 생성한다.
+`src/renderer/DebugOverlayText.h/.cpp`는 debug 표시 문자열, 해상도/FPS cache, text batch dirty 상태를 소유한다.
+`src/renderer/TerrainGeometryBuilder.h/.cpp`는 solid/cross/prop terrain CPU mesh 생성을 담당하며 Vulkan 타입에 의존하지 않는다.
+`src/renderer/RendererTerrainMeshBridge.h/.cpp`는 `TerrainGeometryBuilder`와 `TerrainMesher`를 연결해 chunk mesh와 edited subchunk mesh의 CPU 조립을 담당한다.
+`src/renderer/TextRenderPath.h/.cpp`는 font atlas texture 생성, host-visible text vertex buffer, glyph layout, outline/fill text batch draw를 담당한다.
+`src/renderer/TerrainRenderPath.h/.cpp`는 terrain chunk render data, render chunk 설치/교체/retire 규칙, retired terrain mesh 수명, packed terrain quad 변환, terrain GPU buffer upload, terrain vertex descriptor set 생성, solid/fluid terrain mesh draw 순회와 terrain frustum culling을 담당한다.
+`src/renderer/PlayerMeshRenderPath.h/.cpp`는 player mesh 파일 로드, player vertex/index buffer 생성, 매 프레임 player vertex 위치 갱신, player indexed draw와 buffer 수명을 담당한다.
+`src/renderer/ParticleRenderPath.h/.cpp`는 블록 파괴 파티클 상태, 파괴 오버레이 quad 생성, 파티클 수명/단순 terrain 충돌 갱신, host-visible particle vertex/index buffer 업로드, particle draw path를 담당한다.
+`src/renderer/DroppedItemRenderCollector.h/.cpp`는 드랍 아이템 청크 frustum culling, 거리 culling, stack count별 시각 복제본 생성, `DroppedItemRenderPath::RenderInstance` 목록 생성을 담당한다.
+`src/renderer/DroppedItemRenderPath.h/.cpp`는 드랍 아이템 로컬 스프라이트 mesh 타입, GPU static vertex/index buffer, persistent instance buffer, instance 업로드, item id별 batch draw를 담당한다.
+`src/renderer/ItemSpriteMeshBuilder.h/.cpp`는 아이템 텍스처 alpha를 읽어 드랍 아이템용 extruded sprite mesh를 생성한다.
+`src/renderer/RendererUi.cpp`는 RmlUi `RenderInterface`와 Vulkan UI geometry 업로드를 담고, UI 표시 변환과 인벤토리 입력 처리는 `ClientUiBridge`에 위임한다.
+`src/renderer/RendererDroppedItems.cpp`는 `DroppedItemRuntime` update 호출, 렌더 후보 수집 입력 조립, push constant 준비, `DroppedItemRenderPath` draw 호출만 담는다.
 `src/renderer/RendererFrame.h`는 `GameClient`가 한 프레임 렌더링에 넘기는 카메라, 플레이어, overlay, debug, screenshot, world tick 입력을 `RendererFrame` DTO로 묶는다.
 드롭 아이템 생성/병합/물리 tick/pickup 판정은 `src/world/DroppedItemSystem.h/.cpp`가 담당한다.
+드롭 아이템 entity id, 청크별 추적, spawn/drop/pickup/raycast/update 조율은 `src/world/DroppedItemRuntime.h/.cpp`가 담당한다.
 `src/world/TerrainMesher.h/.cpp`는 chunk mesh와 편집 subchunk mesh의 CPU orchestration을 맡는다.
-solid subchunk의 greedy meshing 본체와 Vulkan 업로드는 아직 `Renderer`가 담당한다.
+solid/cross/prop subchunk mesh 생성은 `TerrainGeometryBuilder`가 담당하고, render chunk storage 조작, Vulkan upload, terrain render data 수명, terrain mesh draw loop는 `TerrainRenderPath`가 담당한다.
+chunk mesh와 edited subchunk mesh의 CPU 조립은 `RendererTerrainMeshBridge`가 담당하고, `Renderer`는 결과를 `TerrainRenderPath` 설치 API로 전달한다.
+player mesh는 terrain chunk mesh와 별도 indexed vertex buffer 경로이며 `PlayerMeshRenderPath`가 소유한다.
 fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
 초기 청크 지형 생성과 feature 반영은 `src/world/TerrainBuilder.h/.cpp`로 분리되어 있다.
 
@@ -54,6 +74,7 @@ fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정
 ## 텍스처
 
 - 블록 텍스처는 `assets/data/blocks.json`에 등록된 텍스처만 texture array에 넣는다.
+- 블록/아이템 정의와 텍스처 layer 이름은 `ClientContent`가 만들고, 실제 Vulkan texture array는 `RendererAssetStore`가 만든다.
 - 기본 블록 텍스처는 `assets/textures/block`에 있다.
 - 수동 mip 파일은 `assets/textures/block/mip`에 둔다.
 - 없는 mip 파일은 실행 중 생성해서 mip 폴더에 저장한다.
@@ -86,6 +107,21 @@ assets/textures/block/breaking/destroy_stage_9.png
 플레이어가 블록 파괴를 유지하면 선택된 큐브 블록은 현재 파괴 진행도에 따라 10개 오버레이 단계 중 하나를 렌더링한다.
 오버레이는 지형 texture array를 사용하는 블록 공간 quad로 방출하며 mip level 0을 강제한다.
 파괴 중에는 타격 면에서 작은 블록 텍스처 파티클이 고정 간격으로 생성된다.
+
+## 텍스트 렌더링
+
+디버그 텍스트와 fallback 메뉴 텍스트는 `TextRenderPath`가 렌더링한다.
+`TextRenderPath`는 FreeType으로 font atlas를 만들고, 텍스트 batch를 outline/fill vertex로 변환한 뒤 sprite pipeline에 업로드한다.
+`DebugOverlayText`는 hardware/performance/terrain/debug 표시 문자열과 dirty 상태를 관리한다.
+`Renderer`는 FPS, swapchain extent, 성능 샘플, terrain 통계 같은 입력 값을 전달하고 메뉴 항목 표시 타이밍만 조율한다.
+
+## 화면 프레젠테이션
+
+swapchain render pass 위에 얹는 2D presentation은 `ScreenPresentation`이 조율한다.
+scene color target 합성, sky sprite, crosshair, climate overlay, fallback menu 배경/버튼/text, debug text draw 호출은 이 계층에 둔다.
+실제 sprite descriptor bind와 push constant draw는 `SpriteRenderPath`가 담당한다.
+
+temperature/precipitation overlay texture pixel은 `ClimateOverlayTextureBuilder`가 `ClimateSystem` 샘플링 결과로 생성하고, 생성된 texture draw는 `ScreenPresentation`이 수행한다.
 
 ## 소품 렌더링
 
@@ -143,6 +179,7 @@ assets/textures/block/breaking/destroy_stage_9.png
 ## 블록 파괴 파티클
 
 블록 파괴는 수명이 짧은 런타임 파티클을 생성한다. 파티클은 저장하지 않는다.
+파티클 상태와 GPU buffer 수명, draw command 방출은 `ParticleRenderPath`가 소유하고, `Renderer`는 블록 정의 확인, texture layer 선택, 현재 파괴 상태와 terrain collision callback만 전달한다.
 
 - 트리거: 블록 제거 성공.
 - 개수: 파괴된 블록당 24개.
@@ -162,8 +199,11 @@ assets/textures/block/breaking/destroy_stage_9.png
 
 드랍 아이템은 전용 item pipeline으로 렌더링한다.
 아이템 스프라이트에서 만든 로컬 extruded mesh는 시작 시 정적 vertex/index buffer에 한 번 업로드한다.
+로컬 extruded mesh 생성은 `ItemSpriteMeshBuilder`가 담당하고, 결과 타입은 `DroppedItemRenderPath::ItemSpriteMesh`이다.
 프레임마다 CPU가 아이템 쿼드 정점을 다시 펼치지 않고, 드랍 아이템 위치/회전/텍스처 layer만 담은 instance buffer를 갱신한다.
 instance buffer는 persistent mapping 상태로 유지해 매 프레임 `vkMapMemory`/`vkUnmapMemory`를 반복하지 않는다.
+정적 mesh GPU buffer, instance buffer, instance 업로드, 정렬, item id별 batch draw는 `DroppedItemRenderPath`가 소유한다.
+`DroppedItemRuntime`은 드랍 아이템 runtime 상태와 tick을 갱신하고, `DroppedItemRenderCollector`는 월드 엔티티를 순회해 렌더 후보 `RenderInstance` 목록을 만들며, `RendererDroppedItems.cpp`는 카메라/pipeline/texture 정보를 `DroppedItemRenderPath`에 전달한다.
 렌더 후보 수를 줄이기 위해 다음 컬링을 적용한다.
 
 - 런타임은 드랍 아이템을 가진 청크별 카운트와 전체 드랍 아이템 수를 캐시한다.

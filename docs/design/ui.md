@@ -242,3 +242,11 @@ RmlUi가 이미 결합되었지만 유효하지 않은 절대 텍스처 경로�
 - [[rendering]]
 - [[runtime-paths]]
 - [[build-and-distribution]]
+
+## 현재 코드 경계
+
+`ClientUiBridge`는 `UiSystem`과 `ClientGameplayRuntime` 사이의 클라이언트 UI 어댑터다.
+hotbar/inventory RML 조립, cursor item 갱신, tooltip 표시, inventory slot hit test, 숫자키 hotbar 교환, mouse click 기반 inventory 조작, world list 표시 DTO 변환을 담당한다.
+`ClientUiBridge`는 Vulkan 타입에 의존하지 않고, `Renderer`는 viewport 크기와 입력 값을 전달한다.
+
+`Renderer`가 UI에서 계속 담당하는 부분은 Vulkan `Rml::RenderInterface` 구현, UI geometry buffer 업로드, RmlUi graphics pipeline, RmlUi texture load/release, scissor state 처리다.

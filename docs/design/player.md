@@ -68,9 +68,10 @@ V 키로 fly/ground 모드를 전환한다.
 - 레이캐스트 기준은 항상 1인칭 눈 위치와 1인칭 카메라 방향이다.
 - 3인칭 상태에서도 블록 상호작용은 1인칭 기준으로 처리한다.
 
-블록 상호작용 판정은 `BlockInteractionSystem`이 담당한다.
-여기에는 블록 좌표 변환, 레이캐스트, 플레이어 충돌 범위 판정, 블록 파괴 진행 상태가 포함된다.
-`Renderer`는 판정 결과를 받아 실제 블록 변경, mesh 재생성, 파괴/설치 효과음, 파티클 생성을 실행한다.
+블록 상호작용의 기본 판정은 `BlockInteractionSystem`이 담당한다.
+여기에는 블록 좌표 변환, 레이캐스트, 플레이어 충돌 범위 판정, 블록 파괴 진행 상태 갱신 규칙이 포함된다.
+클라이언트에서는 `ClientGameplayRuntime`이 block breaking 상태와 블록 상호작용 결과를 조율한다.
+`Renderer`는 gameplay 결과를 받아 mesh 재생성, 파괴/설치 효과음, 파티클 생성을 실행한다.
 
 ## 입력
 
@@ -96,7 +97,7 @@ V 키로 fly/ground 모드를 전환한다.
 
 ## 인벤토리 런타임
 
-플레이어 인벤토리 런타임 상태는 `PlayerInventory`가 소유한다.
+플레이어 인벤토리 규칙은 `PlayerInventory`가 담당하고, 클라이언트 런타임 소유권은 `ClientGameplayRuntime`이 가진다.
 현재 슬롯 수는 50개이며, 앞 10개 슬롯은 핫바로 사용한다.
 
 `PlayerInventory`는 다음 규칙을 담당한다.
@@ -108,7 +109,8 @@ V 키로 fly/ground 모드를 전환한다.
 - 핫바 숫자키 교환
 - 선택 핫바 슬롯에서 아이템 제거
 
-`Renderer`는 인벤토리 UI 표시, 마우스 좌표 기반 슬롯 hit test, RmlUi 입력 전달, 아이템 정의를 표시용 데이터로 변환하는 역할만 유지한다.
+`ClientUiBridge`는 인벤토리 UI 표시, 마우스 좌표 기반 슬롯 hit test, RmlUi 입력 기반 슬롯 조작, 아이템 정의의 표시 데이터 변환을 담당한다.
+실제 슬롯 변경은 `ClientGameplayRuntime`에 위임하고, `Renderer`는 RmlUi/Vulkan backend와 viewport 전달만 유지한다.
 
 ## 플레이어 저장 데이터
 
