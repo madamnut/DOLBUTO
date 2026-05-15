@@ -52,9 +52,32 @@
 `src/renderer/DroppedItemRenderCollector.h/.cpp`는 드랍 아이템 청크 frustum culling, 거리 culling, stack count별 시각 복제본 생성, `DroppedItemRenderPath::RenderInstance` 목록 생성을 담당한다.
 `src/renderer/DroppedItemRenderPath.h/.cpp`는 드랍 아이템 로컬 스프라이트 mesh 타입, GPU static vertex/index buffer, persistent instance buffer, instance 업로드, item id별 batch draw를 담당한다.
 `src/renderer/ItemSpriteMeshBuilder.h/.cpp`는 아이템 텍스처 alpha를 읽어 드랍 아이템용 extruded sprite mesh를 생성한다.
-`src/renderer/RendererUi.cpp`는 RmlUi `RenderInterface`와 Vulkan UI geometry 업로드를 담고, UI 표시 변환과 인벤토리 입력 처리는 `ClientUiBridge`에 위임한다.
+`src/renderer/RendererVulkanContext.cpp`는 Vulkan instance, surface, physical/logical device, queue, command pool, timestamp query pool, hardware debug 정보 수집을 담는다.
+`src/renderer/RendererSwapchain.cpp`는 swapchain, image view, render pass, depth/scene target, framebuffer, recreate/cleanup을 담는다.
+`src/renderer/RendererPipelines.cpp`는 descriptor layout/pool, sampler, shader module, sprite/UI/terrain/particle/item/selection pipeline 생성을 담는다.
+`src/renderer/RendererVulkanState.h`는 Vulkan instance/device/swapchain/pipeline/command/sync/query/RmlUi buffer handle 상태를 `RendererVulkanState`로 묶는다.
+`src/game/ClientRuntimeState.h`는 `ClientRuntime`이 소유하는 client runtime 전환 상태를 selection, world/render config, diagnostics, gameplay/world/terrain scene lifecycle, content, UI bridge, audio 묶음으로 보관한다.
+`src/renderer/RendererLifecycle.cpp`는 Renderer 생성/해제 순서와 queue family complete 판정을 담는다.
+`src/renderer/RendererLocalResources.cpp`는 text render path, UI buffers, particle/dropped-item render path buffers, selection line buffer, player mesh 생성 hook을 담는다.
+`src/renderer/RendererSceneDraw.cpp`는 terrain/player/particle/selection draw helper와 draw용 matrix helper를 담는다.
+`src/renderer/RendererTypes.h`는 renderer 구현 파일들이 공유하는 queue family, UI vertex/push/geometry, selection line vertex, terrain push constant 타입을 담는다.
+`src/renderer/RendererVulkanMethods.inc`, `src/renderer/RendererRenderMethods.inc`는 `Renderer` class private section에 포함되는 구현 선언 fragment이며, `Renderer.h` 본문은 public API와 소유/배선 구조를 중심으로 유지한다.
+`src/renderer/RendererUiRuntimeBridge.h/.cpp`는 RmlUi 초기화/종료, UI frame render 호출, UI input forwarding, inventory/world list UI 갱신, UI action/input value 조회를 담당하는 `RendererUiRuntimeBridge` 객체를 담는다.
+`src/renderer/RendererRmlUiBackend.h/.cpp`는 RmlUi `RenderInterface`, UI geometry upload, UI texture load/generate/release, scissor 상태를 담고, `RendererUi.cpp`는 이 backend를 `UiSystem`에 연결한다.
 `src/renderer/RendererDroppedItems.cpp`는 `DroppedItemRuntime` update 호출, 렌더 후보 수집 입력 조립, push constant 준비, `DroppedItemRenderPath` draw 호출만 담는다.
-`src/renderer/RendererFrame.h`는 `GameClient`가 한 프레임 렌더링에 넘기는 카메라, 플레이어, overlay, debug, screenshot, world tick 입력을 `RendererFrame` DTO로 묶는다.
+`src/renderer/RendererFrameLoop.cpp`는 frame acquire/submit/present, command buffer 기록, screenshot readback/BMP 저장, command buffer/sync object 생성을 담는다.
+`src/renderer/RendererGameplayBridge.h/.cpp`는 block selection/edit/breaking, pickup/drop, inventory snapshot, block lookup/collision helper, gameplay 결과의 mesh/particle/audio 반영을 담당하는 `RendererGameplayBridge`를 담는다.
+`src/renderer/RendererTerrainRuntimeBridge.h/.cpp`는 loaded chunk 갱신, terrain load request, terrain job completion, pending unload, retired terrain chunk 처리, edited mesh rebuild, terrain stats 갱신을 담당하는 `RendererTerrainRuntimeBridge` 객체를 담는다.
+`src/renderer/RendererSceneLifecycleBridge.h/.cpp`는 scene load/unload hook 조립과 renderer-specific scene lifecycle callback 연결을 담당하는 `RendererSceneLifecycleBridge` 객체를 담는다.
+`src/renderer/RendererConfigBridge.h/.cpp`는 content/GPU asset load, world/render config load, height LUT load를 담당하는 `RendererConfigBridge` 객체를 담는다.
+`src/renderer/RendererAudioBridge.h/.cpp`는 audio init/shutdown, listener update, music scene selection, gameplay sound trigger를 담당하는 `RendererAudioBridge` 객체를 담는다.
+`src/renderer/RendererDiagnosticsBridge.h/.cpp`는 selected block/climate/debug/performance/VRAM text를 담당하는 `RendererDiagnosticsBridge` 객체를 담는다.
+`src/renderer/RendererClimateOverlay.cpp`는 climate overlay texture 생성을 담는다.
+`src/game/ClientFrame.h`는 `GameClient`가 한 프레임 렌더링에 넘기는 카메라, 플레이어, overlay, debug, screenshot, world tick 입력을 `ClientFrame` DTO로 묶는다.
+`src/game/ClientRuntime.h/.cpp`는 `GameClient`가 호출하는 클라이언트 런타임 진입점이고, `render()`, `scene()`, `gameplay()`, `ui()`, `diagnostics()` access로 역할별 호출 표면을 제공한다.
+Renderer/GPU가 필요 없는 collision query, block selection state, inventory snapshot, UI action/input query, selected block/climate text는 `ClientRuntimeState`에서 직접 처리하고, 렌더러 의존 작업은 `ClientRenderRuntime`에 위임한다.
+`src/game/ClientRenderRuntime.h/.cpp`는 `Renderer`를 소유하고 scene/gameplay/UI/render 호출을 현재 renderer bridge 객체로 연결하는 전환기 adapter다.
+`src/renderer/RendererFrame.h`는 `ClientRenderRuntime`이 Renderer 호출 직전에 변환하는 renderer 내부 경계 DTO다.
 드롭 아이템 생성/병합/물리 tick/pickup 판정은 `src/world/DroppedItemSystem.h/.cpp`가 담당한다.
 드롭 아이템 entity id, 청크별 추적, spawn/drop/pickup/raycast/update 조율은 `src/world/DroppedItemRuntime.h/.cpp`가 담당한다.
 `src/world/TerrainMesher.h/.cpp`는 chunk mesh와 편집 subchunk mesh의 CPU orchestration을 맡는다.
@@ -62,6 +85,7 @@ solid/cross/prop subchunk mesh 생성은 `TerrainGeometryBuilder`가 담당하�
 chunk mesh와 edited subchunk mesh의 CPU 조립은 `RendererTerrainMeshBridge`가 담당하고, `Renderer`는 결과를 `TerrainRenderPath` 설치 API로 전달한다.
 player mesh는 terrain chunk mesh와 별도 indexed vertex buffer 경로이며 `PlayerMeshRenderPath`가 소유한다.
 fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
+프레임 루프와 Vulkan command recording은 `RendererFrameLoop.cpp`의 책임이며, gameplay/terrain/scene/debug bridge는 별도 translation unit으로 분리한다. 이전 `Renderer.cpp`는 제거되었고, lifecycle/local resource/scene draw 책임은 이름 있는 translation unit에 둔다.
 초기 청크 지형 생성과 feature 반영은 `src/world/TerrainBuilder.h/.cpp`로 분리되어 있다.
 
 ## 메모리

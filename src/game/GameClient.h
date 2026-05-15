@@ -1,7 +1,7 @@
 #pragma once
 
 #include "camera/Camera.h"
-#include "game/ClientRuntimeFacade.h"
+#include "game/ClientRuntime.h"
 
 #include <array>
 #include <chrono>
@@ -87,7 +87,7 @@ namespace dolbuto
         void updateDebugText();
 
         GLFWwindow* window_ = nullptr;
-        std::unique_ptr<game::ClientRuntimeFacade> runtime_;
+        std::unique_ptr<game::ClientRuntime> runtime_;
         Camera camera_;
         bool fullscreen_ = false;
         bool debugTextVisible_ = true;

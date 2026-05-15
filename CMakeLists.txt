@@ -154,8 +154,12 @@ add_executable(DOLBUTO
     src/main.cpp
     src/game/ClientContent.cpp
     src/game/ClientContent.h
-    src/game/ClientRuntimeFacade.cpp
-    src/game/ClientRuntimeFacade.h
+    src/game/ClientFrame.h
+    src/game/ClientRenderRuntime.cpp
+    src/game/ClientRenderRuntime.h
+    src/game/ClientRuntime.cpp
+    src/game/ClientRuntime.h
+    src/game/ClientRuntimeState.h
     src/game/ClientSceneLifecycle.cpp
     src/game/ClientSceneLifecycle.h
     src/game/ClientTerrainCompletionHandler.cpp
@@ -192,8 +196,22 @@ add_executable(DOLBUTO
     src/platform/Log.h
     src/platform/RuntimePaths.cpp
     src/platform/RuntimePaths.h
-    src/renderer/Renderer.cpp
     src/renderer/RendererDroppedItems.cpp
+    src/renderer/RendererFrameLoop.cpp
+    src/renderer/RendererGameplayBridge.cpp
+    src/renderer/RendererLifecycle.cpp
+    src/renderer/RendererLocalResources.cpp
+    src/renderer/RendererPipelines.cpp
+    src/renderer/RendererRmlUiBackend.cpp
+    src/renderer/RendererAudio.cpp
+    src/renderer/RendererClimateOverlay.cpp
+    src/renderer/RendererConfig.cpp
+    src/renderer/RendererDiagnostics.cpp
+    src/renderer/RendererSceneLifecycleBridge.cpp
+    src/renderer/RendererSceneDraw.cpp
+    src/renderer/RendererSwapchain.cpp
+    src/renderer/RendererTerrainRuntimeBridge.cpp
+    src/renderer/RendererVulkanContext.cpp
     src/renderer/DroppedItemRenderCollector.cpp
     src/renderer/DroppedItemRenderCollector.h
     src/renderer/DroppedItemRenderPath.cpp
@@ -203,9 +221,21 @@ add_executable(DOLBUTO
     src/renderer/RendererFrame.h
     src/renderer/RendererAssetStore.cpp
     src/renderer/RendererAssetStore.h
+    src/renderer/RendererAudioBridge.h
+    src/renderer/RendererConfigBridge.h
+    src/renderer/RendererDiagnosticsBridge.h
+    src/renderer/RendererGameplayBridge.h
     src/renderer/RendererGpuResources.cpp
     src/renderer/RendererGpuResources.h
     src/renderer/Renderer.h
+    src/renderer/RendererRenderMethods.inc
+    src/renderer/RendererRmlUiBackend.h
+    src/renderer/RendererSceneLifecycleBridge.h
+    src/renderer/RendererTerrainRuntimeBridge.h
+    src/renderer/RendererTypes.h
+    src/renderer/RendererUiRuntimeBridge.h
+    src/renderer/RendererVulkanMethods.inc
+    src/renderer/RendererVulkanState.h
     src/renderer/RendererTerrainMeshBridge.cpp
     src/renderer/RendererTerrainMeshBridge.h
     src/renderer/ClimateOverlayTextureBuilder.cpp

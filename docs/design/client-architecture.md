@@ -12,10 +12,10 @@ DOLBUTO 클라이언트는 `Renderer` 중심 구조에서 런타임 시스템 �
 ```text
 main.cpp
   -> GameClient
-      -> ClientRuntimeFacade
+      -> ClientRuntime
           -> client runtime
           -> world / gameplay / save
-          -> renderer facade
+          -> ClientRenderRuntime
               -> renderer internal systems
           -> ui / audio bridge
 ```
@@ -33,7 +33,7 @@ main.cpp
 
 `GameClient`는 composition root이자 최상위 오케스트레이터다.
 메인 루프, 입력 callback 연결, 화면 상태 전환, 플레이어 상태 저장/로드, world metadata 저장/로드, subsystem 호출 순서를 조율한다.
-`GameClient`는 `Renderer`를 직접 소유하지 않고 `ClientRuntimeFacade`를 통해 scene/gameplay/UI/render 경계를 호출한다.
+`GameClient`는 `Renderer`를 직접 소유하지 않고 `ClientRuntime`을 통해 scene/gameplay/UI/render 경계를 호출한다.
 
 `GameClient`는 개별 gameplay 규칙을 직접 소유하지 않는 방향으로 유지한다.
 규칙이 커지면 `world`, `gameplay`, `client runtime` 계층으로 옮긴다.
@@ -42,7 +42,12 @@ game scene 전환의 세부 순서도 `Renderer`가 아니라 `ClientSceneLifecy
 ## Client Runtime
 
 현재 구현 기준으로 저장 snapshot 생성/복원과 feature slot 전파는 `ClientWorldRuntime`이 담당한다.
-`GameClient`가 사용하는 클라이언트 런타임 API는 `ClientRuntimeFacade`가 묶는다.
+`GameClient`가 사용하는 클라이언트 런타임 API는 `ClientRuntime`이 묶는다.
+`ClientRuntime`은 `ClientRuntimeState`를 소유하고, world/gameplay/save/UI/audio/content 상태는 이 경계 아래에 둔다.
+`ClientRuntime`의 public API는 `render()`, `scene()`, `gameplay()`, `ui()`, `diagnostics()` access로 나누어 평면 facade가 커지는 것을 막는다.
+충돌 조회, 블록 선택 상태 갱신, inventory snapshot, world list/input/action 조회, 선택 블록/기후 debug 문자열처럼 Renderer/GPU가 필요 없는 작업은 `ClientRuntime`이 `ClientRuntimeState`에서 직접 처리한다.
+현재 렌더러 직접 의존과 renderer bridge 접근은 `ClientRenderRuntime`에 격리한다.
+블록 편집/파괴처럼 mesh rebuild, particle, sound, viewport-dependent UI 처리가 필요한 작업만 `ClientRenderRuntime`을 거쳐 Renderer bridge로 전달한다.
 game scene load/unload 순서, active world 설정, gameplay reset, terrain scene start/stop, save flush는 `ClientSceneLifecycle`이 담당한다.
 terrain scene load request, worker lifecycle, completed work drain, pending unload의 world/save 처리는 `ClientTerrainSceneRuntime`이 담당한다.
 terrain request cascade와 feature finalize/mesh retry job queue 조율은 `ClientTerrainCoordinator`가 담당한다.
@@ -67,7 +72,7 @@ terrain/chunk-load 완료 결과의 save/install/ignore/retry 처리 흐름은 `
 
 `Renderer`는 외부에서 볼 때 렌더링 facade다.
 공개 API는 프레임 렌더링과 swapchain resize 같은 렌더러 직접 경계로 제한한다.
-scene/gameplay/UI 조작 API는 `ClientRuntimeFacade`에서만 접근하는 전환 경계로 둔다.
+scene/gameplay/UI 조작 API는 `ClientRenderRuntime`에서만 접근하는 전환 경계로 둔다.
 
 `Renderer` 내부는 다음 책임으로 계속 분리한다.
 
@@ -90,14 +95,16 @@ scene/gameplay/UI 조작 API는 `ClientRuntimeFacade`에서만 접근하는 전�
 ## 경계 타입
 
 계층 사이에는 구체적인 runtime 내부 타입보다 목적이 드러나는 DTO를 우선한다.
-현재 프레임 렌더링 입력은 `RendererFrame`으로 묶고, 월드 목록 표시 데이터는 `game::WorldListItem`으로 둔다.
+현재 `GameClient`가 넘기는 프레임 렌더링 입력은 `game::ClientFrame`으로 묶고, 월드 목록 표시 데이터는 `game::WorldListItem`으로 둔다.
+`RendererFrame`은 `ClientRenderRuntime` 안에서 Renderer 호출용으로 변환되는 renderer 계층 DTO다.
 
 앞으로 terrain mesh upload, render chunk detach, UI command, audio event 같은 경계도 목적별 DTO로 정리한다.
 
 ## 패턴
 
 - `GameClient`: composition root, facade 성격의 오케스트레이터
-- `ClientRuntimeFacade`: GameClient-facing client runtime facade
+- `ClientRuntime`: GameClient-facing client runtime boundary
+- `ClientRenderRuntime`: renderer-facing adapter for Renderer ownership, bridge access, and `RendererFrame` conversion
 - `Renderer`: rendering facade
 - `ClientSceneLifecycle`: game scene lifecycle coordinator
 - `ClientTerrainSceneRuntime`: terrain scene lifecycle coordinator

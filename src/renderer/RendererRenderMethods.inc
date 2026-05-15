@@ -1,0 +1,17 @@
+void createTextRenderPath();
+void createUiBuffers();
+void createRenderPathBuffers();
+void createSelectionLineBuffer();
+void createPlayerMesh();
+void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, uint64_t worldTicks);
+void copySwapchainImageToBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VkBuffer buffer) const;
+void saveScreenshot(VkDeviceMemory memory, VkDeviceSize size) const;
+void updatePlayerMesh(Vec3 playerPosition, float playerYaw);
+void drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe, bool drawBlocks, bool drawFluids, uint32_t sceneImageIndex = 0);
+void drawBlockSelection(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition);
+void drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const;
+void drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition);
+void drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition);
+void ensureClimateOverlayTexture(int mode);
+std::string readCpuName() const;
+std::string formatVersion(uint32_t version) const;

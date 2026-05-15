@@ -1,6 +1,10 @@
 #include "renderer/Renderer.h"
 
 #include "renderer/DroppedItemRenderCollector.h"
+#include "renderer/RendererAudioBridge.h"
+#include "renderer/RendererGameplayBridge.h"
+#include "renderer/RendererTerrainRuntimeBridge.h"
+#include "renderer/RendererUiRuntimeBridge.h"
 
 #include <cmath>
 #include <cstring>
@@ -87,48 +91,48 @@ namespace dolbuto
 
     void Renderer::drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition)
     {
-        const bool inventoryChanged = gameplayRuntime_.updateDroppedItems(
+        const bool inventoryChanged = client_.gameplayRuntime.updateDroppedItems(
             playerPosition,
             glfwGetTime(),
             [this](int x, int y, int z)
             {
-                return terrainCellBlocksPlayer(x, y, z);
+                return gameplayBridge_->terrainCellBlocksPlayer(x, y, z);
             },
             [this]()
             {
-                playItemPickupSound();
+                audioBridge_->playItemPickup();
             },
             [this](RuntimeChunk& chunk)
             {
-                markRuntimeChunkDataDirty(chunk);
+                terrainRuntimeBridge_->markRuntimeChunkDataDirty(chunk);
             });
         if (inventoryChanged)
         {
-            updateInventoryUi();
+            uiRuntimeBridge_->updateInventoryUi();
         }
 
-        if (gameplayRuntime_.loadedDroppedItemCount() == 0 ||
-            itemPipeline_ == VK_NULL_HANDLE ||
+        if (client_.gameplayRuntime.loadedDroppedItemCount() == 0 ||
+            vulkan_.itemPipeline == VK_NULL_HANDLE ||
             !droppedItemRenderPath_.ready() ||
             rendererAssets_.itemTextureArray.descriptorSet == VK_NULL_HANDLE)
         {
             return;
         }
 
-        const float aspect = static_cast<float>(swapchainExtent_.width) / static_cast<float>(swapchainExtent_.height);
+        const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
         std::vector<DroppedItemRenderPath::RenderInstance> renderInstances = DroppedItemRenderCollector::collect(
             DroppedItemRenderCollector::Input{
                 camera,
                 cameraPosition,
-                gameplayRuntime_.loadedDroppedItemCount(),
-                gameplayRuntime_.droppedItemTrackedChunkCounts(),
-                content_.itemDefinitions(),
+                client_.gameplayRuntime.loadedDroppedItemCount(),
+                client_.gameplayRuntime.droppedItemTrackedChunkCounts(),
+                client_.content.itemDefinitions(),
                 rendererAssets_.itemSpriteMeshes,
                 aspect,
-                gameplayRuntime_.droppedItemRenderAlpha(),
+                client_.gameplayRuntime.droppedItemRenderAlpha(),
                 [this](uint64_t key)
                 {
-                    return worldRuntime_.find(key);
+                    return client_.worldRuntime.find(key);
                 },
                 [this](uint16_t itemId)
                 {
@@ -154,9 +158,9 @@ namespace dolbuto
 
         droppedItemRenderPath_.draw(
             commandBuffer,
-            swapchainExtent_,
-            itemPipeline_,
-            particlePipelineLayout_,
+            vulkan_.swapchainExtent,
+            vulkan_.itemPipeline,
+            vulkan_.particlePipelineLayout,
             rendererAssets_.itemTextureArray,
             push,
             renderInstances);

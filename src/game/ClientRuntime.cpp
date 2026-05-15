@@ -1,0 +1,401 @@
+#include "game/ClientRuntime.h"
+
+#include "game/ClientRenderRuntime.h"
+#include "game/ClientRuntimeState.h"
+#include "gameplay/BlockInteractionSystem.h"
+#include "world/ClimateSystem.h"
+#include "world/TerrainBuilder.h"
+#include "world/WorldRuntime.h"
+
+#include <cstddef>
+#include <iomanip>
+#include <sstream>
+
+namespace dolbuto::game
+{
+    namespace
+    {
+        constexpr int ChunkSizeX = 16;
+        constexpr int ChunkSizeZ = 16;
+        constexpr int TerrainTilePeriod = 65536;
+        constexpr int WorldSizeBlocks = TerrainTilePeriod;
+
+        int positiveModulo(int value, int divisor)
+        {
+            return world::WorldRuntime::positiveModulo(value, divisor);
+        }
+
+        int wrapBlockCoordinate(int value)
+        {
+            return positiveModulo(value, WorldSizeBlocks);
+        }
+
+        int floorDiv(int value, int divisor)
+        {
+            return world::WorldRuntime::floorDiv(value, divisor);
+        }
+
+        int blockCoordinateXz(double worldCoordinate)
+        {
+            return world::WorldRuntime::blockCoordinateXz(worldCoordinate);
+        }
+
+        uint64_t chunkKey(int chunkX, int chunkZ)
+        {
+            return world::WorldRuntime::chunkKey(chunkX, chunkZ);
+        }
+
+        const BlockDefinition& blockDefinition(const ClientRuntimeState& state, uint16_t block)
+        {
+            static const BlockDefinition fallback{};
+            if (static_cast<std::size_t>(block) >= state.content.blockDefinitions().size())
+            {
+                return fallback;
+            }
+            return state.content.blockDefinitions()[block];
+        }
+
+        uint16_t blockAtWorld(const ClientRuntimeState& state, int x, int y, int z)
+        {
+            return state.worldRuntime.blockAtWorld(x, y, z);
+        }
+
+        bool terrainCellBlocksPlayer(const ClientRuntimeState& state, int x, int y, int z)
+        {
+            return state.worldRuntime.terrainCellBlocksPlayer(
+                x,
+                y,
+                z,
+                [&state](uint16_t block) -> const BlockDefinition&
+                {
+                    return blockDefinition(state, block);
+                });
+        }
+
+        world::TerrainBuilderConfig terrainBuilderConfig(const ClientRuntimeState& state)
+        {
+            world::TerrainBuilderConfig config{};
+            config.heightLut = state.diagnostics.heightLut;
+            config.activeWorldSeedSalt = state.clientWorldRuntime.activeWorldSeedSalt;
+            config.seaLevel = state.worldConfig.seaLevel;
+            config.terrainNoiseFeatureScale = state.worldConfig.terrainNoiseFeatureScale;
+            config.terrainNoiseOctaveCount = state.worldConfig.terrainNoiseOctaveCount;
+            config.terrainNoiseLacunarity = state.worldConfig.terrainNoiseLacunarity;
+            config.terrainNoiseGain = state.worldConfig.terrainNoiseGain;
+            config.terrainNoiseSimplexScale = state.worldConfig.terrainNoiseSimplexScale;
+            config.terrainDomainWarpEnabled = state.worldConfig.terrainDomainWarpEnabled;
+            config.terrainDomainWarpAmplitude = state.worldConfig.terrainDomainWarpAmplitude;
+            config.terrainDomainWarpFrequency = state.worldConfig.terrainDomainWarpFrequency;
+            config.terrainDomainWarpOctaveCount = state.worldConfig.terrainDomainWarpOctaveCount;
+            config.terrainDomainWarpGain = state.worldConfig.terrainDomainWarpGain;
+            config.temperatureNoiseStrength = state.worldConfig.temperatureNoiseStrength;
+            config.temperatureNoiseFeatureScale = state.worldConfig.temperatureNoiseFeatureScale;
+            config.temperatureNoiseOctaveCount = state.worldConfig.temperatureNoiseOctaveCount;
+            config.temperatureNoiseLacunarity = state.worldConfig.temperatureNoiseLacunarity;
+            config.temperatureNoiseGain = state.worldConfig.temperatureNoiseGain;
+            config.temperatureNoiseSimplexScale = state.worldConfig.temperatureNoiseSimplexScale;
+            config.precipitationNoiseFeatureScale = state.worldConfig.precipitationNoiseFeatureScale;
+            config.precipitationNoiseOctaveCount = state.worldConfig.precipitationNoiseOctaveCount;
+            config.precipitationNoiseLacunarity = state.worldConfig.precipitationNoiseLacunarity;
+            config.precipitationNoiseGain = state.worldConfig.precipitationNoiseGain;
+            config.precipitationNoiseSimplexScale = state.worldConfig.precipitationNoiseSimplexScale;
+            return config;
+        }
+    }
+
+    ClientRuntime::RenderAccess::RenderAccess(ClientRuntime& owner) :
+        owner_(owner)
+    {
+    }
+
+    void ClientRuntime::RenderAccess::frame(const ClientFrame& frame)
+    {
+        owner_.renderRuntime_->renderFrame(frame);
+    }
+
+    void ClientRuntime::RenderAccess::notifyFramebufferResized()
+    {
+        owner_.renderRuntime_->notifyFramebufferResized();
+    }
+
+    ClientRuntime::SceneAccess::SceneAccess(ClientRuntime& owner) :
+        owner_(owner)
+    {
+    }
+
+    void ClientRuntime::SceneAccess::loadGameScene(const std::filesystem::path& worldDirectory, uint64_t worldSeed)
+    {
+        owner_.renderRuntime_->loadGameScene(worldDirectory, worldSeed);
+    }
+
+    void ClientRuntime::SceneAccess::unloadGameScene()
+    {
+        owner_.renderRuntime_->unloadGameScene();
+    }
+
+    ClientRuntime::GameplayAccess::GameplayAccess(ClientRuntime& owner) :
+        owner_(owner)
+    {
+    }
+
+    bool ClientRuntime::GameplayAccess::playerColliderIntersectsTerrain(DVec3 playerPosition) const
+    {
+        return owner_.state_->gameplayRuntime.playerColliderIntersectsTerrain(
+            playerPosition,
+            [this](int x, int y, int z)
+            {
+                return terrainCellBlocksPlayer(*owner_.state_, x, y, z);
+            });
+    }
+
+    void ClientRuntime::GameplayAccess::updateBlockSelection(DVec3 origin, Vec3 direction)
+    {
+        gameplay::BlockRaycastHit hit{};
+        owner_.state_->selection.hasSelectedBlock = gameplay::BlockInteractionSystem::raycastBlock(
+            origin,
+            direction,
+            [this](int x, int y, int z)
+            {
+                return blockAtWorld(*owner_.state_, x, y, z);
+            },
+            [this](uint16_t block) -> const BlockDefinition&
+            {
+                return blockDefinition(*owner_.state_, block);
+            },
+            hit);
+        if (!owner_.state_->selection.hasSelectedBlock)
+        {
+            return;
+        }
+
+        owner_.state_->selection.selectedBlockX = hit.blockX;
+        owner_.state_->selection.selectedBlockY = hit.blockY;
+        owner_.state_->selection.selectedBlockZ = hit.blockZ;
+        owner_.state_->selection.selectedBlockId = blockAtWorld(*owner_.state_, hit.blockX, hit.blockY, hit.blockZ);
+    }
+
+    void ClientRuntime::GameplayAccess::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds)
+    {
+        owner_.renderRuntime_->updateBlockBreaking(origin, direction, breaking, playerPosition, deltaSeconds);
+    }
+
+    bool ClientRuntime::GameplayAccess::editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition)
+    {
+        return owner_.renderRuntime_->editBlockInView(origin, direction, placeRock, playerPosition);
+    }
+
+    bool ClientRuntime::GameplayAccess::pickupDroppedItemInView(DVec3 origin, Vec3 direction)
+    {
+        return owner_.renderRuntime_->pickupDroppedItemInView(origin, direction);
+    }
+
+    bool ClientRuntime::GameplayAccess::dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction)
+    {
+        return owner_.renderRuntime_->dropSelectedHotbarItem(wholeStack, playerPosition, direction);
+    }
+
+    std::array<ItemStack, gameplay::PlayerInventory::SlotCount> ClientRuntime::GameplayAccess::inventorySnapshot() const
+    {
+        return owner_.state_->gameplayRuntime.inventorySnapshot();
+    }
+
+    void ClientRuntime::GameplayAccess::setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots)
+    {
+        owner_.renderRuntime_->setInventorySnapshot(slots);
+    }
+
+    ClientRuntime::UiAccess::UiAccess(ClientRuntime& owner) :
+        owner_(owner)
+    {
+    }
+
+    void ClientRuntime::UiAccess::setWorldList(const std::vector<WorldListItem>& worlds)
+    {
+        owner_.state_->uiBridge.setWorldList(worlds);
+    }
+
+    void ClientRuntime::UiAccess::setHotbarSelectedSlot(int slot)
+    {
+        owner_.state_->uiBridge.setHotbarSelectedSlot(slot);
+    }
+
+    std::string ClientRuntime::UiAccess::inputValue(std::string_view id) const
+    {
+        return owner_.state_->ui.inputValue(id);
+    }
+
+    void ClientRuntime::UiAccess::mouseMove(double x, double y)
+    {
+        owner_.renderRuntime_->uiMouseMove(x, y);
+    }
+
+    void ClientRuntime::UiAccess::mouseButton(int button, bool pressed, int modifiers)
+    {
+        owner_.renderRuntime_->uiMouseButton(button, pressed, modifiers);
+    }
+
+    void ClientRuntime::UiAccess::mouseWheel(double yOffset)
+    {
+        owner_.renderRuntime_->uiMouseWheel(yOffset);
+    }
+
+    void ClientRuntime::UiAccess::textInput(unsigned int codepoint)
+    {
+        owner_.renderRuntime_->uiTextInput(codepoint);
+    }
+
+    void ClientRuntime::UiAccess::key(int key, bool pressed, int modifiers)
+    {
+        owner_.renderRuntime_->uiKey(key, pressed, modifiers);
+    }
+
+    void ClientRuntime::UiAccess::closeInventoryInteraction()
+    {
+        owner_.renderRuntime_->closeInventoryInteraction();
+    }
+
+    bool ClientRuntime::UiAccess::available() const
+    {
+        return owner_.state_->ui.available();
+    }
+
+    std::optional<std::string> ClientRuntime::UiAccess::consumeAction()
+    {
+        return owner_.state_->ui.consumeAction();
+    }
+
+    ClientRuntime::DiagnosticsAccess::DiagnosticsAccess(ClientRuntime& owner) :
+        owner_(owner)
+    {
+    }
+
+    std::string ClientRuntime::DiagnosticsAccess::selectedBlockText() const
+    {
+        if (!owner_.state_->selection.hasSelectedBlock)
+        {
+            return "LOOKAT: none";
+        }
+
+        const BlockDefinition& definition = blockDefinition(*owner_.state_, owner_.state_->selection.selectedBlockId);
+        return "LOOKAT: " + definition.name +
+            "[" + std::to_string(owner_.state_->selection.selectedBlockId) + "] (x: " + std::to_string(wrapBlockCoordinate(owner_.state_->selection.selectedBlockX)) +
+            ", y: " + std::to_string(owner_.state_->selection.selectedBlockY) +
+            ", z: " + std::to_string(wrapBlockCoordinate(owner_.state_->selection.selectedBlockZ)) + ")";
+    }
+
+    std::string ClientRuntime::DiagnosticsAccess::climateText(DVec3 position) const
+    {
+        const int blockX = blockCoordinateXz(position.x);
+        const int blockZ = blockCoordinateXz(position.z);
+        const int chunkX = floorDiv(blockX, ChunkSizeX);
+        const int chunkZ = floorDiv(blockZ, ChunkSizeZ);
+        const int localX = positiveModulo(blockX, ChunkSizeX);
+        const int localZ = positiveModulo(blockZ, ChunkSizeZ);
+        const std::size_t column = static_cast<std::size_t>(localZ * ChunkSizeX + localX);
+
+        float temperature = 0.0f;
+        float precipitation = 0.0f;
+        const RuntimeChunk* chunk = owner_.state_->worldRuntime.find(chunkKey(chunkX, chunkZ));
+        const world::TerrainBuilderConfig config = terrainBuilderConfig(*owner_.state_);
+        const world::ClimateSystem climate(config);
+        if (chunk != nullptr && chunk->data)
+        {
+            const ChunkData& data = *chunk->data;
+            temperature = world::ClimateSystem::decodeClimateValue(data.temperature[column]);
+            precipitation = world::ClimateSystem::decodeClimateValue(data.precipitation[column]);
+        }
+        else
+        {
+            const int wrappedX = wrapBlockCoordinate(blockX);
+            const int wrappedZ = wrapBlockCoordinate(blockZ);
+            const float temperatureNoise = climate.sampleTileableNoise(
+                wrappedX,
+                wrappedZ,
+                config.temperatureNoiseFeatureScale,
+                config.temperatureNoiseSimplexScale,
+                config.temperatureNoiseOctaveCount,
+                config.temperatureNoiseLacunarity,
+                config.temperatureNoiseGain,
+                climate.temperatureSeed());
+            const float precipitationNoise = climate.sampleTileableNoise(
+                wrappedX,
+                wrappedZ,
+                config.precipitationNoiseFeatureScale,
+                config.precipitationNoiseSimplexScale,
+                config.precipitationNoiseOctaveCount,
+                config.precipitationNoiseLacunarity,
+                config.precipitationNoiseGain,
+                climate.precipitationSeed());
+            temperature = climate.temperatureAtWrapped(wrappedZ, temperatureNoise);
+            precipitation = climate.precipitationAtNoise(precipitationNoise);
+        }
+
+        std::ostringstream text;
+        text << "CLIMATE: T[" << std::fixed << std::setprecision(3) << temperature << "] P[" << precipitation << "]";
+        return text.str();
+    }
+
+    ClientRuntime::ClientRuntime(GLFWwindow* window) :
+        state_(std::make_unique<ClientRuntimeState>()),
+        renderAccess_(*this),
+        sceneAccess_(*this),
+        gameplayAccess_(*this),
+        uiAccess_(*this),
+        diagnosticsAccess_(*this)
+    {
+        state_->initializeContexts();
+        renderRuntime_ = std::make_unique<ClientRenderRuntime>(window, *state_);
+    }
+
+    ClientRuntime::~ClientRuntime() = default;
+
+    ClientRuntime::RenderAccess& ClientRuntime::render()
+    {
+        return renderAccess_;
+    }
+
+    ClientRuntime::SceneAccess& ClientRuntime::scene()
+    {
+        return sceneAccess_;
+    }
+
+    ClientRuntime::GameplayAccess& ClientRuntime::gameplay()
+    {
+        return gameplayAccess_;
+    }
+
+    ClientRuntime::UiAccess& ClientRuntime::ui()
+    {
+        return uiAccess_;
+    }
+
+    ClientRuntime::DiagnosticsAccess& ClientRuntime::diagnostics()
+    {
+        return diagnosticsAccess_;
+    }
+
+    const ClientRuntime::RenderAccess& ClientRuntime::render() const
+    {
+        return renderAccess_;
+    }
+
+    const ClientRuntime::SceneAccess& ClientRuntime::scene() const
+    {
+        return sceneAccess_;
+    }
+
+    const ClientRuntime::GameplayAccess& ClientRuntime::gameplay() const
+    {
+        return gameplayAccess_;
+    }
+
+    const ClientRuntime::UiAccess& ClientRuntime::ui() const
+    {
+        return uiAccess_;
+    }
+
+    const ClientRuntime::DiagnosticsAccess& ClientRuntime::diagnostics() const
+    {
+        return diagnosticsAccess_;
+    }
+}

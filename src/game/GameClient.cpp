@@ -9,8 +9,6 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include "renderer/RendererFrame.h"
-
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -440,7 +438,7 @@ namespace dolbuto
         log::info("Log directory: " + logDirectory().string());
         loadMovementConfig();
         attachWindowCallbacks();
-        runtime_ = std::make_unique<game::ClientRuntimeFacade>(window_);
+        runtime_ = std::make_unique<game::ClientRuntime>(window_);
         setScreen(AppScreen::Lobby);
         fpsSampleStart_ = std::chrono::steady_clock::now();
         lastFrameTime_ = fpsSampleStart_;
@@ -452,7 +450,7 @@ namespace dolbuto
         {
             if (runtime_ != nullptr)
             {
-                runtime_->closeInventoryInteraction();
+                runtime_->ui().closeInventoryInteraction();
             }
             saveWorldState();
             savePlayerState();
@@ -475,7 +473,7 @@ namespace dolbuto
             }
             if (runtime_ != nullptr)
             {
-                while (std::optional<std::string> action = runtime_->consumeUiAction())
+                while (std::optional<std::string> action = runtime_->ui().consumeAction())
                 {
                     if (*action == "start")
                     {
@@ -535,7 +533,7 @@ namespace dolbuto
                 updatePlayer(FixedPhysicsTimestep, screen_ == AppScreen::Game);
                 if (runtime_ != nullptr)
                 {
-                    runtime_->updateBlockBreaking(
+                    runtime_->gameplay().updateBlockBreaking(
                         {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
                         renderViewDirection(camera_),
                         screen_ == AppScreen::Game && mouseCaptured_ && breakHeld_,
@@ -549,7 +547,7 @@ namespace dolbuto
             {
                 if (runtime_ != nullptr)
                 {
-                    runtime_->updateBlockBreaking(
+                    runtime_->gameplay().updateBlockBreaking(
                         {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
                         renderViewDirection(camera_),
                         false,
@@ -565,7 +563,7 @@ namespace dolbuto
             const DVec3 eyePosition{renderPlayerPosition.x, renderPlayerPosition.y + EyeHeight, renderPlayerPosition.z};
             if (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory)
             {
-                runtime_->updateBlockSelection(
+                runtime_->gameplay().updateBlockSelection(
                     {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
                     renderViewDirection(camera_));
             }
@@ -599,7 +597,7 @@ namespace dolbuto
             const bool worldUpdateEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory;
             const bool gameSceneRenderEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory;
             const bool renderDebugText = (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory) && debugTextVisible_;
-            runtime_->drawFrame(RendererFrame{
+            runtime_->render().frame(game::ClientFrame{
                 renderCamera,
                 renderCameraPosition,
                 debugText_.data(),
@@ -628,7 +626,7 @@ namespace dolbuto
             auto* app = static_cast<GameClient*>(glfwGetWindowUserPointer(window));
             if (app != nullptr && app->runtime_ != nullptr)
             {
-                app->runtime_->setFramebufferResized();
+                app->runtime_->render().notifyFramebufferResized();
             }
         });
 
@@ -647,7 +645,7 @@ namespace dolbuto
             if (app != nullptr && app->screen_ != GameClient::AppScreen::Game && app->runtime_ != nullptr &&
                 (action == GLFW_PRESS || action == GLFW_REPEAT || action == GLFW_RELEASE))
             {
-                app->runtime_->uiKey(key, action != GLFW_RELEASE, mods);
+                app->runtime_->ui().key(key, action != GLFW_RELEASE, mods);
             }
             if (key == GLFW_KEY_SPACE && app != nullptr && app->screen_ == GameClient::AppScreen::Game)
             {
@@ -728,7 +726,7 @@ namespace dolbuto
             {
                 if (app->screen_ == GameClient::AppScreen::Game && app->runtime_ != nullptr)
                 {
-                    app->runtime_->pickupDroppedItemInView(
+                    app->runtime_->gameplay().pickupDroppedItemInView(
                         {app->playerPosition_.x, app->playerPosition_.y + EyeHeight, app->playerPosition_.z},
                         renderViewDirection(app->camera_));
                 }
@@ -738,7 +736,7 @@ namespace dolbuto
                 if (app->screen_ == GameClient::AppScreen::Game && app->runtime_ != nullptr)
                 {
                     const bool wholeStack = (mods & GLFW_MOD_SHIFT) != 0;
-                    app->runtime_->dropSelectedHotbarItem(
+                    app->runtime_->gameplay().dropSelectedHotbarItem(
                         wholeStack,
                         app->playerPosition_,
                         renderViewDirection(app->camera_));
@@ -761,7 +759,7 @@ namespace dolbuto
             auto* app = static_cast<GameClient*>(glfwGetWindowUserPointer(window));
             if (app != nullptr && app->screen_ != GameClient::AppScreen::Game && app->runtime_ != nullptr)
             {
-                app->runtime_->uiTextInput(codepoint);
+                app->runtime_->ui().textInput(codepoint);
             }
         });
 
@@ -780,10 +778,10 @@ namespace dolbuto
                 glfwGetCursorPos(window, &x, &y);
                 if (app->runtime_ != nullptr && (action == GLFW_PRESS || action == GLFW_RELEASE))
                 {
-                    app->runtime_->uiMouseMove(x, y);
-                    app->runtime_->uiMouseButton(button, action == GLFW_PRESS, mods);
+                    app->runtime_->ui().mouseMove(x, y);
+                    app->runtime_->ui().mouseButton(button, action == GLFW_PRESS, mods);
                 }
-                if (action == GLFW_PRESS && (app->runtime_ == nullptr || !app->runtime_->rmlUiAvailable()))
+                if (action == GLFW_PRESS && (app->runtime_ == nullptr || !app->runtime_->ui().available()))
                 {
                     app->handleMenuClick(x, y);
                 }
@@ -795,7 +793,7 @@ namespace dolbuto
                 app->breakHeld_ = false;
                 if (app->runtime_ != nullptr)
                 {
-                    app->runtime_->updateBlockBreaking(
+                    app->runtime_->gameplay().updateBlockBreaking(
                         {app->playerPosition_.x, app->playerPosition_.y + EyeHeight, app->playerPosition_.z},
                         renderViewDirection(app->camera_),
                         false,
@@ -826,7 +824,7 @@ namespace dolbuto
             {
                 if (app->mouseCaptured_ && app->runtime_ != nullptr)
                 {
-                    app->runtime_->editBlockInView(
+                    app->runtime_->gameplay().editBlockInView(
                         {app->playerPosition_.x, app->playerPosition_.y + EyeHeight, app->playerPosition_.z},
                         renderViewDirection(app->camera_),
                         true,
@@ -865,8 +863,8 @@ namespace dolbuto
                 double x = 0.0;
                 double y = 0.0;
                 glfwGetCursorPos(window, &x, &y);
-                app->runtime_->uiMouseMove(x, y);
-                app->runtime_->uiMouseWheel(yOffset);
+                app->runtime_->ui().mouseMove(x, y);
+                app->runtime_->ui().mouseWheel(yOffset);
             }
         });
 
@@ -879,7 +877,7 @@ namespace dolbuto
         {
             if (runtime_ != nullptr)
             {
-                runtime_->uiMouseMove(x, y);
+                runtime_->ui().mouseMove(x, y);
             }
             return;
         }
@@ -922,7 +920,7 @@ namespace dolbuto
 
         if (runtime_ != nullptr)
         {
-            runtime_->setFramebufferResized();
+            runtime_->render().notifyFramebufferResized();
         }
     }
 
@@ -931,7 +929,7 @@ namespace dolbuto
         hotbarSelectedSlot_ = std::clamp(slot, 0, 9);
         if (runtime_ != nullptr)
         {
-            runtime_->setHotbarSelectedSlot(hotbarSelectedSlot_);
+            runtime_->ui().setHotbarSelectedSlot(hotbarSelectedSlot_);
         }
     }
 
@@ -1003,7 +1001,7 @@ namespace dolbuto
         breakHeld_ = false;
         if (runtime_ != nullptr)
         {
-            runtime_->updateBlockBreaking(
+            runtime_->gameplay().updateBlockBreaking(
                 {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
                 renderViewDirection(camera_),
                 false,
@@ -1033,7 +1031,7 @@ namespace dolbuto
         resetPlayerRuntimeState();
         if (runtime_ != nullptr)
         {
-            runtime_->loadGameScene(selectedWorldDirectory_, worldSeed_);
+            runtime_->scene().loadGameScene(selectedWorldDirectory_, worldSeed_);
         }
         loadPlayerState();
         setScreen(AppScreen::Game);
@@ -1132,7 +1130,7 @@ namespace dolbuto
                     formatUnixSeconds(world.lastPlayedUnixSeconds)
                 });
             }
-            runtime_->setWorldList(items);
+            runtime_->ui().setWorldList(items);
         }
     }
 
@@ -1157,8 +1155,8 @@ namespace dolbuto
 
     void GameClient::createWorldFromUi()
     {
-        const std::string rawName = runtime_ != nullptr ? runtime_->uiInputValue("new-world-name") : "New World";
-        const std::string rawSeed = runtime_ != nullptr ? runtime_->uiInputValue("new-world-seed") : "";
+        const std::string rawName = runtime_ != nullptr ? runtime_->ui().inputValue("new-world-name") : "New World";
+        const std::string rawSeed = runtime_ != nullptr ? runtime_->ui().inputValue("new-world-seed") : "";
         const std::string baseName = sanitizeWorldName(rawName);
         uint64_t seed = parseWorldSeed(rawSeed);
 
@@ -1198,13 +1196,13 @@ namespace dolbuto
     {
         if (runtime_ != nullptr)
         {
-            runtime_->closeInventoryInteraction();
+            runtime_->ui().closeInventoryInteraction();
         }
         saveWorldState();
         savePlayerState();
         if (runtime_ != nullptr)
         {
-            runtime_->unloadGameScene();
+            runtime_->scene().unloadGameScene();
         }
         previousPlayerPosition_ = playerPosition_;
         physicsAccumulator_ = 0.0;
@@ -1410,7 +1408,7 @@ namespace dolbuto
             physicsAccumulator_ = 0.0;
             if (runtime_ != nullptr)
             {
-                runtime_->setInventorySnapshot(inventorySlots);
+                runtime_->gameplay().setInventorySnapshot(inventorySlots);
             }
             log::info("Player state loaded.");
         }
@@ -1442,7 +1440,7 @@ namespace dolbuto
             writeU8(bytes, static_cast<uint8_t>(moveMode_ == MoveMode::Fly ? 0u : 1u));
             writeF64(bytes, verticalVelocity_);
             const std::array<ItemStack, PlayerInventorySlotCount> inventorySlots = runtime_ != nullptr
-                ? runtime_->inventorySnapshot()
+                ? runtime_->gameplay().inventorySnapshot()
                 : std::array<ItemStack, PlayerInventorySlotCount>{};
             for (const ItemStack& slot : inventorySlots)
             {
@@ -1526,7 +1524,7 @@ namespace dolbuto
         else
         {
             movement.y = 0.0f;
-            grounded_ = runtime_ != nullptr && runtime_->playerColliderIntersectsTerrain({playerPosition_.x, playerPosition_.y - 0.03, playerPosition_.z});
+            grounded_ = runtime_ != nullptr && runtime_->gameplay().playerColliderIntersectsTerrain({playerPosition_.x, playerPosition_.y - 0.03, playerPosition_.z});
             if (grounded_ && verticalVelocity_ < 0.0)
             {
                 verticalVelocity_ = 0.0;
@@ -1565,7 +1563,7 @@ namespace dolbuto
             next.x += dx;
             next.y += dy;
             next.z += dz;
-            if (runtime_ == nullptr || !runtime_->playerColliderIntersectsTerrain(next))
+            if (runtime_ == nullptr || !runtime_->gameplay().playerColliderIntersectsTerrain(next))
             {
                 playerPosition_ = next;
                 return true;
@@ -1589,7 +1587,7 @@ namespace dolbuto
                 next.x += dx * mid;
                 next.y += dy * mid;
                 next.z += dz * mid;
-                const bool blocked = runtime_ != nullptr && runtime_->playerColliderIntersectsTerrain(next);
+                const bool blocked = runtime_ != nullptr && runtime_->gameplay().playerColliderIntersectsTerrain(next);
                 if (blocked)
                 {
                     high = mid;
@@ -1650,8 +1648,8 @@ namespace dolbuto
         const char* facing = facingName(camera_.yaw());
         const double wrappedPlayerX = wrapWorldCoordinate(playerPosition_.x);
         const double wrappedPlayerZ = wrapWorldCoordinate(playerPosition_.z);
-        const std::string lookAtText = runtime_ != nullptr ? runtime_->selectedBlockText() : "LOOKAT: none";
-        const std::string climateText = runtime_ != nullptr ? runtime_->climateText(playerPosition_) : "CLIMATE: T[0.000] P[0.000]";
+        const std::string lookAtText = runtime_ != nullptr ? runtime_->diagnostics().selectedBlockText() : "LOOKAT: none";
+        const std::string climateText = runtime_ != nullptr ? runtime_->diagnostics().climateText(playerPosition_) : "CLIMATE: T[0.000] P[0.000]";
         const uint64_t day = worldTicks_ / TicksPerDay;
         const uint64_t minuteOfDay = (worldTicks_ % TicksPerDay) / TicksPerMinute;
         const uint64_t hour = minuteOfDay / MinutesPerHour;
