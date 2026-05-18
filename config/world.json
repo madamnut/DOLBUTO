@@ -2,9 +2,9 @@
   "chunkLoad": {
     "loadGridScale": 2,
     "workerCount": 4,
-    "maxCompletedChunksAppliedPerFrame": 8,
+    "maxCompletedChunksAppliedPerFrame": 16,
     "maxUnloadedChunksPerFrame": 64,
-    "maxRetiredChunksDestroyedPerFrame": 4
+    "maxRetiredChunksDestroyedPerFrame": 8
   },
   "player": {
     "flyMoveSpeed": 64.0,
@@ -14,19 +14,43 @@
   },
   "terrain": {
     "seaLevel": 256,
-    "domainWarp": {
+    "groundnessDomainWarp": {
       "enabled": true,
       "amplitude": 0.5,
-      "frequency": 1.0,
+      "frequency": 0.5,
       "octaveCount": 2,
       "gain": 0.5
     },
-    "baseNoise": {
+    "groundnessNoise": {
       "featureScale": 2000.0,
       "octaveCount": 4,
-      "lacunarity": 3.0,
-      "gain": 0.3,
-      "simplexScale": 1.0
+      "lacunarity": 2.0,
+      "gain": 0.5
+    },
+    "baseNoise": {
+      "featureScale": 250.0,
+      "octaveCount": 3,
+      "lacunarity": 2.0,
+      "gain": 0.5
+    },
+    "smoothnessNoise": {
+      "featureScale": 1000.0,
+      "octaveCount": 2,
+      "lacunarity": 2.0,
+      "gain": 0.5
+    },
+    "weirdnessDomainWarp": {
+      "enabled": true,
+      "amplitude": 0.3,
+      "frequency": 1.2,
+      "octaveCount": 2,
+      "gain": 0.5
+    },
+    "weirdnessNoise": {
+      "featureScale": 500.0,
+      "octaveCount": 1,
+      "lacunarity": 2.0,
+      "gain": 0.5
     }
   },
   "climate": {

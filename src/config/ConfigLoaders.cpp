@@ -223,8 +223,12 @@ namespace dolbuto::config
 
         const std::string chunkLoad = jsonObjectField(*text, "chunkLoad").value_or("{}");
         const std::string terrain = jsonObjectField(*text, "terrain").value_or("{}");
-        const std::string terrainDomainWarp = jsonObjectField(terrain, "domainWarp").value_or("{}");
+        const std::string groundnessDomainWarp = jsonObjectField(terrain, "groundnessDomainWarp").value_or(jsonObjectField(terrain, "domainWarp").value_or("{}"));
+        const std::string groundnessNoise = jsonObjectField(terrain, "groundnessNoise").value_or(jsonObjectField(terrain, "baseNoise").value_or("{}"));
         const std::string terrainBaseNoise = jsonObjectField(terrain, "baseNoise").value_or("{}");
+        const std::string smoothnessNoise = jsonObjectField(terrain, "smoothnessNoise").value_or("{}");
+        const std::string weirdnessDomainWarp = jsonObjectField(terrain, "weirdnessDomainWarp").value_or("{}");
+        const std::string weirdnessNoise = jsonObjectField(terrain, "weirdnessNoise").value_or("{}");
         const std::string climate = jsonObjectField(*text, "climate").value_or("{}");
         const std::string temperature = jsonObjectField(climate, "temperature").value_or("{}");
         const std::string precipitation = jsonObjectField(climate, "precipitation").value_or("{}");
@@ -253,45 +257,109 @@ namespace dolbuto::config
         {
             config.maxTerrainRetiredDestroyPerFrame = std::clamp(*value, 1, 64);
         }
+        if (const std::optional<float> value = jsonFloatField(groundnessNoise, "featureScale"); value.has_value() && *value > 0.0f)
+        {
+            config.groundnessNoiseFeatureScale = *value;
+        }
+        if (const std::optional<int> value = jsonIntField(groundnessNoise, "octaveCount"); value.has_value())
+        {
+            config.groundnessNoiseOctaveCount = std::clamp(*value, 1, 16);
+        }
+        if (const std::optional<float> value = jsonFloatField(groundnessNoise, "lacunarity"); value.has_value() && *value > 0.0f)
+        {
+            config.groundnessNoiseLacunarity = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(groundnessNoise, "gain"); value.has_value() && *value >= 0.0f)
+        {
+            config.groundnessNoiseGain = *value;
+        }
+        if (const std::optional<bool> value = jsonBoolField(groundnessDomainWarp, "enabled"); value.has_value())
+        {
+            config.groundnessDomainWarpEnabled = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(groundnessDomainWarp, "amplitude"); value.has_value() && *value >= 0.0f)
+        {
+            config.groundnessDomainWarpAmplitude = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(groundnessDomainWarp, "frequency"); value.has_value() && *value > 0.0f)
+        {
+            config.groundnessDomainWarpFrequency = *value;
+        }
+        if (const std::optional<int> value = jsonIntField(groundnessDomainWarp, "octaveCount"); value.has_value())
+        {
+            config.groundnessDomainWarpOctaveCount = std::clamp(*value, 1, 16);
+        }
+        if (const std::optional<float> value = jsonFloatField(groundnessDomainWarp, "gain"); value.has_value() && *value >= 0.0f)
+        {
+            config.groundnessDomainWarpGain = *value;
+        }
         if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "featureScale"); value.has_value() && *value > 0.0f)
         {
-            config.terrainNoiseFeatureScale = *value;
+            config.baseNoiseFeatureScale = *value;
         }
         if (const std::optional<int> value = jsonIntField(terrainBaseNoise, "octaveCount"); value.has_value())
         {
-            config.terrainNoiseOctaveCount = std::clamp(*value, 1, 16);
+            config.baseNoiseOctaveCount = std::clamp(*value, 1, 16);
         }
         if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "lacunarity"); value.has_value() && *value > 0.0f)
         {
-            config.terrainNoiseLacunarity = *value;
+            config.baseNoiseLacunarity = *value;
         }
         if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "gain"); value.has_value() && *value >= 0.0f)
         {
-            config.terrainNoiseGain = *value;
+            config.baseNoiseGain = *value;
         }
-        if (const std::optional<float> value = jsonFloatField(terrainBaseNoise, "simplexScale"); value.has_value() && *value > 0.0f)
+        if (const std::optional<float> value = jsonFloatField(smoothnessNoise, "featureScale"); value.has_value() && *value > 0.0f)
         {
-            config.terrainNoiseSimplexScale = *value;
+            config.smoothnessNoiseFeatureScale = *value;
         }
-        if (const std::optional<bool> value = jsonBoolField(terrainDomainWarp, "enabled"); value.has_value())
+        if (const std::optional<int> value = jsonIntField(smoothnessNoise, "octaveCount"); value.has_value())
         {
-            config.terrainDomainWarpEnabled = *value;
+            config.smoothnessNoiseOctaveCount = std::clamp(*value, 1, 16);
         }
-        if (const std::optional<float> value = jsonFloatField(terrainDomainWarp, "amplitude"); value.has_value() && *value >= 0.0f)
+        if (const std::optional<float> value = jsonFloatField(smoothnessNoise, "lacunarity"); value.has_value() && *value > 0.0f)
         {
-            config.terrainDomainWarpAmplitude = *value;
+            config.smoothnessNoiseLacunarity = *value;
         }
-        if (const std::optional<float> value = jsonFloatField(terrainDomainWarp, "frequency"); value.has_value() && *value > 0.0f)
+        if (const std::optional<float> value = jsonFloatField(smoothnessNoise, "gain"); value.has_value() && *value >= 0.0f)
         {
-            config.terrainDomainWarpFrequency = *value;
+            config.smoothnessNoiseGain = *value;
         }
-        if (const std::optional<int> value = jsonIntField(terrainDomainWarp, "octaveCount"); value.has_value())
+        if (const std::optional<float> value = jsonFloatField(weirdnessNoise, "featureScale"); value.has_value() && *value > 0.0f)
         {
-            config.terrainDomainWarpOctaveCount = std::clamp(*value, 1, 16);
+            config.weirdnessNoiseFeatureScale = *value;
         }
-        if (const std::optional<float> value = jsonFloatField(terrainDomainWarp, "gain"); value.has_value() && *value >= 0.0f)
+        if (const std::optional<int> value = jsonIntField(weirdnessNoise, "octaveCount"); value.has_value())
         {
-            config.terrainDomainWarpGain = *value;
+            config.weirdnessNoiseOctaveCount = std::clamp(*value, 1, 16);
+        }
+        if (const std::optional<float> value = jsonFloatField(weirdnessNoise, "lacunarity"); value.has_value() && *value > 0.0f)
+        {
+            config.weirdnessNoiseLacunarity = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(weirdnessNoise, "gain"); value.has_value() && *value >= 0.0f)
+        {
+            config.weirdnessNoiseGain = *value;
+        }
+        if (const std::optional<bool> value = jsonBoolField(weirdnessDomainWarp, "enabled"); value.has_value())
+        {
+            config.weirdnessDomainWarpEnabled = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(weirdnessDomainWarp, "amplitude"); value.has_value() && *value >= 0.0f)
+        {
+            config.weirdnessDomainWarpAmplitude = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(weirdnessDomainWarp, "frequency"); value.has_value() && *value > 0.0f)
+        {
+            config.weirdnessDomainWarpFrequency = *value;
+        }
+        if (const std::optional<int> value = jsonIntField(weirdnessDomainWarp, "octaveCount"); value.has_value())
+        {
+            config.weirdnessDomainWarpOctaveCount = std::clamp(*value, 1, 16);
+        }
+        if (const std::optional<float> value = jsonFloatField(weirdnessDomainWarp, "gain"); value.has_value() && *value >= 0.0f)
+        {
+            config.weirdnessDomainWarpGain = *value;
         }
         if (const std::optional<float> value = jsonFloatField(temperature, "noiseStrength"); value.has_value() && *value >= 0.0f)
         {

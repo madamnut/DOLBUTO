@@ -23,18 +23,32 @@ namespace dolbuto
         constexpr int DefaultMaxTerrainUploadChunksPerFrame = 8;
         constexpr int DefaultMaxTerrainUnloadChunksPerFrame = 16;
         constexpr int DefaultMaxTerrainRetiredDestroyPerFrame = 4;
-        constexpr int TerrainMinHeight = 120;
-        constexpr int TerrainMaxHeight = 140;
-        constexpr float DefaultTerrainNoiseFeatureScale = 220.0f;
-        constexpr int DefaultTerrainNoiseOctaveCount = 4;
-        constexpr float DefaultTerrainNoiseLacunarity = 2.0f;
-        constexpr float DefaultTerrainNoiseGain = 0.5f;
-        constexpr float DefaultTerrainNoiseSimplexScale = 1.0f;
-        constexpr bool DefaultTerrainDomainWarpEnabled = false;
-        constexpr float DefaultTerrainDomainWarpAmplitude = 0.0f;
-        constexpr float DefaultTerrainDomainWarpFrequency = 1.0f;
-        constexpr int DefaultTerrainDomainWarpOctaveCount = 2;
-        constexpr float DefaultTerrainDomainWarpGain = 0.5f;
+        constexpr float DefaultGroundnessNoiseFeatureScale = 2000.0f;
+        constexpr int DefaultGroundnessNoiseOctaveCount = 4;
+        constexpr float DefaultGroundnessNoiseLacunarity = 3.0f;
+        constexpr float DefaultGroundnessNoiseGain = 0.3f;
+        constexpr bool DefaultGroundnessDomainWarpEnabled = true;
+        constexpr float DefaultGroundnessDomainWarpAmplitude = 0.5f;
+        constexpr float DefaultGroundnessDomainWarpFrequency = 1.0f;
+        constexpr int DefaultGroundnessDomainWarpOctaveCount = 2;
+        constexpr float DefaultGroundnessDomainWarpGain = 0.5f;
+        constexpr float DefaultBaseNoiseFeatureScale = 1000.0f;
+        constexpr int DefaultBaseNoiseOctaveCount = 2;
+        constexpr float DefaultBaseNoiseLacunarity = 2.0f;
+        constexpr float DefaultBaseNoiseGain = 0.5f;
+        constexpr float DefaultSmoothnessNoiseFeatureScale = 4000.0f;
+        constexpr int DefaultSmoothnessNoiseOctaveCount = 2;
+        constexpr float DefaultSmoothnessNoiseLacunarity = 2.0f;
+        constexpr float DefaultSmoothnessNoiseGain = 0.5f;
+        constexpr float DefaultWeirdnessNoiseFeatureScale = 4000.0f;
+        constexpr int DefaultWeirdnessNoiseOctaveCount = 1;
+        constexpr float DefaultWeirdnessNoiseLacunarity = 2.0f;
+        constexpr float DefaultWeirdnessNoiseGain = 0.5f;
+        constexpr bool DefaultWeirdnessDomainWarpEnabled = true;
+        constexpr float DefaultWeirdnessDomainWarpAmplitude = 0.3f;
+        constexpr float DefaultWeirdnessDomainWarpFrequency = 1.0f;
+        constexpr int DefaultWeirdnessDomainWarpOctaveCount = 2;
+        constexpr float DefaultWeirdnessDomainWarpGain = 0.5f;
         constexpr float DefaultTemperatureNoiseStrength = 0.12f;
         constexpr float DefaultTemperatureNoiseFeatureScale = 8192.0f;
         constexpr int DefaultTemperatureNoiseOctaveCount = 2;
@@ -47,10 +61,14 @@ namespace dolbuto
         constexpr float DefaultPrecipitationNoiseGain = 0.5f;
         constexpr float DefaultPrecipitationNoiseSimplexScale = 1.0f;
         constexpr float DefaultFluidWaterAlpha = 0.8f;
-        constexpr uint32_t HeightLutVersion = 1;
-        constexpr uint32_t HeightLutCount = 1024;
-        constexpr float HeightLutNoiseMin = -2.0f;
-        constexpr float HeightLutNoiseMax = 2.0f;
+        constexpr uint32_t SplineLutVersion = 1;
+        constexpr uint32_t SplineLutCount = 1024;
+        constexpr float SplineLutInputMin = -2.0f;
+        constexpr float SplineLutInputMax = 2.0f;
+        constexpr float PvLutInputMin = -1.0f;
+        constexpr float PvLutInputMax = 1.0f;
+        constexpr float HeightLutInputMin = 0.0f;
+        constexpr float HeightLutInputMax = 2.0f;
     }
 
     RendererConfigBridge::RendererConfigBridge(
@@ -77,16 +95,32 @@ namespace dolbuto
         defaults.maxTerrainUploadChunksPerFrame = DefaultMaxTerrainUploadChunksPerFrame;
         defaults.maxTerrainUnloadChunksPerFrame = DefaultMaxTerrainUnloadChunksPerFrame;
         defaults.maxTerrainRetiredDestroyPerFrame = DefaultMaxTerrainRetiredDestroyPerFrame;
-        defaults.terrainNoiseFeatureScale = DefaultTerrainNoiseFeatureScale;
-        defaults.terrainNoiseOctaveCount = DefaultTerrainNoiseOctaveCount;
-        defaults.terrainNoiseLacunarity = DefaultTerrainNoiseLacunarity;
-        defaults.terrainNoiseGain = DefaultTerrainNoiseGain;
-        defaults.terrainNoiseSimplexScale = DefaultTerrainNoiseSimplexScale;
-        defaults.terrainDomainWarpEnabled = DefaultTerrainDomainWarpEnabled;
-        defaults.terrainDomainWarpAmplitude = DefaultTerrainDomainWarpAmplitude;
-        defaults.terrainDomainWarpFrequency = DefaultTerrainDomainWarpFrequency;
-        defaults.terrainDomainWarpOctaveCount = DefaultTerrainDomainWarpOctaveCount;
-        defaults.terrainDomainWarpGain = DefaultTerrainDomainWarpGain;
+        defaults.groundnessNoiseFeatureScale = DefaultGroundnessNoiseFeatureScale;
+        defaults.groundnessNoiseOctaveCount = DefaultGroundnessNoiseOctaveCount;
+        defaults.groundnessNoiseLacunarity = DefaultGroundnessNoiseLacunarity;
+        defaults.groundnessNoiseGain = DefaultGroundnessNoiseGain;
+        defaults.groundnessDomainWarpEnabled = DefaultGroundnessDomainWarpEnabled;
+        defaults.groundnessDomainWarpAmplitude = DefaultGroundnessDomainWarpAmplitude;
+        defaults.groundnessDomainWarpFrequency = DefaultGroundnessDomainWarpFrequency;
+        defaults.groundnessDomainWarpOctaveCount = DefaultGroundnessDomainWarpOctaveCount;
+        defaults.groundnessDomainWarpGain = DefaultGroundnessDomainWarpGain;
+        defaults.baseNoiseFeatureScale = DefaultBaseNoiseFeatureScale;
+        defaults.baseNoiseOctaveCount = DefaultBaseNoiseOctaveCount;
+        defaults.baseNoiseLacunarity = DefaultBaseNoiseLacunarity;
+        defaults.baseNoiseGain = DefaultBaseNoiseGain;
+        defaults.smoothnessNoiseFeatureScale = DefaultSmoothnessNoiseFeatureScale;
+        defaults.smoothnessNoiseOctaveCount = DefaultSmoothnessNoiseOctaveCount;
+        defaults.smoothnessNoiseLacunarity = DefaultSmoothnessNoiseLacunarity;
+        defaults.smoothnessNoiseGain = DefaultSmoothnessNoiseGain;
+        defaults.weirdnessNoiseFeatureScale = DefaultWeirdnessNoiseFeatureScale;
+        defaults.weirdnessNoiseOctaveCount = DefaultWeirdnessNoiseOctaveCount;
+        defaults.weirdnessNoiseLacunarity = DefaultWeirdnessNoiseLacunarity;
+        defaults.weirdnessNoiseGain = DefaultWeirdnessNoiseGain;
+        defaults.weirdnessDomainWarpEnabled = DefaultWeirdnessDomainWarpEnabled;
+        defaults.weirdnessDomainWarpAmplitude = DefaultWeirdnessDomainWarpAmplitude;
+        defaults.weirdnessDomainWarpFrequency = DefaultWeirdnessDomainWarpFrequency;
+        defaults.weirdnessDomainWarpOctaveCount = DefaultWeirdnessDomainWarpOctaveCount;
+        defaults.weirdnessDomainWarpGain = DefaultWeirdnessDomainWarpGain;
         defaults.temperatureNoiseStrength = DefaultTemperatureNoiseStrength;
         defaults.temperatureNoiseFeatureScale = DefaultTemperatureNoiseFeatureScale;
         defaults.temperatureNoiseOctaveCount = DefaultTemperatureNoiseOctaveCount;
@@ -106,16 +140,32 @@ namespace dolbuto
         client_.worldConfig.maxTerrainUploadChunksPerFrame = worldConfig.maxTerrainUploadChunksPerFrame;
         client_.worldConfig.maxTerrainUnloadChunksPerFrame = worldConfig.maxTerrainUnloadChunksPerFrame;
         client_.worldConfig.maxTerrainRetiredDestroyPerFrame = worldConfig.maxTerrainRetiredDestroyPerFrame;
-        client_.worldConfig.terrainNoiseFeatureScale = worldConfig.terrainNoiseFeatureScale;
-        client_.worldConfig.terrainNoiseOctaveCount = worldConfig.terrainNoiseOctaveCount;
-        client_.worldConfig.terrainNoiseLacunarity = worldConfig.terrainNoiseLacunarity;
-        client_.worldConfig.terrainNoiseGain = worldConfig.terrainNoiseGain;
-        client_.worldConfig.terrainNoiseSimplexScale = worldConfig.terrainNoiseSimplexScale;
-        client_.worldConfig.terrainDomainWarpEnabled = worldConfig.terrainDomainWarpEnabled;
-        client_.worldConfig.terrainDomainWarpAmplitude = worldConfig.terrainDomainWarpAmplitude;
-        client_.worldConfig.terrainDomainWarpFrequency = worldConfig.terrainDomainWarpFrequency;
-        client_.worldConfig.terrainDomainWarpOctaveCount = worldConfig.terrainDomainWarpOctaveCount;
-        client_.worldConfig.terrainDomainWarpGain = worldConfig.terrainDomainWarpGain;
+        client_.worldConfig.groundnessNoiseFeatureScale = worldConfig.groundnessNoiseFeatureScale;
+        client_.worldConfig.groundnessNoiseOctaveCount = worldConfig.groundnessNoiseOctaveCount;
+        client_.worldConfig.groundnessNoiseLacunarity = worldConfig.groundnessNoiseLacunarity;
+        client_.worldConfig.groundnessNoiseGain = worldConfig.groundnessNoiseGain;
+        client_.worldConfig.groundnessDomainWarpEnabled = worldConfig.groundnessDomainWarpEnabled;
+        client_.worldConfig.groundnessDomainWarpAmplitude = worldConfig.groundnessDomainWarpAmplitude;
+        client_.worldConfig.groundnessDomainWarpFrequency = worldConfig.groundnessDomainWarpFrequency;
+        client_.worldConfig.groundnessDomainWarpOctaveCount = worldConfig.groundnessDomainWarpOctaveCount;
+        client_.worldConfig.groundnessDomainWarpGain = worldConfig.groundnessDomainWarpGain;
+        client_.worldConfig.baseNoiseFeatureScale = worldConfig.baseNoiseFeatureScale;
+        client_.worldConfig.baseNoiseOctaveCount = worldConfig.baseNoiseOctaveCount;
+        client_.worldConfig.baseNoiseLacunarity = worldConfig.baseNoiseLacunarity;
+        client_.worldConfig.baseNoiseGain = worldConfig.baseNoiseGain;
+        client_.worldConfig.smoothnessNoiseFeatureScale = worldConfig.smoothnessNoiseFeatureScale;
+        client_.worldConfig.smoothnessNoiseOctaveCount = worldConfig.smoothnessNoiseOctaveCount;
+        client_.worldConfig.smoothnessNoiseLacunarity = worldConfig.smoothnessNoiseLacunarity;
+        client_.worldConfig.smoothnessNoiseGain = worldConfig.smoothnessNoiseGain;
+        client_.worldConfig.weirdnessNoiseFeatureScale = worldConfig.weirdnessNoiseFeatureScale;
+        client_.worldConfig.weirdnessNoiseOctaveCount = worldConfig.weirdnessNoiseOctaveCount;
+        client_.worldConfig.weirdnessNoiseLacunarity = worldConfig.weirdnessNoiseLacunarity;
+        client_.worldConfig.weirdnessNoiseGain = worldConfig.weirdnessNoiseGain;
+        client_.worldConfig.weirdnessDomainWarpEnabled = worldConfig.weirdnessDomainWarpEnabled;
+        client_.worldConfig.weirdnessDomainWarpAmplitude = worldConfig.weirdnessDomainWarpAmplitude;
+        client_.worldConfig.weirdnessDomainWarpFrequency = worldConfig.weirdnessDomainWarpFrequency;
+        client_.worldConfig.weirdnessDomainWarpOctaveCount = worldConfig.weirdnessDomainWarpOctaveCount;
+        client_.worldConfig.weirdnessDomainWarpGain = worldConfig.weirdnessDomainWarpGain;
         client_.worldConfig.temperatureNoiseStrength = worldConfig.temperatureNoiseStrength;
         client_.worldConfig.temperatureNoiseFeatureScale = worldConfig.temperatureNoiseFeatureScale;
         client_.worldConfig.temperatureNoiseOctaveCount = worldConfig.temperatureNoiseOctaveCount;
@@ -139,44 +189,79 @@ namespace dolbuto
         client_.renderConfig.fluidWaterAlpha = renderConfig.fluidWaterAlpha;
     }
 
-    void RendererConfigBridge::loadHeightLut(const std::filesystem::path& assetDirectory)
+    namespace
     {
-        for (uint32_t i = 0; i < HeightLutCount; ++i)
+        bool loadSplineLut(
+            const std::filesystem::path& path,
+            std::array<float, SplineLutCount>& target,
+            float expectedXMin,
+            float expectedXMax)
         {
-            const double t = static_cast<double>(i) / static_cast<double>(HeightLutCount - 1u);
-            client_.diagnostics.heightLut[i] = static_cast<uint16_t>(std::lround(static_cast<double>(TerrainMinHeight) + t * static_cast<double>(TerrainMaxHeight - TerrainMinHeight)));
+            std::ifstream file(path, std::ios::binary);
+            if (!file.is_open())
+            {
+                return false;
+            }
+
+            char magic[4]{};
+            uint32_t version = 0;
+            uint32_t count = 0;
+            float xMin = 0.0f;
+            float xMax = 0.0f;
+            float yMin = 0.0f;
+            float yMax = 0.0f;
+
+            file.read(magic, sizeof(magic));
+            file.read(reinterpret_cast<char*>(&version), sizeof(version));
+            file.read(reinterpret_cast<char*>(&count), sizeof(count));
+            file.read(reinterpret_cast<char*>(&xMin), sizeof(xMin));
+            file.read(reinterpret_cast<char*>(&xMax), sizeof(xMax));
+            file.read(reinterpret_cast<char*>(&yMin), sizeof(yMin));
+            file.read(reinterpret_cast<char*>(&yMax), sizeof(yMax));
+            if (!file ||
+                std::memcmp(magic, "DLSF", 4) != 0 ||
+                version != SplineLutVersion ||
+                count != SplineLutCount ||
+                xMin != expectedXMin ||
+                xMax != expectedXMax ||
+                yMin >= yMax)
+            {
+                return false;
+            }
+
+            std::array<float, SplineLutCount> loaded{};
+            file.read(reinterpret_cast<char*>(loaded.data()), static_cast<std::streamsize>(loaded.size() * sizeof(float)));
+            if (!file)
+            {
+                return false;
+            }
+
+            target = loaded;
+            return true;
+        }
+    }
+
+    void RendererConfigBridge::loadTerrainLuts(const std::filesystem::path& assetDirectory)
+    {
+        for (uint32_t i = 0; i < SplineLutCount; ++i)
+        {
+            const float t = static_cast<float>(i) / static_cast<float>(SplineLutCount - 1u);
+            client_.diagnostics.heightLut[i] = 120.0f + t * 20.0f;
+            client_.diagnostics.groundnessBaselineLut[i] = SplineLutInputMin + t * (SplineLutInputMax - SplineLutInputMin);
+            client_.diagnostics.groundnessInfluenceLut[i] = 0.25f;
+            client_.diagnostics.smoothnessInfluenceLut[i] = 1.0f;
+            client_.diagnostics.pvWeightLut[i] = 0.0f;
+            client_.diagnostics.groundnessPvWeightLut[i] = 0.0f;
+            client_.diagnostics.smoothnessPvWeightLut[i] = 0.0f;
         }
 
-        const std::filesystem::path path = assetDirectory / "data" / "world" / "height_lut.bin";
-        std::ifstream file(path, std::ios::binary);
-        if (!file.is_open())
-        {
-            return;
-        }
-
-        char magic[4]{};
-        uint32_t version = 0;
-        uint32_t count = 0;
-        float noiseMin = 0.0f;
-        float noiseMax = 0.0f;
-
-        file.read(magic, sizeof(magic));
-        file.read(reinterpret_cast<char*>(&version), sizeof(version));
-        file.read(reinterpret_cast<char*>(&count), sizeof(count));
-        file.read(reinterpret_cast<char*>(&noiseMin), sizeof(noiseMin));
-        file.read(reinterpret_cast<char*>(&noiseMax), sizeof(noiseMax));
-        if (!file || std::memcmp(magic, "DLHT", 4) != 0 || version != HeightLutVersion || count != HeightLutCount || noiseMin != HeightLutNoiseMin || noiseMax != HeightLutNoiseMax)
-        {
-            return;
-        }
-
-        std::array<uint16_t, HeightLutCount> loaded{};
-        file.read(reinterpret_cast<char*>(loaded.data()), static_cast<std::streamsize>(loaded.size() * sizeof(uint16_t)));
-        if (!file)
-        {
-            return;
-        }
-
-        client_.diagnostics.heightLut = loaded;
+        const std::filesystem::path worldDataDirectory = assetDirectory / "data" / "world";
+        loadSplineLut(worldDataDirectory / "height_lut.bin", client_.diagnostics.heightLut, HeightLutInputMin, HeightLutInputMax);
+        loadSplineLut(worldDataDirectory / "groundness_baseline_lut.bin", client_.diagnostics.groundnessBaselineLut, SplineLutInputMin, SplineLutInputMax);
+        loadSplineLut(worldDataDirectory / "groundness_influence_lut.bin", client_.diagnostics.groundnessInfluenceLut, SplineLutInputMin, SplineLutInputMax);
+        loadSplineLut(worldDataDirectory / "smoothness_influence_lut.bin", client_.diagnostics.smoothnessInfluenceLut, SplineLutInputMin, SplineLutInputMax);
+        loadSplineLut(worldDataDirectory / "pv_weight_lut.bin", client_.diagnostics.pvWeightLut, PvLutInputMin, PvLutInputMax);
+        loadSplineLut(worldDataDirectory / "groundness_pv_weight_lut.bin", client_.diagnostics.groundnessPvWeightLut, SplineLutInputMin, SplineLutInputMax);
+        loadSplineLut(worldDataDirectory / "smoothness_pv_weight_lut.bin", client_.diagnostics.smoothnessPvWeightLut, SplineLutInputMin, SplineLutInputMax);
     }
 }

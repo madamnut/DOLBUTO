@@ -41,6 +41,7 @@ namespace dolbuto
         constexpr double DefaultJumpSpeed = 8.4;
         constexpr double DefaultGravity = 32.0;
         constexpr double WorldSizeBlocks = 65536.0;
+        constexpr int ClimateOverlayModeCount = 7;
         constexpr size_t PlayerInventorySlotCount = gameplay::PlayerInventory::SlotCount;
         constexpr size_t PlayerStateBaseFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t);
         constexpr size_t PlayerInventoryFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 2u;
@@ -705,7 +706,7 @@ namespace dolbuto
             }
             else if (key == GLFW_KEY_F6 && action == GLFW_PRESS && app != nullptr)
             {
-                app->climateOverlayMode_ = (app->climateOverlayMode_ + 1) % 3;
+                app->climateOverlayMode_ = (app->climateOverlayMode_ + 1) % ClimateOverlayModeCount;
             }
             else if (key == GLFW_KEY_E && action == GLFW_PRESS && app != nullptr)
             {
@@ -1049,7 +1050,7 @@ namespace dolbuto
 
     void GameClient::resetPlayerRuntimeState()
     {
-        playerPosition_ = {0.0, 300.0, 0.0};
+        playerPosition_ = {0.0, DefaultPlayerSpawnHeight, 0.0};
         previousPlayerPosition_ = playerPosition_;
         camera_.setAngles(0.0f, 0.0f);
         moveMode_ = MoveMode::Fly;
@@ -1650,6 +1651,7 @@ namespace dolbuto
         const double wrappedPlayerZ = wrapWorldCoordinate(playerPosition_.z);
         const std::string lookAtText = runtime_ != nullptr ? runtime_->diagnostics().selectedBlockText() : "LOOKAT: none";
         const std::string climateText = runtime_ != nullptr ? runtime_->diagnostics().climateText(playerPosition_) : "CLIMATE: T[0.000] P[0.000]";
+        const std::string terrainText = runtime_ != nullptr ? runtime_->diagnostics().terrainText(playerPosition_) : "TERRAIN: GND[0.000] SMTH[0.000] W[0.000] PV[0.000]\nVALUE: RAW[0.000] NORM[0.000] PVW[0.000] PVMUL[0.000] BASE[0.000] INF[0.000] VAL[0.000] H[0]";
         const uint64_t day = worldTicks_ / TicksPerDay;
         const uint64_t minuteOfDay = (worldTicks_ % TicksPerDay) / TicksPerMinute;
         const uint64_t hour = minuteOfDay / MinutesPerHour;
@@ -1658,7 +1660,7 @@ namespace dolbuto
         std::snprintf(
             debugText_.data(),
             debugText_.size(),
-            "FPS: %04d [%07.3fMS]\nPOS: X %.3f [%.3f] / Y %.3f / Z %.3f [%.3f]\nVIEW: YAW %.1f / PITCH %.1f [%s]\n%s\n%s\nTIME: %lluD %02lluH %02lluM\nSEED: %llu",
+            "FPS: %04d [%07.3fMS]\nPOS: X %.3f [%.3f] / Y %.3f / Z %.3f [%.3f]\nVIEW: YAW %.1f / PITCH %.1f [%s]\n%s\n%s\n%s\nTIME: %lluD %02lluH %02lluM\nSEED: %llu",
             clampedFps,
             milliseconds,
             wrappedPlayerX,
@@ -1671,6 +1673,7 @@ namespace dolbuto
             facing,
             lookAtText.c_str(),
             climateText.c_str(),
+            terrainText.c_str(),
             static_cast<unsigned long long>(day),
             static_cast<unsigned long long>(hour),
             static_cast<unsigned long long>(minute),

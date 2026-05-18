@@ -32,16 +32,32 @@ namespace dolbuto::game
         int maxTerrainUploadChunksPerFrame = 8;
         int maxTerrainUnloadChunksPerFrame = 16;
         int maxTerrainRetiredDestroyPerFrame = 4;
-        float terrainNoiseFeatureScale = 0.0f;
-        int terrainNoiseOctaveCount = 0;
-        float terrainNoiseLacunarity = 0.0f;
-        float terrainNoiseGain = 0.0f;
-        float terrainNoiseSimplexScale = 0.0f;
-        bool terrainDomainWarpEnabled = false;
-        float terrainDomainWarpAmplitude = 0.0f;
-        float terrainDomainWarpFrequency = 0.0f;
-        int terrainDomainWarpOctaveCount = 0;
-        float terrainDomainWarpGain = 0.0f;
+        float groundnessNoiseFeatureScale = 0.0f;
+        int groundnessNoiseOctaveCount = 0;
+        float groundnessNoiseLacunarity = 0.0f;
+        float groundnessNoiseGain = 0.0f;
+        bool groundnessDomainWarpEnabled = false;
+        float groundnessDomainWarpAmplitude = 0.0f;
+        float groundnessDomainWarpFrequency = 0.0f;
+        int groundnessDomainWarpOctaveCount = 0;
+        float groundnessDomainWarpGain = 0.0f;
+        float baseNoiseFeatureScale = 0.0f;
+        int baseNoiseOctaveCount = 0;
+        float baseNoiseLacunarity = 0.0f;
+        float baseNoiseGain = 0.0f;
+        float smoothnessNoiseFeatureScale = 0.0f;
+        int smoothnessNoiseOctaveCount = 0;
+        float smoothnessNoiseLacunarity = 0.0f;
+        float smoothnessNoiseGain = 0.0f;
+        float weirdnessNoiseFeatureScale = 0.0f;
+        int weirdnessNoiseOctaveCount = 0;
+        float weirdnessNoiseLacunarity = 0.0f;
+        float weirdnessNoiseGain = 0.0f;
+        bool weirdnessDomainWarpEnabled = false;
+        float weirdnessDomainWarpAmplitude = 0.0f;
+        float weirdnessDomainWarpFrequency = 0.0f;
+        int weirdnessDomainWarpOctaveCount = 0;
+        float weirdnessDomainWarpGain = 0.0f;
         float temperatureNoiseStrength = 0.12f;
         float temperatureNoiseFeatureScale = 8192.0f;
         int temperatureNoiseOctaveCount = 2;
@@ -63,7 +79,13 @@ namespace dolbuto::game
 
     struct ClientDiagnosticsState
     {
-        std::array<uint16_t, 1024> heightLut{};
+        std::array<float, 1024> heightLut{};
+        std::array<float, 1024> groundnessBaselineLut{};
+        std::array<float, 1024> groundnessInfluenceLut{};
+        std::array<float, 1024> smoothnessInfluenceLut{};
+        std::array<float, 1024> pvWeightLut{};
+        std::array<float, 1024> groundnessPvWeightLut{};
+        std::array<float, 1024> smoothnessPvWeightLut{};
         uint32_t terrainDrawCount = 0;
         uint32_t terrainFaceCount = 0;
         uint32_t terrainVertexCount = 0;
@@ -102,6 +124,10 @@ namespace dolbuto::game
         ClientContent content;
         bool climateTemperatureOverlayReady = false;
         bool climatePrecipitationOverlayReady = false;
+        bool terrainGroundnessOverlayReady = false;
+        bool terrainSmoothnessOverlayReady = false;
+        bool terrainWeirdnessOverlayReady = false;
+        bool terrainPvOverlayReady = false;
         ui::UiSystem ui;
         ui::ClientUiBridge uiBridge;
         audio::AudioSystem audio;

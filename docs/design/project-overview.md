@@ -176,7 +176,7 @@ terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 �
 `src/renderer/SpriteRenderPath.h/.cpp`는 sprite pipeline push constant, texture descriptor bind, screen-space sprite draw primitive를 담당한다.
 `src/renderer/ScreenPresentation.h/.cpp`는 sky sprite, scene composite, climate overlay, crosshair, fallback menu background/buttons/text, debug text draw timing을 담당한다.
 `src/world/ClimateSystem.h/.cpp`는 climate seed, tileable climate noise sampling, chunk climate population, temperature/precipitation 값 계산을 담당하며 Renderer/Vulkan 타입에 의존하지 않는다.
-`src/renderer/ClimateOverlayTextureBuilder.h/.cpp`는 `ClimateSystem`을 입력으로 temperature/precipitation overlay RGBA pixel 데이터를 생성한다.
+`src/renderer/ClimateOverlayTextureBuilder.h/.cpp`는 `ClimateSystem`과 terrain debug sample을 입력으로 temperature/precipitation/terrain noise overlay RGBA pixel 데이터를 생성한다.
 `src/renderer/DebugOverlayText.h/.cpp`는 hardware/performance/terrain/debug 표시 문자열과 text batch dirty 상태를 소유한다.
 `src/renderer/TerrainGeometryBuilder.h/.cpp`는 block 정의, texture layer, prop mesh를 입력으로 받아 solid/cross/prop terrain CPU mesh를 생성하며 Vulkan 타입에 의존하지 않는다.
 `src/renderer/RendererTerrainMeshBridge.h/.cpp`는 `TerrainGeometryBuilder`와 `TerrainMesher`를 연결해 chunk mesh와 edited subchunk mesh의 CPU 조립을 담당한다.

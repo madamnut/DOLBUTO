@@ -22,6 +22,10 @@ namespace dolbuto
         Texture lobbyTitle;
         Texture climateTemperatureOverlay;
         Texture climatePrecipitationOverlay;
+        Texture terrainGroundnessOverlay;
+        Texture terrainSmoothnessOverlay;
+        Texture terrainWeirdnessOverlay;
+        Texture terrainPvOverlay;
         Texture font;
         Texture playerTexture;
         Texture terrainTextureArray;

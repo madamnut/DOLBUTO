@@ -1,5 +1,7 @@
 #include "renderer/ScreenPresentation.h"
 
+#include "renderer/ClimateOverlayTextureBuilder.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -190,19 +192,35 @@ namespace dolbuto
         VkPipelineLayout pipelineLayout,
         VkBuffer spriteVertexBuffer) const
     {
-        if (mode == 0)
+        if (mode == ClimateOverlayTextureBuilder::Off)
         {
             return;
         }
 
         const Texture* texture = nullptr;
-        if (mode == 1 && assets.climateTemperatureOverlay.descriptorSet != VK_NULL_HANDLE)
+        if (mode == ClimateOverlayTextureBuilder::Temperature && assets.climateTemperatureOverlay.descriptorSet != VK_NULL_HANDLE)
         {
             texture = &assets.climateTemperatureOverlay;
         }
-        else if (mode == 2 && assets.climatePrecipitationOverlay.descriptorSet != VK_NULL_HANDLE)
+        else if (mode == ClimateOverlayTextureBuilder::Precipitation && assets.climatePrecipitationOverlay.descriptorSet != VK_NULL_HANDLE)
         {
             texture = &assets.climatePrecipitationOverlay;
+        }
+        else if (mode == ClimateOverlayTextureBuilder::Groundness && assets.terrainGroundnessOverlay.descriptorSet != VK_NULL_HANDLE)
+        {
+            texture = &assets.terrainGroundnessOverlay;
+        }
+        else if (mode == ClimateOverlayTextureBuilder::Smoothness && assets.terrainSmoothnessOverlay.descriptorSet != VK_NULL_HANDLE)
+        {
+            texture = &assets.terrainSmoothnessOverlay;
+        }
+        else if (mode == ClimateOverlayTextureBuilder::Weirdness && assets.terrainWeirdnessOverlay.descriptorSet != VK_NULL_HANDLE)
+        {
+            texture = &assets.terrainWeirdnessOverlay;
+        }
+        else if (mode == ClimateOverlayTextureBuilder::Pv && assets.terrainPvOverlay.descriptorSet != VK_NULL_HANDLE)
+        {
+            texture = &assets.terrainPvOverlay;
         }
         if (texture == nullptr)
         {

@@ -95,6 +95,7 @@ namespace dolbuto::game
 
             std::string selectedBlockText() const;
             std::string climateText(DVec3 position) const;
+            std::string terrainText(DVec3 position) const;
 
         private:
             ClientRuntime& owner_;

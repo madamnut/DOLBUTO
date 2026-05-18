@@ -20,12 +20,21 @@ namespace dolbuto::world
         constexpr int SubchunksPerChunk = ChunkSizeY / SubchunkSize;
         constexpr int TerrainTilePeriod = 65536;
         constexpr int WorldSizeBlocks = TerrainTilePeriod;
-        constexpr int TerrainNoiseSeed = 1337;
+        constexpr int GroundnessNoiseSeed = 1801;
+        constexpr int BaseNoiseSeed = 1802;
+        constexpr int SmoothnessNoiseSeed = 1803;
+        constexpr int WeirdnessNoiseSeed = 1804;
         constexpr int TemperatureNoiseSeed = 2400;
         constexpr int PrecipitationNoiseSeed = 2401;
         constexpr float DefaultTerrainNoiseLacunarity = 2.0f;
-        constexpr float HeightLutNoiseMin = -2.0f;
-        constexpr float HeightLutNoiseMax = 2.0f;
+        constexpr float SplineLutInputMin = -2.0f;
+        constexpr float SplineLutInputMax = 2.0f;
+        constexpr float PvLutInputMin = -1.0f;
+        constexpr float PvLutInputMax = 1.0f;
+        constexpr float HeightLutInputMin = 0.0f;
+        constexpr float HeightLutInputMax = 2.0f;
+        constexpr float TerrainValueNormalizeRange = 3.5f;
+        constexpr float FixedSimplexScale = 1.0f;
         constexpr uint16_t BlockAir = 0;
         constexpr uint16_t BlockRock = 1;
         constexpr uint16_t BlockGrass = 2;
@@ -150,7 +159,7 @@ namespace dolbuto::world
             return std::nullopt;
         }
 
-        FastNoise::SmartNode<> terrainNoiseGenerator(float simplexScale, int octaveCount, float lacunarity, float gain)
+        FastNoise::SmartNode<> fbmNoiseGenerator(float simplexScale, int octaveCount, float lacunarity, float gain)
         {
             struct CachedGenerator
             {
@@ -192,31 +201,75 @@ namespace dolbuto::world
             return cache.generator;
         }
 
-        int heightFromLut(const std::array<uint16_t, TerrainHeightLutCount>& heightLut, float noise)
+        float sampleSplineLut(
+            const std::array<float, TerrainSplineLutCount>& lut,
+            float input,
+            float inputMin,
+            float inputMax)
         {
-            constexpr float scale = static_cast<float>(TerrainHeightLutCount - 1u) / (HeightLutNoiseMax - HeightLutNoiseMin);
-            const float normalized = (noise - HeightLutNoiseMin) * scale;
+            const float scale = static_cast<float>(TerrainSplineLutCount - 1u) / (inputMax - inputMin);
+            const float normalized = (input - inputMin) * scale;
             const int index = std::clamp(
                 static_cast<int>(normalized + 0.5f),
                 0,
-                static_cast<int>(TerrainHeightLutCount - 1u));
-            return static_cast<int>(heightLut[static_cast<size_t>(index)]);
+                static_cast<int>(TerrainSplineLutCount - 1u));
+            return lut[static_cast<size_t>(index)];
         }
 
-        void convertNoiseToHeights(
-            const std::array<uint16_t, TerrainHeightLutCount>& heightLut,
-            const std::array<float, ChunkColumnCount>& noise,
-            std::array<int, ChunkColumnCount>& heights)
+        float sampleSplineLut(const std::array<float, TerrainSplineLutCount>& lut, float input)
         {
-            constexpr float scale = static_cast<float>(TerrainHeightLutCount - 1u) / (HeightLutNoiseMax - HeightLutNoiseMin);
-            constexpr int maxIndex = static_cast<int>(TerrainHeightLutCount - 1u);
-            for (size_t i = 0; i < noise.size(); ++i)
-            {
-                const float normalized = (noise[i] - HeightLutNoiseMin) * scale;
-                const int index = std::clamp(static_cast<int>(normalized + 0.5f), 0, maxIndex);
-                heights[i] = static_cast<int>(heightLut[static_cast<size_t>(index)]);
-            }
+            return sampleSplineLut(lut, input, SplineLutInputMin, SplineLutInputMax);
         }
+
+        int heightFromLut(const std::array<float, TerrainSplineLutCount>& heightLut, float terrainValue)
+        {
+            return std::clamp(
+                static_cast<int>(std::lround(sampleSplineLut(heightLut, terrainValue, HeightLutInputMin, HeightLutInputMax))),
+                0,
+                ChunkSizeY);
+        }
+
+        TerrainDebugSample terrainSampleFromNoise(
+            const TerrainBuilderConfig& config,
+            float groundness,
+            float smoothness,
+            float weirdness,
+            float baseNoise)
+        {
+            TerrainDebugSample sample{};
+            const float groundnessBaseline = sampleSplineLut(config.groundnessBaselineLut, groundness);
+            const float groundnessInfluence = sampleSplineLut(config.groundnessInfluenceLut, groundness);
+            const float smoothnessInfluence = sampleSplineLut(config.smoothnessInfluenceLut, smoothness);
+            const float pv = 1.0f - std::abs(3.0f * std::abs(weirdness) - 2.0f);
+            const float baseline = groundnessBaseline;
+            const float influence = groundnessInfluence * smoothnessInfluence;
+            const float rawTerrainValue = baseline + baseNoise * influence;
+            const float normalizedTerrainValue = std::clamp(
+                (rawTerrainValue + TerrainValueNormalizeRange) / TerrainValueNormalizeRange,
+                HeightLutInputMin,
+                HeightLutInputMax);
+            const float pvWeight =
+                sampleSplineLut(config.pvWeightLut, pv, PvLutInputMin, PvLutInputMax) *
+                sampleSplineLut(config.groundnessPvWeightLut, groundness) *
+                sampleSplineLut(config.smoothnessPvWeightLut, smoothness);
+            const float pvMultiplier = std::clamp(1.0f - pvWeight, 0.0f, 1.0f);
+            const float terrainValue = normalizedTerrainValue * pvMultiplier;
+
+            sample.groundness = groundness;
+            sample.smoothness = smoothness;
+            sample.weirdness = weirdness;
+            sample.pv = pv;
+            sample.baseline = baseline;
+            sample.influence = influence;
+            sample.rawTerrainValue = rawTerrainValue;
+            sample.normalizedTerrainValue = normalizedTerrainValue;
+            sample.pvWeight = pvWeight;
+            sample.pvMultiplier = pvMultiplier;
+            sample.terrainValue = terrainValue;
+            sample.height = heightFromLut(config.heightLut, terrainValue);
+            return sample;
+        }
+
     }
 
     TerrainBuilder::TerrainBuilder(TerrainBuilderConfig config) :
@@ -420,67 +473,114 @@ namespace dolbuto::world
         return chunk;
     }
 
-    std::array<int, ChunkColumnCount> TerrainBuilder::buildChunkHeightmap(int chunkX, int chunkZ) const
+    std::array<TerrainDebugSample, ChunkColumnCount> TerrainBuilder::buildChunkTerrainDebugSamples(int chunkX, int chunkZ) const
     {
-        std::array<int, ChunkColumnCount> heights{};
-        auto generator = terrainNoiseGenerator(
-            config_.terrainNoiseSimplexScale,
-            config_.terrainNoiseOctaveCount,
-            config_.terrainNoiseLacunarity,
-            config_.terrainNoiseGain);
-        if (!generator)
+        std::array<TerrainDebugSample, ChunkColumnCount> samples{};
+        auto groundnessGenerator = fbmNoiseGenerator(
+            FixedSimplexScale,
+            config_.groundnessNoiseOctaveCount,
+            config_.groundnessNoiseLacunarity,
+            config_.groundnessNoiseGain);
+        auto smoothnessGenerator = fbmNoiseGenerator(
+            FixedSimplexScale,
+            config_.smoothnessNoiseOctaveCount,
+            config_.smoothnessNoiseLacunarity,
+            config_.smoothnessNoiseGain);
+        auto weirdnessGenerator = fbmNoiseGenerator(
+            FixedSimplexScale,
+            config_.weirdnessNoiseOctaveCount,
+            config_.weirdnessNoiseLacunarity,
+            config_.weirdnessNoiseGain);
+        auto baseGenerator = fbmNoiseGenerator(
+            FixedSimplexScale,
+            config_.baseNoiseOctaveCount,
+            config_.baseNoiseLacunarity,
+            config_.baseNoiseGain);
+        if (!groundnessGenerator || !smoothnessGenerator || !weirdnessGenerator || !baseGenerator)
         {
-            heights.fill(heightFromLut(config_.heightLut, 0.0f));
-            return heights;
+            const int fallbackHeight = heightFromLut(config_.heightLut, 0.0f);
+            for (TerrainDebugSample& sample : samples)
+            {
+                sample.height = fallbackHeight;
+            }
+            return samples;
         }
 
-        constexpr float TwoPi = 6.28318530718f;
-        const float angleScale = TwoPi / static_cast<float>(TerrainTilePeriod);
-        const float radius = static_cast<float>(TerrainTilePeriod) / (TwoPi * config_.terrainNoiseFeatureScale);
+        const auto fillTileablePositions = [chunkX, chunkZ](
+            float featureScale,
+            std::array<float, ChunkColumnCount>& xPositions,
+            std::array<float, ChunkColumnCount>& yPositions,
+            std::array<float, ChunkColumnCount>& zPositions,
+            std::array<float, ChunkColumnCount>& wPositions)
+        {
+            constexpr float TwoPi = 6.28318530718f;
+            const float angleScale = TwoPi / static_cast<float>(TerrainTilePeriod);
+            const float radius = static_cast<float>(TerrainTilePeriod) / (TwoPi * featureScale);
 
-        std::array<float, ChunkSizeX> xCos{};
-        std::array<float, ChunkSizeX> xSin{};
-        std::array<float, ChunkSizeZ> zCos{};
-        std::array<float, ChunkSizeZ> zSin{};
-        for (int localX = 0; localX < ChunkSizeX; ++localX)
-        {
-            const int worldX = chunkX * ChunkSizeX + localX;
-            const float angle = static_cast<float>(positiveModulo(worldX, TerrainTilePeriod)) * angleScale;
-            xCos[localX] = std::cos(angle) * radius;
-            xSin[localX] = std::sin(angle) * radius;
-        }
-        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-        {
-            const int worldZ = chunkZ * ChunkSizeZ + localZ;
-            const float angle = static_cast<float>(positiveModulo(worldZ, TerrainTilePeriod)) * angleScale;
-            zCos[localZ] = std::cos(angle) * radius;
-            zSin[localZ] = std::sin(angle) * radius;
-        }
-
-        std::array<float, ChunkColumnCount> xPositions{};
-        std::array<float, ChunkColumnCount> yPositions{};
-        std::array<float, ChunkColumnCount> zPositions{};
-        std::array<float, ChunkColumnCount> wPositions{};
-        std::array<float, ChunkColumnCount> noise{};
-        for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
-        {
+            std::array<float, ChunkSizeX> xCos{};
+            std::array<float, ChunkSizeX> xSin{};
+            std::array<float, ChunkSizeZ> zCos{};
+            std::array<float, ChunkSizeZ> zSin{};
             for (int localX = 0; localX < ChunkSizeX; ++localX)
             {
-                const size_t index = static_cast<size_t>(localZ * ChunkSizeX + localX);
-                xPositions[index] = xCos[localX];
-                yPositions[index] = zCos[localZ];
-                zPositions[index] = xSin[localX];
-                wPositions[index] = zSin[localZ];
+                const int worldX = chunkX * ChunkSizeX + localX;
+                const float angle = static_cast<float>(positiveModulo(worldX, TerrainTilePeriod)) * angleScale;
+                xCos[localX] = std::cos(angle) * radius;
+                xSin[localX] = std::sin(angle) * radius;
             }
-        }
+            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+            {
+                const int worldZ = chunkZ * ChunkSizeZ + localZ;
+                const float angle = static_cast<float>(positiveModulo(worldZ, TerrainTilePeriod)) * angleScale;
+                zCos[localZ] = std::cos(angle) * radius;
+                zSin[localZ] = std::sin(angle) * radius;
+            }
+            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+            {
+                for (int localX = 0; localX < ChunkSizeX; ++localX)
+                {
+                    const size_t index = static_cast<size_t>(localZ * ChunkSizeX + localX);
+                    xPositions[index] = xCos[localX];
+                    yPositions[index] = zCos[localZ];
+                    zPositions[index] = xSin[localX];
+                    wPositions[index] = zSin[localZ];
+                }
+            }
+        };
 
-        if (config_.terrainDomainWarpEnabled && config_.terrainDomainWarpAmplitude > 0.0f)
+        std::array<float, ChunkColumnCount> groundnessX{};
+        std::array<float, ChunkColumnCount> groundnessY{};
+        std::array<float, ChunkColumnCount> groundnessZ{};
+        std::array<float, ChunkColumnCount> groundnessW{};
+        std::array<float, ChunkColumnCount> baseX{};
+        std::array<float, ChunkColumnCount> baseY{};
+        std::array<float, ChunkColumnCount> baseZ{};
+        std::array<float, ChunkColumnCount> baseW{};
+        std::array<float, ChunkColumnCount> smoothnessX{};
+        std::array<float, ChunkColumnCount> smoothnessY{};
+        std::array<float, ChunkColumnCount> smoothnessZ{};
+        std::array<float, ChunkColumnCount> smoothnessW{};
+        std::array<float, ChunkColumnCount> weirdnessX{};
+        std::array<float, ChunkColumnCount> weirdnessY{};
+        std::array<float, ChunkColumnCount> weirdnessZ{};
+        std::array<float, ChunkColumnCount> weirdnessW{};
+        std::array<float, ChunkColumnCount> groundnessNoise{};
+        std::array<float, ChunkColumnCount> smoothnessNoise{};
+        std::array<float, ChunkColumnCount> weirdnessNoise{};
+        std::array<float, ChunkColumnCount> baseNoise{};
+
+        fillTileablePositions(config_.groundnessNoiseFeatureScale, groundnessX, groundnessY, groundnessZ, groundnessW);
+        fillTileablePositions(config_.smoothnessNoiseFeatureScale, smoothnessX, smoothnessY, smoothnessZ, smoothnessW);
+        fillTileablePositions(config_.weirdnessNoiseFeatureScale, weirdnessX, weirdnessY, weirdnessZ, weirdnessW);
+        fillTileablePositions(config_.baseNoiseFeatureScale, baseX, baseY, baseZ, baseW);
+
+        if (config_.groundnessDomainWarpEnabled && config_.groundnessDomainWarpAmplitude > 0.0f)
         {
-            auto warpGenerator = terrainNoiseGenerator(
-                config_.terrainDomainWarpFrequency,
-                config_.terrainDomainWarpOctaveCount,
+            auto warpGenerator = fbmNoiseGenerator(
+                config_.groundnessDomainWarpFrequency,
+                config_.groundnessDomainWarpOctaveCount,
                 DefaultTerrainNoiseLacunarity,
-                config_.terrainDomainWarpGain);
+                config_.groundnessDomainWarpGain);
             if (warpGenerator)
             {
                 std::array<float, ChunkColumnCount> xWarp{};
@@ -488,36 +588,419 @@ namespace dolbuto::world
                 std::array<float, ChunkColumnCount> zWarp{};
                 std::array<float, ChunkColumnCount> wWarp{};
 
-                warpGenerator->GenPositionArray4D(xWarp.data(), static_cast<int>(xWarp.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, terrainSeed(101));
-                warpGenerator->GenPositionArray4D(yWarp.data(), static_cast<int>(yWarp.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, terrainSeed(202));
-                warpGenerator->GenPositionArray4D(zWarp.data(), static_cast<int>(zWarp.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, terrainSeed(303));
-                warpGenerator->GenPositionArray4D(wWarp.data(), static_cast<int>(wWarp.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, terrainSeed(404));
+                warpGenerator->GenPositionArray4D(xWarp.data(), static_cast<int>(xWarp.size()), groundnessX.data(), groundnessY.data(), groundnessZ.data(), groundnessW.data(), 0.0f, 0.0f, 0.0f, 0.0f, groundnessSeed(101));
+                warpGenerator->GenPositionArray4D(yWarp.data(), static_cast<int>(yWarp.size()), groundnessX.data(), groundnessY.data(), groundnessZ.data(), groundnessW.data(), 0.0f, 0.0f, 0.0f, 0.0f, groundnessSeed(202));
+                warpGenerator->GenPositionArray4D(zWarp.data(), static_cast<int>(zWarp.size()), groundnessX.data(), groundnessY.data(), groundnessZ.data(), groundnessW.data(), 0.0f, 0.0f, 0.0f, 0.0f, groundnessSeed(303));
+                warpGenerator->GenPositionArray4D(wWarp.data(), static_cast<int>(wWarp.size()), groundnessX.data(), groundnessY.data(), groundnessZ.data(), groundnessW.data(), 0.0f, 0.0f, 0.0f, 0.0f, groundnessSeed(404));
 
-                for (size_t i = 0; i < xPositions.size(); ++i)
+                for (size_t i = 0; i < groundnessX.size(); ++i)
                 {
-                    xPositions[i] += xWarp[i] * config_.terrainDomainWarpAmplitude;
-                    yPositions[i] += yWarp[i] * config_.terrainDomainWarpAmplitude;
-                    zPositions[i] += zWarp[i] * config_.terrainDomainWarpAmplitude;
-                    wPositions[i] += wWarp[i] * config_.terrainDomainWarpAmplitude;
+                    groundnessX[i] += xWarp[i] * config_.groundnessDomainWarpAmplitude;
+                    groundnessY[i] += yWarp[i] * config_.groundnessDomainWarpAmplitude;
+                    groundnessZ[i] += zWarp[i] * config_.groundnessDomainWarpAmplitude;
+                    groundnessW[i] += wWarp[i] * config_.groundnessDomainWarpAmplitude;
                 }
             }
         }
 
-        generator->GenPositionArray4D(
-            noise.data(),
-            static_cast<int>(noise.size()),
-            xPositions.data(),
-            yPositions.data(),
-            zPositions.data(),
-            wPositions.data(),
-            0.0f,
-            0.0f,
-            0.0f,
-            0.0f,
-            terrainSeed());
+        if (config_.weirdnessDomainWarpEnabled && config_.weirdnessDomainWarpAmplitude > 0.0f)
+        {
+            auto warpGenerator = fbmNoiseGenerator(
+                config_.weirdnessDomainWarpFrequency,
+                config_.weirdnessDomainWarpOctaveCount,
+                DefaultTerrainNoiseLacunarity,
+                config_.weirdnessDomainWarpGain);
+            if (warpGenerator)
+            {
+                std::array<float, ChunkColumnCount> xWarp{};
+                std::array<float, ChunkColumnCount> yWarp{};
+                std::array<float, ChunkColumnCount> zWarp{};
+                std::array<float, ChunkColumnCount> wWarp{};
 
-        convertNoiseToHeights(config_.heightLut, noise, heights);
+                warpGenerator->GenPositionArray4D(xWarp.data(), static_cast<int>(xWarp.size()), weirdnessX.data(), weirdnessY.data(), weirdnessZ.data(), weirdnessW.data(), 0.0f, 0.0f, 0.0f, 0.0f, weirdnessSeed(101));
+                warpGenerator->GenPositionArray4D(yWarp.data(), static_cast<int>(yWarp.size()), weirdnessX.data(), weirdnessY.data(), weirdnessZ.data(), weirdnessW.data(), 0.0f, 0.0f, 0.0f, 0.0f, weirdnessSeed(202));
+                warpGenerator->GenPositionArray4D(zWarp.data(), static_cast<int>(zWarp.size()), weirdnessX.data(), weirdnessY.data(), weirdnessZ.data(), weirdnessW.data(), 0.0f, 0.0f, 0.0f, 0.0f, weirdnessSeed(303));
+                warpGenerator->GenPositionArray4D(wWarp.data(), static_cast<int>(wWarp.size()), weirdnessX.data(), weirdnessY.data(), weirdnessZ.data(), weirdnessW.data(), 0.0f, 0.0f, 0.0f, 0.0f, weirdnessSeed(404));
+
+                for (size_t i = 0; i < weirdnessX.size(); ++i)
+                {
+                    weirdnessX[i] += xWarp[i] * config_.weirdnessDomainWarpAmplitude;
+                    weirdnessY[i] += yWarp[i] * config_.weirdnessDomainWarpAmplitude;
+                    weirdnessZ[i] += zWarp[i] * config_.weirdnessDomainWarpAmplitude;
+                    weirdnessW[i] += wWarp[i] * config_.weirdnessDomainWarpAmplitude;
+                }
+            }
+        }
+
+        groundnessGenerator->GenPositionArray4D(
+            groundnessNoise.data(),
+            static_cast<int>(groundnessNoise.size()),
+            groundnessX.data(),
+            groundnessY.data(),
+            groundnessZ.data(),
+            groundnessW.data(),
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            groundnessSeed());
+        smoothnessGenerator->GenPositionArray4D(
+            smoothnessNoise.data(),
+            static_cast<int>(smoothnessNoise.size()),
+            smoothnessX.data(),
+            smoothnessY.data(),
+            smoothnessZ.data(),
+            smoothnessW.data(),
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            smoothnessSeed());
+        weirdnessGenerator->GenPositionArray4D(
+            weirdnessNoise.data(),
+            static_cast<int>(weirdnessNoise.size()),
+            weirdnessX.data(),
+            weirdnessY.data(),
+            weirdnessZ.data(),
+            weirdnessW.data(),
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            weirdnessSeed());
+        baseGenerator->GenPositionArray4D(
+            baseNoise.data(),
+            static_cast<int>(baseNoise.size()),
+            baseX.data(),
+            baseY.data(),
+            baseZ.data(),
+            baseW.data(),
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            baseNoiseSeed());
+
+        for (size_t i = 0; i < samples.size(); ++i)
+        {
+            samples[i] = terrainSampleFromNoise(
+                config_,
+                groundnessNoise[i],
+                smoothnessNoise[i],
+                weirdnessNoise[i],
+                baseNoise[i]);
+        }
+
+        return samples;
+    }
+
+    std::array<int, ChunkColumnCount> TerrainBuilder::buildChunkHeightmap(int chunkX, int chunkZ) const
+    {
+        std::array<int, ChunkColumnCount> heights{};
+        const std::array<TerrainDebugSample, ChunkColumnCount> samples = buildChunkTerrainDebugSamples(chunkX, chunkZ);
+        for (size_t i = 0; i < samples.size(); ++i)
+        {
+            heights[i] = samples[i].height;
+        }
         return heights;
+    }
+
+    std::vector<TerrainDebugSample> TerrainBuilder::buildTerrainDebugSamples(int sampleSize, int worldExtentBlocks) const
+    {
+        if (sampleSize <= 0 || worldExtentBlocks <= 0)
+        {
+            return {};
+        }
+
+        const size_t sampleCount = static_cast<size_t>(sampleSize) * static_cast<size_t>(sampleSize);
+        std::vector<TerrainDebugSample> samples(sampleCount);
+        auto groundnessGenerator = fbmNoiseGenerator(
+            FixedSimplexScale,
+            config_.groundnessNoiseOctaveCount,
+            config_.groundnessNoiseLacunarity,
+            config_.groundnessNoiseGain);
+        auto smoothnessGenerator = fbmNoiseGenerator(
+            FixedSimplexScale,
+            config_.smoothnessNoiseOctaveCount,
+            config_.smoothnessNoiseLacunarity,
+            config_.smoothnessNoiseGain);
+        auto weirdnessGenerator = fbmNoiseGenerator(
+            FixedSimplexScale,
+            config_.weirdnessNoiseOctaveCount,
+            config_.weirdnessNoiseLacunarity,
+            config_.weirdnessNoiseGain);
+        auto baseGenerator = fbmNoiseGenerator(
+            FixedSimplexScale,
+            config_.baseNoiseOctaveCount,
+            config_.baseNoiseLacunarity,
+            config_.baseNoiseGain);
+        if (!groundnessGenerator || !smoothnessGenerator || !weirdnessGenerator || !baseGenerator)
+        {
+            return samples;
+        }
+
+        auto fillTileablePositions = [sampleSize, worldExtentBlocks](
+            float featureScale,
+            std::vector<float>& xPositions,
+            std::vector<float>& yPositions,
+            std::vector<float>& zPositions,
+            std::vector<float>& wPositions)
+        {
+            constexpr float TwoPi = 6.28318530718f;
+            const float angleScale = TwoPi / static_cast<float>(TerrainTilePeriod);
+            const float radius = static_cast<float>(TerrainTilePeriod) / (TwoPi * featureScale);
+
+            xPositions.resize(static_cast<size_t>(sampleSize) * static_cast<size_t>(sampleSize));
+            yPositions.resize(xPositions.size());
+            zPositions.resize(xPositions.size());
+            wPositions.resize(xPositions.size());
+
+            for (int y = 0; y < sampleSize; ++y)
+            {
+                const int worldZ = (y * worldExtentBlocks) / sampleSize;
+                const float zAngle = static_cast<float>(positiveModulo(worldZ, TerrainTilePeriod)) * angleScale;
+                const float zCos = std::cos(zAngle) * radius;
+                const float zSin = std::sin(zAngle) * radius;
+                for (int x = 0; x < sampleSize; ++x)
+                {
+                    const int worldX = (x * worldExtentBlocks) / sampleSize;
+                    const float xAngle = static_cast<float>(positiveModulo(worldX, TerrainTilePeriod)) * angleScale;
+                    const size_t index = static_cast<size_t>(y) * static_cast<size_t>(sampleSize) + static_cast<size_t>(x);
+                    xPositions[index] = std::cos(xAngle) * radius;
+                    yPositions[index] = zCos;
+                    zPositions[index] = std::sin(xAngle) * radius;
+                    wPositions[index] = zSin;
+                }
+            }
+        };
+
+        auto applyDomainWarp = [](
+            std::vector<float>& xPositions,
+            std::vector<float>& yPositions,
+            std::vector<float>& zPositions,
+            std::vector<float>& wPositions,
+            float amplitude,
+            const FastNoise::SmartNode<>& warpGenerator,
+            int seedBase)
+        {
+            std::vector<float> xWarp(xPositions.size());
+            std::vector<float> yWarp(xPositions.size());
+            std::vector<float> zWarp(xPositions.size());
+            std::vector<float> wWarp(xPositions.size());
+            warpGenerator->GenPositionArray4D(xWarp.data(), static_cast<int>(xWarp.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, seedBase + 101);
+            warpGenerator->GenPositionArray4D(yWarp.data(), static_cast<int>(yWarp.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, seedBase + 202);
+            warpGenerator->GenPositionArray4D(zWarp.data(), static_cast<int>(zWarp.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, seedBase + 303);
+            warpGenerator->GenPositionArray4D(wWarp.data(), static_cast<int>(wWarp.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, seedBase + 404);
+            for (size_t i = 0; i < xPositions.size(); ++i)
+            {
+                xPositions[i] += xWarp[i] * amplitude;
+                yPositions[i] += yWarp[i] * amplitude;
+                zPositions[i] += zWarp[i] * amplitude;
+                wPositions[i] += wWarp[i] * amplitude;
+            }
+        };
+
+        auto generateNoise = [&fillTileablePositions](
+            int sampleSize,
+            float featureScale,
+            const FastNoise::SmartNode<>& generator,
+            int seed,
+            std::vector<float>& noise,
+            std::vector<float>& xPositions,
+            std::vector<float>& yPositions,
+            std::vector<float>& zPositions,
+            std::vector<float>& wPositions)
+        {
+            fillTileablePositions(featureScale, xPositions, yPositions, zPositions, wPositions);
+            noise.resize(static_cast<size_t>(sampleSize) * static_cast<size_t>(sampleSize));
+            generator->GenPositionArray4D(noise.data(), static_cast<int>(noise.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, seed);
+        };
+
+        std::vector<float> xPositions;
+        std::vector<float> yPositions;
+        std::vector<float> zPositions;
+        std::vector<float> wPositions;
+        std::vector<float> groundnessNoise;
+        std::vector<float> smoothnessNoise;
+        std::vector<float> weirdnessNoise;
+        std::vector<float> baseNoise;
+
+        fillTileablePositions(config_.groundnessNoiseFeatureScale, xPositions, yPositions, zPositions, wPositions);
+        if (config_.groundnessDomainWarpEnabled && config_.groundnessDomainWarpAmplitude > 0.0f)
+        {
+            auto warpGenerator = fbmNoiseGenerator(config_.groundnessDomainWarpFrequency, config_.groundnessDomainWarpOctaveCount, DefaultTerrainNoiseLacunarity, config_.groundnessDomainWarpGain);
+            if (warpGenerator)
+            {
+                applyDomainWarp(xPositions, yPositions, zPositions, wPositions, config_.groundnessDomainWarpAmplitude, warpGenerator, groundnessSeed());
+            }
+        }
+        groundnessNoise.resize(sampleCount);
+        groundnessGenerator->GenPositionArray4D(groundnessNoise.data(), static_cast<int>(groundnessNoise.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, groundnessSeed());
+
+        generateNoise(sampleSize, config_.smoothnessNoiseFeatureScale, smoothnessGenerator, smoothnessSeed(), smoothnessNoise, xPositions, yPositions, zPositions, wPositions);
+
+        fillTileablePositions(config_.weirdnessNoiseFeatureScale, xPositions, yPositions, zPositions, wPositions);
+        if (config_.weirdnessDomainWarpEnabled && config_.weirdnessDomainWarpAmplitude > 0.0f)
+        {
+            auto warpGenerator = fbmNoiseGenerator(config_.weirdnessDomainWarpFrequency, config_.weirdnessDomainWarpOctaveCount, DefaultTerrainNoiseLacunarity, config_.weirdnessDomainWarpGain);
+            if (warpGenerator)
+            {
+                applyDomainWarp(xPositions, yPositions, zPositions, wPositions, config_.weirdnessDomainWarpAmplitude, warpGenerator, weirdnessSeed());
+            }
+        }
+        weirdnessNoise.resize(sampleCount);
+        weirdnessGenerator->GenPositionArray4D(weirdnessNoise.data(), static_cast<int>(weirdnessNoise.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, weirdnessSeed());
+
+        generateNoise(sampleSize, config_.baseNoiseFeatureScale, baseGenerator, baseNoiseSeed(), baseNoise, xPositions, yPositions, zPositions, wPositions);
+
+        for (size_t i = 0; i < samples.size(); ++i)
+        {
+            samples[i] = terrainSampleFromNoise(
+                config_,
+                groundnessNoise[i],
+                smoothnessNoise[i],
+                weirdnessNoise[i],
+                baseNoise[i]);
+        }
+
+        return samples;
+    }
+
+    std::vector<float> TerrainBuilder::buildTerrainDebugNoise(TerrainDebugNoise noise, int sampleSize, int worldExtentBlocks) const
+    {
+        if (sampleSize <= 0 || worldExtentBlocks <= 0)
+        {
+            return {};
+        }
+
+        const size_t sampleCount = static_cast<size_t>(sampleSize) * static_cast<size_t>(sampleSize);
+        std::vector<float> samples(sampleCount);
+        float featureScale = config_.smoothnessNoiseFeatureScale;
+        int octaveCount = config_.smoothnessNoiseOctaveCount;
+        float lacunarity = config_.smoothnessNoiseLacunarity;
+        float gain = config_.smoothnessNoiseGain;
+        int seed = smoothnessSeed();
+        bool domainWarpEnabled = false;
+        float domainWarpAmplitude = 0.0f;
+        float domainWarpFrequency = 1.0f;
+        int domainWarpOctaveCount = 1;
+        float domainWarpGain = 0.5f;
+        int domainWarpSeed = 0;
+
+        switch (noise)
+        {
+        case TerrainDebugNoise::Groundness:
+            featureScale = config_.groundnessNoiseFeatureScale;
+            octaveCount = config_.groundnessNoiseOctaveCount;
+            lacunarity = config_.groundnessNoiseLacunarity;
+            gain = config_.groundnessNoiseGain;
+            seed = groundnessSeed();
+            domainWarpEnabled = config_.groundnessDomainWarpEnabled;
+            domainWarpAmplitude = config_.groundnessDomainWarpAmplitude;
+            domainWarpFrequency = config_.groundnessDomainWarpFrequency;
+            domainWarpOctaveCount = config_.groundnessDomainWarpOctaveCount;
+            domainWarpGain = config_.groundnessDomainWarpGain;
+            domainWarpSeed = groundnessSeed();
+            break;
+        case TerrainDebugNoise::Smoothness:
+            break;
+        case TerrainDebugNoise::Weirdness:
+        case TerrainDebugNoise::Pv:
+            featureScale = config_.weirdnessNoiseFeatureScale;
+            octaveCount = config_.weirdnessNoiseOctaveCount;
+            lacunarity = config_.weirdnessNoiseLacunarity;
+            gain = config_.weirdnessNoiseGain;
+            seed = weirdnessSeed();
+            domainWarpEnabled = config_.weirdnessDomainWarpEnabled;
+            domainWarpAmplitude = config_.weirdnessDomainWarpAmplitude;
+            domainWarpFrequency = config_.weirdnessDomainWarpFrequency;
+            domainWarpOctaveCount = config_.weirdnessDomainWarpOctaveCount;
+            domainWarpGain = config_.weirdnessDomainWarpGain;
+            domainWarpSeed = weirdnessSeed();
+            break;
+        }
+
+        auto generator = fbmNoiseGenerator(FixedSimplexScale, octaveCount, lacunarity, gain);
+        if (!generator)
+        {
+            return samples;
+        }
+
+        constexpr float TwoPi = 6.28318530718f;
+        const float angleScale = TwoPi / static_cast<float>(TerrainTilePeriod);
+        const float radius = static_cast<float>(TerrainTilePeriod) / (TwoPi * featureScale);
+        std::vector<float> xPositions(sampleCount);
+        std::vector<float> yPositions(sampleCount);
+        std::vector<float> zPositions(sampleCount);
+        std::vector<float> wPositions(sampleCount);
+
+        for (int y = 0; y < sampleSize; ++y)
+        {
+            const int worldZ = (y * worldExtentBlocks) / sampleSize;
+            const float zAngle = static_cast<float>(positiveModulo(worldZ, TerrainTilePeriod)) * angleScale;
+            const float zCos = std::cos(zAngle) * radius;
+            const float zSin = std::sin(zAngle) * radius;
+            for (int x = 0; x < sampleSize; ++x)
+            {
+                const int worldX = (x * worldExtentBlocks) / sampleSize;
+                const float xAngle = static_cast<float>(positiveModulo(worldX, TerrainTilePeriod)) * angleScale;
+                const size_t index = static_cast<size_t>(y) * static_cast<size_t>(sampleSize) + static_cast<size_t>(x);
+                xPositions[index] = std::cos(xAngle) * radius;
+                yPositions[index] = zCos;
+                zPositions[index] = std::sin(xAngle) * radius;
+                wPositions[index] = zSin;
+            }
+        }
+
+        if (domainWarpEnabled && domainWarpAmplitude > 0.0f)
+        {
+            auto warpGenerator = fbmNoiseGenerator(domainWarpFrequency, domainWarpOctaveCount, DefaultTerrainNoiseLacunarity, domainWarpGain);
+            if (warpGenerator)
+            {
+                std::vector<float> xWarp(sampleCount);
+                std::vector<float> yWarp(sampleCount);
+                std::vector<float> zWarp(sampleCount);
+                std::vector<float> wWarp(sampleCount);
+                warpGenerator->GenPositionArray4D(xWarp.data(), static_cast<int>(xWarp.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, domainWarpSeed + 101);
+                warpGenerator->GenPositionArray4D(yWarp.data(), static_cast<int>(yWarp.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, domainWarpSeed + 202);
+                warpGenerator->GenPositionArray4D(zWarp.data(), static_cast<int>(zWarp.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, domainWarpSeed + 303);
+                warpGenerator->GenPositionArray4D(wWarp.data(), static_cast<int>(wWarp.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, domainWarpSeed + 404);
+                for (size_t i = 0; i < sampleCount; ++i)
+                {
+                    xPositions[i] += xWarp[i] * domainWarpAmplitude;
+                    yPositions[i] += yWarp[i] * domainWarpAmplitude;
+                    zPositions[i] += zWarp[i] * domainWarpAmplitude;
+                    wPositions[i] += wWarp[i] * domainWarpAmplitude;
+                }
+            }
+        }
+
+        generator->GenPositionArray4D(samples.data(), static_cast<int>(samples.size()), xPositions.data(), yPositions.data(), zPositions.data(), wPositions.data(), 0.0f, 0.0f, 0.0f, 0.0f, seed);
+
+        if (noise == TerrainDebugNoise::Pv)
+        {
+            for (float& value : samples)
+            {
+                value = 1.0f - std::abs(3.0f * std::abs(value) - 2.0f);
+            }
+        }
+
+        return samples;
+    }
+
+    float TerrainBuilder::groundnessAtWorld(int worldX, int worldZ) const
+    {
+        return sampleTerrainAtWorld(worldX, worldZ).groundness;
+    }
+
+    TerrainDebugSample TerrainBuilder::sampleTerrainAtWorld(int worldX, int worldZ) const
+    {
+        const int chunkX = floorDiv(worldX, ChunkSizeX);
+        const int chunkZ = floorDiv(worldZ, ChunkSizeZ);
+        const int localX = positiveModulo(worldX, ChunkSizeX);
+        const int localZ = positiveModulo(worldZ, ChunkSizeZ);
+        const std::array<TerrainDebugSample, ChunkColumnCount> samples = buildChunkTerrainDebugSamples(chunkX, chunkZ);
+        return samples[static_cast<size_t>(localZ * ChunkSizeX + localX)];
     }
 
     std::array<FeatureWriteListPtr, FeatureNeighborCount> TerrainBuilder::buildTreeFeatures(
@@ -708,7 +1191,7 @@ namespace dolbuto::world
         int seed) const
     {
         std::array<float, ChunkColumnCount> noise{};
-        auto generator = terrainNoiseGenerator(simplexScale, octaveCount, lacunarity, gain);
+        auto generator = fbmNoiseGenerator(simplexScale, octaveCount, lacunarity, gain);
         if (!generator)
         {
             return noise;
@@ -802,9 +1285,24 @@ namespace dolbuto::world
         return std::clamp(noise * 0.5f + 0.5f, 0.0f, 1.0f);
     }
 
-    int TerrainBuilder::terrainSeed(int offset) const
+    int TerrainBuilder::groundnessSeed(int offset) const
     {
-        return TerrainNoiseSeed + config_.activeWorldSeedSalt + offset;
+        return GroundnessNoiseSeed + config_.activeWorldSeedSalt + offset;
+    }
+
+    int TerrainBuilder::smoothnessSeed() const
+    {
+        return SmoothnessNoiseSeed + config_.activeWorldSeedSalt;
+    }
+
+    int TerrainBuilder::weirdnessSeed(int offset) const
+    {
+        return WeirdnessNoiseSeed + config_.activeWorldSeedSalt + offset;
+    }
+
+    int TerrainBuilder::baseNoiseSeed() const
+    {
+        return BaseNoiseSeed + config_.activeWorldSeedSalt;
     }
 
     int TerrainBuilder::temperatureSeed() const

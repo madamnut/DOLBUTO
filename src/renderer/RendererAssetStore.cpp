@@ -99,6 +99,10 @@ namespace dolbuto
         gpuResources.destroyTexture(lobbyTitle);
         gpuResources.destroyTexture(lobbyBackground);
         gpuResources.destroyTexture(crosshair);
+        gpuResources.destroyTexture(terrainPvOverlay);
+        gpuResources.destroyTexture(terrainWeirdnessOverlay);
+        gpuResources.destroyTexture(terrainSmoothnessOverlay);
+        gpuResources.destroyTexture(terrainGroundnessOverlay);
         gpuResources.destroyTexture(climatePrecipitationOverlay);
         gpuResources.destroyTexture(climateTemperatureOverlay);
         gpuResources.destroyTexture(moon);

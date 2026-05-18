@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "ui.md",
+                "file": "index.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "ui"
+              "title": "index"
             }
           }
         ]
@@ -183,16 +183,20 @@
   "active": "bda38083b81fbad1",
   "lastOpenFiles": [
     "world-generation.md",
-    "runtime-paths.md",
     "ui.md",
-    "client-architecture.md",
+    "save-load.md",
+    "runtime-paths.md",
+    "rendering.md",
     "project-overview.md",
     "player.md",
+    "item-data.md",
+    "index.md",
     "debug-profiling.md",
-    "save-load.md",
-    "rendering.md",
+    "client-architecture.md",
     "chunk-system.md",
+    "audio.md",
     "block-data.md",
+    "build-and-distribution.md",
     "환영합니다!.md"
   ]
 }

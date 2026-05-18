@@ -22,7 +22,7 @@ namespace dolbuto
         void loadContentAndAssets(const std::filesystem::path& assetDirectory);
         void loadWorldConfig(const std::filesystem::path& configDirectory);
         void loadRenderConfig(const std::filesystem::path& configDirectory);
-        void loadHeightLut(const std::filesystem::path& assetDirectory);
+        void loadTerrainLuts(const std::filesystem::path& assetDirectory);
 
     private:
         game::ClientRuntimeState& client_;

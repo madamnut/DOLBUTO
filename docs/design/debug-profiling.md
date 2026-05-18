@@ -4,10 +4,10 @@
 
 F3으로 디버그 텍스트 표시를 켜고 끈다.
 실행 시 기본값은 켜짐이다.
-F6으로 기후 오버레이를 순환한다.
+F6으로 기후/지형 진단 오버레이를 순환한다.
 
 ```text
-OFF -> Temperature -> Precipitation -> OFF
+OFF -> Temperature -> Precipitation -> Groundness -> Smoothness -> Weirdness -> PV -> OFF
 ```
 
 ## 좌상단
@@ -67,10 +67,19 @@ QUADS
 
 ```text
 CLIMATE: T[0.000] P[0.000]
+TERRAIN: GND[0.000] SMTH[0.000] W[0.000] PV[0.000] BASE[0.000] INF[0.000] VAL[0.000] H[0]
 ```
 
 `T`는 temperature, `P`는 precipitation이며 둘 다 `0.0~1.0`으로 디코딩한 값이다.
-F6은 전체 화면 기후 오버레이를 꺼짐, temperature, precipitation 순서로 계속 전환한다.
+`GND`는 플레이어가 있는 칼럼의 groundness noise 값이며, terrain Groundness Baseline/Influence spline에 들어가기 전의 원본 값이다.
+`SMTH`는 같은 칼럼의 smoothness noise 원본 값이다.
+`W`는 weirdness noise 원본 값이고, `PV`는 `1 - abs(3 * abs(W) - 2)`로 접은 peaks and valleys 값이다.
+`BASE`는 Groundness/Smoothness/PV Baseline spline 합산 결과, `INF`는 Groundness/Smoothness/PV Influence spline 곱 결과, `VAL`은 height LUT 입력값, `H`는 청크 heightmap 생성 경로의 최종 높이다.
+F6은 전체 화면 진단 오버레이를 꺼짐, temperature, precipitation, groundness, smoothness, weirdness, PV 순서로 계속 전환한다.
+temperature/precipitation은 `65536 x 65536` 전체 타일 월드를 `1024 x 1024` 텍스처로 축소 샘플링한다.
+groundness/smoothness/weirdness/PV는 월드 원점 기준 `0..4096` 블록 영역을 `1024 x 1024` 텍스처로 축소 샘플링한다.
+groundness/smoothness 색상은 `-1..1` 구간을 기준으로 잡고 범위 밖 값은 양 끝 색으로 고정한다.
+weirdness/PV는 `-1..1` 구간을 반전 흑백으로 표시해 높은 값일수록 검정, 낮은 값일수록 흰색이 된다.
 
 ## 런타임 로그
 

@@ -123,7 +123,7 @@ namespace dolbuto
         uiRuntimeBridge_->initialize();
         configBridge_->loadWorldConfig(configDirectory());
         configBridge_->loadRenderConfig(configDirectory());
-        configBridge_->loadHeightLut(assetDirectory());
+        configBridge_->loadTerrainLuts(assetDirectory());
         createCommandBuffers();
         createSyncObjects();
     }

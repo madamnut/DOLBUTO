@@ -41,7 +41,7 @@
 `src/renderer/SpriteRenderPath.h/.cpp`는 sprite pipeline의 push constant 구성, descriptor bind, 6-vertex draw primitive를 담당한다.
 `src/renderer/ScreenPresentation.h/.cpp`는 sky sprites, scene color target composite, climate overlay, crosshair, fallback menu, debug text 호출을 조율한다.
 `src/world/ClimateSystem.h/.cpp`는 climate seed, tileable climate noise sampling, chunk climate population, temperature/precipitation 계산을 담당한다.
-`src/renderer/ClimateOverlayTextureBuilder.h/.cpp`는 temperature/precipitation overlay texture에 업로드할 RGBA pixel 데이터를 생성한다.
+`src/renderer/ClimateOverlayTextureBuilder.h/.cpp`는 temperature/precipitation과 terrain noise overlay texture에 업로드할 RGBA pixel 데이터를 생성한다.
 `src/renderer/DebugOverlayText.h/.cpp`는 debug 표시 문자열, 해상도/FPS cache, text batch dirty 상태를 소유한다.
 `src/renderer/TerrainGeometryBuilder.h/.cpp`는 solid/cross/prop terrain CPU mesh 생성을 담당하며 Vulkan 타입에 의존하지 않는다.
 `src/renderer/RendererTerrainMeshBridge.h/.cpp`는 `TerrainGeometryBuilder`와 `TerrainMesher`를 연결해 chunk mesh와 edited subchunk mesh의 CPU 조립을 담당한다.
@@ -145,7 +145,9 @@ swapchain render pass 위에 얹는 2D presentation은 `ScreenPresentation`이 �
 scene color target 합성, sky sprite, crosshair, climate overlay, fallback menu 배경/버튼/text, debug text draw 호출은 이 계층에 둔다.
 실제 sprite descriptor bind와 push constant draw는 `SpriteRenderPath`가 담당한다.
 
-temperature/precipitation overlay texture pixel은 `ClimateOverlayTextureBuilder`가 `ClimateSystem` 샘플링 결과로 생성하고, 생성된 texture draw는 `ScreenPresentation`이 수행한다.
+temperature/precipitation overlay texture pixel은 `ClimateOverlayTextureBuilder`가 `ClimateSystem` 샘플링 결과로 생성한다.
+groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `TerrainBuilder`의 mode별 terrain debug noise 결과로 생성한다.
+생성된 texture draw는 `ScreenPresentation`이 수행한다.
 
 ## 소품 렌더링
 
@@ -242,15 +244,15 @@ instance buffer는 persistent mapping 상태로 유지해 매 프레임 `vkMapMe
 
 이 컬링은 렌더링 후보만 줄이며, 드랍 아이템 물리, 저장, 획득 판정에는 영향을 주지 않는다.
 
-## 기후 오버레이
+## 진단 오버레이
 
-F6은 기후 디버그 오버레이를 순환한다.
+F6은 기후/지형 진단 오버레이를 순환한다.
 
 ```text
-OFF -> Temperature -> Precipitation -> OFF
+OFF -> Temperature -> Precipitation -> Groundness -> Smoothness -> Weirdness -> PV -> OFF
 ```
 
-오버레이는 전체 `65536 x 65536` 래핑 월드를 덮는 `1024 x 1024` 텍스처다.
+Temperature/Precipitation 오버레이는 전체 `65536 x 65536` 래핑 월드를 덮는 `1024 x 1024` 텍스처다.
 각 픽셀은 `64 x 64` 블록 영역을 샘플링한다.
 
 - Temperature는 래핑된 Z를 남북 위도 값으로 사용한다. 월드 가장자리는 춥고 중앙은 덥다.
@@ -258,6 +260,9 @@ OFF -> Temperature -> Precipitation -> OFF
 - Temperature 색상은 낮은 값을 파랑, 높은 값을 빨강으로 매핑한다.
 - Precipitation은 지형 높이 노이즈와 같은 4D torus 방식으로 샘플링한 넓은 tileable 2D noise를 사용한다.
 - Precipitation 색상은 낮은 값을 회색, 높은 값을 파랑으로 매핑한다.
+
+Groundness/Smoothness/Weirdness/PV 오버레이는 월드 원점 기준 `0..4096` 블록 영역을 `1024 x 1024` 텍스처로 표시한다.
+각 픽셀은 `4 x 4` 블록 간격 샘플을 대표한다.
 
 ## 하늘 스프라이트
 

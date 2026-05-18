@@ -76,18 +76,40 @@ namespace dolbuto::game
         {
             world::TerrainBuilderConfig config{};
             config.heightLut = state.diagnostics.heightLut;
+            config.groundnessBaselineLut = state.diagnostics.groundnessBaselineLut;
+            config.groundnessInfluenceLut = state.diagnostics.groundnessInfluenceLut;
+            config.smoothnessInfluenceLut = state.diagnostics.smoothnessInfluenceLut;
+            config.pvWeightLut = state.diagnostics.pvWeightLut;
+            config.groundnessPvWeightLut = state.diagnostics.groundnessPvWeightLut;
+            config.smoothnessPvWeightLut = state.diagnostics.smoothnessPvWeightLut;
             config.activeWorldSeedSalt = state.clientWorldRuntime.activeWorldSeedSalt;
             config.seaLevel = state.worldConfig.seaLevel;
-            config.terrainNoiseFeatureScale = state.worldConfig.terrainNoiseFeatureScale;
-            config.terrainNoiseOctaveCount = state.worldConfig.terrainNoiseOctaveCount;
-            config.terrainNoiseLacunarity = state.worldConfig.terrainNoiseLacunarity;
-            config.terrainNoiseGain = state.worldConfig.terrainNoiseGain;
-            config.terrainNoiseSimplexScale = state.worldConfig.terrainNoiseSimplexScale;
-            config.terrainDomainWarpEnabled = state.worldConfig.terrainDomainWarpEnabled;
-            config.terrainDomainWarpAmplitude = state.worldConfig.terrainDomainWarpAmplitude;
-            config.terrainDomainWarpFrequency = state.worldConfig.terrainDomainWarpFrequency;
-            config.terrainDomainWarpOctaveCount = state.worldConfig.terrainDomainWarpOctaveCount;
-            config.terrainDomainWarpGain = state.worldConfig.terrainDomainWarpGain;
+            config.groundnessNoiseFeatureScale = state.worldConfig.groundnessNoiseFeatureScale;
+            config.groundnessNoiseOctaveCount = state.worldConfig.groundnessNoiseOctaveCount;
+            config.groundnessNoiseLacunarity = state.worldConfig.groundnessNoiseLacunarity;
+            config.groundnessNoiseGain = state.worldConfig.groundnessNoiseGain;
+            config.groundnessDomainWarpEnabled = state.worldConfig.groundnessDomainWarpEnabled;
+            config.groundnessDomainWarpAmplitude = state.worldConfig.groundnessDomainWarpAmplitude;
+            config.groundnessDomainWarpFrequency = state.worldConfig.groundnessDomainWarpFrequency;
+            config.groundnessDomainWarpOctaveCount = state.worldConfig.groundnessDomainWarpOctaveCount;
+            config.groundnessDomainWarpGain = state.worldConfig.groundnessDomainWarpGain;
+            config.baseNoiseFeatureScale = state.worldConfig.baseNoiseFeatureScale;
+            config.baseNoiseOctaveCount = state.worldConfig.baseNoiseOctaveCount;
+            config.baseNoiseLacunarity = state.worldConfig.baseNoiseLacunarity;
+            config.baseNoiseGain = state.worldConfig.baseNoiseGain;
+            config.smoothnessNoiseFeatureScale = state.worldConfig.smoothnessNoiseFeatureScale;
+            config.smoothnessNoiseOctaveCount = state.worldConfig.smoothnessNoiseOctaveCount;
+            config.smoothnessNoiseLacunarity = state.worldConfig.smoothnessNoiseLacunarity;
+            config.smoothnessNoiseGain = state.worldConfig.smoothnessNoiseGain;
+            config.weirdnessNoiseFeatureScale = state.worldConfig.weirdnessNoiseFeatureScale;
+            config.weirdnessNoiseOctaveCount = state.worldConfig.weirdnessNoiseOctaveCount;
+            config.weirdnessNoiseLacunarity = state.worldConfig.weirdnessNoiseLacunarity;
+            config.weirdnessNoiseGain = state.worldConfig.weirdnessNoiseGain;
+            config.weirdnessDomainWarpEnabled = state.worldConfig.weirdnessDomainWarpEnabled;
+            config.weirdnessDomainWarpAmplitude = state.worldConfig.weirdnessDomainWarpAmplitude;
+            config.weirdnessDomainWarpFrequency = state.worldConfig.weirdnessDomainWarpFrequency;
+            config.weirdnessDomainWarpOctaveCount = state.worldConfig.weirdnessDomainWarpOctaveCount;
+            config.weirdnessDomainWarpGain = state.worldConfig.weirdnessDomainWarpGain;
             config.temperatureNoiseStrength = state.worldConfig.temperatureNoiseStrength;
             config.temperatureNoiseFeatureScale = state.worldConfig.temperatureNoiseFeatureScale;
             config.temperatureNoiseOctaveCount = state.worldConfig.temperatureNoiseOctaveCount;
@@ -332,6 +354,29 @@ namespace dolbuto::game
 
         std::ostringstream text;
         text << "CLIMATE: T[" << std::fixed << std::setprecision(3) << temperature << "] P[" << precipitation << "]";
+        return text.str();
+    }
+
+    std::string ClientRuntime::DiagnosticsAccess::terrainText(DVec3 position) const
+    {
+        const int blockX = blockCoordinateXz(position.x);
+        const int blockZ = blockCoordinateXz(position.z);
+        const world::TerrainBuilder terrainBuilder(terrainBuilderConfig(*owner_.state_));
+        const world::TerrainDebugSample terrainSample = terrainBuilder.sampleTerrainAtWorld(blockX, blockZ);
+
+        std::ostringstream text;
+        text << "TERRAIN: GND[" << std::fixed << std::setprecision(3) << terrainSample.groundness <<
+            "] SMTH[" << terrainSample.smoothness <<
+            "] W[" << terrainSample.weirdness <<
+            "] PV[" << terrainSample.pv << "]";
+        text << "\nVALUE: RAW[" << terrainSample.rawTerrainValue <<
+            "] NORM[" << terrainSample.normalizedTerrainValue <<
+            "] PVW[" << terrainSample.pvWeight <<
+            "] PVMUL[" << terrainSample.pvMultiplier <<
+            "] BASE[" << terrainSample.baseline <<
+            "] INF[" << terrainSample.influence <<
+            "] VAL[" << terrainSample.terrainValue <<
+            "] H[" << terrainSample.height << "]";
         return text.str();
     }
 

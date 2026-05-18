@@ -18,7 +18,7 @@ namespace dolbuto::game
         const std::filesystem::path& worldDirectory,
         uint64_t worldSeed,
         int terrainWorkerCount,
-        world::TerrainBuilderConfig terrainConfig,
+        const TerrainConfigProvider& terrainConfigProvider,
         double timestamp,
         const LoadHooks& hooks)
     {
@@ -29,6 +29,7 @@ namespace dolbuto::game
 
         log::info("Loading game scene: " + worldDirectory.string());
         worldRuntime_.setActiveWorld(worldDirectory, worldSeed);
+        const world::TerrainBuilderConfig terrainConfig = terrainConfigProvider ? terrainConfigProvider() : world::TerrainBuilderConfig{};
         run(hooks.clearParticles, timestamp);
         run(hooks.resetBlockBreaking);
         gameplayRuntime_.resetForScene(timestamp);

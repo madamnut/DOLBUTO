@@ -58,6 +58,10 @@ namespace dolbuto
         {
             client_.climateTemperatureOverlayReady = false;
             client_.climatePrecipitationOverlayReady = false;
+            client_.terrainGroundnessOverlayReady = false;
+            client_.terrainSmoothnessOverlayReady = false;
+            client_.terrainWeirdnessOverlayReady = false;
+            client_.terrainPvOverlayReady = false;
         };
         hooks.processRenderMeshJob = [this](TerrainJob job)
         {
@@ -68,7 +72,10 @@ namespace dolbuto
             worldDirectory,
             worldSeed,
             client_.worldConfig.terrainWorkerCount,
-            terrainRuntimeBridge_.terrainBuilderConfig(),
+            [this]
+            {
+                return terrainRuntimeBridge_.terrainBuilderConfig();
+            },
             glfwGetTime(),
             hooks);
     }

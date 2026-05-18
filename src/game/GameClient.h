@@ -60,6 +60,8 @@ namespace dolbuto
             uint64_t lastPlayedUnixSeconds = 0;
         };
 
+        static constexpr double DefaultPlayerSpawnHeight = 512.0;
+
         void attachWindowCallbacks();
         void handleMouse(double x, double y);
         void handleMenuClick(double x, double y);
@@ -107,8 +109,8 @@ namespace dolbuto
         uint64_t worldCreatedUnixSeconds_ = 0;
         uint64_t worldLastPlayedUnixSeconds_ = 0;
         bool hasSelectedWorld_ = false;
-        DVec3 playerPosition_{0.0, 300.0, 0.0};
-        DVec3 previousPlayerPosition_{0.0, 300.0, 0.0};
+        DVec3 playerPosition_{0.0, DefaultPlayerSpawnHeight, 0.0};
+        DVec3 previousPlayerPosition_{0.0, DefaultPlayerSpawnHeight, 0.0};
         double flyMoveSpeed_ = 64.0;
         double groundMoveSpeed_ = 4.317;
         double jumpSpeed_ = 8.4;
@@ -127,7 +129,7 @@ namespace dolbuto
         std::chrono::steady_clock::time_point fpsSampleStart_{};
         int fpsSampleFrames_ = 0;
         uint64_t worldTicks_ = 7200;
-        std::array<char, 512> debugText_{"FPS: 0000 [000.000MS]\nPOS: X 0.000 [0.000] / Y 300.000 / Z 0.000 [0.000]\nVIEW: YAW 0.0 / PITCH 0.0 [EAST]\nLOOKAT: none\nCLIMATE: T[0.000] P[0.000]\nTIME: 0D 06H 00M\nSEED: 0"};
+        std::array<char, 768> debugText_{"FPS: 0000 [000.000MS]\nPOS: X 0.000 [0.000] / Y 512.000 / Z 0.000 [0.000]\nVIEW: YAW 0.0 / PITCH 0.0 [EAST]\nLOOKAT: none\nCLIMATE: T[0.000] P[0.000]\nTERRAIN: GND[0.000] SMTH[0.000] W[0.000] PV[0.000]\nVALUE: RAW[0.000] NORM[0.000] PVW[0.000] PVMUL[0.000] BASE[0.000] INF[0.000] VAL[0.000] H[0]\nTIME: 0D 06H 00M\nSEED: 0"};
         bool firstMouse_ = true;
         double lastMouseX_ = 0.0;
         double lastMouseY_ = 0.0;

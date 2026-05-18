@@ -17,6 +17,7 @@ namespace dolbuto::game
     {
     public:
         using RenderMeshJobProcessor = std::function<world::TerrainJobResult(TerrainJob)>;
+        using TerrainConfigProvider = std::function<world::TerrainBuilderConfig()>;
         using VoidHook = std::function<void()>;
         using TimedHook = std::function<void(double)>;
 
@@ -51,7 +52,7 @@ namespace dolbuto::game
             const std::filesystem::path& worldDirectory,
             uint64_t worldSeed,
             int terrainWorkerCount,
-            world::TerrainBuilderConfig terrainConfig,
+            const TerrainConfigProvider& terrainConfigProvider,
             double timestamp,
             const LoadHooks& hooks);
 
