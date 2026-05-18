@@ -120,6 +120,7 @@ namespace dolbuto::ui
         hudDocument_ = context_->LoadDocument((uiDir / "hud.rml").string());
         inventoryDocument_ = context_->LoadDocument((uiDir / "inventory.rml").string());
         pauseDocument_ = context_->LoadDocument((uiDir / "pause.rml").string());
+        optionsDocument_ = context_->LoadDocument((uiDir / "options.rml").string());
 
         attachDocumentEvents(lobbyDocument_);
         attachDocumentEvents(worldSelectDocument_);
@@ -127,6 +128,7 @@ namespace dolbuto::ui
         attachDocumentEvents(hudDocument_);
         attachDocumentEvents(inventoryDocument_);
         attachDocumentEvents(pauseDocument_);
+        attachDocumentEvents(optionsDocument_);
 
         setDocument(0);
         return true;
@@ -145,6 +147,7 @@ namespace dolbuto::ui
         closeDocument(hudDocument_);
         closeDocument(inventoryDocument_);
         closeDocument(pauseDocument_);
+        closeDocument(optionsDocument_);
 
         if (context_ != nullptr)
         {
@@ -221,6 +224,11 @@ namespace dolbuto::ui
         return pauseDocument_;
     }
 
+    Rml::ElementDocument* UiSystem::optionsDocument() const
+    {
+        return optionsDocument_;
+    }
+
     void UiSystem::attachActionEvent(Rml::Element* element, const Rml::String& eventType)
     {
         if (element != nullptr)
@@ -248,7 +256,7 @@ namespace dolbuto::ui
             return {};
         }
 
-        for (Rml::ElementDocument* document : {lobbyDocument_, worldSelectDocument_, worldCreateDocument_, hudDocument_, inventoryDocument_, pauseDocument_})
+        for (Rml::ElementDocument* document : {lobbyDocument_, worldSelectDocument_, worldCreateDocument_, hudDocument_, inventoryDocument_, pauseDocument_, optionsDocument_})
         {
             if (document == nullptr)
             {
@@ -267,6 +275,118 @@ namespace dolbuto::ui
         }
 
         return {};
+    }
+
+    std::string UiSystem::chatInputValue() const
+    {
+        return inputValue("chat-input");
+    }
+
+    void UiSystem::setChatVisible(bool inputVisible, bool hasMessages)
+    {
+        if (hudDocument_ == nullptr)
+        {
+            return;
+        }
+
+        Rml::Element* panel = hudDocument_->GetElementById("chat-panel");
+        if (panel != nullptr)
+        {
+            panel->SetAttribute("class", (inputVisible || hasMessages) ? "chat-panel" : "chat-panel ui-hidden");
+        }
+
+        if (Rml::Element* log = hudDocument_->GetElementById("chat-log"))
+        {
+            log->SetAttribute("class", inputVisible ? "chat-log" : "chat-log-passive");
+        }
+
+        if (Rml::Element* input = hudDocument_->GetElementById("chat-input"))
+        {
+            input->SetAttribute("class", inputVisible ? "chat-input" : "chat-input ui-hidden");
+            if (!inputVisible)
+            {
+                input->Blur();
+            }
+        }
+    }
+
+    void UiSystem::setChatMessages(std::string_view rml)
+    {
+        if (hudDocument_ == nullptr)
+        {
+            return;
+        }
+
+        if (Rml::Element* log = hudDocument_->GetElementById("chat-log"))
+        {
+            log->SetInnerRML(std::string(rml));
+        }
+    }
+
+    void UiSystem::clearChatInput()
+    {
+        if (hudDocument_ == nullptr)
+        {
+            return;
+        }
+
+        if (auto* input = dynamic_cast<Rml::ElementFormControlInput*>(hudDocument_->GetElementById("chat-input")))
+        {
+            input->SetValue("");
+        }
+    }
+
+    void UiSystem::focusChatInput()
+    {
+        if (hudDocument_ == nullptr)
+        {
+            return;
+        }
+
+        if (Rml::Element* input = hudDocument_->GetElementById("chat-input"))
+        {
+            input->Focus();
+        }
+    }
+
+    void UiSystem::setOptionsVolumes(int bgmPercent, int sfxPercent)
+    {
+        if (optionsDocument_ == nullptr)
+        {
+            return;
+        }
+
+        suppressOptionChangeEvents_ = true;
+        if (Rml::Element* value = optionsDocument_->GetElementById("bgm-volume-value"))
+        {
+            value->SetInnerRML(std::to_string(bgmPercent) + "%");
+        }
+        if (auto* input = dynamic_cast<Rml::ElementFormControlInput*>(optionsDocument_->GetElementById("bgm-volume-slider")))
+        {
+            input->SetValue(std::to_string(bgmPercent));
+        }
+        if (Rml::Element* value = optionsDocument_->GetElementById("sfx-volume-value"))
+        {
+            value->SetInnerRML(std::to_string(sfxPercent) + "%");
+        }
+        if (auto* input = dynamic_cast<Rml::ElementFormControlInput*>(optionsDocument_->GetElementById("sfx-volume-slider")))
+        {
+            input->SetValue(std::to_string(sfxPercent));
+        }
+        suppressOptionChangeEvents_ = false;
+    }
+
+    void UiSystem::setOptionsLobbyBackground(bool lobbyBackground)
+    {
+        if (optionsDocument_ == nullptr)
+        {
+            return;
+        }
+
+        if (Rml::Element* screen = optionsDocument_->GetElementById("options-screen"))
+        {
+            screen->SetAttribute("class", lobbyBackground ? "screen" : "screen options-screen");
+        }
     }
 
     void UiSystem::setHotbarScopeClass(int selectedSlot)
@@ -509,6 +629,12 @@ namespace dolbuto::ui
             return;
         }
 
+        if (suppressOptionChangeEvents_ && event.GetType() == "change" &&
+            (target->GetId() == "bgm-volume-slider" || target->GetId() == "sfx-volume-slider"))
+        {
+            return;
+        }
+
         if (event.GetType() == "click" && clickCallback_)
         {
             clickCallback_();
@@ -523,7 +649,7 @@ namespace dolbuto::ui
             return;
         }
 
-        constexpr std::array<const char*, 8> ButtonIds = {
+        constexpr std::array<const char*, 10> ButtonIds = {
             "start",
             "exit",
             "new-world",
@@ -531,11 +657,22 @@ namespace dolbuto::ui
             "back-to-lobby",
             "back-to-world-select",
             "resume",
-            "exit-to-lobby"
+            "exit-to-lobby",
+            "options",
+            "options-back"
         };
         for (const char* id : ButtonIds)
         {
             attachActionEvent(document->GetElementById(id), "click");
+        }
+
+        constexpr std::array<const char*, 2> SliderIds = {
+            "bgm-volume-slider",
+            "sfx-volume-slider"
+        };
+        for (const char* id : SliderIds)
+        {
+            attachActionEvent(document->GetElementById(id), "change");
         }
     }
 
@@ -570,6 +707,10 @@ namespace dolbuto::ui
         if (pauseDocument_ != nullptr)
         {
             menuOverlayMode == 2 ? pauseDocument_->Show() : pauseDocument_->Hide();
+        }
+        if (optionsDocument_ != nullptr)
+        {
+            menuOverlayMode == 6 ? optionsDocument_->Show() : optionsDocument_->Hide();
         }
     }
 

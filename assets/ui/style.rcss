@@ -28,6 +28,11 @@ body {
     decorator: none;
 }
 
+.options-screen {
+    background-color: rgba(0, 0, 0, 190);
+    decorator: none;
+}
+
 .inventory-screen {
     background-color: rgba(0, 0, 0, 180);
     decorator: none;
@@ -109,6 +114,66 @@ body {
 
 .ui-hidden {
     display: none;
+}
+
+.chat-panel {
+    position: absolute;
+    left: 24px;
+    bottom: 112px;
+    width: 520px;
+    height: 232px;
+}
+
+.chat-log {
+    position: absolute;
+    left: 0;
+    bottom: 44px;
+    width: 520px;
+    height: 168px;
+    margin-bottom: 0;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 120);
+}
+
+.chat-log-passive {
+    position: absolute;
+    left: 0;
+    bottom: 44px;
+    width: 520px;
+    height: 168px;
+    margin-bottom: 0;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.chat-line {
+    display: block;
+    height: 40px;
+    min-height: 40px;
+    line-height: 40px;
+    margin-bottom: 0;
+    color: #f2f6f8;
+    font-size: 30px;
+    font-effect: outline(1px #000000);
+}
+
+.chat-spacer {
+    display: block;
+    width: 100%;
+}
+
+.chat-input {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 498px;
+    height: 36px;
+    margin-bottom: 0;
+    background-color: rgba(5, 9, 12, 235);
+    border-width: 1px;
+    border-color: rgba(210, 235, 245, 170);
+    color: #ffffff;
+    font-size: 16px;
 }
 
 .hotbar-scope {
@@ -224,7 +289,7 @@ body {
 
 .pause-stack {
     top: 50%;
-    margin-top: -96px;
+    margin-top: -132px;
 }
 
 .title {
@@ -270,6 +335,92 @@ body {
 
 .button.secondary:hover {
     background-color: rgba(36, 54, 64, 245);
+}
+
+.options-panel {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 520px;
+    height: 330px;
+    margin-left: -260px;
+    margin-top: -165px;
+}
+
+.option-row {
+    display: block;
+    width: 420px;
+    height: 56px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 18px;
+}
+
+.option-label {
+    display: block;
+    float: left;
+    width: 92px;
+    height: 56px;
+    line-height: 56px;
+    font-size: 18px;
+}
+
+.option-slider {
+    display: block;
+    float: left;
+    width: 230px;
+    height: 28px;
+    margin-top: 14px;
+    margin-bottom: 0;
+    padding-left: 0;
+    padding-right: 0;
+    background-color: rgba(5, 9, 12, 0);
+    border-width: 0;
+}
+
+.option-slider slidertrack {
+    height: 10px;
+    margin-top: 9px;
+    background-color: rgba(28, 43, 52, 235);
+    border-width: 1px;
+    border-color: rgba(170, 205, 220, 120);
+}
+
+.option-slider sliderprogress {
+    height: 10px;
+    background-color: rgba(120, 170, 190, 235);
+}
+
+.option-slider sliderbar {
+    width: 16px;
+    height: 28px;
+    background-color: rgba(210, 235, 245, 245);
+    border-width: 1px;
+    border-color: rgba(10, 17, 21, 235);
+}
+
+.option-slider sliderbar:hover {
+    background-color: rgba(255, 255, 255, 255);
+}
+
+.option-slider sliderarrowdec {
+    width: 0;
+    height: 0;
+}
+
+.option-slider sliderarrowinc {
+    width: 0;
+    height: 0;
+}
+
+.option-value {
+    display: block;
+    float: left;
+    width: 98px;
+    height: 56px;
+    line-height: 56px;
+    text-align: center;
+    font-size: 20px;
 }
 
 .world-panel {

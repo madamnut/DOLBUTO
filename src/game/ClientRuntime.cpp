@@ -1,5 +1,6 @@
 #include "game/ClientRuntime.h"
 
+#include "audio/AudioSystem.h"
 #include "game/ClientRenderRuntime.h"
 #include "game/ClientRuntimeState.h"
 #include "gameplay/BlockInteractionSystem.h"
@@ -7,6 +8,7 @@
 #include "world/TerrainBuilder.h"
 #include "world/WorldRuntime.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <iomanip>
 #include <sstream>
@@ -58,6 +60,46 @@ namespace dolbuto::game
         uint16_t blockAtWorld(const ClientRuntimeState& state, int x, int y, int z)
         {
             return state.worldRuntime.blockAtWorld(x, y, z);
+        }
+
+        struct ClimateDebugSample
+        {
+            float temperature = 0.0f;
+            float precipitation = 0.0f;
+        };
+
+        int band3(float value)
+        {
+            const float clamped = std::clamp(value, 0.0f, 1.0f);
+            if (clamped < (1.0f / 3.0f))
+            {
+                return 0;
+            }
+            if (clamped < (2.0f / 3.0f))
+            {
+                return 1;
+            }
+            return 2;
+        }
+
+        const char* landBiomeName(int temperatureBand, int precipitationBand)
+        {
+            static constexpr const char* table[3][3] = {
+                { "SnowPlain", "Taiga", "SnowForest" },
+                { "Plains", "Forest", "Swamp" },
+                { "Desert", "Savanna", "Jungle" },
+            };
+            return table[std::clamp(temperatureBand, 0, 2)][std::clamp(precipitationBand, 0, 2)];
+        }
+
+        const char* oceanBiomeName(int temperatureBand, int precipitationBand)
+        {
+            static constexpr const char* table[3][3] = {
+                { "FrozenOcean", "ColdOcean", "ColdOcean" },
+                { "TemperateOcean", "Ocean", "WarmOcean" },
+                { "WarmOcean", "TropicalOcean", "TropicalOcean" },
+            };
+            return table[std::clamp(temperatureBand, 0, 2)][std::clamp(precipitationBand, 0, 2)];
         }
 
         bool terrainCellBlocksPlayer(const ClientRuntimeState& state, int x, int y, int z)
@@ -122,6 +164,51 @@ namespace dolbuto::game
             config.precipitationNoiseGain = state.worldConfig.precipitationNoiseGain;
             config.precipitationNoiseSimplexScale = state.worldConfig.precipitationNoiseSimplexScale;
             return config;
+        }
+
+        ClimateDebugSample climateAtWorld(const ClientRuntimeState& state, int blockX, int blockZ)
+        {
+            const int chunkX = floorDiv(blockX, ChunkSizeX);
+            const int chunkZ = floorDiv(blockZ, ChunkSizeZ);
+            const int localX = positiveModulo(blockX, ChunkSizeX);
+            const int localZ = positiveModulo(blockZ, ChunkSizeZ);
+            const std::size_t column = static_cast<std::size_t>(localZ * ChunkSizeX + localX);
+
+            ClimateDebugSample sample{};
+            const RuntimeChunk* chunk = state.worldRuntime.find(chunkKey(chunkX, chunkZ));
+            const world::TerrainBuilderConfig config = terrainBuilderConfig(state);
+            const world::ClimateSystem climate(config);
+            if (chunk != nullptr && chunk->data)
+            {
+                const ChunkData& data = *chunk->data;
+                sample.temperature = world::ClimateSystem::decodeClimateValue(data.temperature[column]);
+                sample.precipitation = world::ClimateSystem::decodeClimateValue(data.precipitation[column]);
+                return sample;
+            }
+
+            const int wrappedX = wrapBlockCoordinate(blockX);
+            const int wrappedZ = wrapBlockCoordinate(blockZ);
+            const float temperatureNoise = climate.sampleTileableNoise(
+                wrappedX,
+                wrappedZ,
+                config.temperatureNoiseFeatureScale,
+                config.temperatureNoiseSimplexScale,
+                config.temperatureNoiseOctaveCount,
+                config.temperatureNoiseLacunarity,
+                config.temperatureNoiseGain,
+                climate.temperatureSeed());
+            const float precipitationNoise = climate.sampleTileableNoise(
+                wrappedX,
+                wrappedZ,
+                config.precipitationNoiseFeatureScale,
+                config.precipitationNoiseSimplexScale,
+                config.precipitationNoiseOctaveCount,
+                config.precipitationNoiseLacunarity,
+                config.precipitationNoiseGain,
+                climate.precipitationSeed());
+            sample.temperature = climate.temperatureAtWrapped(wrappedZ, temperatureNoise);
+            sample.precipitation = climate.precipitationAtNoise(precipitationNoise);
+            return sample;
         }
     }
 
@@ -246,6 +333,41 @@ namespace dolbuto::game
         return owner_.state_->ui.inputValue(id);
     }
 
+    std::string ClientRuntime::UiAccess::chatInputValue() const
+    {
+        return owner_.state_->ui.chatInputValue();
+    }
+
+    void ClientRuntime::UiAccess::setChatVisible(bool inputVisible, bool hasMessages)
+    {
+        owner_.state_->ui.setChatVisible(inputVisible, hasMessages);
+    }
+
+    void ClientRuntime::UiAccess::setChatMessages(std::string_view rml)
+    {
+        owner_.state_->ui.setChatMessages(rml);
+    }
+
+    void ClientRuntime::UiAccess::clearChatInput()
+    {
+        owner_.state_->ui.clearChatInput();
+    }
+
+    void ClientRuntime::UiAccess::focusChatInput()
+    {
+        owner_.state_->ui.focusChatInput();
+    }
+
+    void ClientRuntime::UiAccess::setOptionsVolumes(int bgmPercent, int sfxPercent)
+    {
+        owner_.state_->ui.setOptionsVolumes(bgmPercent, sfxPercent);
+    }
+
+    void ClientRuntime::UiAccess::setOptionsLobbyBackground(bool lobbyBackground)
+    {
+        owner_.state_->ui.setOptionsLobbyBackground(lobbyBackground);
+    }
+
     void ClientRuntime::UiAccess::mouseMove(double x, double y)
     {
         owner_.renderRuntime_->uiMouseMove(x, y);
@@ -309,51 +431,33 @@ namespace dolbuto::game
     {
         const int blockX = blockCoordinateXz(position.x);
         const int blockZ = blockCoordinateXz(position.z);
-        const int chunkX = floorDiv(blockX, ChunkSizeX);
-        const int chunkZ = floorDiv(blockZ, ChunkSizeZ);
-        const int localX = positiveModulo(blockX, ChunkSizeX);
-        const int localZ = positiveModulo(blockZ, ChunkSizeZ);
-        const std::size_t column = static_cast<std::size_t>(localZ * ChunkSizeX + localX);
-
-        float temperature = 0.0f;
-        float precipitation = 0.0f;
-        const RuntimeChunk* chunk = owner_.state_->worldRuntime.find(chunkKey(chunkX, chunkZ));
-        const world::TerrainBuilderConfig config = terrainBuilderConfig(*owner_.state_);
-        const world::ClimateSystem climate(config);
-        if (chunk != nullptr && chunk->data)
-        {
-            const ChunkData& data = *chunk->data;
-            temperature = world::ClimateSystem::decodeClimateValue(data.temperature[column]);
-            precipitation = world::ClimateSystem::decodeClimateValue(data.precipitation[column]);
-        }
-        else
-        {
-            const int wrappedX = wrapBlockCoordinate(blockX);
-            const int wrappedZ = wrapBlockCoordinate(blockZ);
-            const float temperatureNoise = climate.sampleTileableNoise(
-                wrappedX,
-                wrappedZ,
-                config.temperatureNoiseFeatureScale,
-                config.temperatureNoiseSimplexScale,
-                config.temperatureNoiseOctaveCount,
-                config.temperatureNoiseLacunarity,
-                config.temperatureNoiseGain,
-                climate.temperatureSeed());
-            const float precipitationNoise = climate.sampleTileableNoise(
-                wrappedX,
-                wrappedZ,
-                config.precipitationNoiseFeatureScale,
-                config.precipitationNoiseSimplexScale,
-                config.precipitationNoiseOctaveCount,
-                config.precipitationNoiseLacunarity,
-                config.precipitationNoiseGain,
-                climate.precipitationSeed());
-            temperature = climate.temperatureAtWrapped(wrappedZ, temperatureNoise);
-            precipitation = climate.precipitationAtNoise(precipitationNoise);
-        }
+        const ClimateDebugSample climate = climateAtWorld(*owner_.state_, blockX, blockZ);
 
         std::ostringstream text;
-        text << "CLIMATE: T[" << std::fixed << std::setprecision(3) << temperature << "] P[" << precipitation << "]";
+        text << "CLIMATE: T[" << std::fixed << std::setprecision(3) << climate.temperature << "] P[" << climate.precipitation << "]";
+        return text.str();
+    }
+
+    std::string ClientRuntime::DiagnosticsAccess::biomeText(DVec3 position) const
+    {
+        const int blockX = blockCoordinateXz(position.x);
+        const int blockZ = blockCoordinateXz(position.z);
+        const ClimateDebugSample climate = climateAtWorld(*owner_.state_, blockX, blockZ);
+        const world::TerrainBuilder terrainBuilder(terrainBuilderConfig(*owner_.state_));
+        const world::TerrainDebugSample terrainSample = terrainBuilder.sampleTerrainAtWorld(blockX, blockZ);
+
+        const int temperatureBand = band3(climate.temperature);
+        const int precipitationBand = band3(climate.precipitation);
+        const int groundnessBand = terrainSample.groundness < 0.0f ? 0 : 1;
+        const char* biomeName = groundnessBand == 0 ?
+            oceanBiomeName(temperatureBand, precipitationBand) :
+            landBiomeName(temperatureBand, precipitationBand);
+
+        std::ostringstream text;
+        text << "BIOME: T[" << temperatureBand <<
+            "] P[" << precipitationBand <<
+            "] GND[" << groundnessBand <<
+            "] - " << biomeName;
         return text.str();
     }
 
@@ -380,13 +484,25 @@ namespace dolbuto::game
         return text.str();
     }
 
+    ClientRuntime::AudioAccess::AudioAccess(ClientRuntime& owner) :
+        owner_(owner)
+    {
+    }
+
+    void ClientRuntime::AudioAccess::setVolumes(float musicVolume, float sfxVolume)
+    {
+        owner_.state_->audio.setMusicVolume(musicVolume);
+        owner_.state_->audio.setSfxVolume(sfxVolume);
+    }
+
     ClientRuntime::ClientRuntime(GLFWwindow* window) :
         state_(std::make_unique<ClientRuntimeState>()),
         renderAccess_(*this),
         sceneAccess_(*this),
         gameplayAccess_(*this),
         uiAccess_(*this),
-        diagnosticsAccess_(*this)
+        diagnosticsAccess_(*this),
+        audioAccess_(*this)
     {
         state_->initializeContexts();
         renderRuntime_ = std::make_unique<ClientRenderRuntime>(window, *state_);
@@ -419,6 +535,11 @@ namespace dolbuto::game
         return diagnosticsAccess_;
     }
 
+    ClientRuntime::AudioAccess& ClientRuntime::audio()
+    {
+        return audioAccess_;
+    }
+
     const ClientRuntime::RenderAccess& ClientRuntime::render() const
     {
         return renderAccess_;
@@ -442,5 +563,10 @@ namespace dolbuto::game
     const ClientRuntime::DiagnosticsAccess& ClientRuntime::diagnostics() const
     {
         return diagnosticsAccess_;
+    }
+
+    const ClientRuntime::AudioAccess& ClientRuntime::audio() const
+    {
+        return audioAccess_;
     }
 }

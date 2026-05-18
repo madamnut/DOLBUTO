@@ -48,11 +48,19 @@ namespace dolbuto::ui
         Rml::ElementDocument* hudDocument() const;
         Rml::ElementDocument* inventoryDocument() const;
         Rml::ElementDocument* pauseDocument() const;
+        Rml::ElementDocument* optionsDocument() const;
 
         void attachActionEvent(Rml::Element* element, const Rml::String& eventType);
         void setClickCallback(std::function<void()> callback);
         std::optional<std::string> consumeAction();
         std::string inputValue(std::string_view id) const;
+        std::string chatInputValue() const;
+        void setChatVisible(bool inputVisible, bool hasMessages);
+        void setChatMessages(std::string_view rml);
+        void clearChatInput();
+        void focusChatInput();
+        void setOptionsVolumes(int bgmPercent, int sfxPercent);
+        void setOptionsLobbyBackground(bool lobbyBackground);
         void setHotbarScopeClass(int selectedSlot);
         void setInventoryDebugSlots(std::string_view hotbarRml, std::string_view inventoryRml, bool visible);
         void setInventoryItems(std::string_view hotbarRml, std::string_view inventoryRml);
@@ -83,8 +91,10 @@ namespace dolbuto::ui
         Rml::ElementDocument* hudDocument_ = nullptr;
         Rml::ElementDocument* inventoryDocument_ = nullptr;
         Rml::ElementDocument* pauseDocument_ = nullptr;
+        Rml::ElementDocument* optionsDocument_ = nullptr;
         int activeMenuOverlayMode_ = -1;
         std::optional<std::string> pendingAction_;
         GLFWwindow* window_ = nullptr;
+        bool suppressOptionChangeEvents_ = false;
     };
 }

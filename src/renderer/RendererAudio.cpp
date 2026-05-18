@@ -30,7 +30,7 @@ namespace dolbuto
         {
             scene = audio::MusicScene::Game;
         }
-        else if (menuOverlayMode == 1 || menuOverlayMode == 3 || menuOverlayMode == 4)
+        else if (menuOverlayMode == 1 || menuOverlayMode == 3 || menuOverlayMode == 4 || menuOverlayMode == 6)
         {
             scene = audio::MusicScene::Lobby;
         }

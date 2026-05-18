@@ -41,6 +41,8 @@ assets/audio/sfx/Pop.wav
 - OpenAL listener는 매 프레임 카메라 위치와 방향으로 갱신한다.
 - 현재 WAV 로더는 PCM 16-bit mono/stereo만 지원한다.
 - 음악은 `assets/audio/music` 아래의 `.ogg` 또는 `.wav` 파일을 사용한다.
+- 사용자 음량 설정은 config directory의 `settings.json`에 저장한다.
+- 현재 저장 키는 `audio.bgmVolume`, `audio.sfxVolume`이며 값 범위는 `0.0`부터 `1.0`까지다.
 - 시작 시 음악 파일은 디코딩하지 않고 파일 목록만 스캔한다.
 - OGG 음악은 `stb_vorbis` 파일 디코더로 스트리밍한다.
 - WAV 음악은 현재 재생 직전에 단일 OpenAL buffer로 로드하는 예외 경로로 처리한다.

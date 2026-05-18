@@ -75,6 +75,13 @@ namespace dolbuto::game
             void setWorldList(const std::vector<WorldListItem>& worlds);
             void setHotbarSelectedSlot(int slot);
             std::string inputValue(std::string_view id) const;
+            std::string chatInputValue() const;
+            void setChatVisible(bool inputVisible, bool hasMessages);
+            void setChatMessages(std::string_view rml);
+            void clearChatInput();
+            void focusChatInput();
+            void setOptionsVolumes(int bgmPercent, int sfxPercent);
+            void setOptionsLobbyBackground(bool lobbyBackground);
             void mouseMove(double x, double y);
             void mouseButton(int button, bool pressed, int modifiers);
             void mouseWheel(double yOffset);
@@ -95,7 +102,19 @@ namespace dolbuto::game
 
             std::string selectedBlockText() const;
             std::string climateText(DVec3 position) const;
+            std::string biomeText(DVec3 position) const;
             std::string terrainText(DVec3 position) const;
+
+        private:
+            ClientRuntime& owner_;
+        };
+
+        class AudioAccess
+        {
+        public:
+            explicit AudioAccess(ClientRuntime& owner);
+
+            void setVolumes(float musicVolume, float sfxVolume);
 
         private:
             ClientRuntime& owner_;
@@ -112,12 +131,14 @@ namespace dolbuto::game
         GameplayAccess& gameplay();
         UiAccess& ui();
         DiagnosticsAccess& diagnostics();
+        AudioAccess& audio();
 
         const RenderAccess& render() const;
         const SceneAccess& scene() const;
         const GameplayAccess& gameplay() const;
         const UiAccess& ui() const;
         const DiagnosticsAccess& diagnostics() const;
+        const AudioAccess& audio() const;
 
     private:
         std::unique_ptr<ClientRuntimeState> state_;
@@ -127,5 +148,6 @@ namespace dolbuto::game
         GameplayAccess gameplayAccess_;
         UiAccess uiAccess_;
         DiagnosticsAccess diagnosticsAccess_;
+        AudioAccess audioAccess_;
     };
 }

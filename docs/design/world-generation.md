@@ -136,6 +136,33 @@ F6 지형 진단 오버레이는 `groundness`, `smoothness`, `weirdness`, `PV`�
 }
 ```
 
+## 바이옴
+
+초기 바이옴 분류는 `temperature`, `precipitation`, `groundness` 3개 입력만 사용한다.
+
+- `temperature`, `precipitation`: `0..1` 값을 3개 band로 나눈다. `0 <= value < 1/3`은 `0`, `1/3 <= value < 2/3`은 `1`, 나머지는 `2`다.
+- `groundness`: `0` 미만이면 ocean band `0`, `0` 이상이면 land band `1`이다.
+
+육지 테이블:
+
+```text
+        P0           P1       P2
+T0      SnowPlain    Taiga    SnowForest
+T1      Plains       Forest   Swamp
+T2      Desert       Savanna  Jungle
+```
+
+바다 테이블:
+
+```text
+        P0              P1              P2
+T0      FrozenOcean     ColdOcean       ColdOcean
+T1      TemperateOcean  Ocean           WarmOcean
+T2      WarmOcean       TropicalOcean   TropicalOcean
+```
+
+디버그 텍스트는 `CLIMATE` 아래에 `BIOME: T[n] P[n] GND[n] - BiomeName` 형식으로 표시한다.
+
 ## 높이 LUT
 
 노이즈 값은 LUT를 통해 실제 높이로 변환한다.

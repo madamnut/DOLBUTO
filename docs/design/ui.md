@@ -155,6 +155,8 @@ assets/ui/world_create.rml
 assets/ui/hud.rml
 assets/ui/inventory.rml
 assets/ui/pause.rml
+
+assets/ui/options.rml
 assets/ui/style.rcss
 ```
 
@@ -214,6 +216,12 @@ Vulkan 렌더링 자원과 화면별 RML 내용 갱신은 기존 Vulkan device, 
 - 인벤토리 슬롯 클릭과 숫자키 핫바 교환 같은 조작 처리
 
 GameClient는 게임 화면이 아닐 때 GLFW 마우스, 텍스트, 기본 키 입력을 RmlUi context로 전달한다.
+게임 화면에서도 HUD 채팅 입력이 열려 있으면 GLFW 마우스, 텍스트, 기본 키 입력을 RmlUi context로 전달하고 gameplay 입력은 소비한다.
+채팅 입력은 Enter로 열고, Enter 제출 또는 Escape 취소로 닫는다. `/` 키는 입력창을 여는 별도 단축키로 쓰지 않으며, slash-prefixed text는 이후 command 처리 경로가 붙을 수 있는 제출 문자열로만 취급한다.
+제출 뒤 채팅 내역은 HUD 좌측 하단에 text-only 투명 overlay로 남고, 입력창을 다시 열었을 때만 배경 박스와 입력 input을 표시한다.
+로비와 pause 메뉴의 `OPTIONS` 버튼은 같은 `assets/ui/options.rml` 문서를 연다.
+Options 화면은 `BGM`과 `SFX` 볼륨을 range slider로 조정하고, Back 시 Options를 연 원래 화면으로 돌아간다.
+로비에서 연 Options는 로비와 같은 배경을 사용하고, pause에서 연 Options는 게임 화면 위의 반투명 overlay로 표시한다.
 인벤토리는 비게임 입력 화면으로 취급하므로 마우스 이동과 클릭은 플레이어 카메라나 블록 상호작용 대신 RmlUi로 전달된다.
 키보드 입력은 GLFW modifier 상태를 RmlUi로 전달해 텍스트 입력창이 Shift+Arrow, Ctrl+C/V 같은 선택 및 편집 단축키를 처리할 수 있게 한다.
 `UiSystem`은 경과 시간과 클립보드 접근을 위해 GLFW 기반의 작은 RmlUi system interface를 제공한다.

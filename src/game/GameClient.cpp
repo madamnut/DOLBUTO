@@ -5,6 +5,7 @@
 #include "items/ItemData.h"
 #include "platform/Log.h"
 #include "platform/RuntimePaths.h"
+#include "ui/UiSystem.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -60,6 +61,8 @@ namespace dolbuto
         constexpr float WorldBackButtonY = 0.72f;
         constexpr float PauseResumeButtonY = 0.46f;
         constexpr float PauseExitButtonY = 0.57f;
+        constexpr size_t MaxChatMessages = 8;
+        constexpr int ChatLineHeight = 40;
 
         std::optional<double> jsonDoubleField(const std::string& object, const std::string& key)
         {
@@ -246,6 +249,11 @@ namespace dolbuto
                 }
             }
             return value;
+        }
+
+        int volumePercent(double value)
+        {
+            return std::clamp(static_cast<int>(value * 100.0 + 0.5), 0, 100);
         }
 
         uint64_t hashSeedString(std::string_view text)
@@ -438,8 +446,11 @@ namespace dolbuto
         log::info("Save root directory: " + saveRootDirectory().string());
         log::info("Log directory: " + logDirectory().string());
         loadMovementConfig();
+        loadSettings();
         attachWindowCallbacks();
         runtime_ = std::make_unique<game::ClientRuntime>(window_);
+        applyAudioSettings();
+        updateOptionsUi();
         setScreen(AppScreen::Lobby);
         fpsSampleStart_ = std::chrono::steady_clock::now();
         lastFrameTime_ = fpsSampleStart_;
@@ -519,6 +530,19 @@ namespace dolbuto
                     {
                         returnToLobbyScene();
                     }
+                    else if (*action == "options")
+                    {
+                        optionsReturnScreen_ = screen_;
+                        setScreen(AppScreen::Options);
+                    }
+                    else if (*action == "options-back")
+                    {
+                        setScreen(optionsReturnScreen_);
+                    }
+                    else if (*action == "bgm-volume-slider" || *action == "sfx-volume-slider")
+                    {
+                        applyOptionsSliderValues();
+                    }
                 }
             }
 
@@ -531,7 +555,7 @@ namespace dolbuto
             while (gameSimulationActive && physicsAccumulator_ >= FixedPhysicsTimestep)
             {
                 previousPlayerPosition_ = playerPosition_;
-                updatePlayer(FixedPhysicsTimestep, screen_ == AppScreen::Game);
+                updatePlayer(FixedPhysicsTimestep, screen_ == AppScreen::Game && !chatOpen_);
                 if (runtime_ != nullptr)
                 {
                     runtime_->gameplay().updateBlockBreaking(
@@ -594,10 +618,12 @@ namespace dolbuto
                 showPlayer = true;
             }
 
-            const int menuOverlayMode = screen_ == AppScreen::Lobby ? 1 : (screen_ == AppScreen::Pause ? 2 : (screen_ == AppScreen::WorldSelect ? 3 : (screen_ == AppScreen::WorldCreate ? 4 : (screen_ == AppScreen::Inventory ? 5 : 0))));
-            const bool worldUpdateEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory;
-            const bool gameSceneRenderEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory;
+            const int menuOverlayMode = screen_ == AppScreen::Lobby ? 1 : (screen_ == AppScreen::Pause ? 2 : (screen_ == AppScreen::WorldSelect ? 3 : (screen_ == AppScreen::WorldCreate ? 4 : (screen_ == AppScreen::Inventory ? 5 : (screen_ == AppScreen::Options ? 6 : 0)))));
+            const bool optionsOverGame = screen_ == AppScreen::Options && optionsReturnScreen_ == AppScreen::Pause;
+            const bool worldUpdateEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory || optionsOverGame;
+            const bool gameSceneRenderEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory || optionsOverGame;
             const bool renderDebugText = (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory) && debugTextVisible_;
+            const bool frameHudVisible = hudVisible_ || chatOpen_;
             runtime_->render().frame(game::ClientFrame{
                 renderCamera,
                 renderCameraPosition,
@@ -610,7 +636,7 @@ namespace dolbuto
                 terrainWireframe_,
                 climateOverlayMode_,
                 menuOverlayMode,
-                hudVisible_,
+                frameHudVisible,
                 worldUpdateEnabled,
                 gameSceneRenderEnabled,
                 worldTicks_
@@ -643,6 +669,31 @@ namespace dolbuto
         glfwSetKeyCallback(window_, [](GLFWwindow* window, int key, int, int action, int mods)
         {
             auto* app = static_cast<GameClient*>(glfwGetWindowUserPointer(window));
+            if (app != nullptr && app->screen_ == GameClient::AppScreen::Game && app->chatOpen_ &&
+                (action == GLFW_PRESS || action == GLFW_REPEAT || action == GLFW_RELEASE))
+            {
+                if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
+                {
+                    app->closeChatInput();
+                    return;
+                }
+                if (action == GLFW_PRESS && key == GLFW_KEY_ENTER)
+                {
+                    app->submitChatInput();
+                    return;
+                }
+                if (app->runtime_ != nullptr)
+                {
+                    app->runtime_->ui().key(key, action != GLFW_RELEASE, mods);
+                }
+                return;
+            }
+            if (app != nullptr && app->screen_ == GameClient::AppScreen::Game &&
+                !app->chatOpen_ && key == GLFW_KEY_ENTER && action == GLFW_PRESS)
+            {
+                app->openChatInput();
+                return;
+            }
             if (app != nullptr && app->screen_ != GameClient::AppScreen::Game && app->runtime_ != nullptr &&
                 (action == GLFW_PRESS || action == GLFW_REPEAT || action == GLFW_RELEASE))
             {
@@ -674,6 +725,10 @@ namespace dolbuto
                 else if (app != nullptr && app->screen_ == GameClient::AppScreen::Pause)
                 {
                     app->setScreen(GameClient::AppScreen::Game);
+                }
+                else if (app != nullptr && app->screen_ == GameClient::AppScreen::Options)
+                {
+                    app->setScreen(app->optionsReturnScreen_);
                 }
                 else if (app != nullptr && (app->screen_ == GameClient::AppScreen::WorldSelect || app->screen_ == GameClient::AppScreen::WorldCreate))
                 {
@@ -758,7 +813,7 @@ namespace dolbuto
         glfwSetCharCallback(window_, [](GLFWwindow* window, unsigned int codepoint)
         {
             auto* app = static_cast<GameClient*>(glfwGetWindowUserPointer(window));
-            if (app != nullptr && app->screen_ != GameClient::AppScreen::Game && app->runtime_ != nullptr)
+            if (app != nullptr && (app->screen_ != GameClient::AppScreen::Game || app->chatOpen_) && app->runtime_ != nullptr)
             {
                 app->runtime_->ui().textInput(codepoint);
             }
@@ -769,6 +824,19 @@ namespace dolbuto
             auto* app = static_cast<GameClient*>(glfwGetWindowUserPointer(window));
             if (app == nullptr)
             {
+                return;
+            }
+
+            if (app->screen_ == GameClient::AppScreen::Game && app->chatOpen_)
+            {
+                double x = 0.0;
+                double y = 0.0;
+                glfwGetCursorPos(window, &x, &y);
+                if (app->runtime_ != nullptr && (action == GLFW_PRESS || action == GLFW_RELEASE))
+                {
+                    app->runtime_->ui().mouseMove(x, y);
+                    app->runtime_->ui().mouseButton(button, action == GLFW_PRESS, mods);
+                }
                 return;
             }
 
@@ -848,6 +916,18 @@ namespace dolbuto
 
             if (app->screen_ == GameClient::AppScreen::Game)
             {
+                if (app->chatOpen_)
+                {
+                    if (app->runtime_ != nullptr)
+                    {
+                        double x = 0.0;
+                        double y = 0.0;
+                        glfwGetCursorPos(window, &x, &y);
+                        app->runtime_->ui().mouseMove(x, y);
+                        app->runtime_->ui().mouseWheel(yOffset);
+                    }
+                    return;
+                }
                 if (yOffset > 0.0)
                 {
                     app->cycleHotbarSelectedSlot(-1);
@@ -875,6 +955,15 @@ namespace dolbuto
     void GameClient::handleMouse(double x, double y)
     {
         if (screen_ != AppScreen::Game)
+        {
+            if (runtime_ != nullptr)
+            {
+                runtime_->ui().mouseMove(x, y);
+            }
+            return;
+        }
+
+        if (chatOpen_)
         {
             if (runtime_ != nullptr)
             {
@@ -946,6 +1035,95 @@ namespace dolbuto
         glfwSetInputMode(window_, GLFW_CURSOR, captured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
     }
 
+    void GameClient::openChatInput()
+    {
+        if (screen_ != AppScreen::Game || runtime_ == nullptr || chatOpen_)
+        {
+            return;
+        }
+
+        chatOpen_ = true;
+        chatRestoreMouseCaptured_ = mouseCaptured_;
+        breakHeld_ = false;
+        runtime_->ui().setChatVisible(true, !chatMessages_.empty());
+        runtime_->ui().clearChatInput();
+        updateChatUi();
+        runtime_->ui().focusChatInput();
+        setMouseCaptured(false);
+    }
+
+    void GameClient::closeChatInput()
+    {
+        if (!chatOpen_)
+        {
+            return;
+        }
+
+        chatOpen_ = false;
+        breakHeld_ = false;
+        if (runtime_ != nullptr)
+        {
+            runtime_->ui().clearChatInput();
+            runtime_->ui().setChatVisible(false, !chatMessages_.empty());
+        }
+        if (screen_ == AppScreen::Game && chatRestoreMouseCaptured_)
+        {
+            setMouseCaptured(true);
+        }
+    }
+
+    void GameClient::submitChatInput()
+    {
+        if (!chatOpen_ || runtime_ == nullptr)
+        {
+            closeChatInput();
+            return;
+        }
+
+        const std::string text = trim(runtime_->ui().chatInputValue());
+        if (!text.empty())
+        {
+            appendChatMessage(text);
+        }
+        closeChatInput();
+    }
+
+    void GameClient::appendChatMessage(std::string_view text)
+    {
+        if (text.empty())
+        {
+            return;
+        }
+
+        const char* prefix = text.front() == '/' ? "Command: " : "You: ";
+        chatMessages_.push_back(std::string(prefix) + std::string(text));
+        while (chatMessages_.size() > MaxChatMessages)
+        {
+            chatMessages_.erase(chatMessages_.begin());
+        }
+        updateChatUi();
+    }
+
+    void GameClient::updateChatUi()
+    {
+        if (runtime_ == nullptr)
+        {
+            return;
+        }
+
+        std::string rml;
+        if (chatMessages_.size() < MaxChatMessages)
+        {
+            const size_t emptyLineCount = MaxChatMessages - chatMessages_.size();
+            rml += "<div class=\"chat-spacer\" style=\"height: " + std::to_string(emptyLineCount * ChatLineHeight) + "px;\"></div>";
+        }
+        for (const std::string& message : chatMessages_)
+        {
+            rml += "<div class=\"chat-line\">" + ui::escapeRml(message) + "</div>";
+        }
+        runtime_->ui().setChatMessages(rml);
+    }
+
     void GameClient::handleMenuClick(double x, double y)
     {
         int width = windowedWidth_;
@@ -992,10 +1170,22 @@ namespace dolbuto
 
     void GameClient::setScreen(AppScreen screen)
     {
+        if (chatOpen_ && screen != AppScreen::Game)
+        {
+            closeChatInput();
+        }
         screen_ = screen;
         if (screen_ == AppScreen::WorldSelect)
         {
             refreshWorldList();
+        }
+        if (screen_ == AppScreen::Options)
+        {
+            if (runtime_ != nullptr)
+            {
+                runtime_->ui().setOptionsLobbyBackground(optionsReturnScreen_ == AppScreen::Lobby);
+            }
+            updateOptionsUi();
         }
         jumpHeld_ = false;
         jumpPressed_ = false;
@@ -1264,6 +1454,96 @@ namespace dolbuto
         {
             gravity_ = *value;
         }
+    }
+
+    void GameClient::loadSettings()
+    {
+        bgmVolume_ = 1.0;
+        sfxVolume_ = 1.0;
+
+        const std::filesystem::path path = configDirectory() / "settings.json";
+        std::ifstream file(path);
+        if (!file.is_open())
+        {
+            return;
+        }
+
+        std::ostringstream contents;
+        contents << file.rdbuf();
+        const std::string text = contents.str();
+        const std::string audio = jsonObjectField(text, "audio").value_or(text);
+
+        if (const std::optional<double> value = jsonDoubleField(audio, "bgmVolume"); value.has_value())
+        {
+            bgmVolume_ = std::clamp(*value, 0.0, 1.0);
+        }
+        if (const std::optional<double> value = jsonDoubleField(audio, "sfxVolume"); value.has_value())
+        {
+            sfxVolume_ = std::clamp(*value, 0.0, 1.0);
+        }
+    }
+
+    void GameClient::saveSettings() const
+    {
+        try
+        {
+            std::filesystem::create_directories(configDirectory());
+            std::ofstream file(configDirectory() / "settings.json", std::ios::trunc);
+            if (!file.is_open())
+            {
+                log::warn("Settings save file could not be opened.");
+                return;
+            }
+
+            file << "{\n";
+            file << "  \"audio\": {\n";
+            file << "    \"bgmVolume\": " << std::fixed << std::setprecision(2) << bgmVolume_ << ",\n";
+            file << "    \"sfxVolume\": " << std::fixed << std::setprecision(2) << sfxVolume_ << "\n";
+            file << "  }\n";
+            file << "}\n";
+        }
+        catch (...)
+        {
+            log::warn("Settings save failed.");
+        }
+    }
+
+    void GameClient::applyAudioSettings()
+    {
+        if (runtime_ != nullptr)
+        {
+            runtime_->audio().setVolumes(static_cast<float>(bgmVolume_), static_cast<float>(sfxVolume_));
+        }
+    }
+
+    void GameClient::updateOptionsUi()
+    {
+        if (runtime_ != nullptr)
+        {
+            runtime_->ui().setOptionsVolumes(volumePercent(bgmVolume_), volumePercent(sfxVolume_));
+        }
+    }
+
+    void GameClient::applyOptionsSliderValues()
+    {
+        if (runtime_ == nullptr)
+        {
+            return;
+        }
+
+        try
+        {
+            bgmVolume_ = std::clamp(std::stod(runtime_->ui().inputValue("bgm-volume-slider")) / 100.0, 0.0, 1.0);
+            sfxVolume_ = std::clamp(std::stod(runtime_->ui().inputValue("sfx-volume-slider")) / 100.0, 0.0, 1.0);
+        }
+        catch (...)
+        {
+            updateOptionsUi();
+            return;
+        }
+        applyAudioSettings();
+        updateOptionsUi();
+        saveSettings();
     }
 
     void GameClient::loadWorldState()
@@ -1651,6 +1931,7 @@ namespace dolbuto
         const double wrappedPlayerZ = wrapWorldCoordinate(playerPosition_.z);
         const std::string lookAtText = runtime_ != nullptr ? runtime_->diagnostics().selectedBlockText() : "LOOKAT: none";
         const std::string climateText = runtime_ != nullptr ? runtime_->diagnostics().climateText(playerPosition_) : "CLIMATE: T[0.000] P[0.000]";
+        const std::string biomeText = runtime_ != nullptr ? runtime_->diagnostics().biomeText(playerPosition_) : "BIOME: T[0] P[0] GND[0] - FrozenOcean";
         const std::string terrainText = runtime_ != nullptr ? runtime_->diagnostics().terrainText(playerPosition_) : "TERRAIN: GND[0.000] SMTH[0.000] W[0.000] PV[0.000]\nVALUE: RAW[0.000] NORM[0.000] PVW[0.000] PVMUL[0.000] BASE[0.000] INF[0.000] VAL[0.000] H[0]";
         const uint64_t day = worldTicks_ / TicksPerDay;
         const uint64_t minuteOfDay = (worldTicks_ % TicksPerDay) / TicksPerMinute;
@@ -1660,7 +1941,7 @@ namespace dolbuto
         std::snprintf(
             debugText_.data(),
             debugText_.size(),
-            "FPS: %04d [%07.3fMS]\nPOS: X %.3f [%.3f] / Y %.3f / Z %.3f [%.3f]\nVIEW: YAW %.1f / PITCH %.1f [%s]\n%s\n%s\n%s\nTIME: %lluD %02lluH %02lluM\nSEED: %llu",
+            "FPS: %04d [%07.3fMS]\nPOS: X %.3f [%.3f] / Y %.3f / Z %.3f [%.3f]\nVIEW: YAW %.1f / PITCH %.1f [%s]\n%s\n%s\n%s\n%s\nTIME: %lluD %02lluH %02lluM\nSEED: %llu",
             clampedFps,
             milliseconds,
             wrappedPlayerX,
@@ -1673,6 +1954,7 @@ namespace dolbuto
             facing,
             lookAtText.c_str(),
             climateText.c_str(),
+            biomeText.c_str(),
             terrainText.c_str(),
             static_cast<unsigned long long>(day),
             static_cast<unsigned long long>(hour),

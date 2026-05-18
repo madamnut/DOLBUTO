@@ -7,6 +7,7 @@
         <div class="center-stack lobby-stack">
             <img class="title" src="../textures/ui/Title.png"/>
             <div id="start" class="button">START</div>
+            <div id="options" class="button secondary">OPTIONS</div>
             <div id="exit" class="button secondary">EXIT</div>
         </div>
     </div>

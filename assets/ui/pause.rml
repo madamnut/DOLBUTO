@@ -7,6 +7,7 @@
         <div class="center-stack pause-stack">
             <div class="heading">PAUSED</div>
             <div id="resume" class="button">RESUME</div>
+            <div id="options" class="button secondary">OPTIONS</div>
             <div id="exit-to-lobby" class="button secondary">EXIT</div>
         </div>
     </div>

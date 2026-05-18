@@ -466,6 +466,20 @@ namespace dolbuto::audio
         }
     }
 
+    void AudioSystem::setMusicVolume(float volume)
+    {
+        musicVolume_ = std::clamp(volume, 0.0f, 1.0f);
+        if (available_ && musicSource_ != 0)
+        {
+            alSourcef(static_cast<ALuint>(musicSource_), AL_GAIN, musicVolume_);
+        }
+    }
+
+    void AudioSystem::setSfxVolume(float volume)
+    {
+        sfxVolume_ = std::clamp(volume, 0.0f, 1.0f);
+    }
+
     bool AudioSystem::startMusicTrack(size_t trackIndex)
     {
         if (!available_ || musicSource_ == 0 || trackIndex >= musicTracks_.size())
@@ -489,7 +503,7 @@ namespace dolbuto::audio
             alSourcei(source, AL_BUFFER, static_cast<ALint>(musicLazyBuffer_));
             alSourcei(source, AL_SOURCE_RELATIVE, AL_TRUE);
             alSource3f(source, AL_POSITION, 0.0f, 0.0f, 0.0f);
-            alSourcef(source, AL_GAIN, 1.0f);
+            alSourcef(source, AL_GAIN, musicVolume_);
             alSourcePlay(source);
             if (alGetError() != AL_NO_ERROR)
             {
@@ -566,7 +580,7 @@ namespace dolbuto::audio
         const ALuint source = static_cast<ALuint>(musicSource_);
         alSourcei(source, AL_SOURCE_RELATIVE, AL_TRUE);
         alSource3f(source, AL_POSITION, 0.0f, 0.0f, 0.0f);
-        alSourcef(source, AL_GAIN, 1.0f);
+        alSourcef(source, AL_GAIN, musicVolume_);
         alSourceQueueBuffers(source, queuedCount, queuedBuffers.data());
         alSourcePlay(source);
         if (alGetError() != AL_NO_ERROR)
@@ -757,7 +771,7 @@ namespace dolbuto::audio
         alSourcei(static_cast<ALuint>(source), AL_BUFFER, static_cast<ALint>(buffer));
         alSourcei(static_cast<ALuint>(source), AL_SOURCE_RELATIVE, AL_TRUE);
         alSource3f(static_cast<ALuint>(source), AL_POSITION, 0.0f, 0.0f, 0.0f);
-        alSourcef(static_cast<ALuint>(source), AL_GAIN, gain);
+        alSourcef(static_cast<ALuint>(source), AL_GAIN, gain * sfxVolume_);
         alSourcePlay(static_cast<ALuint>(source));
     }
 
@@ -778,7 +792,7 @@ namespace dolbuto::audio
         alSourcei(static_cast<ALuint>(source), AL_SOURCE_RELATIVE, AL_FALSE);
         alSource3f(static_cast<ALuint>(source), AL_POSITION, position.x, position.y, position.z);
         alSource3f(static_cast<ALuint>(source), AL_VELOCITY, 0.0f, 0.0f, 0.0f);
-        alSourcef(static_cast<ALuint>(source), AL_GAIN, gain);
+        alSourcef(static_cast<ALuint>(source), AL_GAIN, gain * sfxVolume_);
         alSourcef(static_cast<ALuint>(source), AL_REFERENCE_DISTANCE, 8.0f);
         alSourcef(static_cast<ALuint>(source), AL_MAX_DISTANCE, 48.0f);
         alSourcef(static_cast<ALuint>(source), AL_ROLLOFF_FACTOR, 1.0f);

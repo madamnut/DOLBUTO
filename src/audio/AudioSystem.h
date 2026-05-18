@@ -26,6 +26,8 @@ namespace dolbuto::audio
 
         void updateListener(Vec3 position, Vec3 forward, Vec3 up);
         void updateMusicPlayback(MusicScene scene, double now);
+        void setMusicVolume(float volume);
+        void setSfxVolume(float volume);
 
         void playButtonClick();
         void playBlockBreak(Vec3 position);
@@ -80,6 +82,8 @@ namespace dolbuto::audio
         bool musicStreamFinished_ = false;
         uint32_t musicLazyBuffer_ = 0;
         MusicScene activeMusicScene_ = MusicScene::None;
+        float musicVolume_ = 1.0f;
+        float sfxVolume_ = 1.0f;
         double nextMusicStartTime_ = 0.0;
         size_t lastMusicTrackIndex_ = static_cast<size_t>(-1);
         std::mt19937 musicRandom_{std::random_device{}()};

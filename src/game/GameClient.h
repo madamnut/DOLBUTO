@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 struct GLFWwindow;
@@ -47,7 +48,8 @@ namespace dolbuto
             WorldCreate,
             Game,
             Inventory,
-            Pause
+            Pause,
+            Options
         };
 
         struct WorldInfo
@@ -67,6 +69,11 @@ namespace dolbuto
         void handleMenuClick(double x, double y);
         void toggleFullscreen();
         void setMouseCaptured(bool captured);
+        void openChatInput();
+        void closeChatInput();
+        void submitChatInput();
+        void appendChatMessage(std::string_view text);
+        void updateChatUi();
         void setScreen(AppScreen screen);
         void enterGameScene();
         void refreshWorldList();
@@ -80,6 +87,11 @@ namespace dolbuto
         void setHotbarSelectedSlot(int slot);
         void cycleHotbarSelectedSlot(int delta);
         void loadMovementConfig();
+        void loadSettings();
+        void saveSettings() const;
+        void applyAudioSettings();
+        void updateOptionsUi();
+        void applyOptionsSliderValues();
         void loadWorldState();
         void saveWorldState();
         void loadPlayerState();
@@ -99,10 +111,14 @@ namespace dolbuto
         int hotbarSelectedSlot_ = 0;
         bool screenshotRequested_ = false;
         bool mouseCaptured_ = true;
+        bool chatOpen_ = false;
+        bool chatRestoreMouseCaptured_ = true;
         AppScreen screen_ = AppScreen::Lobby;
+        AppScreen optionsReturnScreen_ = AppScreen::Lobby;
         ViewMode viewMode_ = ViewMode::FirstPerson;
         MoveMode moveMode_ = MoveMode::Fly;
         std::vector<WorldInfo> availableWorlds_;
+        std::vector<std::string> chatMessages_;
         std::string selectedWorldName_;
         std::filesystem::path selectedWorldDirectory_;
         uint64_t worldSeed_ = 0;
@@ -115,6 +131,8 @@ namespace dolbuto
         double groundMoveSpeed_ = 4.317;
         double jumpSpeed_ = 8.4;
         double gravity_ = 32.0;
+        double bgmVolume_ = 1.0;
+        double sfxVolume_ = 1.0;
         double verticalVelocity_ = 0.0;
         bool grounded_ = false;
         bool jumpHeld_ = false;
@@ -129,7 +147,7 @@ namespace dolbuto
         std::chrono::steady_clock::time_point fpsSampleStart_{};
         int fpsSampleFrames_ = 0;
         uint64_t worldTicks_ = 7200;
-        std::array<char, 768> debugText_{"FPS: 0000 [000.000MS]\nPOS: X 0.000 [0.000] / Y 512.000 / Z 0.000 [0.000]\nVIEW: YAW 0.0 / PITCH 0.0 [EAST]\nLOOKAT: none\nCLIMATE: T[0.000] P[0.000]\nTERRAIN: GND[0.000] SMTH[0.000] W[0.000] PV[0.000]\nVALUE: RAW[0.000] NORM[0.000] PVW[0.000] PVMUL[0.000] BASE[0.000] INF[0.000] VAL[0.000] H[0]\nTIME: 0D 06H 00M\nSEED: 0"};
+        std::array<char, 768> debugText_{"FPS: 0000 [000.000MS]\nPOS: X 0.000 [0.000] / Y 512.000 / Z 0.000 [0.000]\nVIEW: YAW 0.0 / PITCH 0.0 [EAST]\nLOOKAT: none\nCLIMATE: T[0.000] P[0.000]\nBIOME: T[0] P[0] GND[0] - FrozenOcean\nTERRAIN: GND[0.000] SMTH[0.000] W[0.000] PV[0.000]\nVALUE: RAW[0.000] NORM[0.000] PVW[0.000] PVMUL[0.000] BASE[0.000] INF[0.000] VAL[0.000] H[0]\nTIME: 0D 06H 00M\nSEED: 0"};
         bool firstMouse_ = true;
         double lastMouseX_ = 0.0;
         double lastMouseY_ = 0.0;

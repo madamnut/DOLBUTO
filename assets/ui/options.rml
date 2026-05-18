@@ -1,0 +1,23 @@
+<rml>
+<head>
+    <link type="text/rcss" href="style.rcss"/>
+</head>
+<body>
+    <div id="options-screen" class="screen options-screen">
+        <div class="options-panel">
+            <div class="heading">OPTIONS</div>
+            <div class="option-row">
+                <div class="option-label">BGM</div>
+                <input type="range" id="bgm-volume-slider" class="option-slider" min="0" max="100" step="1" value="100"/>
+                <div id="bgm-volume-value" class="option-value">100%</div>
+            </div>
+            <div class="option-row">
+                <div class="option-label">SFX</div>
+                <input type="range" id="sfx-volume-slider" class="option-slider" min="0" max="100" step="1" value="100"/>
+                <div id="sfx-volume-value" class="option-value">100%</div>
+            </div>
+            <div id="options-back" class="button secondary">BACK</div>
+        </div>
+    </div>
+</body>
+</rml>
