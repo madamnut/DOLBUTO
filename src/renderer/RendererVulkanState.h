@@ -39,12 +39,15 @@ namespace dolbuto
         VkPipeline uiPipeline = VK_NULL_HANDLE;
         VkPipelineLayout terrainPipelineLayout = VK_NULL_HANDLE;
         VkPipeline terrainPipeline = VK_NULL_HANDLE;
+        VkPipeline terrainBlendPipeline = VK_NULL_HANDLE;
         VkPipeline terrainWireframePipeline = VK_NULL_HANDLE;
         VkPipeline fluidPipeline = VK_NULL_HANDLE;
         VkPipeline playerPipeline = VK_NULL_HANDLE;
+        VkPipeline playerViewmodelPipeline = VK_NULL_HANDLE;
         VkPipelineLayout particlePipelineLayout = VK_NULL_HANDLE;
         VkPipeline particlePipeline = VK_NULL_HANDLE;
         VkPipeline itemPipeline = VK_NULL_HANDLE;
+        VkPipeline itemViewmodelPipeline = VK_NULL_HANDLE;
         VkPipelineLayout selectionPipelineLayout = VK_NULL_HANDLE;
         VkPipeline selectionPipeline = VK_NULL_HANDLE;
 

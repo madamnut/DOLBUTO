@@ -42,7 +42,9 @@ mud       0.7
 clay      0.8
 sand      1.0
 dirt      1.3
+gravel    1.4
 grass     1.5
+ice       2.0
 sandstone 4.0
 trunk     4.0
 rock      5.0
@@ -87,6 +89,8 @@ assets/textures/block/breaking/destroy_stage_9.png
 7     clay
 8     trunk
 9     leaves
+10    gravel
+11    ice
 10000 plant
 65535 bedrock
 ```
@@ -101,8 +105,14 @@ assets/textures/block/breaking/destroy_stage_9.png
 - `sameBlockFaceCulling`: 같은 블록끼리 면을 가릴지 여부
 - `alphaMode`: `opaque`, `cutout`, `blend`
 - `alphaCutoff`: cutout 기준값
+- `alphaBlend`: blend 렌더링에서 텍스처 전체에 곱하는 alpha 값
 - `mipDistanceScale`: mip 거리 배율
 - `textures`: 면별 텍스처 매핑
+
+`alphaMode = "blend"` 블록은 일반 solid 지형 mesh가 아니라 별도 blend subchunk mesh로 분리된다.
+blend 블록은 terrain texture array를 그대로 사용하며, `alphaBlend` 값을 packed terrain material에 담아 fragment shader에서 최종 alpha에 곱한다.
+현재 `ice`가 이 경로를 사용한다.
+`ice`는 주변 블록 face를 지우지 않도록 `faceOcclusion = "none"`을 사용하고, 같은 ice끼리 붙은 내부면만 `sameBlockFaceCulling = true`로 제거한다.
 
 ## 렌더 타입
 

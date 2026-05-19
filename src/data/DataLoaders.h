@@ -19,6 +19,7 @@ namespace dolbuto::data
         bool sameBlockFaceCulling = false;
         std::string alphaMode = "opaque";
         float alphaCutoff = 0.5f;
+        float alphaBlend = 1.0f;
         float mipDistanceScale = 1.0f;
         float hardness = -1.0f;
         bool randomOffset = false;

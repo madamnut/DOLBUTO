@@ -18,6 +18,7 @@ layout(location = 1) out float fragAo;
 layout(location = 2) out vec3 fragWorldPosition;
 layout(location = 3) flat out float fragTextureLayer;
 layout(location = 4) flat out float fragMipDistanceScale;
+layout(location = 6) flat out float fragAlphaBlend;
 
 const vec3 DroppedItemScale = vec3(0.68, 0.05, 0.68);
 
@@ -54,4 +55,5 @@ void main()
     fragWorldPosition = relativePosition;
     fragTextureLayer = inRotYRotZLayerMip.z;
     fragMipDistanceScale = inRotYRotZLayerMip.w;
+    fragAlphaBlend = 1.0;
 }

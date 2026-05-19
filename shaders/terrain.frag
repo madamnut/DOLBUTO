@@ -14,6 +14,7 @@ layout(location = 1) in float fragAo;
 layout(location = 2) in vec3 fragWorldPosition;
 layout(location = 3) flat in float fragTextureLayer;
 layout(location = 4) flat in float fragMipDistanceScale;
+layout(location = 6) flat in float fragAlphaBlend;
 layout(location = 0) out vec4 outColor;
 
 void main()
@@ -26,5 +27,6 @@ void main()
         discard;
     }
     color.rgb *= fragAo;
-    outColor = vec4(color.rgb, 1.0);
+    float outputAlpha = fragAlphaBlend >= 0.999 ? 1.0 : color.a * fragAlphaBlend;
+    outColor = vec4(color.rgb, outputAlpha);
 }

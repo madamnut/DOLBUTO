@@ -22,6 +22,7 @@ namespace dolbuto
         void loadContentAndAssets(const std::filesystem::path& assetDirectory);
         void loadWorldConfig(const std::filesystem::path& configDirectory);
         void loadRenderConfig(const std::filesystem::path& configDirectory);
+        void loadViewmodelConfig(const std::filesystem::path& configDirectory);
         void loadTerrainLuts(const std::filesystem::path& assetDirectory);
 
     private:

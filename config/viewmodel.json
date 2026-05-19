@@ -1,0 +1,20 @@
+{
+  "hand": {
+    "x": 1,
+    "y": -0.7,
+    "z": 0.86,
+    "scale": 1.8,
+    "rotationX": -1.0,
+    "rotationY": -0.2,
+    "rotationZ": 3.2
+  },
+  "heldItem": {
+    "x": 0.7,
+    "y": -0.3,
+    "z": 0.86,
+    "scale": 1.5,
+    "rotationX": -1.5,
+    "rotationY": -0.5,
+    "rotationZ": 0
+  }
+}

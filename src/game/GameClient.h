@@ -73,6 +73,7 @@ namespace dolbuto
         void closeChatInput();
         void submitChatInput();
         void appendChatMessage(std::string_view text);
+        void appendChatSystemMessage(std::string_view text);
         void updateChatUi();
         void setScreen(AppScreen screen);
         void enterGameScene();
@@ -97,6 +98,7 @@ namespace dolbuto
         void loadPlayerState();
         void savePlayerState() const;
         DVec3 interpolatedPlayerPosition(double alpha) const;
+        void updatePlayerLookPose(float bodyYaw, float& headYaw, float& headPitch) const;
         void updatePlayer(double fixedDeltaSeconds, bool allowInput);
         void updateDebugText();
 
@@ -131,6 +133,12 @@ namespace dolbuto
         double groundMoveSpeed_ = 4.317;
         double jumpSpeed_ = 8.4;
         double gravity_ = 32.0;
+        float bodyYaw_ = 0.0f;
+        float previousBodyYaw_ = 0.0f;
+        float playerWalkPhase_ = 0.0f;
+        float previousPlayerWalkPhase_ = 0.0f;
+        float playerWalkAmount_ = 0.0f;
+        float previousPlayerWalkAmount_ = 0.0f;
         double bgmVolume_ = 1.0;
         double sfxVolume_ = 1.0;
         double verticalVelocity_ = 0.0;

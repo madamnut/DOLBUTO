@@ -217,7 +217,10 @@ Vulkan 렌더링 자원과 화면별 RML 내용 갱신은 기존 Vulkan device, 
 
 GameClient는 게임 화면이 아닐 때 GLFW 마우스, 텍스트, 기본 키 입력을 RmlUi context로 전달한다.
 게임 화면에서도 HUD 채팅 입력이 열려 있으면 GLFW 마우스, 텍스트, 기본 키 입력을 RmlUi context로 전달하고 gameplay 입력은 소비한다.
-채팅 입력은 Enter로 열고, Enter 제출 또는 Escape 취소로 닫는다. `/` 키는 입력창을 여는 별도 단축키로 쓰지 않으며, slash-prefixed text는 이후 command 처리 경로가 붙을 수 있는 제출 문자열로만 취급한다.
+채팅 입력은 Enter로 열고, Enter 제출 또는 Escape 취소로 닫는다. `/` 키는 입력창을 여는 별도 단축키로 쓰지 않는다.
+slash-prefixed text는 `src/game/CommandSystem.h/.cpp`의 로컬 명령어 처리 경로로 전달한다.
+현재 지원 명령어는 `/help`, `/pos`, `/seed`, `/tp <x> <y> <z>`, `/time set <ticks>`, `/time add <ticks>`이다.
+`/tp` 좌표는 숫자 절대 좌표와 Minecraft-style `~`, `~10`, `~-5` 상대 좌표를 지원한다.
 제출 뒤 채팅 내역은 HUD 좌측 하단에 text-only 투명 overlay로 남고, 입력창을 다시 열었을 때만 배경 박스와 입력 input을 표시한다.
 로비와 pause 메뉴의 `OPTIONS` 버튼은 같은 `assets/ui/options.rml` 문서를 연다.
 Options 화면은 `BGM`과 `SFX` 볼륨을 range slider로 조정하고, Back 시 Options를 연 원래 화면으로 돌아간다.

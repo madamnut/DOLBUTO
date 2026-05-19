@@ -1,5 +1,7 @@
 #include "world/TerrainBuilder.h"
 
+#include "world/Biome.h"
+
 #include <FastNoise/FastNoise.h>
 
 #include <algorithm>
@@ -40,8 +42,12 @@ namespace dolbuto::world
         constexpr uint16_t BlockGrass = 2;
         constexpr uint16_t BlockDirt = 3;
         constexpr uint16_t BlockSand = 4;
+        constexpr uint16_t BlockSandstone = 5;
+        constexpr uint16_t BlockMud = 6;
+        constexpr uint16_t BlockClay = 7;
         constexpr uint16_t BlockTrunk = 8;
         constexpr uint16_t BlockLeaves = 9;
+        constexpr uint16_t BlockIce = 11;
         constexpr uint16_t BlockPlant = 10000;
         constexpr uint16_t BlockStoneProp = 20000;
         constexpr uint16_t BlockBranchProp = 20001;
@@ -65,6 +71,14 @@ namespace dolbuto::world
         {
             int x = 0;
             int z = 0;
+        };
+
+        struct SurfaceRule
+        {
+            uint16_t airSurface = BlockGrass;
+            uint16_t airSubsurface = BlockDirt;
+            uint16_t underwaterSurface = BlockSand;
+            uint16_t underwaterSubsurface = BlockSand;
         };
 
         constexpr std::array<FeatureNeighborOffset, 8> FeatureNeighborOffsets = {
@@ -145,6 +159,31 @@ namespace dolbuto::world
                 std::lround(std::clamp(value, 0.0f, 1.0f) * static_cast<float>(ClimateMaxByte)),
                 static_cast<long>(ClimateMinByte),
                 static_cast<long>(ClimateMaxByte)));
+        }
+
+        float decodeClimateValue(uint8_t value)
+        {
+            return static_cast<float>(value) / static_cast<float>(ClimateMaxByte);
+        }
+
+        SurfaceRule surfaceRuleForBiome(BiomeId biome)
+        {
+            if (biomeIsOcean(biome))
+            {
+                return {BlockGrass, BlockDirt, BlockSand, BlockSand};
+            }
+
+            switch (biome)
+            {
+            case BiomeId::Desert:
+                return {BlockSand, BlockSandstone, BlockSand, BlockSand};
+            case BiomeId::Swamp:
+                return {BlockMud, BlockClay, BlockSand, BlockSand};
+            case BiomeId::Jungle:
+                return {BlockDirt, BlockDirt, BlockSand, BlockSand};
+            default:
+                return {BlockGrass, BlockDirt, BlockSand, BlockSand};
+            }
         }
 
         std::optional<size_t> featureNeighborIndex(int offsetX, int offsetZ)
@@ -288,7 +327,18 @@ namespace dolbuto::world
         chunk->emptySubchunks.fill(true);
         populateChunkClimate(*chunk);
 
-        std::array<int, ChunkColumnCount> heights = buildChunkHeightmap(chunkX, chunkZ);
+        const std::array<TerrainDebugSample, ChunkColumnCount> terrainSamples = buildChunkTerrainDebugSamples(chunkX, chunkZ);
+        std::array<int, ChunkColumnCount> heights{};
+        std::array<BiomeSample, ChunkColumnCount> biomes{};
+        for (size_t column = 0; column < heights.size(); ++column)
+        {
+            heights[column] = terrainSamples[column].height;
+            biomes[column] = classifyBiome(
+                decodeClimateValue(chunk->temperature[column]),
+                decodeClimateValue(chunk->precipitation[column]),
+                terrainSamples[column].groundness);
+        }
+
         std::array<int, ChunkColumnCount> terrainTopY{};
         std::array<int, ChunkColumnCount> bedrockHeights{};
         terrainTopY.fill(-1);
@@ -355,6 +405,13 @@ namespace dolbuto::world
                     const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
                     if (y >= heights[column])
                     {
+                        if (y == seaY && biomes[column].id == BiomeId::FrozenOcean)
+                        {
+                            const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+                            chunk->blocks[index] = BlockIce;
+                            chunk->emptySubchunks[static_cast<size_t>(y / SubchunkSize)] = false;
+                            continue;
+                        }
                         fluidLayer[column] = FullWater;
                         ++fluidSubchunkCount;
                     }
@@ -404,11 +461,10 @@ namespace dolbuto::world
                     continue;
                 }
 
-                const int aboveY = surfaceY + 1;
-                const bool waterAbove = aboveY >= 0 && aboveY < ChunkSizeY &&
-                    chunk->fluids[static_cast<size_t>((aboveY * ChunkSizeZ + localZ) * ChunkSizeX + localX)] != FluidNone;
-                const uint16_t surfaceBlock = waterAbove ? BlockSand : BlockGrass;
-                const uint16_t subsurfaceBlock = waterAbove ? BlockSand : BlockDirt;
+                const SurfaceRule rule = surfaceRuleForBiome(biomes[column].id);
+                const bool underwaterSurface = surfaceY < seaY;
+                const uint16_t surfaceBlock = underwaterSurface ? rule.underwaterSurface : rule.airSurface;
+                const uint16_t subsurfaceBlock = underwaterSurface ? rule.underwaterSubsurface : rule.airSubsurface;
                 chunk->blocks[surfaceIndex] = surfaceBlock;
 
                 const int bedrockHeight = bedrockHeights[column];

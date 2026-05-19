@@ -43,11 +43,13 @@
 `src/world/ClimateSystem.h/.cpp`는 climate seed, tileable climate noise sampling, chunk climate population, temperature/precipitation 계산을 담당한다.
 `src/renderer/ClimateOverlayTextureBuilder.h/.cpp`는 temperature/precipitation과 terrain noise overlay texture에 업로드할 RGBA pixel 데이터를 생성한다.
 `src/renderer/DebugOverlayText.h/.cpp`는 debug 표시 문자열, 해상도/FPS cache, text batch dirty 상태를 소유한다.
-`src/renderer/TerrainGeometryBuilder.h/.cpp`는 solid/cross/prop terrain CPU mesh 생성을 담당하며 Vulkan 타입에 의존하지 않는다.
+`src/renderer/TerrainGeometryBuilder.h/.cpp`는 solid/blend/cross/prop terrain CPU mesh 생성을 담당하며 Vulkan 타입에 의존하지 않는다.
 `src/renderer/RendererTerrainMeshBridge.h/.cpp`는 `TerrainGeometryBuilder`와 `TerrainMesher`를 연결해 chunk mesh와 edited subchunk mesh의 CPU 조립을 담당한다.
 `src/renderer/TextRenderPath.h/.cpp`는 font atlas texture 생성, host-visible text vertex buffer, glyph layout, outline/fill text batch draw를 담당한다.
-`src/renderer/TerrainRenderPath.h/.cpp`는 terrain chunk render data, render chunk 설치/교체/retire 규칙, retired terrain mesh 수명, packed terrain quad 변환, terrain GPU buffer upload, terrain vertex descriptor set 생성, solid/fluid terrain mesh draw 순회와 terrain frustum culling을 담당한다.
-`src/renderer/PlayerMeshRenderPath.h/.cpp`는 player mesh 파일 로드, player vertex/index buffer 생성, 매 프레임 player vertex 위치 갱신, player indexed draw와 buffer 수명을 담당한다.
+`src/renderer/TerrainRenderPath.h/.cpp`는 terrain chunk render data, render chunk 설치/교체/retire 규칙, retired terrain mesh 수명, packed terrain quad 변환, terrain GPU buffer upload, terrain vertex descriptor set 생성, solid/blend/fluid terrain mesh draw 순회와 terrain frustum culling을 담당한다.
+`src/renderer/PlayerModelLoader.h/.cpp`는 `Character.glb`의 node/mesh primitive/vertex/index 데이터를 읽어 파트별 플레이어 모델 source data를 만든다.
+`src/renderer/PlayerMeshRenderPath.h/.cpp`는 player GLB 모델 로드, player vertex/index buffer 생성, GLB node transform 기반 매 프레임 player vertex 위치 갱신, player indexed draw와 buffer 수명을 담당한다.
+`PlayerMeshRenderPath`는 `Head` node에 렌더 프레임의 head yaw/pitch 추가 transform을 적용한다.
 `src/renderer/ParticleRenderPath.h/.cpp`는 블록 파괴 파티클 상태, 파괴 오버레이 quad 생성, 파티클 수명/단순 terrain 충돌 갱신, host-visible particle vertex/index buffer 업로드, particle draw path를 담당한다.
 `src/renderer/DroppedItemRenderCollector.h/.cpp`는 드랍 아이템 청크 frustum culling, 거리 culling, stack count별 시각 복제본 생성, `DroppedItemRenderPath::RenderInstance` 목록 생성을 담당한다.
 `src/renderer/DroppedItemRenderPath.h/.cpp`는 드랍 아이템 로컬 스프라이트 mesh 타입, GPU static vertex/index buffer, persistent instance buffer, instance 업로드, item id별 batch draw를 담당한다.
@@ -81,9 +83,20 @@ Renderer/GPU가 필요 없는 collision query, block selection state, inventory 
 드롭 아이템 생성/병합/물리 tick/pickup 판정은 `src/world/DroppedItemSystem.h/.cpp`가 담당한다.
 드롭 아이템 entity id, 청크별 추적, spawn/drop/pickup/raycast/update 조율은 `src/world/DroppedItemRuntime.h/.cpp`가 담당한다.
 `src/world/TerrainMesher.h/.cpp`는 chunk mesh와 편집 subchunk mesh의 CPU orchestration을 맡는다.
-solid/cross/prop subchunk mesh 생성은 `TerrainGeometryBuilder`가 담당하고, render chunk storage 조작, Vulkan upload, terrain render data 수명, terrain mesh draw loop는 `TerrainRenderPath`가 담당한다.
+solid/blend/cross/prop subchunk mesh 생성은 `TerrainGeometryBuilder`가 담당하고, render chunk storage 조작, Vulkan upload, terrain render data 수명, terrain mesh draw loop는 `TerrainRenderPath`가 담당한다.
 chunk mesh와 edited subchunk mesh의 CPU 조립은 `RendererTerrainMeshBridge`가 담당하고, `Renderer`는 결과를 `TerrainRenderPath` 설치 API로 전달한다.
 player mesh는 terrain chunk mesh와 별도 indexed vertex buffer 경로이며 `PlayerMeshRenderPath`가 소유한다.
+플레이어는 `assets/textures/character/Character.glb`를 직접 읽고, 별도 `Character.mesh` 런타임 캐시 파일은 사용하지 않는다.
+플레이어 전체 배치는 body yaw를 기준으로 하고, 머리 회전은 `Head` node local transform 뒤에 추가 yaw/pitch transform을 곱해 처리한다.
+보행 모션은 `ClientFrame`/`RendererFrame`의 `playerWalkPhase`와 `playerWalkAmount`로 전달되며, `GameClient`가 물리 tick 사이 값을 보간해 넘긴다.
+`PlayerMeshRenderPath`는 팔/다리 node에 추가 pitch transform을 적용하고, 팔꿈치/무릎 하위 node는 한 방향 bend와 각도 상한을 사용한다.
+1인칭 손은 같은 GLB에서 오른팔 아래팔 node만 추출한 별도 vertex/index buffer를 사용한다.
+현재 선택 핫바 아이템은 `ClientFrame`/`RendererFrame`의 `heldItemId`로 전달되고, `RendererDroppedItems.cpp`가 기존 `DroppedItemRenderPath` item pipeline을 재사용해 1인칭 손 앞에 렌더링한다.
+1인칭 손과 든 아이템은 지형 depth에 묻히지 않도록 그리기 직전에 scene depth attachment를 clear한 뒤 viewmodel pipeline으로 그린다.
+viewmodel pipeline은 depth test/write를 사용해 viewmodel mesh 내부의 앞뒤 관계를 유지한다.
+아이템을 들고 있을 때는 손 mesh를 숨기고 아이템 viewmodel만 표시한다.
+든 아이템은 `item_viewmodel.vert`에서 카메라 회전을 적용하지 않는 view-space 좌표로 렌더링해 화면상 같은 면이 유지된다.
+`config/viewmodel.json`은 손/아이템 viewmodel의 view-space 위치, 스케일, 회전값을 제공하고, `RendererConfigBridge`가 `ClientRuntimeState::viewmodelConfig`로 로드한다.
 fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
 프레임 루프와 Vulkan command recording은 `RendererFrameLoop.cpp`의 책임이며, gameplay/terrain/scene/debug bridge는 별도 translation unit으로 분리한다. 이전 `Renderer.cpp`는 제거되었고, lifecycle/local resource/scene draw 책임은 이름 있는 translation unit에 둔다.
 초기 청크 지형 생성과 feature 반영은 `src/world/TerrainBuilder.h/.cpp`로 분리되어 있다.
@@ -181,8 +194,9 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 유체는 블록 지형과 분리된 subchunk mesh로 렌더링한다.
 현재 렌더링되는 유체는 `water`이다.
 
-비유체 지형 mesh 이름은 `solidSubchunks`이다.
-여기서 `solid`는 유체 반대편의 지형 경로를 뜻하며 cube 블록, `cross` 블록, `prop` 블록을 포함한다.
+비유체 지형 mesh는 `solidSubchunks`와 `blendSubchunks`로 나뉜다.
+`solidSubchunks`는 `opaque`/`cutout` 블록을 담고, `blendSubchunks`는 `alphaMode = "blend"` 블록을 담는다.
+cube 블록, `cross` 블록, `prop` 블록 모두 블록 정의의 alpha mode에 따라 solid 또는 blend mesh로 배정된다.
 
 - 텍스처: `assets/textures/fluid/water.png`
 - 런타임 설정: `config/render.json` -> `fluid.water.alpha`
@@ -191,12 +205,14 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 - 윗면 amount 높이는 10단위 올림으로 `0.08`~`0.8`블록에 매핑한다.
 - 위에 다른 물 셀이 있는 물 셀은 `1.0`블록 높이로 렌더링한다.
 
-블록 지형, 블록 선택 표시, 플레이어 메시를 먼저 그리고, 그 다음 같은 scene pass에서 유체 mesh를 그린다.
+블록 지형은 solid, blend 순서로 그린다.
+그 다음 같은 scene pass에서 유체 mesh를 그린다.
 인접 유체가 같거나 더 높은 높이에 도달하면 내부 유체 face는 생략한다.
 유체 mesh 생성은 `fluidSubchunkCounts` 값이 `0`인 subchunk를 건너뛴다.
-유체 렌더링은 alpha blending을 켜고 depth write를 끈 별도 `fluidPipeline_`을 사용한다.
+blend 블록과 유체 렌더링은 alpha blending을 켜고 depth write를 끈 별도 pipeline을 사용한다.
 일반 terrain pipeline은 opaque/cutout 블록 렌더링을 위해 non-blend 상태로 유지한다.
 유체는 depth test를 유지하므로 블록, cutout 지형, 선택 외곽선, 플레이어가 scene depth buffer를 통해 유체를 가릴 수 있다.
+blend 블록도 depth test를 유지하고 depth write를 끈다.
 유체 pipeline은 `fluid.frag`를 사용한다.
 `fluid.frag`는 fluid texture array를 샘플링하고 render config의 고정 alpha 값을 적용한다.
 `config/render.json` 파일 읽기와 값 검증은 `src/config/ConfigLoaders.h/.cpp`의 `config::loadRenderConfig`가 맡는다.
@@ -219,7 +235,8 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 - Pipeline: 기존 block texture array를 사용하는 전용 particle graphics pipeline.
 - Depth test는 켜고 depth write는 끈다.
 
-씬 그리기 순서는 블록, 유체, 플레이어, 블록 파괴 파티클, 선택 외곽선 순서다.
+씬 그리기 순서는 solid 블록, blend 블록, 유체, 3인칭 플레이어, 블록 파괴 파티클, 드랍 아이템, 선택 외곽선, 1인칭 viewmodel 순서다.
+1인칭 viewmodel은 마지막에 그리기 직전 scene depth를 clear하고, viewmodel끼리는 depth test/write를 사용한다.
 
 ## 드랍 아이템 렌더링
 

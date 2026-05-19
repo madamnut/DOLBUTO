@@ -87,9 +87,14 @@ namespace dolbuto
         }
     }
 
-    void Renderer::updatePlayerMesh(Vec3 playerPosition, float playerYaw)
+    void Renderer::updatePlayerMesh(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount)
     {
-        playerMeshRenderPath_.update(playerPosition, playerYaw);
+        playerMeshRenderPath_.update(playerPosition, playerYaw, playerHeadYaw, playerHeadPitch, playerWalkPhase, playerWalkAmount);
+    }
+
+    void Renderer::updateFirstPersonHandMesh(const Camera& camera, Vec3 cameraPosition)
+    {
+        playerMeshRenderPath_.updateFirstPersonHand(camera, cameraPosition, client_.viewmodelConfig.hand);
     }
 
     void Renderer::drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe, bool drawBlocks, bool drawFluids, uint32_t sceneImageIndex)
@@ -160,6 +165,11 @@ namespace dolbuto
             vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainPipelineLayout, 0, 1, &rendererAssets_.terrainTextureArray.descriptorSet, 0, nullptr);
             addVisibleStats(terrainRenderPath_.drawSolid(commandBuffer, vulkan_.terrainPipelineLayout, terrainView));
+            if (!wireframe)
+            {
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainBlendPipeline);
+                addVisibleStats(terrainRenderPath_.drawBlend(commandBuffer, vulkan_.terrainPipelineLayout, terrainView));
+            }
         }
 
         if (drawFluids)
@@ -199,6 +209,30 @@ namespace dolbuto
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.playerPipeline);
         vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
         playerMeshRenderPath_.draw(commandBuffer, vulkan_.terrainPipelineLayout, rendererAssets_.playerTexture);
+    }
+
+    void Renderer::drawFirstPersonHand(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const
+    {
+        if (vulkan_.playerViewmodelPipeline == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
+        const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
+        const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
+        const Mat4 view = viewMatrix(camera, {});
+        const Mat4 mvp = multiply(projection, view);
+
+        TerrainPush push{};
+        std::memcpy(push.mvp, mvp.m, sizeof(push.mvp));
+        push.cameraPosition[0] = cameraPosition.x;
+        push.cameraPosition[1] = cameraPosition.y;
+        push.cameraPosition[2] = cameraPosition.z;
+        push.cameraPosition[3] = 0.0f;
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.playerViewmodelPipeline);
+        vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
+        playerMeshRenderPath_.drawFirstPersonHand(commandBuffer, vulkan_.terrainPipelineLayout, rendererAssets_.playerTexture);
     }
 
     void Renderer::drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition)

@@ -428,4 +428,89 @@ namespace dolbuto::config
 
         return config;
     }
+
+    ViewmodelConfig loadViewmodelConfig(const std::filesystem::path& path, const ViewmodelConfig& defaults)
+    {
+        ViewmodelConfig config = defaults;
+        const std::optional<std::string> text = readTextFile(path);
+        if (!text.has_value())
+        {
+            return config;
+        }
+
+        const std::string hand = jsonObjectField(*text, "hand").value_or("{}");
+        const std::string heldItem = jsonObjectField(*text, "heldItem").value_or("{}");
+
+        if (const std::optional<float> value = jsonFloatField(hand, "x"); value.has_value())
+        {
+            config.hand.x = *value;
+        }
+        else if (const std::optional<float> value = jsonFloatField(hand, "right"); value.has_value())
+        {
+            config.hand.x = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(hand, "y"); value.has_value())
+        {
+            config.hand.y = *value;
+        }
+        else if (const std::optional<float> value = jsonFloatField(hand, "down"); value.has_value())
+        {
+            config.hand.y = -*value;
+        }
+        if (const std::optional<float> value = jsonFloatField(hand, "z"); value.has_value())
+        {
+            config.hand.z = *value;
+        }
+        else if (const std::optional<float> value = jsonFloatField(hand, "forward"); value.has_value())
+        {
+            config.hand.z = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(hand, "scale"); value.has_value() && *value > 0.0f)
+        {
+            config.hand.scale = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(hand, "rotationX"); value.has_value())
+        {
+            config.hand.rotationX = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(hand, "rotationY"); value.has_value())
+        {
+            config.hand.rotationY = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(hand, "rotationZ"); value.has_value())
+        {
+            config.hand.rotationZ = *value;
+        }
+
+        if (const std::optional<float> value = jsonFloatField(heldItem, "x"); value.has_value())
+        {
+            config.heldItem.x = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(heldItem, "y"); value.has_value())
+        {
+            config.heldItem.y = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(heldItem, "z"); value.has_value())
+        {
+            config.heldItem.z = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(heldItem, "scale"); value.has_value() && *value > 0.0f)
+        {
+            config.heldItem.scale = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(heldItem, "rotationX"); value.has_value())
+        {
+            config.heldItem.rotationX = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(heldItem, "rotationY"); value.has_value())
+        {
+            config.heldItem.rotationY = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(heldItem, "rotationZ"); value.has_value())
+        {
+            config.heldItem.rotationZ = *value;
+        }
+
+        return config;
+    }
 }

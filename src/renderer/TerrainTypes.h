@@ -17,6 +17,7 @@ namespace dolbuto
         float ao = 1.0f;
         float textureLayer = 0.0f;
         float mipDistanceScale = 1.0f;
+        float alphaBlend = 1.0f;
     };
 
     struct PackedTerrainQuad
@@ -48,5 +49,11 @@ namespace dolbuto
     {
         std::vector<TerrainVertex> vertices;
         std::vector<uint32_t> indices;
+    };
+
+    struct TerrainSubchunkBuildData
+    {
+        TerrainBuildData solid;
+        TerrainBuildData blend;
     };
 }

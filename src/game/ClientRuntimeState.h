@@ -1,6 +1,7 @@
 #pragma once
 
 #include "audio/AudioSystem.h"
+#include "config/ViewmodelConfig.h"
 #include "game/ClientContent.h"
 #include "game/ClientSceneLifecycle.h"
 #include "game/ClientTerrainSceneRuntime.h"
@@ -116,6 +117,7 @@ namespace dolbuto::game
         gameplay::ClientGameplayRuntime gameplayRuntime;
         ClientWorldConfigState worldConfig;
         ClientRenderConfigState renderConfig;
+        config::ViewmodelConfig viewmodelConfig;
         ClientWorldRuntime clientWorldRuntime;
         ClientTerrainSceneRuntime terrainSceneRuntime;
         ClientSceneLifecycle sceneLifecycle;

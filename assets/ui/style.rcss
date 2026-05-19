@@ -148,12 +148,12 @@ body {
 
 .chat-line {
     display: block;
-    height: 40px;
-    min-height: 40px;
-    line-height: 40px;
+    height: 20px;
+    min-height: 20px;
+    line-height: 20px;
     margin-bottom: 0;
     color: #f2f6f8;
-    font-size: 30px;
+    font-size: 15px;
     font-effect: outline(1px #000000);
 }
 

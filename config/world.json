@@ -1,6 +1,6 @@
 {
   "chunkLoad": {
-    "loadGridScale": 2,
+    "loadGridScale": 1,
     "workerCount": 4,
     "maxCompletedChunksAppliedPerFrame": 16,
     "maxUnloadedChunksPerFrame": 64,

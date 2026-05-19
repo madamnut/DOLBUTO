@@ -21,7 +21,7 @@ namespace dolbuto
             const std::vector<BlockTextureLayers>& blockTextureLayers,
             const std::unordered_map<uint16_t, assets::PropMesh>& propMeshesByBlock);
 
-        TerrainBuildData buildSubchunkMesh(
+        TerrainSubchunkBuildData buildSubchunkMesh(
             const std::shared_ptr<ChunkData>& chunk,
             int subchunkY,
             const world::TerrainMesher::BlockSampler& blockAt) const;

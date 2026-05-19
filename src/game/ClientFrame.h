@@ -17,6 +17,12 @@ namespace dolbuto::game
         bool showPlayer = false;
         DVec3 playerPosition;
         float playerYaw = 0.0f;
+        float playerHeadYaw = 0.0f;
+        float playerHeadPitch = 0.0f;
+        float playerWalkPhase = 0.0f;
+        float playerWalkAmount = 0.0f;
+        bool showFirstPersonHand = false;
+        uint16_t heldItemId = 0;
         bool terrainWireframe = false;
         int climateOverlayMode = 0;
         int menuOverlayMode = 0;

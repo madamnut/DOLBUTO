@@ -264,7 +264,7 @@ namespace dolbuto
         const uint64_t generation = client_.terrainSceneRuntime.terrainGeneration();
         chunk->data->generation = generation;
         const uint64_t revision = chunk->data->revision;
-        TerrainBuildData mesh = RendererTerrainMeshBridge(client_.content, rendererAssets_).buildEditedSubchunkMesh(
+        TerrainSubchunkBuildData mesh = RendererTerrainMeshBridge(client_.content, rendererAssets_).buildEditedSubchunkMesh(
             chunk->data,
             subchunkY,
             [this](int x, int y, int z)
@@ -278,7 +278,7 @@ namespace dolbuto
             return;
         }
 
-        terrainRenderPath_.replaceEditedSolidSubchunk(
+        terrainRenderPath_.replaceEditedSubchunk(
             key,
             chunkX,
             chunkZ,

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config/ViewmodelConfig.h"
+
 #include <filesystem>
 
 namespace dolbuto::config
@@ -58,4 +60,5 @@ namespace dolbuto::config
 
     WorldConfig loadWorldConfig(const std::filesystem::path& path, const WorldConfig& defaults, int maxSeaLevel);
     RenderConfig loadRenderConfig(const std::filesystem::path& path, const RenderConfig& defaults);
+    ViewmodelConfig loadViewmodelConfig(const std::filesystem::path& path, const ViewmodelConfig& defaults);
 }

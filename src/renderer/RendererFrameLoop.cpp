@@ -114,6 +114,22 @@ namespace dolbuto
             }
             stream.write(reinterpret_cast<const char*>(file.data()), static_cast<std::streamsize>(file.size()));
         }
+
+        void clearDepthAttachment(VkCommandBuffer commandBuffer, VkExtent2D extent)
+        {
+            VkClearAttachment depthClear{};
+            depthClear.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            depthClear.colorAttachment = VK_ATTACHMENT_UNUSED;
+            depthClear.clearValue.depthStencil = {1.0f, 0};
+
+            VkClearRect clearRect{};
+            clearRect.rect.offset = {0, 0};
+            clearRect.rect.extent = extent;
+            clearRect.baseArrayLayer = 0;
+            clearRect.layerCount = 1;
+
+            vkCmdClearAttachments(commandBuffer, 1, &depthClear, 1, &clearRect);
+        }
     }
 
     void Renderer::drawFrame(const RendererFrame& frame)
@@ -180,7 +196,11 @@ namespace dolbuto
 
         if (frame.showPlayer)
         {
-            updatePlayerMesh(playerPositionFloat, frame.playerYaw);
+            updatePlayerMesh(playerPositionFloat, frame.playerYaw, frame.playerHeadYaw, frame.playerHeadPitch, frame.playerWalkPhase, frame.playerWalkAmount);
+        }
+        if (frame.showFirstPersonHand && frame.heldItemId == 0)
+        {
+            updateFirstPersonHandMesh(frame.camera, cameraPositionFloat);
         }
         ensureClimateOverlayTexture(frame.climateOverlayMode);
 
@@ -199,6 +219,8 @@ namespace dolbuto
             frame.menuOverlayMode,
             frame.hudVisible,
             frame.gameSceneRenderEnabled,
+            frame.showFirstPersonHand,
+            frame.heldItemId,
             frame.worldTicks);
 
         VkSemaphore waitSemaphores[] = {vulkan_.imageAvailableSemaphores[vulkan_.currentFrame]};
@@ -306,7 +328,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, uint64_t worldTicks)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -377,6 +399,18 @@ namespace dolbuto
             if (menuOverlayMode == 0)
             {
                 drawBlockSelection(commandBuffer, camera, cameraPosition);
+            }
+            if (showFirstPersonHand && menuOverlayMode == 0)
+            {
+                clearDepthAttachment(commandBuffer, vulkan_.swapchainExtent);
+                if (heldItemId == 0)
+                {
+                    drawFirstPersonHand(commandBuffer, camera, cameraPosition);
+                }
+                else
+                {
+                    drawHeldItem(commandBuffer, camera, cameraPosition, heldItemId);
+                }
             }
         }
         vkCmdEndRenderPass(commandBuffer);

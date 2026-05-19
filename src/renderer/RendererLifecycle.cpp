@@ -123,6 +123,7 @@ namespace dolbuto
         uiRuntimeBridge_->initialize();
         configBridge_->loadWorldConfig(configDirectory());
         configBridge_->loadRenderConfig(configDirectory());
+        configBridge_->loadViewmodelConfig(configDirectory());
         configBridge_->loadTerrainLuts(assetDirectory());
         createCommandBuffers();
         createSyncObjects();
@@ -196,6 +197,10 @@ namespace dolbuto
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.terrainWireframePipeline, nullptr);
         }
+        if (vulkan_.terrainBlendPipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.terrainBlendPipeline, nullptr);
+        }
         if (vulkan_.fluidPipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.fluidPipeline, nullptr);
@@ -204,6 +209,10 @@ namespace dolbuto
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.playerPipeline, nullptr);
         }
+        if (vulkan_.playerViewmodelPipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.playerViewmodelPipeline, nullptr);
+        }
         if (vulkan_.particlePipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.particlePipeline, nullptr);
@@ -211,6 +220,10 @@ namespace dolbuto
         if (vulkan_.itemPipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.itemPipeline, nullptr);
+        }
+        if (vulkan_.itemViewmodelPipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.itemViewmodelPipeline, nullptr);
         }
         if (vulkan_.particlePipelineLayout != VK_NULL_HANDLE)
         {

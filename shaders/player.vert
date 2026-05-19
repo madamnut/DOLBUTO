@@ -17,6 +17,7 @@ layout(location = 1) out float fragAo;
 layout(location = 2) out vec3 fragWorldPosition;
 layout(location = 3) flat out float fragTextureLayer;
 layout(location = 4) flat out float fragMipDistanceScale;
+layout(location = 6) flat out float fragAlphaBlend;
 
 void main()
 {
@@ -27,4 +28,5 @@ void main()
     fragWorldPosition = relativePosition;
     fragTextureLayer = inTextureLayer;
     fragMipDistanceScale = inMipDistanceScale;
+    fragAlphaBlend = 1.0;
 }

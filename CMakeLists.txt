@@ -129,6 +129,7 @@ set(SHADER_SOURCES
     shaders/fluid.frag
     shaders/player.vert
     shaders/item.vert
+    shaders/item_viewmodel.vert
     shaders/selection.vert
     shaders/selection.frag
 )
@@ -173,6 +174,8 @@ add_executable(DOLBUTO
     src/game/ClientUiTypes.h
     src/game/ClientWorldRuntime.cpp
     src/game/ClientWorldRuntime.h
+    src/game/CommandSystem.cpp
+    src/game/CommandSystem.h
     src/game/GameClient.cpp
     src/game/GameClient.h
     src/gameplay/BlockInteractionSystem.cpp
@@ -189,6 +192,7 @@ add_executable(DOLBUTO
     src/camera/Camera.h
     src/config/ConfigLoaders.cpp
     src/config/ConfigLoaders.h
+    src/config/ViewmodelConfig.h
     src/data/DataLoaders.cpp
     src/data/DataLoaders.h
     src/items/ItemData.h
@@ -252,6 +256,8 @@ add_executable(DOLBUTO
     src/renderer/TextRenderPath.h
     src/renderer/ParticleRenderPath.cpp
     src/renderer/ParticleRenderPath.h
+    src/renderer/PlayerModelLoader.cpp
+    src/renderer/PlayerModelLoader.h
     src/renderer/PlayerMeshRenderPath.cpp
     src/renderer/PlayerMeshRenderPath.h
     src/renderer/TerrainRenderPath.cpp
@@ -274,6 +280,8 @@ add_executable(DOLBUTO
     src/ui/UiSystem.cpp
     src/ui/UiSystem.h
     src/world/BlockData.h
+    src/world/Biome.cpp
+    src/world/Biome.h
     src/world/ChunkLoadSystem.cpp
     src/world/ChunkLoadSystem.h
     src/world/ClimateSystem.cpp

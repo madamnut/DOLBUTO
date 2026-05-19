@@ -494,6 +494,10 @@ namespace dolbuto::data
             {
                 definition.alphaCutoff = std::clamp(*alphaCutoff, 0.0f, 1.0f);
             }
+            if (const std::optional<float> alphaBlend = jsonFloatField(object, "alphaBlend"); alphaBlend.has_value())
+            {
+                definition.alphaBlend = std::clamp(*alphaBlend, 0.0f, 1.0f);
+            }
             if (const std::optional<float> mipDistanceScale = jsonFloatField(object, "mipDistanceScale"); mipDistanceScale.has_value())
             {
                 definition.mipDistanceScale = std::max(0.0f, *mipDistanceScale);

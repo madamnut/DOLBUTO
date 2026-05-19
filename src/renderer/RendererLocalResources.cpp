@@ -54,6 +54,6 @@ namespace dolbuto
 
     void Renderer::createPlayerMesh()
     {
-        playerMeshRenderPath_.loadFromFile(assetDirectory() / "textures" / "character" / "Character.mesh");
+        playerMeshRenderPath_.loadFromGlb(assetDirectory() / "textures" / "character" / "Character.glb");
     }
 }

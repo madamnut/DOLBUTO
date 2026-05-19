@@ -185,6 +185,41 @@
     ]
   },
   {
+    "id": 10,
+    "name": "gravel",
+    "renderType": "cube",
+    "hardness": 1.4,
+    "directional": false,
+    "mipDistanceScale": 1.0,
+    "collision": true,
+    "ao": true,
+    "faceOcclusion": "opaque",
+    "sameBlockFaceCulling": true,
+    "alphaMode": "opaque",
+    "textures": {
+      "all": "gravel"
+    },
+    "drops": []
+  },
+  {
+    "id": 11,
+    "name": "ice",
+    "renderType": "cube",
+    "hardness": 2.0,
+    "directional": false,
+    "mipDistanceScale": 1.0,
+    "collision": true,
+    "ao": false,
+    "faceOcclusion": "none",
+    "sameBlockFaceCulling": true,
+    "alphaMode": "blend",
+    "alphaBlend": 0.8,
+    "textures": {
+      "all": "ice"
+    },
+    "drops": []
+  },
+  {
     "id": 10000,
     "name": "plant",
     "renderType": "cross",

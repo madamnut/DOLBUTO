@@ -139,29 +139,60 @@ F6 지형 진단 오버레이는 `groundness`, `smoothness`, `weirdness`, `PV`�
 ## 바이옴
 
 초기 바이옴 분류는 `temperature`, `precipitation`, `groundness` 3개 입력만 사용한다.
+분류 함수는 `src/world/Biome.h/.cpp`에 둔다.
 
-- `temperature`, `precipitation`: `0..1` 값을 3개 band로 나눈다. `0 <= value < 1/3`은 `0`, `1/3 <= value < 2/3`은 `1`, 나머지는 `2`다.
+- `temperature`, `precipitation`: `0..1` 값을 5개 band로 나눈다. `0.0 <= value < 0.2`는 `0`, `0.2 <= value < 0.4`는 `1`, `0.4 <= value < 0.6`은 `2`, `0.6 <= value < 0.8`은 `3`, 나머지는 `4`다.
 - `groundness`: `0` 미만이면 ocean band `0`, `0` 이상이면 land band `1`이다.
 
 육지 테이블:
 
 ```text
-        P0           P1       P2
-T0      SnowPlain    Taiga    SnowForest
-T1      Plains       Forest   Swamp
-T2      Desert       Savanna  Jungle
+        P0           P1          P2       P3              P4
+T0      SnowPlain    SnowPlain   Taiga    SnowForest      SnowForest
+T1      DryGrass     Grassland   Taiga    Forest          Swamp
+T2      DryGrass     Plains      Forest   Forest          Swamp
+T3      Desert       DryGrass    Savanna  Forest          Jungle
+T4      Desert       Desert      Savanna  TropicalForest  Jungle
 ```
 
 바다 테이블:
 
 ```text
-        P0              P1              P2
-T0      FrozenOcean     ColdOcean       ColdOcean
-T1      TemperateOcean  Ocean           WarmOcean
-T2      WarmOcean       TropicalOcean   TropicalOcean
+        P0              P1              P2              P3              P4
+T0      FrozenOcean     FrozenOcean     ColdOcean       ColdOcean       ColdOcean
+T1      ColdOcean       ColdOcean       ColdOcean       TemperateOcean  TemperateOcean
+T2      TemperateOcean  TemperateOcean  Ocean           WarmOcean       WarmOcean
+T3      WarmOcean       WarmOcean       WarmOcean       TropicalOcean   TropicalOcean
+T4      WarmOcean       TropicalOcean   TropicalOcean   TropicalOcean   TropicalOcean
 ```
 
 디버그 텍스트는 `CLIMATE` 아래에 `BIOME: T[n] P[n] GND[n] - BiomeName` 형식으로 표시한다.
+
+## 표면 룰
+
+청크 생성은 column별 바이옴을 계산한 뒤 표면/표층 블록을 선택한다.
+
+표면 룰은 공기중 표면과 수중 표면을 분리한다.
+수중 표면은 column의 지형 표면이 `seaLevel`보다 낮은 경우다.
+
+```text
+Ocean biomes:
+  air         grass / dirt
+  underwater  sand / sand
+
+Land biomes:
+  underwater  sand / sand
+
+Land air:
+  Desert      sand  / sandstone
+  Swamp       mud   / clay
+  Jungle      dirt  / dirt
+  Other land  grass / dirt
+```
+
+`FrozenOcean`은 해저 블록은 다른 바다처럼 `sand/sand`를 사용한다.
+대신 해당 column의 지형 높이가 해수면보다 낮아 물이 생기는 경우, `seaLevel` 위치의 최상단 물 칸만 `ice` 블록으로 대체하고 해당 칸의 fluid는 비운다.
+`seaLevel` 아래는 그대로 `water`다.
 
 ## 높이 LUT
 

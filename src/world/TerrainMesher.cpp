@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <utility>
 #include <vector>
 
 namespace dolbuto::world
@@ -119,7 +120,9 @@ namespace dolbuto::world
 
         for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
         {
-            result.solidSubchunks[static_cast<size_t>(subchunkY)] = buildSolidSubchunk(chunk, subchunkY, blockAt);
+            TerrainSubchunkBuildData terrainSubchunk = buildSolidSubchunk(chunk, subchunkY, blockAt);
+            result.solidSubchunks[static_cast<size_t>(subchunkY)] = std::move(terrainSubchunk.solid);
+            result.blendSubchunks[static_cast<size_t>(subchunkY)] = std::move(terrainSubchunk.blend);
             if (chunk->fluidSubchunkCounts[static_cast<size_t>(subchunkY)] > 0)
             {
                 result.fluidSubchunks[static_cast<size_t>(subchunkY)] = buildFluidSubchunkMesh(chunks, subchunkY, blockOccludesFluid);
@@ -345,7 +348,7 @@ namespace dolbuto::world
         return result;
     }
 
-    TerrainBuildData TerrainMesher::buildEditedSubchunkMesh(
+    TerrainSubchunkBuildData TerrainMesher::buildEditedSubchunkMesh(
         const std::shared_ptr<ChunkData>& chunk,
         int subchunkY,
         const WorldBlockSampler& blockAtWorld,

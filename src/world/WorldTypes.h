@@ -117,6 +117,7 @@ namespace dolbuto
         int chunkX = 0;
         int chunkZ = 0;
         std::array<TerrainBuildData, SubchunkCount> solidSubchunks;
+        std::array<TerrainBuildData, SubchunkCount> blendSubchunks;
         std::array<TerrainBuildData, SubchunkCount> fluidSubchunks;
     };
 

@@ -1,5 +1,6 @@
 #include "game/GameClient.h"
 
+#include "game/CommandSystem.h"
 #include "game/ClientUiTypes.h"
 #include "gameplay/PlayerInventory.h"
 #include "items/ItemData.h"
@@ -33,6 +34,14 @@ namespace dolbuto
     {
         constexpr float RadiansToDegrees = 57.2957795131f;
         constexpr float Pi = 3.14159265359f;
+        constexpr float TwoPi = Pi * 2.0f;
+        constexpr float MaxPlayerHeadYaw = Pi * 0.25f;
+        constexpr float MaxPlayerHeadPitch = Pi * 70.0f / 180.0f;
+        constexpr double WalkCycleRadiansPerSecond = 8.0;
+        constexpr double WalkAmountRiseResponse = 12.0;
+        constexpr double WalkAmountFallResponse = 18.0;
+        constexpr double BodyYawFollowResponse = 12.0;
+        constexpr float StrafeBodyYawOffset = Pi * 0.25f;
         constexpr double EyeHeight = 1.5625;
         constexpr double ThirdPersonDistance = 5.5;
         constexpr double FixedPhysicsTimestep = 1.0 / 20.0;
@@ -62,7 +71,7 @@ namespace dolbuto
         constexpr float PauseResumeButtonY = 0.46f;
         constexpr float PauseExitButtonY = 0.57f;
         constexpr size_t MaxChatMessages = 8;
-        constexpr int ChatLineHeight = 40;
+        constexpr int ChatLineHeight = 20;
 
         std::optional<double> jsonDoubleField(const std::string& object, const std::string& key)
         {
@@ -204,6 +213,38 @@ namespace dolbuto
                 x <= centerX + MenuButtonWidth * 0.5 &&
                 y >= centerY - MenuButtonHeight * 0.5 &&
                 y <= centerY + MenuButtonHeight * 0.5;
+        }
+
+        float normalizeAngle(float angle)
+        {
+            while (angle > Pi)
+            {
+                angle -= TwoPi;
+            }
+            while (angle < -Pi)
+            {
+                angle += TwoPi;
+            }
+            return angle;
+        }
+
+        float lerpAngle(float from, float to, double alpha)
+        {
+            return normalizeAngle(from + normalizeAngle(to - from) * static_cast<float>(alpha));
+        }
+
+        float interpolateWalkPhase(float from, float to, double alpha)
+        {
+            float delta = to - from;
+            if (delta < -Pi)
+            {
+                delta += TwoPi;
+            }
+            else if (delta > Pi)
+            {
+                delta -= TwoPi;
+            }
+            return normalizeAngle(from + delta * static_cast<float>(alpha));
         }
 
         int hotbarSlotFromKey(int key)
@@ -555,6 +596,9 @@ namespace dolbuto
             while (gameSimulationActive && physicsAccumulator_ >= FixedPhysicsTimestep)
             {
                 previousPlayerPosition_ = playerPosition_;
+                previousBodyYaw_ = bodyYaw_;
+                previousPlayerWalkPhase_ = playerWalkPhase_;
+                previousPlayerWalkAmount_ = playerWalkAmount_;
                 updatePlayer(FixedPhysicsTimestep, screen_ == AppScreen::Game && !chatOpen_);
                 if (runtime_ != nullptr)
                 {
@@ -581,10 +625,19 @@ namespace dolbuto
                 }
                 physicsAccumulator_ = 0.0;
                 previousPlayerPosition_ = playerPosition_;
+                previousBodyYaw_ = bodyYaw_;
+                previousPlayerWalkPhase_ = playerWalkPhase_;
+                previousPlayerWalkAmount_ = playerWalkAmount_;
             }
 
             const double physicsAlpha = std::clamp(physicsAccumulator_ / FixedPhysicsTimestep, 0.0, 1.0);
             const DVec3 renderPlayerPosition = interpolatedPlayerPosition(physicsAlpha);
+            const float renderBodyYaw = lerpAngle(previousBodyYaw_, bodyYaw_, physicsAlpha);
+            const float renderWalkPhase = interpolateWalkPhase(previousPlayerWalkPhase_, playerWalkPhase_, physicsAlpha);
+            const float renderWalkAmount = std::clamp(
+                static_cast<float>(static_cast<double>(previousPlayerWalkAmount_) + (static_cast<double>(playerWalkAmount_) - static_cast<double>(previousPlayerWalkAmount_)) * physicsAlpha),
+                0.0f,
+                1.0f);
             const DVec3 eyePosition{renderPlayerPosition.x, renderPlayerPosition.y + EyeHeight, renderPlayerPosition.z};
             if (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory)
             {
@@ -624,6 +677,20 @@ namespace dolbuto
             const bool gameSceneRenderEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory || optionsOverGame;
             const bool renderDebugText = (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory) && debugTextVisible_;
             const bool frameHudVisible = hudVisible_ || chatOpen_;
+            float playerHeadYaw = 0.0f;
+            float playerHeadPitch = 0.0f;
+            updatePlayerLookPose(renderBodyYaw, playerHeadYaw, playerHeadPitch);
+            uint16_t heldItemId = 0;
+            if (runtime_ != nullptr)
+            {
+                const std::array<ItemStack, PlayerInventorySlotCount> inventorySlots = runtime_->gameplay().inventorySnapshot();
+                const ItemStack& heldStack = inventorySlots[static_cast<std::size_t>(std::clamp(hotbarSelectedSlot_, 0, 9))];
+                if (heldStack.count > 0)
+                {
+                    heldItemId = heldStack.itemId;
+                }
+            }
+            const bool showFirstPersonHand = gameSceneRenderEnabled && menuOverlayMode == 0 && viewMode_ == ViewMode::FirstPerson;
             runtime_->render().frame(game::ClientFrame{
                 renderCamera,
                 renderCameraPosition,
@@ -632,7 +699,13 @@ namespace dolbuto
                 screenshotRequested_,
                 showPlayer,
                 renderPlayerPosition,
-                camera_.yaw(),
+                renderBodyYaw,
+                playerHeadYaw,
+                playerHeadPitch,
+                renderWalkPhase,
+                renderWalkAmount,
+                showFirstPersonHand,
+                heldItemId,
                 terrainWireframe_,
                 climateOverlayMode_,
                 menuOverlayMode,
@@ -1083,7 +1156,37 @@ namespace dolbuto
         const std::string text = trim(runtime_->ui().chatInputValue());
         if (!text.empty())
         {
-            appendChatMessage(text);
+            if (text.front() == '/')
+            {
+                game::CommandResult commandResult = game::executeCommand(text, game::CommandContext{
+                    playerPosition_,
+                    worldSeed_,
+                    worldTicks_
+                });
+
+                if (commandResult.teleportPosition)
+                {
+                    playerPosition_ = *commandResult.teleportPosition;
+                    previousPlayerPosition_ = playerPosition_;
+                    verticalVelocity_ = 0.0;
+                    grounded_ = false;
+                    jumpHeld_ = false;
+                    jumpPressed_ = false;
+                    physicsAccumulator_ = 0.0;
+                }
+                if (commandResult.worldTicks)
+                {
+                    worldTicks_ = *commandResult.worldTicks;
+                }
+                for (const std::string& message : commandResult.messages)
+                {
+                    appendChatSystemMessage(message);
+                }
+            }
+            else
+            {
+                appendChatMessage(text);
+            }
         }
         closeChatInput();
     }
@@ -1095,8 +1198,22 @@ namespace dolbuto
             return;
         }
 
-        const char* prefix = text.front() == '/' ? "Command: " : "You: ";
-        chatMessages_.push_back(std::string(prefix) + std::string(text));
+        chatMessages_.push_back("You: " + std::string(text));
+        while (chatMessages_.size() > MaxChatMessages)
+        {
+            chatMessages_.erase(chatMessages_.begin());
+        }
+        updateChatUi();
+    }
+
+    void GameClient::appendChatSystemMessage(std::string_view text)
+    {
+        if (text.empty())
+        {
+            return;
+        }
+
+        chatMessages_.push_back("System: " + std::string(text));
         while (chatMessages_.size() > MaxChatMessages)
         {
             chatMessages_.erase(chatMessages_.begin());
@@ -1243,6 +1360,12 @@ namespace dolbuto
         playerPosition_ = {0.0, DefaultPlayerSpawnHeight, 0.0};
         previousPlayerPosition_ = playerPosition_;
         camera_.setAngles(0.0f, 0.0f);
+        bodyYaw_ = camera_.yaw();
+        previousBodyYaw_ = bodyYaw_;
+        playerWalkPhase_ = 0.0f;
+        previousPlayerWalkPhase_ = 0.0f;
+        playerWalkAmount_ = 0.0f;
+        previousPlayerWalkAmount_ = 0.0f;
         moveMode_ = MoveMode::Fly;
         verticalVelocity_ = 0.0;
         grounded_ = false;
@@ -1681,6 +1804,12 @@ namespace dolbuto
             playerPosition_ = {wrapWorldCoordinate(x), y, wrapWorldCoordinate(z)};
             previousPlayerPosition_ = playerPosition_;
             camera_.setAngles(yaw, pitch);
+            bodyYaw_ = camera_.yaw();
+            previousBodyYaw_ = bodyYaw_;
+            playerWalkPhase_ = 0.0f;
+            previousPlayerWalkPhase_ = 0.0f;
+            playerWalkAmount_ = 0.0f;
+            previousPlayerWalkAmount_ = 0.0f;
             moveMode_ = moveMode == 0u ? MoveMode::Fly : MoveMode::Ground;
             verticalVelocity_ = verticalVelocity;
             grounded_ = false;
@@ -1759,15 +1888,26 @@ namespace dolbuto
         };
     }
 
+    void GameClient::updatePlayerLookPose(float bodyYaw, float& headYaw, float& headPitch) const
+    {
+        const float cameraYaw = normalizeAngle(camera_.yaw());
+        const float relativeHeadYaw = std::clamp(normalizeAngle(cameraYaw - normalizeAngle(bodyYaw)), -MaxPlayerHeadYaw, MaxPlayerHeadYaw);
+
+        headYaw = relativeHeadYaw;
+        headPitch = std::clamp(camera_.pitch(), -MaxPlayerHeadPitch, MaxPlayerHeadPitch);
+    }
+
     void GameClient::updatePlayer(double fixedDeltaSeconds, bool allowInput)
     {
         constexpr double MaxCollisionStep = 0.25;
+        const DVec3 startPosition = playerPosition_;
 
         const float yaw = camera_.yaw();
         const Vec3 forward{std::cos(yaw), 0.0f, std::sin(yaw)};
         const Vec3 right{std::sin(yaw), 0.0f, -std::cos(yaw)};
 
         Vec3 movement{};
+        int strafeIntent = 0;
         if (allowInput && glfwGetKey(window_, GLFW_KEY_W) == GLFW_PRESS)
         {
             movement.x += forward.x;
@@ -1782,11 +1922,13 @@ namespace dolbuto
         {
             movement.x += right.x;
             movement.z += right.z;
+            ++strafeIntent;
         }
         if (allowInput && glfwGetKey(window_, GLFW_KEY_A) == GLFW_PRESS)
         {
             movement.x -= right.x;
             movement.z -= right.z;
+            --strafeIntent;
         }
 
         if (moveMode_ == MoveMode::Fly)
@@ -1907,6 +2049,28 @@ namespace dolbuto
         if (moveMode_ == MoveMode::Ground && !blockedVertically && !grounded_)
         {
             verticalVelocity_ -= gravity_ * fixedDeltaSeconds;
+        }
+
+        const double movedX = playerPosition_.x - startPosition.x;
+        const double movedZ = playerPosition_.z - startPosition.z;
+        const double horizontalDistance = std::sqrt(movedX * movedX + movedZ * movedZ);
+        const double yawBlend = 1.0 - std::exp(-BodyYawFollowResponse * fixedDeltaSeconds);
+        const float targetBodyYaw = camera_.yaw() - static_cast<float>(std::clamp(strafeIntent, -1, 1)) * StrafeBodyYawOffset;
+        bodyYaw_ = lerpAngle(bodyYaw_, targetBodyYaw, yawBlend);
+        const double referenceSpeed = moveMode_ == MoveMode::Fly ? flyMoveSpeed_ : groundMoveSpeed_;
+        const double targetWalkAmount = allowInput && referenceSpeed > 0.0
+            ? std::clamp(horizontalDistance / (referenceSpeed * fixedDeltaSeconds), 0.0, 1.0)
+            : 0.0;
+        const double response = targetWalkAmount > static_cast<double>(playerWalkAmount_) ? WalkAmountRiseResponse : WalkAmountFallResponse;
+        const double blend = 1.0 - std::exp(-response * fixedDeltaSeconds);
+        playerWalkAmount_ = static_cast<float>(std::clamp(
+            static_cast<double>(playerWalkAmount_) + (targetWalkAmount - static_cast<double>(playerWalkAmount_)) * blend,
+            0.0,
+            1.0));
+        if (playerWalkAmount_ > 0.001f)
+        {
+            const double phaseSpeed = WalkCycleRadiansPerSecond * (0.35 + 0.65 * static_cast<double>(playerWalkAmount_));
+            playerWalkPhase_ = static_cast<float>(std::fmod(static_cast<double>(playerWalkPhase_) + phaseSpeed * fixedDeltaSeconds, static_cast<double>(TwoPi)));
         }
     }
 

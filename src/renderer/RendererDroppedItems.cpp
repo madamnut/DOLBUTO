@@ -7,6 +7,7 @@
 #include "renderer/RendererUiRuntimeBridge.h"
 
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 #include <vector>
 
@@ -87,6 +88,59 @@ namespace dolbuto
             matrix.m[14] = -dot(terrainForward, position);
             return matrix;
         }
+    }
+
+    void Renderer::drawHeldItem(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, uint16_t heldItemId)
+    {
+        if (heldItemId == 0 ||
+            static_cast<std::size_t>(heldItemId) >= client_.content.itemDefinitions().size() ||
+            vulkan_.itemViewmodelPipeline == VK_NULL_HANDLE ||
+            !droppedItemRenderPath_.ready() ||
+            !droppedItemRenderPath_.meshReady(heldItemId) ||
+            rendererAssets_.itemTextureArray.descriptorSet == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
+        const ItemDefinition& definition = client_.content.itemDefinitions()[heldItemId];
+        if (definition.heldRender != ItemRenderType::ExtrudedSprite)
+        {
+            return;
+        }
+
+        (void)camera;
+        (void)cameraPosition;
+
+        DroppedItemRenderPath::RenderInstance heldItem{};
+        heldItem.itemId = heldItemId;
+        heldItem.instance.centerX = client_.viewmodelConfig.heldItem.x;
+        heldItem.instance.centerY = client_.viewmodelConfig.heldItem.y;
+        heldItem.instance.centerZ = client_.viewmodelConfig.heldItem.z;
+        heldItem.instance.rotationX = client_.viewmodelConfig.heldItem.rotationX;
+        heldItem.instance.rotationY = client_.viewmodelConfig.heldItem.rotationY;
+        heldItem.instance.rotationZ = client_.viewmodelConfig.heldItem.rotationZ;
+        heldItem.instance.textureLayer = static_cast<float>(definition.heldTextureLayer);
+        heldItem.instance.mipDistanceScale = client_.viewmodelConfig.heldItem.scale;
+
+        const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
+        const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
+
+        DroppedItemRenderPath::PushConstants push{};
+        std::memcpy(push.mvp, projection.m, sizeof(push.mvp));
+        push.cameraPosition[0] = 0.0f;
+        push.cameraPosition[1] = 0.0f;
+        push.cameraPosition[2] = 0.0f;
+        push.cameraPosition[3] = static_cast<float>(glfwGetTime());
+
+        std::vector<DroppedItemRenderPath::RenderInstance> renderInstances{heldItem};
+        droppedItemRenderPath_.draw(
+            commandBuffer,
+            vulkan_.swapchainExtent,
+            vulkan_.itemViewmodelPipeline,
+            vulkan_.particlePipelineLayout,
+            rendererAssets_.itemTextureArray,
+            push,
+            renderInstances);
     }
 
     void Renderer::drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition)

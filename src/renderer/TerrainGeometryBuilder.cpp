@@ -62,12 +62,12 @@ namespace dolbuto
     {
     }
 
-    TerrainBuildData TerrainGeometryBuilder::buildSubchunkMesh(
+    TerrainSubchunkBuildData TerrainGeometryBuilder::buildSubchunkMesh(
         const std::shared_ptr<ChunkData>& chunk,
         int subchunkY,
         const world::TerrainMesher::BlockSampler& blockAt) const
     {
-        TerrainBuildData result{};
+        TerrainSubchunkBuildData result{};
 
         if (subchunkY < 0 || subchunkY >= SubchunksPerChunk || chunk->emptySubchunks[static_cast<size_t>(subchunkY)])
         {
@@ -180,6 +180,16 @@ namespace dolbuto
             return static_cast<uint8_t>(worldRandom8(x, y, z, TopFaceRotationSalt) & 3u);
         };
 
+        auto blockAlphaBlend = [&](uint16_t block) -> float
+        {
+            return std::clamp(blockDefinition(block).alphaBlend, 0.0f, 1.0f);
+        };
+
+        auto meshForBlock = [&](uint16_t block) -> TerrainBuildData&
+        {
+            return blockDefinition(block).alphaMode == BlockAlphaMode::Blend ? result.blend : result.solid;
+        };
+
         auto randomBlockOffset = [&](uint16_t block, int x, int y, int z) -> std::array<float, 2>
         {
             if (!blockDefinition(block).randomOffset)
@@ -208,7 +218,7 @@ namespace dolbuto
             }
         };
 
-        auto appendFace = [&](TerrainBuildData& buildData, int x, int y, int z, int face, int width, int height, uint32_t textureLayer, uint8_t rotation, float mipDistanceScale)
+        auto appendFace = [&](TerrainBuildData& buildData, int x, int y, int z, int face, int width, int height, uint32_t textureLayer, uint8_t rotation, float mipDistanceScale, float alphaBlend)
         {
             const float x0 = static_cast<float>(x) - 0.5f;
             const float x1 = static_cast<float>(x + width) - 0.5f;
@@ -334,6 +344,7 @@ namespace dolbuto
             {
                 vertex.textureLayer = static_cast<float>(textureLayer);
                 vertex.mipDistanceScale = mipDistanceScale;
+                vertex.alphaBlend = alphaBlend;
             }
 
             const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
@@ -349,7 +360,7 @@ namespace dolbuto
             buildData.indices.push_back(baseIndex + 3);
         };
 
-        auto appendCrossBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block, uint32_t textureLayer, float mipDistanceScale)
+        auto appendCrossBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block, uint32_t textureLayer, float mipDistanceScale, float alphaBlend)
         {
             const std::array<float, 2> offset = randomBlockOffset(block, x, y, z);
             const float y0 = static_cast<float>(y);
@@ -373,6 +384,10 @@ namespace dolbuto
                 b.mipDistanceScale = mipDistanceScale;
                 c.mipDistanceScale = mipDistanceScale;
                 d.mipDistanceScale = mipDistanceScale;
+                a.alphaBlend = alphaBlend;
+                b.alphaBlend = alphaBlend;
+                c.alphaBlend = alphaBlend;
+                d.alphaBlend = alphaBlend;
 
                 const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
                 buildData.vertices.push_back(a);
@@ -416,6 +431,7 @@ namespace dolbuto
             const assets::PropMesh& mesh = meshIt->second;
             const uint32_t textureLayer = blockFaceTextureLayer(block, 0);
             const float mipDistanceScale = blockDefinition(block).mipDistanceScale;
+            const float alphaBlend = blockAlphaBlend(block);
             const std::array<float, 2> offset = randomBlockOffset(block, x, y, z);
             const float originX = static_cast<float>(x) - 0.5f + offset[0];
             const float originY = static_cast<float>(y);
@@ -437,6 +453,7 @@ namespace dolbuto
                     vertex.ao = 1.0f;
                     vertex.textureLayer = static_cast<float>(textureLayer);
                     vertex.mipDistanceScale = mipDistanceScale;
+                    vertex.alphaBlend = alphaBlend;
                 }
                 for (TerrainVertex& vertex : quad)
                 {
@@ -470,12 +487,18 @@ namespace dolbuto
                 static_cast<int>(std::lround(blockDefinition(block).mipDistanceScale * 16.0f)),
                 0,
                 127));
+            const uint32_t alphaSignature = static_cast<uint32_t>(std::clamp(
+                static_cast<int>(std::lround(blockAlphaBlend(block) * 63.0f)),
+                0,
+                63));
             uint64_t signature = static_cast<uint64_t>(faceAoSignature(x, y, z, face)) |
                 (static_cast<uint64_t>(mipSignature) << 25u) |
-                (static_cast<uint64_t>(blockFaceTextureLayer(block, face)) << 32u);
+                ((static_cast<uint64_t>(blockFaceTextureLayer(block, face)) & 0xFFu) << 32u) |
+                (static_cast<uint64_t>(alphaSignature) << 40u) |
+                (static_cast<uint64_t>(blockDefinition(block).alphaMode == BlockAlphaMode::Blend ? 1u : 0u) << 46u);
             if (face == 0)
             {
-                signature |= static_cast<uint64_t>(topFaceRotation(block, x, y, z)) << 56u;
+                signature |= static_cast<uint64_t>(topFaceRotation(block, x, y, z)) << 47u;
             }
             return signature;
         };
@@ -531,8 +554,10 @@ namespace dolbuto
             }
         };
 
-        result.vertices.reserve(256);
-        result.indices.reserve(384);
+        result.solid.vertices.reserve(256);
+        result.solid.indices.reserve(384);
+        result.blend.vertices.reserve(64);
+        result.blend.indices.reserve(96);
 
         std::vector<uint64_t> mask(SubchunkSize * SubchunkSize);
         const int worldXStart = chunk->chunkX * ChunkSizeX;
@@ -556,7 +581,7 @@ namespace dolbuto
             emitGreedy(mask, ChunkSizeX, ChunkSizeZ, [&](int localX, int localZ, int width, int height)
             {
                 const uint16_t block = blockAt(localX, y, localZ);
-                appendFace(result, worldXStart + localX, y, worldZStart + localZ, 0, width, height, blockFaceTextureLayer(block, 0), topFaceRotation(block, worldXStart + localX, y, worldZStart + localZ), blockDefinition(block).mipDistanceScale);
+                appendFace(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, 0, width, height, blockFaceTextureLayer(block, 0), topFaceRotation(block, worldXStart + localX, y, worldZStart + localZ), blockDefinition(block).mipDistanceScale, blockAlphaBlend(block));
             });
 
             std::fill(mask.begin(), mask.end(), 0);
@@ -573,7 +598,7 @@ namespace dolbuto
             emitGreedy(mask, ChunkSizeX, ChunkSizeZ, [&](int localX, int localZ, int width, int height)
             {
                 const uint16_t block = blockAt(localX, y, localZ);
-                appendFace(result, worldXStart + localX, y, worldZStart + localZ, 1, width, height, blockFaceTextureLayer(block, 1), 0, blockDefinition(block).mipDistanceScale);
+                appendFace(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, 1, width, height, blockFaceTextureLayer(block, 1), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block));
             });
         }
 
@@ -595,7 +620,7 @@ namespace dolbuto
             emitGreedy(mask, ChunkSizeZ, SubchunkSize, [&](int localZ, int localY, int width, int height)
             {
                 const uint16_t block = blockAt(localX, worldYStart + localY, localZ);
-                appendFace(result, worldX, worldYStart + localY, worldZStart + localZ, 2, width, height, blockFaceTextureLayer(block, 2), 0, blockDefinition(block).mipDistanceScale);
+                appendFace(meshForBlock(block), worldX, worldYStart + localY, worldZStart + localZ, 2, width, height, blockFaceTextureLayer(block, 2), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block));
             });
 
             std::fill(mask.begin(), mask.end(), 0);
@@ -613,7 +638,7 @@ namespace dolbuto
             emitGreedy(mask, ChunkSizeZ, SubchunkSize, [&](int localZ, int localY, int width, int height)
             {
                 const uint16_t block = blockAt(localX, worldYStart + localY, localZ);
-                appendFace(result, worldX, worldYStart + localY, worldZStart + localZ, 3, width, height, blockFaceTextureLayer(block, 3), 0, blockDefinition(block).mipDistanceScale);
+                appendFace(meshForBlock(block), worldX, worldYStart + localY, worldZStart + localZ, 3, width, height, blockFaceTextureLayer(block, 3), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block));
             });
         }
 
@@ -635,7 +660,7 @@ namespace dolbuto
             emitGreedy(mask, ChunkSizeX, SubchunkSize, [&](int localX, int localY, int width, int height)
             {
                 const uint16_t block = blockAt(localX, worldYStart + localY, localZ);
-                appendFace(result, worldXStart + localX, worldYStart + localY, worldZ, 4, width, height, blockFaceTextureLayer(block, 4), 0, blockDefinition(block).mipDistanceScale);
+                appendFace(meshForBlock(block), worldXStart + localX, worldYStart + localY, worldZ, 4, width, height, blockFaceTextureLayer(block, 4), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block));
             });
 
             std::fill(mask.begin(), mask.end(), 0);
@@ -653,7 +678,7 @@ namespace dolbuto
             emitGreedy(mask, ChunkSizeX, SubchunkSize, [&](int localX, int localY, int width, int height)
             {
                 const uint16_t block = blockAt(localX, worldYStart + localY, localZ);
-                appendFace(result, worldXStart + localX, worldYStart + localY, worldZ, 5, width, height, blockFaceTextureLayer(block, 5), 0, blockDefinition(block).mipDistanceScale);
+                appendFace(meshForBlock(block), worldXStart + localX, worldYStart + localY, worldZ, 5, width, height, blockFaceTextureLayer(block, 5), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block));
             });
         }
 
@@ -667,11 +692,11 @@ namespace dolbuto
                     const uint16_t block = blockAt(localX, y, localZ);
                     if (blockDefinition(block).renderType == BlockRenderType::Cross)
                     {
-                        appendCrossBlock(result, worldXStart + localX, y, worldZStart + localZ, block, blockFaceTextureLayer(block, 0), blockDefinition(block).mipDistanceScale);
+                        appendCrossBlock(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, block, blockFaceTextureLayer(block, 0), blockDefinition(block).mipDistanceScale, blockAlphaBlend(block));
                     }
                     else if (blockDefinition(block).renderType == BlockRenderType::Prop)
                     {
-                        appendPropBlock(result, worldXStart + localX, y, worldZStart + localZ, block);
+                        appendPropBlock(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, block);
                     }
                 }
             }

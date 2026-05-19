@@ -506,6 +506,12 @@ namespace dolbuto
         colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         colorBlend.alphaBlendOp = VK_BLEND_OP_ADD;
         depthStencil.depthWriteEnable = VK_FALSE;
+
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.terrainBlendPipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create terrain blend pipeline.");
+        }
+
         stages[1].module = fluidFragShader;
         if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.fluidPipeline) != VK_SUCCESS)
         {
@@ -531,6 +537,14 @@ namespace dolbuto
             throw std::runtime_error("Failed to create player pipeline.");
         }
 
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.playerViewmodelPipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create player viewmodel pipeline.");
+        }
+
         vkDestroyShaderModule(vulkan_.device, fragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, fluidFragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, playerVertShader, nullptr);
@@ -544,6 +558,7 @@ namespace dolbuto
         const std::filesystem::path shaderDir = shaderDirectory();
         VkShaderModule vertShader = createShaderModule((shaderDir / "player.vert.spv").string());
         VkShaderModule itemVertShader = createShaderModule((shaderDir / "item.vert.spv").string());
+        VkShaderModule itemViewmodelVertShader = createShaderModule((shaderDir / "item_viewmodel.vert.spv").string());
         VkShaderModule fragShader = createShaderModule((shaderDir / "terrain.frag.spv").string());
 
         VkPipelineShaderStageCreateInfo vertStage{};
@@ -722,7 +737,17 @@ namespace dolbuto
             throw std::runtime_error("Failed to create item pipeline.");
         }
 
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        stages[0].module = itemViewmodelVertShader;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.itemViewmodelPipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create item viewmodel pipeline.");
+        }
+
         vkDestroyShaderModule(vulkan_.device, fragShader, nullptr);
+        vkDestroyShaderModule(vulkan_.device, itemViewmodelVertShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, itemVertShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, vertShader, nullptr);
     }

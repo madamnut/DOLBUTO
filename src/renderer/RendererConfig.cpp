@@ -189,6 +189,12 @@ namespace dolbuto
         client_.renderConfig.fluidWaterAlpha = renderConfig.fluidWaterAlpha;
     }
 
+    void RendererConfigBridge::loadViewmodelConfig(const std::filesystem::path& configDirectory)
+    {
+        const config::ViewmodelConfig defaults{};
+        client_.viewmodelConfig = config::loadViewmodelConfig(configDirectory / "viewmodel.json", defaults);
+    }
+
     namespace
     {
         bool loadSplineLut(

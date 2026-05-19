@@ -4,11 +4,11 @@
 #include "game/ClientRenderRuntime.h"
 #include "game/ClientRuntimeState.h"
 #include "gameplay/BlockInteractionSystem.h"
+#include "world/Biome.h"
 #include "world/ClimateSystem.h"
 #include "world/TerrainBuilder.h"
 #include "world/WorldRuntime.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <iomanip>
 #include <sstream>
@@ -67,40 +67,6 @@ namespace dolbuto::game
             float temperature = 0.0f;
             float precipitation = 0.0f;
         };
-
-        int band3(float value)
-        {
-            const float clamped = std::clamp(value, 0.0f, 1.0f);
-            if (clamped < (1.0f / 3.0f))
-            {
-                return 0;
-            }
-            if (clamped < (2.0f / 3.0f))
-            {
-                return 1;
-            }
-            return 2;
-        }
-
-        const char* landBiomeName(int temperatureBand, int precipitationBand)
-        {
-            static constexpr const char* table[3][3] = {
-                { "SnowPlain", "Taiga", "SnowForest" },
-                { "Plains", "Forest", "Swamp" },
-                { "Desert", "Savanna", "Jungle" },
-            };
-            return table[std::clamp(temperatureBand, 0, 2)][std::clamp(precipitationBand, 0, 2)];
-        }
-
-        const char* oceanBiomeName(int temperatureBand, int precipitationBand)
-        {
-            static constexpr const char* table[3][3] = {
-                { "FrozenOcean", "ColdOcean", "ColdOcean" },
-                { "TemperateOcean", "Ocean", "WarmOcean" },
-                { "WarmOcean", "TropicalOcean", "TropicalOcean" },
-            };
-            return table[std::clamp(temperatureBand, 0, 2)][std::clamp(precipitationBand, 0, 2)];
-        }
 
         bool terrainCellBlocksPlayer(const ClientRuntimeState& state, int x, int y, int z)
         {
@@ -446,18 +412,16 @@ namespace dolbuto::game
         const world::TerrainBuilder terrainBuilder(terrainBuilderConfig(*owner_.state_));
         const world::TerrainDebugSample terrainSample = terrainBuilder.sampleTerrainAtWorld(blockX, blockZ);
 
-        const int temperatureBand = band3(climate.temperature);
-        const int precipitationBand = band3(climate.precipitation);
-        const int groundnessBand = terrainSample.groundness < 0.0f ? 0 : 1;
-        const char* biomeName = groundnessBand == 0 ?
-            oceanBiomeName(temperatureBand, precipitationBand) :
-            landBiomeName(temperatureBand, precipitationBand);
+        const world::BiomeSample biome = world::classifyBiome(
+            climate.temperature,
+            climate.precipitation,
+            terrainSample.groundness);
 
         std::ostringstream text;
-        text << "BIOME: T[" << temperatureBand <<
-            "] P[" << precipitationBand <<
-            "] GND[" << groundnessBand <<
-            "] - " << biomeName;
+        text << "BIOME: T[" << biome.temperatureBand <<
+            "] P[" << biome.precipitationBand <<
+            "] GND[" << biome.groundnessBand <<
+            "] - " << world::biomeName(biome.id);
         return text.str();
     }
 

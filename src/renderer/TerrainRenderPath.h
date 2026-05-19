@@ -25,6 +25,7 @@ namespace dolbuto
             int chunkX = 0;
             int chunkZ = 0;
             std::array<TerrainMesh, SubchunkCount> solidSubchunks;
+            std::array<TerrainMesh, SubchunkCount> blendSubchunks;
             std::array<TerrainMesh, SubchunkCount> fluidSubchunks;
         };
 
@@ -75,7 +76,7 @@ namespace dolbuto
         bool retireAndErase(uint64_t key, uint32_t framesLeft);
         uint32_t retireChunksNotIn(const std::unordered_set<uint64_t>& desiredKeys, uint32_t framesLeft);
         void installCompletedMesh(uint64_t key, const CompletedChunkMesh& mesh, uint32_t framesLeft);
-        void replaceEditedSolidSubchunk(uint64_t key, int chunkX, int chunkZ, uint64_t revision, int subchunkY, const TerrainBuildData& buildData, uint32_t framesLeft);
+        void replaceEditedSubchunk(uint64_t key, int chunkX, int chunkZ, uint64_t revision, int subchunkY, const TerrainSubchunkBuildData& buildData, uint32_t framesLeft);
         uint32_t processRetired(uint32_t maxDestroy);
         void destroyAll();
         Stats rebuildStats();
@@ -84,6 +85,7 @@ namespace dolbuto
         void createTerrainBuffer(const TerrainBuildData& buildData, TerrainMesh& mesh, bool deviceLocal = true);
         void destroyTerrainMesh(TerrainMesh& mesh);
         Stats drawSolid(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const View& view) const;
+        Stats drawBlend(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const View& view) const;
         Stats drawFluids(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const View& view) const;
 
     private:

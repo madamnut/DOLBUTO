@@ -169,6 +169,7 @@ namespace dolbuto::game
             blockDefinition.sameBlockFaceCulling = definition.sameBlockFaceCulling;
             blockDefinition.alphaMode = parseAlphaMode(definition.alphaMode);
             blockDefinition.alphaCutoff = definition.alphaCutoff;
+            blockDefinition.alphaBlend = definition.alphaBlend;
             blockDefinition.mipDistanceScale = definition.mipDistanceScale;
             blockDefinition.hardness = definition.hardness;
             blockDefinition.randomOffset = definition.randomOffset;

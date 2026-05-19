@@ -16,7 +16,7 @@ namespace dolbuto
     public:
         RendererTerrainMeshBridge(const game::ClientContent& content, const RendererAssetStore& assets);
 
-        TerrainBuildData buildEditedSubchunkMesh(
+        TerrainSubchunkBuildData buildEditedSubchunkMesh(
             const std::shared_ptr<ChunkData>& chunk,
             int subchunkY,
             const world::TerrainMesher::WorldBlockSampler& blockAtWorld) const;

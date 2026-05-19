@@ -97,6 +97,13 @@ namespace dolbuto
                 return true;
             }
         }
+        for (const TerrainMesh& mesh : renderIt->second.blendSubchunks)
+        {
+            if (mesh.indexCount > 0)
+            {
+                return true;
+            }
+        }
         for (const TerrainMesh& mesh : renderIt->second.fluidSubchunks)
         {
             if (mesh.indexCount > 0)
@@ -152,16 +159,17 @@ namespace dolbuto
         renderData.chunkX = mesh.chunkX;
         renderData.chunkZ = mesh.chunkZ;
         createChunkTerrainBuffers(mesh.solidSubchunks, renderData.solidSubchunks);
+        createChunkTerrainBuffers(mesh.blendSubchunks, renderData.blendSubchunks);
         createChunkTerrainBuffers(mesh.fluidSubchunks, renderData.fluidSubchunks);
     }
 
-    void TerrainRenderPath::replaceEditedSolidSubchunk(
+    void TerrainRenderPath::replaceEditedSubchunk(
         uint64_t key,
         int chunkX,
         int chunkZ,
         uint64_t revision,
         int subchunkY,
-        const TerrainBuildData& buildData,
+        const TerrainSubchunkBuildData& buildData,
         uint32_t framesLeft)
     {
         if (subchunkY < 0 || subchunkY >= static_cast<int>(SubchunkCount))
@@ -174,15 +182,20 @@ namespace dolbuto
         renderData.chunkX = chunkX;
         renderData.chunkZ = chunkZ;
 
-        TerrainMesh& targetMesh = renderData.solidSubchunks[static_cast<std::size_t>(subchunkY)];
-        if (targetMesh.vertexBuffer != VK_NULL_HANDLE || targetMesh.indexBuffer != VK_NULL_HANDLE)
+        TerrainMesh& targetSolidMesh = renderData.solidSubchunks[static_cast<std::size_t>(subchunkY)];
+        TerrainMesh& targetBlendMesh = renderData.blendSubchunks[static_cast<std::size_t>(subchunkY)];
+        if (targetSolidMesh.vertexBuffer != VK_NULL_HANDLE || targetSolidMesh.indexBuffer != VK_NULL_HANDLE ||
+            targetBlendMesh.vertexBuffer != VK_NULL_HANDLE || targetBlendMesh.indexBuffer != VK_NULL_HANDLE)
         {
             ChunkRenderData retired{};
-            retired.solidSubchunks[static_cast<std::size_t>(subchunkY)] = std::move(targetMesh);
-            targetMesh = {};
+            retired.solidSubchunks[static_cast<std::size_t>(subchunkY)] = std::move(targetSolidMesh);
+            retired.blendSubchunks[static_cast<std::size_t>(subchunkY)] = std::move(targetBlendMesh);
+            targetSolidMesh = {};
+            targetBlendMesh = {};
             retireChunk(std::move(retired), framesLeft);
         }
-        createTerrainBuffer(buildData, targetMesh);
+        createTerrainBuffer(buildData.solid, targetSolidMesh);
+        createTerrainBuffer(buildData.blend, targetBlendMesh);
         renderData.revision = revision;
     }
 
@@ -230,6 +243,17 @@ namespace dolbuto
         for (const auto& entry : chunks_)
         {
             for (const TerrainMesh& mesh : entry.second.solidSubchunks)
+            {
+                if (mesh.indexCount == 0)
+                {
+                    continue;
+                }
+
+                ++stats_.drawCount;
+                stats_.vertexCount += mesh.vertexCount;
+                stats_.faceCount += mesh.indexCount / 6;
+            }
+            for (const TerrainMesh& mesh : entry.second.blendSubchunks)
             {
                 if (mesh.indexCount == 0)
                 {
@@ -357,6 +381,33 @@ namespace dolbuto
         return visibleStats;
     }
 
+    TerrainRenderPath::Stats TerrainRenderPath::drawBlend(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const View& view) const
+    {
+        Stats visibleStats{};
+        for (const auto& entry : chunks_)
+        {
+            const ChunkRenderData& chunk = entry.second;
+            for (std::size_t subchunkY = 0; subchunkY < chunk.blendSubchunks.size(); ++subchunkY)
+            {
+                const TerrainMesh& mesh = chunk.blendSubchunks[subchunkY];
+                if (mesh.indexCount == 0)
+                {
+                    continue;
+                }
+                if (!subchunkVisible(chunk, subchunkY, static_cast<float>(SubchunkSize), view))
+                {
+                    continue;
+                }
+
+                drawTerrainMeshBound(commandBuffer, terrainPipelineLayout, mesh);
+                ++visibleStats.drawCount;
+                visibleStats.faceCount += mesh.indexCount / 6;
+                visibleStats.vertexCount += mesh.vertexCount;
+            }
+        }
+        return visibleStats;
+    }
+
     TerrainRenderPath::Stats TerrainRenderPath::drawFluids(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const View& view) const
     {
         Stats visibleStats{};
@@ -441,12 +492,14 @@ namespace dolbuto
         packed.uvV = packI16Pair(quantizeSigned(d.u - a.u, TerrainUvPackScale), quantizeSigned(d.v - a.v, TerrainUvPackScale));
         const uint32_t textureLayer = quantizeUnsigned(a.textureLayer, 1.0f, 0xFF);
         const uint32_t mipDistanceScale = quantizeUnsigned(a.mipDistanceScale, 16.0f, 0x3FF);
+        const uint32_t alphaBlend = quantizeUnsigned(a.alphaBlend, 63.0f, 0x3F);
         packed.material = textureLayer |
             (mipDistanceScale << 8u) |
             (aoIndex(a.ao) << 18u) |
             (aoIndex(b.ao) << 20u) |
             (aoIndex(c.ao) << 22u) |
-            (aoIndex(d.ao) << 24u);
+            (aoIndex(d.ao) << 24u) |
+            (alphaBlend << 26u);
         return packed;
     }
 
@@ -776,6 +829,10 @@ namespace dolbuto
     void TerrainRenderPath::destroyChunkRenderData(ChunkRenderData& chunk)
     {
         for (TerrainMesh& mesh : chunk.solidSubchunks)
+        {
+            destroyTerrainMesh(mesh);
+        }
+        for (TerrainMesh& mesh : chunk.blendSubchunks)
         {
             destroyTerrainMesh(mesh);
         }
