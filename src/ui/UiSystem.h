@@ -60,6 +60,9 @@ namespace dolbuto::ui
         void clearChatInput();
         void focusChatInput();
         void setOptionsVolumes(int bgmPercent, int sfxPercent);
+        void setOptionsFov(int fovDegrees);
+        void setOptionsViewBobbing(bool enabled);
+        void setOptionsControls(bool toggleSprint, bool toggleSneak);
         void setOptionsLobbyBackground(bool lobbyBackground);
         void setHotbarScopeClass(int selectedSlot);
         void setInventoryDebugSlots(std::string_view hotbarRml, std::string_view inventoryRml, bool visible);

@@ -11,6 +11,7 @@ namespace dolbuto
     {
         const Camera& camera;
         DVec3 cameraPosition;
+        float fovRadians = 1.0471975512f;
         std::string_view fpsText;
         bool debugTextVisible = false;
         bool screenshotRequested = false;

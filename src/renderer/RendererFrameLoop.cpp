@@ -209,6 +209,7 @@ namespace dolbuto
             imageIndex,
             frame.camera,
             cameraPositionFloat,
+            frame.fovRadians,
             playerPositionFloat,
             frame.fpsText,
             frame.debugTextVisible,
@@ -328,7 +329,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, Vec3 playerPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -381,6 +382,7 @@ namespace dolbuto
             screenPresentation_.drawSkySprites(
                 commandBuffer,
                 camera,
+                fovRadians,
                 vulkan_.swapchainExtent,
                 worldTicks,
                 rendererAssets_,
@@ -388,17 +390,17 @@ namespace dolbuto
                 vulkan_.pipelineLayout,
                 textRenderPath_.vertexBuffer());
 
-            drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe, true, false, imageIndex);
-            drawTerrain(commandBuffer, camera, cameraPosition, terrainWireframe, false, true, imageIndex);
+            drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, terrainWireframe, true, false, imageIndex);
+            drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, terrainWireframe, false, true, imageIndex);
             if (showPlayer && menuOverlayMode == 0)
             {
-                drawPlayer(commandBuffer, camera, cameraPosition);
+                drawPlayer(commandBuffer, camera, cameraPosition, fovRadians);
             }
-            drawBlockBreakParticles(commandBuffer, camera, cameraPosition);
-            drawDroppedItems(commandBuffer, camera, cameraPosition, playerPosition);
+            drawBlockBreakParticles(commandBuffer, camera, cameraPosition, fovRadians);
+            drawDroppedItems(commandBuffer, camera, cameraPosition, fovRadians, playerPosition);
             if (menuOverlayMode == 0)
             {
-                drawBlockSelection(commandBuffer, camera, cameraPosition);
+                drawBlockSelection(commandBuffer, camera, cameraPosition, fovRadians);
             }
             if (showFirstPersonHand && menuOverlayMode == 0)
             {

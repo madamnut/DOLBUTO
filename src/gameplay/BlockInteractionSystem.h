@@ -53,6 +53,11 @@ namespace dolbuto::gameplay
 
         static bool playerColliderIntersectsTerrain(
             DVec3 playerPosition,
+            double heightScale,
+            const TerrainCollisionPredicate& terrainCellBlocksPlayer);
+
+        static bool playerColliderHasSupportBelow(
+            DVec3 playerPosition,
             const TerrainCollisionPredicate& terrainCellBlocksPlayer);
 
         static bool blockIntersectsPlayerCollider(
@@ -60,7 +65,8 @@ namespace dolbuto::gameplay
             int y,
             int z,
             const BlockDefinition& definition,
-            DVec3 playerPosition);
+            DVec3 playerPosition,
+            double heightScale);
 
         static bool raycastBlock(
             DVec3 origin,

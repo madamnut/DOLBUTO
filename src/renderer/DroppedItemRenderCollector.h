@@ -25,6 +25,7 @@ namespace dolbuto
             const std::vector<ItemDefinition>& itemDefinitions;
             const std::vector<DroppedItemRenderPath::ItemSpriteMesh>& itemSpriteMeshes;
             float aspect = 1.0f;
+            float fovRadians = 1.0471975512f;
             float renderAlpha = 0.0f;
             std::function<const RuntimeChunk*(uint64_t)> findChunk;
             std::function<bool(uint16_t)> meshReady;

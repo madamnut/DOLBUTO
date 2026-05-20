@@ -36,9 +36,17 @@ namespace dolbuto::gameplay
 
     bool ClientGameplayRuntime::playerColliderIntersectsTerrain(
         DVec3 playerPosition,
+        double heightScale,
         const TerrainCollisionPredicate& terrainCellBlocksPlayer) const
     {
-        return BlockInteractionSystem::playerColliderIntersectsTerrain(playerPosition, terrainCellBlocksPlayer);
+        return BlockInteractionSystem::playerColliderIntersectsTerrain(playerPosition, heightScale, terrainCellBlocksPlayer);
+    }
+
+    bool ClientGameplayRuntime::playerColliderHasSupportBelow(
+        DVec3 playerPosition,
+        const TerrainCollisionPredicate& terrainCellBlocksPlayer) const
+    {
+        return BlockInteractionSystem::playerColliderHasSupportBelow(playerPosition, terrainCellBlocksPlayer);
     }
 
     BlockEditResult ClientGameplayRuntime::editBlockInView(
@@ -47,6 +55,7 @@ namespace dolbuto::gameplay
         bool placeBlock,
         uint16_t placeBlockId,
         DVec3 playerPosition,
+        double playerHeightScale,
         const BlockSampler& blockAtWorld,
         const BlockDefinitionProvider& blockDefinition,
         const SetBlockFn& setBlockAtWorld,
@@ -68,7 +77,8 @@ namespace dolbuto::gameplay
                 hit.previousBlockY,
                 hit.previousBlockZ,
                 blockDefinition(placeBlockId),
-                playerPosition))
+                playerPosition,
+                playerHeightScale))
         {
             return {};
         }

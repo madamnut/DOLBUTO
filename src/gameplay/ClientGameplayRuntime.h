@@ -46,13 +46,15 @@ namespace dolbuto::gameplay
 
         void setContext(world::WorldRuntime* worldRuntime, const std::vector<ItemDefinition>* itemDefinitions);
 
-        bool playerColliderIntersectsTerrain(DVec3 playerPosition, const TerrainCollisionPredicate& terrainCellBlocksPlayer) const;
+        bool playerColliderIntersectsTerrain(DVec3 playerPosition, double heightScale, const TerrainCollisionPredicate& terrainCellBlocksPlayer) const;
+        bool playerColliderHasSupportBelow(DVec3 playerPosition, const TerrainCollisionPredicate& terrainCellBlocksPlayer) const;
         BlockEditResult editBlockInView(
             DVec3 origin,
             Vec3 direction,
             bool placeBlock,
             uint16_t placeBlockId,
             DVec3 playerPosition,
+            double playerHeightScale,
             const BlockSampler& blockAtWorld,
             const BlockDefinitionProvider& blockDefinition,
             const SetBlockFn& setBlockAtWorld,

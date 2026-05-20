@@ -38,6 +38,8 @@ main.cpp
 `GameClient`는 개별 gameplay 규칙을 직접 소유하지 않는 방향으로 유지한다.
 규칙이 커지면 `world`, `gameplay`, `client runtime` 계층으로 옮긴다.
 game scene 전환의 세부 순서도 `Renderer`가 아니라 `ClientSceneLifecycle` 같은 client runtime 계층에서 조율한다.
+플레이어 이동 규칙은 `PlayerMovementSystem`이 담당하고, `GameClient`는 GLFW 입력 상태를 읽어 movement DTO로 넘긴 뒤 결과 상태만 반영한다.
+여기에는 fly/ground 이동, 점프/낙하, 달리기/웅크리기 속도, 웅크리기 edge guard, 보행 모션 phase/amount, sprint FOV 보간이 포함된다.
 
 ## Client Runtime
 
@@ -111,6 +113,7 @@ scene/gameplay/UI 조작 API는 `ClientRenderRuntime`에서만 접근하는 전�
 - `ClientTerrainCoordinator`: terrain request/job queue coordinator
 - `ClientTerrainCompletionHandler`: terrain completion flow handler
 - `ClientWorldRuntime`: client world runtime coordinator
+- `PlayerMovementSystem`: player movement tick, movement collision stepping, locomotion animation values
 - `WorldRuntime`: world state owner
 - `SaveSystem`, `ChunkLoadSystem`, `TerrainJobSystem`: worker/system owner
 

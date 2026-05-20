@@ -213,9 +213,20 @@ namespace dolbuto::game
     {
     }
 
-    bool ClientRuntime::GameplayAccess::playerColliderIntersectsTerrain(DVec3 playerPosition) const
+    bool ClientRuntime::GameplayAccess::playerColliderIntersectsTerrain(DVec3 playerPosition, double heightScale) const
     {
         return owner_.state_->gameplayRuntime.playerColliderIntersectsTerrain(
+            playerPosition,
+            heightScale,
+            [this](int x, int y, int z)
+            {
+                return terrainCellBlocksPlayer(*owner_.state_, x, y, z);
+            });
+    }
+
+    bool ClientRuntime::GameplayAccess::playerColliderHasSupportBelow(DVec3 playerPosition) const
+    {
+        return owner_.state_->gameplayRuntime.playerColliderHasSupportBelow(
             playerPosition,
             [this](int x, int y, int z)
             {
@@ -254,9 +265,9 @@ namespace dolbuto::game
         owner_.renderRuntime_->updateBlockBreaking(origin, direction, breaking, playerPosition, deltaSeconds);
     }
 
-    bool ClientRuntime::GameplayAccess::editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition)
+    bool ClientRuntime::GameplayAccess::editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition, double playerHeightScale)
     {
-        return owner_.renderRuntime_->editBlockInView(origin, direction, placeRock, playerPosition);
+        return owner_.renderRuntime_->editBlockInView(origin, direction, placeRock, playerPosition, playerHeightScale);
     }
 
     bool ClientRuntime::GameplayAccess::pickupDroppedItemInView(DVec3 origin, Vec3 direction)
@@ -327,6 +338,21 @@ namespace dolbuto::game
     void ClientRuntime::UiAccess::setOptionsVolumes(int bgmPercent, int sfxPercent)
     {
         owner_.state_->ui.setOptionsVolumes(bgmPercent, sfxPercent);
+    }
+
+    void ClientRuntime::UiAccess::setOptionsFov(int fovDegrees)
+    {
+        owner_.state_->ui.setOptionsFov(fovDegrees);
+    }
+
+    void ClientRuntime::UiAccess::setOptionsViewBobbing(bool enabled)
+    {
+        owner_.state_->ui.setOptionsViewBobbing(enabled);
+    }
+
+    void ClientRuntime::UiAccess::setOptionsControls(bool toggleSprint, bool toggleSneak)
+    {
+        owner_.state_->ui.setOptionsControls(toggleSprint, toggleSneak);
     }
 
     void ClientRuntime::UiAccess::setOptionsLobbyBackground(bool lobbyBackground)

@@ -76,6 +76,12 @@
 `src/renderer/RendererDiagnosticsBridge.h/.cpp`는 selected block/climate/debug/performance/VRAM text를 담당하는 `RendererDiagnosticsBridge` 객체를 담는다.
 `src/renderer/RendererClimateOverlay.cpp`는 climate overlay texture 생성을 담는다.
 `src/game/ClientFrame.h`는 `GameClient`가 한 프레임 렌더링에 넘기는 카메라, 플레이어, overlay, debug, screenshot, world tick 입력을 `ClientFrame` DTO로 묶는다.
+`ClientFrame`/`RendererFrame`은 현재 FOV를 `fovRadians`로 함께 전달한다.
+terrain/player/particle/selection/dropped item projection과 terrain/dropped item frustum culling, sky sprite projection은 이 값을 같은 프레임 기준으로 사용한다.
+1인칭 손과 든 아이템 viewmodel은 화면상 크기와 배치가 FOV 설정에 따라 흔들리지 않도록 별도 고정 FOV `60도`를 사용한다.
+FOV 설정은 `config/settings.json`의 `video.fovDegrees`에 저장되며 Options 화면에서 `30도 ~ 110도` 사이로 조정한다.
+달리기 중에는 월드 FOV 목표값을 현재 Options FOV의 `1.15`배로 두고, 별도 최대값 clamp 없이 보간해 적용한다.
+이 동적 FOV는 viewmodel에는 적용하지 않는다.
 `src/game/ClientRuntime.h/.cpp`는 `GameClient`가 호출하는 클라이언트 런타임 진입점이고, `render()`, `scene()`, `gameplay()`, `ui()`, `diagnostics()` access로 역할별 호출 표면을 제공한다.
 Renderer/GPU가 필요 없는 collision query, block selection state, inventory snapshot, UI action/input query, selected block/climate text는 `ClientRuntimeState`에서 직접 처리하고, 렌더러 의존 작업은 `ClientRenderRuntime`에 위임한다.
 `src/game/ClientRenderRuntime.h/.cpp`는 `Renderer`를 소유하고 scene/gameplay/UI/render 호출을 현재 renderer bridge 객체로 연결하는 전환기 adapter다.

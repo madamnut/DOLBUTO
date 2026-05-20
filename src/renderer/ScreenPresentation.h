@@ -17,6 +17,7 @@ namespace dolbuto
         void drawSkySprites(
             VkCommandBuffer commandBuffer,
             const Camera& camera,
+            float fovRadians,
             VkExtent2D extent,
             uint64_t worldTicks,
             const RendererAssetStore& assets,
@@ -62,7 +63,7 @@ namespace dolbuto
 
     private:
         static SpriteRenderPath::Rect rectFromPixels(VkExtent2D extent, float centerX, float centerY, float width, float height);
-        static bool projectSkyDirection(const Camera& camera, float aspect, const std::array<float, 3>& direction, SpriteRenderPath::Rect& rect);
+        static bool projectSkyDirection(const Camera& camera, float aspect, float fovRadians, const std::array<float, 3>& direction, SpriteRenderPath::Rect& rect);
         void drawClimateOverlay(
             VkCommandBuffer commandBuffer,
             int mode,

@@ -16,6 +16,26 @@
                 <input type="range" id="sfx-volume-slider" class="option-slider" min="0" max="100" step="1" value="100"/>
                 <div id="sfx-volume-value" class="option-value">100%</div>
             </div>
+            <div class="option-row">
+                <div class="option-label">FOV</div>
+                <input type="range" id="fov-slider" class="option-slider" min="30" max="110" step="1" value="60"/>
+                <div id="fov-value" class="option-value">60</div>
+            </div>
+            <div id="toggle-view-bobbing" class="option-row option-toggle-row">
+                <div class="option-label">BOBBING</div>
+                <div class="option-toggle-label">VIEW</div>
+                <div id="toggle-view-bobbing-value" class="option-value">ON</div>
+            </div>
+            <div id="toggle-sprint" class="option-row option-toggle-row">
+                <div class="option-label">SPRINT</div>
+                <div class="option-toggle-label">MODE</div>
+                <div id="toggle-sprint-value" class="option-value">HOLD</div>
+            </div>
+            <div id="toggle-sneak" class="option-row option-toggle-row">
+                <div class="option-label">SNEAK</div>
+                <div class="option-toggle-label">MODE</div>
+                <div id="toggle-sneak-value" class="option-value">HOLD</div>
+            </div>
             <div id="options-back" class="button secondary">BACK</div>
         </div>
     </div>

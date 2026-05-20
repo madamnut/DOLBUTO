@@ -12,9 +12,9 @@ namespace dolbuto
 {
     namespace
     {
-        constexpr float FieldOfViewRadians = 1.0471975512f;
         constexpr float TerrainNearPlane = 0.1f;
         constexpr float TerrainFarPlane = 4000.0f;
+        constexpr float ViewmodelFieldOfViewRadians = 1.0471975512f;
 
         struct Mat4
         {
@@ -97,7 +97,7 @@ namespace dolbuto
         playerMeshRenderPath_.updateFirstPersonHand(camera, cameraPosition, client_.viewmodelConfig.hand);
     }
 
-    void Renderer::drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, bool wireframe, bool drawBlocks, bool drawFluids, uint32_t sceneImageIndex)
+    void Renderer::drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, bool wireframe, bool drawBlocks, bool drawFluids, uint32_t sceneImageIndex)
     {
         if (terrainRenderPath_.empty())
         {
@@ -120,7 +120,7 @@ namespace dolbuto
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
         const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
-        const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
+        const Mat4 projection = perspective(fovRadians, aspect, TerrainNearPlane, TerrainFarPlane);
         const Mat4 view = viewMatrix(camera, {});
         const Mat4 mvp = multiply(projection, view);
         const Vec3 cameraRight = camera.right();
@@ -128,7 +128,7 @@ namespace dolbuto
         const Vec3 forward = camera.forward();
         const Vec3 terrainForward{forward.x, -forward.y, forward.z};
         const Vec3 terrainUp = normalize(cross(terrainForward, terrainRight));
-        const float tanHalfVertical = std::tan(FieldOfViewRadians * 0.5f);
+        const float tanHalfVertical = std::tan(fovRadians * 0.5f);
         const TerrainRenderPath::View terrainView{
             cameraPosition,
             {},
@@ -192,10 +192,10 @@ namespace dolbuto
         }
     }
 
-    void Renderer::drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition) const
+    void Renderer::drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians) const
     {
         const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
-        const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
+        const Mat4 projection = perspective(fovRadians, aspect, TerrainNearPlane, TerrainFarPlane);
         const Mat4 view = viewMatrix(camera, {});
         const Mat4 mvp = multiply(projection, view);
 
@@ -219,7 +219,7 @@ namespace dolbuto
         }
 
         const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
-        const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
+        const Mat4 projection = perspective(ViewmodelFieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
         const Mat4 view = viewMatrix(camera, {});
         const Mat4 mvp = multiply(projection, view);
 
@@ -235,7 +235,7 @@ namespace dolbuto
         playerMeshRenderPath_.drawFirstPersonHand(commandBuffer, vulkan_.terrainPipelineLayout, rendererAssets_.playerTexture);
     }
 
-    void Renderer::drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition)
+    void Renderer::drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians)
     {
         const gameplay::BlockBreakingState& blockBreaking = client_.gameplayRuntime.blockBreakingState();
         const bool drawBreakingOverlay =
@@ -245,7 +245,7 @@ namespace dolbuto
             gameplayBridge_->blockDefinition(blockBreaking.block).renderType == BlockRenderType::Cube;
 
         const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
-        const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
+        const Mat4 projection = perspective(fovRadians, aspect, TerrainNearPlane, TerrainFarPlane);
         const Mat4 view = viewMatrix(camera, {});
         const Mat4 mvp = multiply(projection, view);
 
@@ -285,7 +285,7 @@ namespace dolbuto
             });
     }
 
-    void Renderer::drawBlockSelection(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition)
+    void Renderer::drawBlockSelection(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians)
     {
         if (!client_.selection.hasSelectedBlock || vulkan_.selectionPipeline == VK_NULL_HANDLE || vulkan_.selectionLineVertexBuffer == VK_NULL_HANDLE)
         {
@@ -337,7 +337,7 @@ namespace dolbuto
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
         const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
-        const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
+        const Mat4 projection = perspective(fovRadians, aspect, TerrainNearPlane, TerrainFarPlane);
         const Mat4 view = viewMatrix(camera, {});
         const Mat4 mvp = multiply(projection, view);
 

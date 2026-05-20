@@ -10,7 +10,11 @@
     "flyMoveSpeed": 64.0,
     "groundMoveSpeed": 4.317,
     "jumpSpeed": 8.4,
-    "gravity": 32.0
+    "gravity": 32.0,
+    "sprintSpeedScale": 1.3,
+    "sneakSpeedScale": 0.3,
+    "sneakHeightScale": 0.833333,
+    "movementDoubleTapWindow": 0.35
   },
   "terrain": {
     "seaLevel": 256,

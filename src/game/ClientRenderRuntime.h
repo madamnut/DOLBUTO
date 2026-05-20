@@ -36,7 +36,7 @@ namespace dolbuto
             void unloadGameScene();
 
             void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds);
-            bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition);
+            bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition, double playerHeightScale);
             bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
             bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction);
 

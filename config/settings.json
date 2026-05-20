@@ -2,5 +2,13 @@
   "audio": {
     "bgmVolume": 1.00,
     "sfxVolume": 1.00
+  },
+  "video": {
+    "fovDegrees": 60,
+    "viewBobbing": true
+  },
+  "controls": {
+    "toggleSprint": false,
+    "toggleSneak": false
   }
 }

@@ -54,10 +54,11 @@ namespace dolbuto::game
         public:
             explicit GameplayAccess(ClientRuntime& owner);
 
-            bool playerColliderIntersectsTerrain(DVec3 playerPosition) const;
+            bool playerColliderIntersectsTerrain(DVec3 playerPosition, double heightScale) const;
+            bool playerColliderHasSupportBelow(DVec3 playerPosition) const;
             void updateBlockSelection(DVec3 origin, Vec3 direction);
             void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds);
-            bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition);
+            bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition, double playerHeightScale);
             bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
             bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction);
             std::array<ItemStack, gameplay::PlayerInventory::SlotCount> inventorySnapshot() const;
@@ -81,6 +82,9 @@ namespace dolbuto::game
             void clearChatInput();
             void focusChatInput();
             void setOptionsVolumes(int bgmPercent, int sfxPercent);
+            void setOptionsFov(int fovDegrees);
+            void setOptionsViewBobbing(bool enabled);
+            void setOptionsControls(bool toggleSprint, bool toggleSneak);
             void setOptionsLobbyBackground(bool lobbyBackground);
             void mouseMove(double x, double y);
             void mouseButton(int button, bool pressed, int modifiers);

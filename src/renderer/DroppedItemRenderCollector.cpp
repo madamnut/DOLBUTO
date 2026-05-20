@@ -10,7 +10,6 @@ namespace dolbuto
 {
     namespace
     {
-        constexpr float FieldOfViewRadians = 1.0471975512f;
         constexpr int ChunkSizeX = 16;
         constexpr int ChunkSizeY = 512;
         constexpr int ChunkSizeZ = 16;
@@ -31,14 +30,14 @@ namespace dolbuto
             float tanHalfHorizontal = 1.0f;
         };
 
-        Frustum makeFrustum(const Camera& camera, Vec3 position, float aspect)
+        Frustum makeFrustum(const Camera& camera, Vec3 position, float aspect, float fovRadians)
         {
             const Vec3 cameraRight = camera.right();
             const Vec3 terrainRight{-cameraRight.x, -cameraRight.y, -cameraRight.z};
             const Vec3 forward = camera.forward();
             const Vec3 terrainForward{forward.x, -forward.y, forward.z};
             const Vec3 terrainUp = normalize(cross(terrainForward, terrainRight));
-            const float tanHalfVertical = std::tan(FieldOfViewRadians * 0.5f);
+            const float tanHalfVertical = std::tan(fovRadians * 0.5f);
 
             return {
                 position,
@@ -130,7 +129,7 @@ namespace dolbuto
         renderInstances.reserve(std::min<std::size_t>(itemCount * 4u, MaxDroppedItemRenderInstances));
 
         const Vec3 cameraPosition = input.cameraPosition;
-        const Frustum frustum = makeFrustum(input.camera, {}, input.aspect);
+        const Frustum frustum = makeFrustum(input.camera, {}, input.aspect, input.fovRadians);
         const std::array<Vec3, 4> visualOffsets{{
             {0.0f, 0.0f, 0.0f},
             {-0.08f, 0.0f, -0.04f},

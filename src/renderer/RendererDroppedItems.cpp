@@ -15,9 +15,9 @@ namespace dolbuto
 {
     namespace
     {
-        constexpr float FieldOfViewRadians = 1.0471975512f;
         constexpr float TerrainNearPlane = 0.1f;
         constexpr float TerrainFarPlane = 4000.0f;
+        constexpr float ViewmodelFieldOfViewRadians = 1.0471975512f;
 
         struct Mat4
         {
@@ -123,7 +123,7 @@ namespace dolbuto
         heldItem.instance.mipDistanceScale = client_.viewmodelConfig.heldItem.scale;
 
         const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
-        const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
+        const Mat4 projection = perspective(ViewmodelFieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
 
         DroppedItemRenderPath::PushConstants push{};
         std::memcpy(push.mvp, projection.m, sizeof(push.mvp));
@@ -143,7 +143,7 @@ namespace dolbuto
             renderInstances);
     }
 
-    void Renderer::drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, Vec3 playerPosition)
+    void Renderer::drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, Vec3 playerPosition)
     {
         const bool inventoryChanged = client_.gameplayRuntime.updateDroppedItems(
             playerPosition,
@@ -183,6 +183,7 @@ namespace dolbuto
                 client_.content.itemDefinitions(),
                 rendererAssets_.itemSpriteMeshes,
                 aspect,
+                fovRadians,
                 client_.gameplayRuntime.droppedItemRenderAlpha(),
                 [this](uint64_t key)
                 {
@@ -199,7 +200,7 @@ namespace dolbuto
             return;
         }
 
-        const Mat4 projection = perspective(FieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
+        const Mat4 projection = perspective(fovRadians, aspect, TerrainNearPlane, TerrainFarPlane);
         const Mat4 view = viewMatrix(camera, {});
         const Mat4 mvp = multiply(projection, view);
 

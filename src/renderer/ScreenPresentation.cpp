@@ -11,7 +11,6 @@ namespace dolbuto
 {
     namespace
     {
-        constexpr float FieldOfViewRadians = 1.0471975512f;
         constexpr uint64_t SkyTicksPerDay = 28800;
         constexpr double TwoPi = 6.283185307179586;
         constexpr double HalfPi = 1.5707963267948966;
@@ -23,6 +22,7 @@ namespace dolbuto
     void ScreenPresentation::drawSkySprites(
         VkCommandBuffer commandBuffer,
         const Camera& camera,
+        float fovRadians,
         VkExtent2D extent,
         uint64_t worldTicks,
         const RendererAssetStore& assets,
@@ -41,11 +41,11 @@ namespace dolbuto
         const std::array<float, 3> moonDirection{-sunDirection[0], -sunDirection[1], -sunDirection[2]};
 
         SpriteRenderPath::Rect rect;
-        if (projectSkyDirection(camera, aspect, sunDirection, rect))
+        if (projectSkyDirection(camera, aspect, fovRadians, sunDirection, rect))
         {
             sprites.draw(commandBuffer, pipelineLayout, spriteVertexBuffer, assets.sun, rect);
         }
-        if (projectSkyDirection(camera, aspect, moonDirection, rect))
+        if (projectSkyDirection(camera, aspect, fovRadians, moonDirection, rect))
         {
             sprites.draw(commandBuffer, pipelineLayout, spriteVertexBuffer, assets.moon, rect);
         }
@@ -163,7 +163,7 @@ namespace dolbuto
         return rect;
     }
 
-    bool ScreenPresentation::projectSkyDirection(const Camera& camera, float aspect, const std::array<float, 3>& direction, SpriteRenderPath::Rect& rect)
+    bool ScreenPresentation::projectSkyDirection(const Camera& camera, float aspect, float fovRadians, const std::array<float, 3>& direction, SpriteRenderPath::Rect& rect)
     {
         Vec3 dir = normalize({direction[0], direction[1], direction[2]});
         const float x = -dot(dir, camera.right());
@@ -175,7 +175,7 @@ namespace dolbuto
             return false;
         }
 
-        const float tanHalfFov = std::tan(FieldOfViewRadians * 0.5f);
+        const float tanHalfFov = std::tan(fovRadians * 0.5f);
         rect.centerX = (x / z) / (tanHalfFov * aspect);
         rect.centerY = (y / z) / tanHalfFov;
         rect.halfWidth = 0.04f;

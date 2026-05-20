@@ -342,9 +342,9 @@ body {
     left: 50%;
     top: 50%;
     width: 520px;
-    height: 330px;
+    height: 620px;
     margin-left: -260px;
-    margin-top: -165px;
+    margin-top: -310px;
 }
 
 .option-row {
@@ -421,6 +421,27 @@ body {
     line-height: 56px;
     text-align: center;
     font-size: 20px;
+}
+
+.option-toggle-row {
+    background-color: rgba(16, 23, 28, 235);
+    border-width: 1px;
+    border-color: rgba(170, 205, 220, 120);
+}
+
+.option-toggle-row:hover {
+    background-color: rgba(36, 54, 64, 245);
+}
+
+.option-toggle-label {
+    display: block;
+    float: left;
+    width: 230px;
+    height: 56px;
+    line-height: 56px;
+    text-align: center;
+    font-size: 16px;
+    color: #b9cbd2;
 }
 
 .world-panel {

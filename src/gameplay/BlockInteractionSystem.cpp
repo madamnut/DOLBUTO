@@ -18,16 +18,18 @@ namespace dolbuto::gameplay
 
     bool BlockInteractionSystem::playerColliderIntersectsTerrain(
         DVec3 playerPosition,
+        double heightScale,
         const TerrainCollisionPredicate& terrainCellBlocksPlayer)
     {
         constexpr double HalfWidth = 0.3;
         constexpr double Height = 1.75;
         constexpr double Epsilon = 0.000001;
+        const double scaledHeight = std::max(0.1, Height * heightScale);
 
         const double minX = playerPosition.x - HalfWidth;
         const double maxX = playerPosition.x + HalfWidth;
         const double minY = playerPosition.y;
-        const double maxY = playerPosition.y + Height;
+        const double maxY = playerPosition.y + scaledHeight;
         const double minZ = playerPosition.z - HalfWidth;
         const double maxZ = playerPosition.z + HalfWidth;
 
@@ -55,12 +57,46 @@ namespace dolbuto::gameplay
         return false;
     }
 
+    bool BlockInteractionSystem::playerColliderHasSupportBelow(
+        DVec3 playerPosition,
+        const TerrainCollisionPredicate& terrainCellBlocksPlayer)
+    {
+        constexpr double HalfWidth = 0.3;
+        constexpr double SupportEpsilon = 0.03;
+        constexpr double Epsilon = 0.000001;
+
+        const double minX = playerPosition.x - HalfWidth;
+        const double maxX = playerPosition.x + HalfWidth;
+        const double minZ = playerPosition.z - HalfWidth;
+        const double maxZ = playerPosition.z + HalfWidth;
+        const int y = blockCoordinateY(playerPosition.y - SupportEpsilon);
+
+        const int blockMinX = blockCoordinateXz(minX);
+        const int blockMaxX = blockCoordinateXz(maxX - Epsilon);
+        const int blockMinZ = blockCoordinateXz(minZ);
+        const int blockMaxZ = blockCoordinateXz(maxZ - Epsilon);
+
+        for (int z = blockMinZ; z <= blockMaxZ; ++z)
+        {
+            for (int x = blockMinX; x <= blockMaxX; ++x)
+            {
+                if (terrainCellBlocksPlayer && terrainCellBlocksPlayer(x, y, z))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     bool BlockInteractionSystem::blockIntersectsPlayerCollider(
         int x,
         int y,
         int z,
         const BlockDefinition& definition,
-        DVec3 playerPosition)
+        DVec3 playerPosition,
+        double heightScale)
     {
         if (!definition.collision)
         {
@@ -70,11 +106,12 @@ namespace dolbuto::gameplay
         constexpr double HalfWidth = 0.3;
         constexpr double Height = 1.75;
         constexpr double Epsilon = 0.000001;
+        const double scaledHeight = std::max(0.1, Height * heightScale);
 
         const double minX = playerPosition.x - HalfWidth;
         const double maxX = playerPosition.x + HalfWidth;
         const double minY = playerPosition.y;
-        const double maxY = playerPosition.y + Height;
+        const double maxY = playerPosition.y + scaledHeight;
         const double minZ = playerPosition.z - HalfWidth;
         const double maxZ = playerPosition.z + HalfWidth;
 

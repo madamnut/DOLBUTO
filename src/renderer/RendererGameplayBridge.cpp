@@ -27,7 +27,7 @@ namespace dolbuto
     {
     }
 
-    bool RendererGameplayBridge::editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition)
+    bool RendererGameplayBridge::editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition, double playerHeightScale)
     {
         return applyBlockEditResult(
             client_.gameplayRuntime.editBlockInView(
@@ -36,6 +36,7 @@ namespace dolbuto
                 placeRock,
                 BlockRock,
                 playerPosition,
+                playerHeightScale,
                 [this](int x, int y, int z) { return blockAtWorld(x, y, z); },
                 [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); },
                 [this](int x, int y, int z, uint16_t block)

@@ -92,6 +92,8 @@ RmlUi와 FreeType 소스 트리는 참고용이며, 일반 게임 빌드에서 �
 월드 생성의 `EXIT`는 월드 선택으로 돌아간다.
 일시정지의 `RESUME`은 게임으로 돌아간다.
 일시정지의 `EXIT`는 게임 씬을 언로드하고 로비로 돌아간다.
+Options 화면은 BGM/SFX 볼륨, FOV, View Bobbing, sprint/sneak hold-toggle 설정을 제공한다.
+`View Bobbing`은 `config/settings.json`의 `video.viewBobbing`에 저장하며, ON이면 1인칭/3인칭 ground 이동 렌더 카메라 위치에 보빙을 적용한다.
 
 로비 또는 일시정지 오버레이가 활성화되면 플레이어 이동, 카메라 회전, 블록 선택, 블록 편집, 크로스헤어를 비활성화한다.
 로비와 월드 선택은 청크 로딩을 요청하거나 처리하지 않는다.
@@ -261,3 +263,15 @@ hotbar/inventory RML 조립, cursor item 갱신, tooltip 표시, inventory slot 
 `ClientUiBridge`는 Vulkan 타입에 의존하지 않고, `Renderer`는 viewport 크기와 입력 값을 전달한다.
 
 `Renderer`가 UI에서 계속 담당하는 부분은 Vulkan `Rml::RenderInterface` 구현, UI geometry buffer 업로드, RmlUi graphics pipeline, RmlUi texture load/release, scissor state 처리다.
+
+## Options 조작 설정
+
+Options 화면은 `BGM`, `SFX` 볼륨 슬라이더와 `SPRINT`, `SNEAK` 입력 모드 전환 버튼을 가진다.
+`SPRINT`와 `SNEAK`은 각각 `HOLD`와 `TOGGLE` 사이를 클릭으로 전환한다.
+설정값은 `config/settings.json`의 `controls.toggleSprint`, `controls.toggleSneak`에 저장한다.
+로비에서 Options에 들어가면 로비 배경을 유지하고, pause에서 들어가면 게임 화면 위의 반투명 overlay로 표시한다.
+
+## FOV 옵션
+
+Options 화면은 `FOV` 슬라이더를 포함하며 `30`부터 `110`까지 1도 단위로 조정한다.
+FOV 설정값은 `config/settings.json`의 `video.fovDegrees`에 저장한다.

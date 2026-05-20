@@ -4,6 +4,7 @@
 
 플레이어 좌표는 발밑 중앙이다.
 1인칭 눈 위치는 플레이어 좌표에서 `Y + 1.5625`다.
+웅크리는 동안 목표 눈 위치는 `1.5625 * sneakHeightScale`이며, 실제 카메라 눈높이는 이 값으로 보간된다.
 
 ## 플레이어 모델
 
@@ -84,7 +85,8 @@ F5로 순환한다.
 
 ## 이동 모드
 
-V 키로 fly/ground 모드를 전환한다.
+`Space` 더블탭은 ground/fly 모드를 서로 전환한다.
+fly 상태에서 `Shift`로 하강하며, 하강 중 지면에 닿으면 ground 모드로 돌아간다.
 기본 모드는 fly다.
 
 현재 `config/world.json` 기준:
@@ -94,18 +96,31 @@ V 키로 fly/ground 모드를 전환한다.
   "flyMoveSpeed": 64.0,
   "groundMoveSpeed": 4.317,
   "jumpSpeed": 8.4,
-  "gravity": 32.0
+  "gravity": 32.0,
+  "sprintSpeedScale": 1.3,
+  "sneakSpeedScale": 0.3,
+  "sneakHeightScale": 0.833333,
+  "movementDoubleTapWindow": 0.35
 }
 ```
 
 ## 물리
 
 물리는 20Hz 고정 틱으로 처리하고 렌더 위치는 보간한다.
+이동 tick 규칙은 `PlayerMovementSystem`이 처리하고, `GameClient`는 입력 상태와 충돌 조회 callback을 전달한다.
 
 - fly: WASD 수평 이동, Space 상승, Shift 하강
+- fly: Ctrl을 누르는 동안 이동 속도를 `sprintSpeedScale`만큼 올린다.
 - ground: WASD 수평 이동, Space 점프
+- ground: Ctrl 또는 W 더블탭으로 달리기를 시작한다.
+- ground: Shift로 웅크리며, 이동 속도는 `sneakSpeedScale`, 충돌 높이는 `sneakHeightScale`을 적용한다.
+- 달리기와 웅크리기 입력은 Options의 SPRINT/SNEAK 모드에서 hold/toggle을 전환한다.
 - ground 이동은 yaw만 반영하고 pitch는 이동 방향에 영향을 주지 않는다.
 - 상승 중 재점프는 막는다.
+- 웅크리기 충돌 높이는 즉시 적용하지만, 1인칭 눈높이는 별도 `eyeHeightScale`을 목표 높이로 보간해 카메라가 순간 이동하지 않게 한다.
+- View Bobbing이 켜져 있으면 ground 이동 중 렌더 카메라 위치에만 좌우/상하 보빙을 적용한다.
+- 보빙 강도는 실제 수평 이동량에서 계산한 `walkAmount`를 사용하므로 웅크리기처럼 느린 이동은 약해지고 달리기처럼 빠른 이동은 강해진다.
+- 보빙은 카메라 방향, 블록 선택/파괴/설치 raycast, 플레이어 실제 위치에는 반영하지 않는다.
 
 ## 충돌
 
@@ -115,8 +130,11 @@ V 키로 fly/ground 모드를 전환한다.
 0.6 x 1.75 x 0.6
 ```
 
+웅크리는 동안 충돌 높이는 `1.75 * sneakHeightScale`로 줄어든다.
 충돌은 지형 블록의 `collision` 속성과 렌더 타입을 기준으로 판정한다.
 로딩되지 않은 청크 방향으로는 접근할 수 없도록 처리한다.
+ground 웅크리기 중 수평 이동은 플레이어 바닥 사각형 아래에 충돌 지형이 하나도 남지 않는 위치로는 진행하지 않는다.
+이 판정은 충돌 박스의 `0.6 x 0.6` 바닥 면을 기준으로 하며, vertical 이동에는 적용하지 않는다.
 
 ## 블록 상호작용
 
@@ -135,12 +153,15 @@ V 키로 fly/ground 모드를 전환한다.
 
 - `W/S`: 앞뒤 이동
 - `A/D`: 좌우 이동
-- `Space`: 상승 또는 점프
+- `Space`: fly 상승, ground 점프
+- `Space` 더블탭: ground/fly 전환
+- `W` 더블탭: 달리기 시작
+- `Ctrl`: ground 달리기, fly 가속
 - `Shift`: fly 모드 하강
+- `Shift`: ground 웅크리기
 - `F`: 드랍 아이템 획득
 - `Q`: 선택 핫바 아이템 1개 버리기
 - `Shift+Q`: 선택 핫바 아이템 스택 전체 버리기
-- `V`: fly/ground 전환
 - `E`: 인벤토리 열기/닫기
 - `F1`: 핫바 HUD와 크로스헤어 표시 전환
 - `F2`: 스크린샷

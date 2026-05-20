@@ -178,6 +178,8 @@ add_executable(DOLBUTO
     src/game/CommandSystem.h
     src/game/GameClient.cpp
     src/game/GameClient.h
+    src/game/PlayerMovementSystem.cpp
+    src/game/PlayerMovementSystem.h
     src/gameplay/BlockInteractionSystem.cpp
     src/gameplay/BlockInteractionSystem.h
     src/gameplay/ClientGameplayRuntime.cpp
@@ -190,6 +192,8 @@ add_executable(DOLBUTO
     src/audio/AudioSystem.h
     src/camera/Camera.cpp
     src/camera/Camera.h
+    src/camera/CameraViewBob.cpp
+    src/camera/CameraViewBob.h
     src/config/ConfigLoaders.cpp
     src/config/ConfigLoaders.h
     src/config/ViewmodelConfig.h

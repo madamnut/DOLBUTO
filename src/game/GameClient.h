@@ -2,6 +2,7 @@
 
 #include "camera/Camera.h"
 #include "game/ClientRuntime.h"
+#include "game/PlayerMovementSystem.h"
 
 #include <array>
 #include <chrono>
@@ -35,11 +36,7 @@ namespace dolbuto
             ThirdPersonFront
         };
 
-        enum class MoveMode
-        {
-            Fly,
-            Ground
-        };
+        using MoveMode = game::PlayerMoveMode;
 
         enum class AppScreen
         {
@@ -93,11 +90,17 @@ namespace dolbuto
         void applyAudioSettings();
         void updateOptionsUi();
         void applyOptionsSliderValues();
+        void toggleViewBobbingOption();
+        void toggleSprintOption();
+        void toggleSneakOption();
         void loadWorldState();
         void saveWorldState();
         void loadPlayerState();
         void savePlayerState() const;
         DVec3 interpolatedPlayerPosition(double alpha) const;
+        double currentPlayerHeightScale() const;
+        double currentEyeHeight() const;
+        double interpolatedEyeHeight(double alpha) const;
         void updatePlayerLookPose(float bodyYaw, float& headYaw, float& headPitch) const;
         void updatePlayer(double fixedDeltaSeconds, bool allowInput);
         void updateDebugText();
@@ -133,18 +136,35 @@ namespace dolbuto
         double groundMoveSpeed_ = 4.317;
         double jumpSpeed_ = 8.4;
         double gravity_ = 32.0;
+        double sprintSpeedScale_ = 1.3;
+        double sneakSpeedScale_ = 0.3;
+        double sneakHeightScale_ = 1.5 / 1.8;
+        double movementDoubleTapWindow_ = 0.35;
         float bodyYaw_ = 0.0f;
         float previousBodyYaw_ = 0.0f;
         float playerWalkPhase_ = 0.0f;
         float previousPlayerWalkPhase_ = 0.0f;
         float playerWalkAmount_ = 0.0f;
         float previousPlayerWalkAmount_ = 0.0f;
+        float sprintFovAmount_ = 0.0f;
+        float previousSprintFovAmount_ = 0.0f;
+        float eyeHeightScale_ = 1.0f;
+        float previousEyeHeightScale_ = 1.0f;
         double bgmVolume_ = 1.0;
         double sfxVolume_ = 1.0;
+        double fovDegrees_ = 60.0;
+        bool viewBobbing_ = true;
         double verticalVelocity_ = 0.0;
         bool grounded_ = false;
         bool jumpHeld_ = false;
         bool jumpPressed_ = false;
+        bool toggleSprint_ = false;
+        bool toggleSneak_ = false;
+        bool sprintToggled_ = false;
+        bool sneakToggled_ = false;
+        bool doubleTapSprintActive_ = false;
+        double lastForwardTapTime_ = -1000.0;
+        double lastJumpTapTime_ = -1000.0;
         bool breakHeld_ = false;
         double physicsAccumulator_ = 0.0;
         std::chrono::steady_clock::time_point lastFrameTime_{};

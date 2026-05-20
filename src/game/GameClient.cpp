@@ -1,5 +1,6 @@
 #include "game/GameClient.h"
 
+#include "camera/CameraViewBob.h"
 #include "game/CommandSystem.h"
 #include "game/ClientUiTypes.h"
 #include "gameplay/PlayerInventory.h"
@@ -37,11 +38,7 @@ namespace dolbuto
         constexpr float TwoPi = Pi * 2.0f;
         constexpr float MaxPlayerHeadYaw = Pi * 0.25f;
         constexpr float MaxPlayerHeadPitch = Pi * 70.0f / 180.0f;
-        constexpr double WalkCycleRadiansPerSecond = 8.0;
-        constexpr double WalkAmountRiseResponse = 12.0;
-        constexpr double WalkAmountFallResponse = 18.0;
-        constexpr double BodyYawFollowResponse = 12.0;
-        constexpr float StrafeBodyYawOffset = Pi * 0.25f;
+        constexpr double SprintFovMultiplier = 1.15;
         constexpr double EyeHeight = 1.5625;
         constexpr double ThirdPersonDistance = 5.5;
         constexpr double FixedPhysicsTimestep = 1.0 / 20.0;
@@ -50,6 +47,13 @@ namespace dolbuto
         constexpr double DefaultGroundMoveSpeed = 4.317;
         constexpr double DefaultJumpSpeed = 8.4;
         constexpr double DefaultGravity = 32.0;
+        constexpr double DefaultSprintSpeedScale = 1.3;
+        constexpr double DefaultSneakSpeedScale = 0.3;
+        constexpr double DefaultSneakHeightScale = 1.5 / 1.8;
+        constexpr double DefaultMovementDoubleTapWindow = 0.35;
+        constexpr double DefaultFovDegrees = 60.0;
+        constexpr double MinFovDegrees = 30.0;
+        constexpr double MaxFovDegrees = 110.0;
         constexpr double WorldSizeBlocks = 65536.0;
         constexpr int ClimateOverlayModeCount = 7;
         constexpr size_t PlayerInventorySlotCount = gameplay::PlayerInventory::SlotCount;
@@ -180,6 +184,38 @@ namespace dolbuto
             return std::nullopt;
         }
 
+        std::optional<bool> jsonBoolField(const std::string& object, const std::string& key)
+        {
+            const std::string token = "\"" + key + "\"";
+            const size_t keyPos = object.find(token);
+            if (keyPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t colonPos = object.find(':', keyPos + token.size());
+            if (colonPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t valueStart = object.find_first_not_of(" \t\r\n", colonPos + 1);
+            if (valueStart == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            if (object.compare(valueStart, 4, "true") == 0)
+            {
+                return true;
+            }
+            if (object.compare(valueStart, 5, "false") == 0)
+            {
+                return false;
+            }
+            return std::nullopt;
+        }
+
         const char* facingName(float yaw)
         {
             const float x = std::cos(yaw);
@@ -295,6 +331,11 @@ namespace dolbuto
         int volumePercent(double value)
         {
             return std::clamp(static_cast<int>(value * 100.0 + 0.5), 0, 100);
+        }
+
+        int roundedFovDegrees(double value)
+        {
+            return std::clamp(static_cast<int>(value + 0.5), static_cast<int>(MinFovDegrees), static_cast<int>(MaxFovDegrees));
         }
 
         uint64_t hashSeedString(std::string_view text)
@@ -580,9 +621,21 @@ namespace dolbuto
                     {
                         setScreen(optionsReturnScreen_);
                     }
-                    else if (*action == "bgm-volume-slider" || *action == "sfx-volume-slider")
+                    else if (*action == "bgm-volume-slider" || *action == "sfx-volume-slider" || *action == "fov-slider")
                     {
                         applyOptionsSliderValues();
+                    }
+                    else if (*action == "toggle-sprint")
+                    {
+                        toggleSprintOption();
+                    }
+                    else if (*action == "toggle-sneak")
+                    {
+                        toggleSneakOption();
+                    }
+                    else if (*action == "toggle-view-bobbing")
+                    {
+                        toggleViewBobbingOption();
                     }
                 }
             }
@@ -599,11 +652,13 @@ namespace dolbuto
                 previousBodyYaw_ = bodyYaw_;
                 previousPlayerWalkPhase_ = playerWalkPhase_;
                 previousPlayerWalkAmount_ = playerWalkAmount_;
+                previousSprintFovAmount_ = sprintFovAmount_;
+                previousEyeHeightScale_ = eyeHeightScale_;
                 updatePlayer(FixedPhysicsTimestep, screen_ == AppScreen::Game && !chatOpen_);
                 if (runtime_ != nullptr)
                 {
                     runtime_->gameplay().updateBlockBreaking(
-                        {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
+                        {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
                         renderViewDirection(camera_),
                         screen_ == AppScreen::Game && mouseCaptured_ && breakHeld_,
                         playerPosition_,
@@ -617,7 +672,7 @@ namespace dolbuto
                 if (runtime_ != nullptr)
                 {
                     runtime_->gameplay().updateBlockBreaking(
-                        {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
+                        {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
                         renderViewDirection(camera_),
                         false,
                         playerPosition_,
@@ -628,6 +683,8 @@ namespace dolbuto
                 previousBodyYaw_ = bodyYaw_;
                 previousPlayerWalkPhase_ = playerWalkPhase_;
                 previousPlayerWalkAmount_ = playerWalkAmount_;
+                previousSprintFovAmount_ = sprintFovAmount_;
+                previousEyeHeightScale_ = eyeHeightScale_;
             }
 
             const double physicsAlpha = std::clamp(physicsAccumulator_ / FixedPhysicsTimestep, 0.0, 1.0);
@@ -637,12 +694,17 @@ namespace dolbuto
             const float renderWalkAmount = std::clamp(
                 static_cast<float>(static_cast<double>(previousPlayerWalkAmount_) + (static_cast<double>(playerWalkAmount_) - static_cast<double>(previousPlayerWalkAmount_)) * physicsAlpha),
                 0.0f,
-                1.0f);
-            const DVec3 eyePosition{renderPlayerPosition.x, renderPlayerPosition.y + EyeHeight, renderPlayerPosition.z};
+                1.35f);
+            const double renderSprintFovAmount = std::clamp(
+                static_cast<double>(previousSprintFovAmount_) + (static_cast<double>(sprintFovAmount_) - static_cast<double>(previousSprintFovAmount_)) * physicsAlpha,
+                0.0,
+                1.0);
+            const double worldFovDegrees = fovDegrees_ * (1.0 + (SprintFovMultiplier - 1.0) * renderSprintFovAmount);
+            const DVec3 eyePosition{renderPlayerPosition.x, renderPlayerPosition.y + interpolatedEyeHeight(physicsAlpha), renderPlayerPosition.z};
             if (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory)
             {
                 runtime_->gameplay().updateBlockSelection(
-                    {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
+                    {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
                     renderViewDirection(camera_));
             }
             updateDebugText();
@@ -670,6 +732,15 @@ namespace dolbuto
                 renderCamera.setAngles(camera_.yaw() + Pi, -camera_.pitch());
                 showPlayer = true;
             }
+            const Vec3 viewBobOffset = CameraViewBob::offset(CameraViewBobInput{
+                viewBobbing_ && moveMode_ == MoveMode::Ground && (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory),
+                renderCamera.yaw(),
+                renderWalkPhase,
+                renderWalkAmount
+            });
+            renderCameraPosition.x += static_cast<double>(viewBobOffset.x);
+            renderCameraPosition.y += static_cast<double>(viewBobOffset.y);
+            renderCameraPosition.z += static_cast<double>(viewBobOffset.z);
 
             const int menuOverlayMode = screen_ == AppScreen::Lobby ? 1 : (screen_ == AppScreen::Pause ? 2 : (screen_ == AppScreen::WorldSelect ? 3 : (screen_ == AppScreen::WorldCreate ? 4 : (screen_ == AppScreen::Inventory ? 5 : (screen_ == AppScreen::Options ? 6 : 0)))));
             const bool optionsOverGame = screen_ == AppScreen::Options && optionsReturnScreen_ == AppScreen::Pause;
@@ -694,6 +765,7 @@ namespace dolbuto
             runtime_->render().frame(game::ClientFrame{
                 renderCamera,
                 renderCameraPosition,
+                static_cast<float>(worldFovDegrees * Pi / 180.0),
                 debugText_.data(),
                 renderDebugText,
                 screenshotRequested_,
@@ -776,13 +848,80 @@ namespace dolbuto
             {
                 if (action == GLFW_PRESS)
                 {
-                    app->jumpHeld_ = true;
-                    app->jumpPressed_ = true;
+                    const double now = glfwGetTime();
+                    bool toggledMoveMode = false;
+                    if (now - app->lastJumpTapTime_ <= app->movementDoubleTapWindow_)
+                    {
+                        if (app->moveMode_ == MoveMode::Ground)
+                        {
+                            app->moveMode_ = MoveMode::Fly;
+                            app->verticalVelocity_ = 0.0;
+                            app->grounded_ = false;
+                        }
+                        else
+                        {
+                            app->moveMode_ = MoveMode::Ground;
+                            app->verticalVelocity_ = 0.0;
+                            app->grounded_ = false;
+                            app->doubleTapSprintActive_ = false;
+                        }
+                        app->jumpPressed_ = false;
+                        app->jumpHeld_ = false;
+                        app->lastJumpTapTime_ = -1000.0;
+                        toggledMoveMode = true;
+                    }
+                    else
+                    {
+                        if (app->moveMode_ == MoveMode::Ground)
+                        {
+                            app->jumpPressed_ = true;
+                        }
+                        app->lastJumpTapTime_ = now;
+                    }
+                    if (!toggledMoveMode)
+                    {
+                        app->jumpHeld_ = true;
+                    }
                 }
                 else if (action == GLFW_RELEASE)
                 {
                     app->jumpHeld_ = false;
                 }
+            }
+            else if (key == GLFW_KEY_W && app != nullptr && app->screen_ == GameClient::AppScreen::Game)
+            {
+                if (action == GLFW_PRESS)
+                {
+                    const double now = glfwGetTime();
+                    if (now - app->lastForwardTapTime_ <= app->movementDoubleTapWindow_)
+                    {
+                        if (app->toggleSprint_)
+                        {
+                            app->sprintToggled_ = !app->sprintToggled_;
+                        }
+                        else
+                        {
+                            app->doubleTapSprintActive_ = true;
+                        }
+                    }
+                    app->lastForwardTapTime_ = now;
+                }
+                else if (action == GLFW_RELEASE && !app->toggleSprint_)
+                {
+                    app->doubleTapSprintActive_ = false;
+                }
+            }
+            else if ((key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL) &&
+                app != nullptr && app->screen_ == GameClient::AppScreen::Game && action == GLFW_PRESS &&
+                app->toggleSprint_ && app->moveMode_ == MoveMode::Ground)
+            {
+                app->sprintToggled_ = !app->sprintToggled_;
+            }
+            else if ((key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT) &&
+                app != nullptr && app->screen_ == GameClient::AppScreen::Game && action == GLFW_PRESS &&
+                app->toggleSneak_ && app->moveMode_ == MoveMode::Ground)
+            {
+                app->sneakToggled_ = !app->sneakToggled_;
             }
 
             if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
@@ -856,7 +995,7 @@ namespace dolbuto
                 if (app->screen_ == GameClient::AppScreen::Game && app->runtime_ != nullptr)
                 {
                     app->runtime_->gameplay().pickupDroppedItemInView(
-                        {app->playerPosition_.x, app->playerPosition_.y + EyeHeight, app->playerPosition_.z},
+                        {app->playerPosition_.x, app->playerPosition_.y + app->currentEyeHeight(), app->playerPosition_.z},
                         renderViewDirection(app->camera_));
                 }
             }
@@ -869,16 +1008,6 @@ namespace dolbuto
                         wholeStack,
                         app->playerPosition_,
                         renderViewDirection(app->camera_));
-                }
-            }
-            else if (key == GLFW_KEY_V && action == GLFW_PRESS && app != nullptr)
-            {
-                if (app->screen_ == GameClient::AppScreen::Game)
-                {
-                    app->moveMode_ = app->moveMode_ == MoveMode::Fly ? MoveMode::Ground : MoveMode::Fly;
-                    app->verticalVelocity_ = 0.0;
-                    app->grounded_ = false;
-                    app->jumpPressed_ = false;
                 }
             }
         });
@@ -936,7 +1065,7 @@ namespace dolbuto
                 if (app->runtime_ != nullptr)
                 {
                     app->runtime_->gameplay().updateBlockBreaking(
-                        {app->playerPosition_.x, app->playerPosition_.y + EyeHeight, app->playerPosition_.z},
+                        {app->playerPosition_.x, app->playerPosition_.y + app->currentEyeHeight(), app->playerPosition_.z},
                         renderViewDirection(app->camera_),
                         false,
                         app->playerPosition_,
@@ -967,10 +1096,11 @@ namespace dolbuto
                 if (app->mouseCaptured_ && app->runtime_ != nullptr)
                 {
                     app->runtime_->gameplay().editBlockInView(
-                        {app->playerPosition_.x, app->playerPosition_.y + EyeHeight, app->playerPosition_.z},
+                        {app->playerPosition_.x, app->playerPosition_.y + app->currentEyeHeight(), app->playerPosition_.z},
                         renderViewDirection(app->camera_),
                         true,
-                        app->playerPosition_);
+                        app->playerPosition_,
+                        app->currentPlayerHeightScale());
                 }
                 else
                 {
@@ -1306,11 +1436,12 @@ namespace dolbuto
         }
         jumpHeld_ = false;
         jumpPressed_ = false;
+        doubleTapSprintActive_ = false;
         breakHeld_ = false;
         if (runtime_ != nullptr)
         {
             runtime_->gameplay().updateBlockBreaking(
-                {playerPosition_.x, playerPosition_.y + EyeHeight, playerPosition_.z},
+                {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
                 renderViewDirection(camera_),
                 false,
                 playerPosition_,
@@ -1366,11 +1497,20 @@ namespace dolbuto
         previousPlayerWalkPhase_ = 0.0f;
         playerWalkAmount_ = 0.0f;
         previousPlayerWalkAmount_ = 0.0f;
+        sprintFovAmount_ = 0.0f;
+        previousSprintFovAmount_ = 0.0f;
+        eyeHeightScale_ = 1.0f;
+        previousEyeHeightScale_ = 1.0f;
         moveMode_ = MoveMode::Fly;
         verticalVelocity_ = 0.0;
         grounded_ = false;
         jumpHeld_ = false;
         jumpPressed_ = false;
+        sprintToggled_ = false;
+        sneakToggled_ = false;
+        doubleTapSprintActive_ = false;
+        lastForwardTapTime_ = -1000.0;
+        lastJumpTapTime_ = -1000.0;
         physicsAccumulator_ = 0.0;
     }
 
@@ -1548,6 +1688,10 @@ namespace dolbuto
         groundMoveSpeed_ = DefaultGroundMoveSpeed;
         jumpSpeed_ = DefaultJumpSpeed;
         gravity_ = DefaultGravity;
+        sprintSpeedScale_ = DefaultSprintSpeedScale;
+        sneakSpeedScale_ = DefaultSneakSpeedScale;
+        sneakHeightScale_ = DefaultSneakHeightScale;
+        movementDoubleTapWindow_ = DefaultMovementDoubleTapWindow;
 
         const std::filesystem::path path = configDirectory() / "world.json";
         std::ifstream file(path);
@@ -1577,12 +1721,32 @@ namespace dolbuto
         {
             gravity_ = *value;
         }
+        if (const std::optional<double> value = jsonDoubleField(player, "sprintSpeedScale"); value.has_value() && *value > 0.0)
+        {
+            sprintSpeedScale_ = *value;
+        }
+        if (const std::optional<double> value = jsonDoubleField(player, "sneakSpeedScale"); value.has_value() && *value > 0.0)
+        {
+            sneakSpeedScale_ = *value;
+        }
+        if (const std::optional<double> value = jsonDoubleField(player, "sneakHeightScale"); value.has_value() && *value > 0.0)
+        {
+            sneakHeightScale_ = std::clamp(*value, 0.1, 1.0);
+        }
+        if (const std::optional<double> value = jsonDoubleField(player, "movementDoubleTapWindow"); value.has_value() && *value > 0.0)
+        {
+            movementDoubleTapWindow_ = *value;
+        }
     }
 
     void GameClient::loadSettings()
     {
         bgmVolume_ = 1.0;
         sfxVolume_ = 1.0;
+        fovDegrees_ = DefaultFovDegrees;
+        viewBobbing_ = true;
+        toggleSprint_ = false;
+        toggleSneak_ = false;
 
         const std::filesystem::path path = configDirectory() / "settings.json";
         std::ifstream file(path);
@@ -1595,6 +1759,8 @@ namespace dolbuto
         contents << file.rdbuf();
         const std::string text = contents.str();
         const std::string audio = jsonObjectField(text, "audio").value_or(text);
+        const std::string video = jsonObjectField(text, "video").value_or("{}");
+        const std::string controls = jsonObjectField(text, "controls").value_or("{}");
 
         if (const std::optional<double> value = jsonDoubleField(audio, "bgmVolume"); value.has_value())
         {
@@ -1603,6 +1769,22 @@ namespace dolbuto
         if (const std::optional<double> value = jsonDoubleField(audio, "sfxVolume"); value.has_value())
         {
             sfxVolume_ = std::clamp(*value, 0.0, 1.0);
+        }
+        if (const std::optional<double> value = jsonDoubleField(video, "fovDegrees"); value.has_value())
+        {
+            fovDegrees_ = std::clamp(*value, MinFovDegrees, MaxFovDegrees);
+        }
+        if (const std::optional<bool> value = jsonBoolField(video, "viewBobbing"); value.has_value())
+        {
+            viewBobbing_ = *value;
+        }
+        if (const std::optional<bool> value = jsonBoolField(controls, "toggleSprint"); value.has_value())
+        {
+            toggleSprint_ = *value;
+        }
+        if (const std::optional<bool> value = jsonBoolField(controls, "toggleSneak"); value.has_value())
+        {
+            toggleSneak_ = *value;
         }
     }
 
@@ -1622,6 +1804,14 @@ namespace dolbuto
             file << "  \"audio\": {\n";
             file << "    \"bgmVolume\": " << std::fixed << std::setprecision(2) << bgmVolume_ << ",\n";
             file << "    \"sfxVolume\": " << std::fixed << std::setprecision(2) << sfxVolume_ << "\n";
+            file << "  },\n";
+            file << "  \"video\": {\n";
+            file << "    \"fovDegrees\": " << roundedFovDegrees(fovDegrees_) << ",\n";
+            file << "    \"viewBobbing\": " << (viewBobbing_ ? "true" : "false") << "\n";
+            file << "  },\n";
+            file << "  \"controls\": {\n";
+            file << "    \"toggleSprint\": " << (toggleSprint_ ? "true" : "false") << ",\n";
+            file << "    \"toggleSneak\": " << (toggleSneak_ ? "true" : "false") << "\n";
             file << "  }\n";
             file << "}\n";
         }
@@ -1644,6 +1834,9 @@ namespace dolbuto
         if (runtime_ != nullptr)
         {
             runtime_->ui().setOptionsVolumes(volumePercent(bgmVolume_), volumePercent(sfxVolume_));
+            runtime_->ui().setOptionsFov(roundedFovDegrees(fovDegrees_));
+            runtime_->ui().setOptionsViewBobbing(viewBobbing_);
+            runtime_->ui().setOptionsControls(toggleSprint_, toggleSneak_);
         }
     }
 
@@ -1658,6 +1851,7 @@ namespace dolbuto
         {
             bgmVolume_ = std::clamp(std::stod(runtime_->ui().inputValue("bgm-volume-slider")) / 100.0, 0.0, 1.0);
             sfxVolume_ = std::clamp(std::stod(runtime_->ui().inputValue("sfx-volume-slider")) / 100.0, 0.0, 1.0);
+            fovDegrees_ = std::clamp(std::stod(runtime_->ui().inputValue("fov-slider")), MinFovDegrees, MaxFovDegrees);
         }
         catch (...)
         {
@@ -1665,6 +1859,30 @@ namespace dolbuto
             return;
         }
         applyAudioSettings();
+        updateOptionsUi();
+        saveSettings();
+    }
+
+    void GameClient::toggleViewBobbingOption()
+    {
+        viewBobbing_ = !viewBobbing_;
+        updateOptionsUi();
+        saveSettings();
+    }
+
+    void GameClient::toggleSprintOption()
+    {
+        toggleSprint_ = !toggleSprint_;
+        sprintToggled_ = false;
+        doubleTapSprintActive_ = false;
+        updateOptionsUi();
+        saveSettings();
+    }
+
+    void GameClient::toggleSneakOption()
+    {
+        toggleSneak_ = !toggleSneak_;
+        sneakToggled_ = false;
         updateOptionsUi();
         saveSettings();
     }
@@ -1810,11 +2028,20 @@ namespace dolbuto
             previousPlayerWalkPhase_ = 0.0f;
             playerWalkAmount_ = 0.0f;
             previousPlayerWalkAmount_ = 0.0f;
+            sprintFovAmount_ = 0.0f;
+            previousSprintFovAmount_ = 0.0f;
+            eyeHeightScale_ = 1.0f;
+            previousEyeHeightScale_ = 1.0f;
             moveMode_ = moveMode == 0u ? MoveMode::Fly : MoveMode::Ground;
             verticalVelocity_ = verticalVelocity;
             grounded_ = false;
             jumpHeld_ = false;
             jumpPressed_ = false;
+            sprintToggled_ = false;
+            sneakToggled_ = false;
+            doubleTapSprintActive_ = false;
+            lastForwardTapTime_ = -1000.0;
+            lastJumpTapTime_ = -1000.0;
             physicsAccumulator_ = 0.0;
             if (runtime_ != nullptr)
             {
@@ -1888,6 +2115,26 @@ namespace dolbuto
         };
     }
 
+    double GameClient::currentPlayerHeightScale() const
+    {
+        const bool shiftHeld = window_ != nullptr &&
+            (glfwGetKey(window_, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
+        const bool holdSneakActive = !toggleSneak_ && screen_ == AppScreen::Game && !chatOpen_ && shiftHeld;
+        return moveMode_ == MoveMode::Ground && (sneakToggled_ || holdSneakActive) ? sneakHeightScale_ : 1.0;
+    }
+
+    double GameClient::currentEyeHeight() const
+    {
+        return EyeHeight * static_cast<double>(eyeHeightScale_);
+    }
+
+    double GameClient::interpolatedEyeHeight(double alpha) const
+    {
+        const double scale = static_cast<double>(previousEyeHeightScale_) +
+            (static_cast<double>(eyeHeightScale_) - static_cast<double>(previousEyeHeightScale_)) * alpha;
+        return EyeHeight * scale;
+    }
+
     void GameClient::updatePlayerLookPose(float bodyYaw, float& headYaw, float& headPitch) const
     {
         const float cameraYaw = normalizeAngle(camera_.yaw());
@@ -1899,178 +2146,73 @@ namespace dolbuto
 
     void GameClient::updatePlayer(double fixedDeltaSeconds, bool allowInput)
     {
-        constexpr double MaxCollisionStep = 0.25;
-        const DVec3 startPosition = playerPosition_;
-
-        const float yaw = camera_.yaw();
-        const Vec3 forward{std::cos(yaw), 0.0f, std::sin(yaw)};
-        const Vec3 right{std::sin(yaw), 0.0f, -std::cos(yaw)};
-
-        Vec3 movement{};
-        int strafeIntent = 0;
-        if (allowInput && glfwGetKey(window_, GLFW_KEY_W) == GLFW_PRESS)
-        {
-            movement.x += forward.x;
-            movement.z += forward.z;
-        }
-        if (allowInput && glfwGetKey(window_, GLFW_KEY_S) == GLFW_PRESS)
-        {
-            movement.x -= forward.x;
-            movement.z -= forward.z;
-        }
-        if (allowInput && glfwGetKey(window_, GLFW_KEY_D) == GLFW_PRESS)
-        {
-            movement.x += right.x;
-            movement.z += right.z;
-            ++strafeIntent;
-        }
-        if (allowInput && glfwGetKey(window_, GLFW_KEY_A) == GLFW_PRESS)
-        {
-            movement.x -= right.x;
-            movement.z -= right.z;
-            --strafeIntent;
-        }
-
-        if (moveMode_ == MoveMode::Fly)
-        {
-            if (allowInput && glfwGetKey(window_, GLFW_KEY_SPACE) == GLFW_PRESS)
-            {
-                movement.y += 1.0f;
-            }
-            if (allowInput && (glfwGetKey(window_, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS))
-            {
-                movement.y -= 1.0f;
-            }
-            verticalVelocity_ = 0.0;
-            grounded_ = false;
-        }
-        else
-        {
-            movement.y = 0.0f;
-            grounded_ = runtime_ != nullptr && runtime_->gameplay().playerColliderIntersectsTerrain({playerPosition_.x, playerPosition_.y - 0.03, playerPosition_.z});
-            if (grounded_ && verticalVelocity_ < 0.0)
-            {
-                verticalVelocity_ = 0.0;
-            }
-            if (grounded_ && verticalVelocity_ <= 0.0 && (jumpHeld_ || jumpPressed_))
-            {
-                verticalVelocity_ = jumpSpeed_;
-                grounded_ = false;
-                jumpPressed_ = false;
-            }
-            else if (!jumpHeld_)
-            {
-                jumpPressed_ = false;
-            }
-        }
-
-        movement = normalize(movement);
-        const double moveSpeed = moveMode_ == MoveMode::Fly ? flyMoveSpeed_ : groundMoveSpeed_;
-        const double distance = moveSpeed * fixedDeltaSeconds;
-        const DVec3 delta{
-            static_cast<double>(movement.x) * distance,
-            moveMode_ == MoveMode::Fly ? static_cast<double>(movement.y) * distance : verticalVelocity_ * fixedDeltaSeconds,
-            static_cast<double>(movement.z) * distance
-        };
-        const double maxDelta = std::max(std::abs(delta.x), std::max(std::abs(delta.y), std::abs(delta.z)));
-        const int steps = std::max(1, static_cast<int>(std::ceil(maxDelta / MaxCollisionStep)));
-        const DVec3 stepDelta{
-            delta.x / static_cast<double>(steps),
-            delta.y / static_cast<double>(steps),
-            delta.z / static_cast<double>(steps)
-        };
-
-        auto tryMoveAxis = [&](double dx, double dy, double dz) -> bool
-        {
-            DVec3 next = playerPosition_;
-            next.x += dx;
-            next.y += dy;
-            next.z += dz;
-            if (runtime_ == nullptr || !runtime_->gameplay().playerColliderIntersectsTerrain(next))
-            {
-                playerPosition_ = next;
-                return true;
-            }
-            return false;
-        };
-
-        auto moveAxisWithContact = [&](double dx, double dy, double dz) -> bool
-        {
-            if (tryMoveAxis(dx, dy, dz))
-            {
-                return true;
-            }
-
-            double low = 0.0;
-            double high = 1.0;
-            for (int i = 0; i < 8; ++i)
-            {
-                const double mid = (low + high) * 0.5;
-                DVec3 next = playerPosition_;
-                next.x += dx * mid;
-                next.y += dy * mid;
-                next.z += dz * mid;
-                const bool blocked = runtime_ != nullptr && runtime_->gameplay().playerColliderIntersectsTerrain(next);
-                if (blocked)
+        const game::PlayerMoveMode previousMoveMode = moveMode_;
+        const game::PlayerMovementResult result = game::PlayerMovementSystem::tick(
+            game::PlayerMovementInput{
+                allowInput,
+                allowInput && glfwGetKey(window_, GLFW_KEY_W) == GLFW_PRESS,
+                allowInput && glfwGetKey(window_, GLFW_KEY_S) == GLFW_PRESS,
+                allowInput && glfwGetKey(window_, GLFW_KEY_D) == GLFW_PRESS,
+                allowInput && glfwGetKey(window_, GLFW_KEY_A) == GLFW_PRESS,
+                allowInput && (glfwGetKey(window_, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS),
+                allowInput && (glfwGetKey(window_, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS),
+                jumpHeld_,
+                jumpPressed_,
+                toggleSprint_,
+                toggleSneak_,
+                sprintToggled_,
+                sneakToggled_,
+                doubleTapSprintActive_,
+                camera_.yaw()
+            },
+            game::PlayerMovementState{
+                playerPosition_,
+                moveMode_,
+                verticalVelocity_,
+                grounded_,
+                bodyYaw_,
+                playerWalkPhase_,
+                playerWalkAmount_,
+                sprintFovAmount_,
+                eyeHeightScale_
+            },
+            game::PlayerMovementConfig{
+                flyMoveSpeed_,
+                groundMoveSpeed_,
+                jumpSpeed_,
+                gravity_,
+                sprintSpeedScale_,
+                sneakSpeedScale_,
+                sneakHeightScale_
+            },
+            game::PlayerMovementCollision{
+                [this](DVec3 position, double heightScale)
                 {
-                    high = mid;
-                }
-                else
+                    return runtime_ != nullptr && runtime_->gameplay().playerColliderIntersectsTerrain(position, heightScale);
+                },
+                [this](DVec3 position)
                 {
-                    low = mid;
+                    return runtime_ == nullptr || runtime_->gameplay().playerColliderHasSupportBelow(position);
                 }
-            }
+            },
+            fixedDeltaSeconds);
 
-            if (low > 0.000001)
-            {
-                playerPosition_.x += dx * low;
-                playerPosition_.y += dy * low;
-                playerPosition_.z += dz * low;
-            }
-            return false;
-        };
+        jumpHeld_ = result.input.jumpHeld;
+        jumpPressed_ = result.input.jumpPressed;
+        doubleTapSprintActive_ = result.input.doubleTapSprintActive;
+        playerPosition_ = result.state.position;
+        moveMode_ = result.state.moveMode;
+        verticalVelocity_ = result.state.verticalVelocity;
+        grounded_ = result.state.grounded;
+        bodyYaw_ = result.state.bodyYaw;
+        playerWalkPhase_ = result.state.walkPhase;
+        playerWalkAmount_ = result.state.walkAmount;
+        sprintFovAmount_ = result.state.sprintFovAmount;
+        eyeHeightScale_ = result.state.eyeHeightScale;
 
-        bool blockedVertically = false;
-        for (int i = 0; i < steps; ++i)
+        if (previousMoveMode == MoveMode::Fly && moveMode_ == MoveMode::Ground)
         {
-            moveAxisWithContact(stepDelta.x, 0.0, 0.0);
-            if (!moveAxisWithContact(0.0, stepDelta.y, 0.0) && moveMode_ == MoveMode::Ground)
-            {
-                blockedVertically = true;
-                if (stepDelta.y < 0.0)
-                {
-                    grounded_ = true;
-                }
-                verticalVelocity_ = 0.0;
-            }
-            moveAxisWithContact(0.0, 0.0, stepDelta.z);
-        }
-
-        if (moveMode_ == MoveMode::Ground && !blockedVertically && !grounded_)
-        {
-            verticalVelocity_ -= gravity_ * fixedDeltaSeconds;
-        }
-
-        const double movedX = playerPosition_.x - startPosition.x;
-        const double movedZ = playerPosition_.z - startPosition.z;
-        const double horizontalDistance = std::sqrt(movedX * movedX + movedZ * movedZ);
-        const double yawBlend = 1.0 - std::exp(-BodyYawFollowResponse * fixedDeltaSeconds);
-        const float targetBodyYaw = camera_.yaw() - static_cast<float>(std::clamp(strafeIntent, -1, 1)) * StrafeBodyYawOffset;
-        bodyYaw_ = lerpAngle(bodyYaw_, targetBodyYaw, yawBlend);
-        const double referenceSpeed = moveMode_ == MoveMode::Fly ? flyMoveSpeed_ : groundMoveSpeed_;
-        const double targetWalkAmount = allowInput && referenceSpeed > 0.0
-            ? std::clamp(horizontalDistance / (referenceSpeed * fixedDeltaSeconds), 0.0, 1.0)
-            : 0.0;
-        const double response = targetWalkAmount > static_cast<double>(playerWalkAmount_) ? WalkAmountRiseResponse : WalkAmountFallResponse;
-        const double blend = 1.0 - std::exp(-response * fixedDeltaSeconds);
-        playerWalkAmount_ = static_cast<float>(std::clamp(
-            static_cast<double>(playerWalkAmount_) + (targetWalkAmount - static_cast<double>(playerWalkAmount_)) * blend,
-            0.0,
-            1.0));
-        if (playerWalkAmount_ > 0.001f)
-        {
-            const double phaseSpeed = WalkCycleRadiansPerSecond * (0.35 + 0.65 * static_cast<double>(playerWalkAmount_));
-            playerWalkPhase_ = static_cast<float>(std::fmod(static_cast<double>(playerWalkPhase_) + phaseSpeed * fixedDeltaSeconds, static_cast<double>(TwoPi)));
+            lastJumpTapTime_ = -1000.0;
         }
     }
 

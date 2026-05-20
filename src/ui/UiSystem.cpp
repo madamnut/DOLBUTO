@@ -376,6 +376,55 @@ namespace dolbuto::ui
         suppressOptionChangeEvents_ = false;
     }
 
+    void UiSystem::setOptionsFov(int fovDegrees)
+    {
+        if (optionsDocument_ == nullptr)
+        {
+            return;
+        }
+
+        suppressOptionChangeEvents_ = true;
+        if (Rml::Element* value = optionsDocument_->GetElementById("fov-value"))
+        {
+            value->SetInnerRML(std::to_string(fovDegrees));
+        }
+        if (auto* input = dynamic_cast<Rml::ElementFormControlInput*>(optionsDocument_->GetElementById("fov-slider")))
+        {
+            input->SetValue(std::to_string(fovDegrees));
+        }
+        suppressOptionChangeEvents_ = false;
+    }
+
+    void UiSystem::setOptionsViewBobbing(bool enabled)
+    {
+        if (optionsDocument_ == nullptr)
+        {
+            return;
+        }
+
+        if (Rml::Element* value = optionsDocument_->GetElementById("toggle-view-bobbing-value"))
+        {
+            value->SetInnerRML(enabled ? "ON" : "OFF");
+        }
+    }
+
+    void UiSystem::setOptionsControls(bool toggleSprint, bool toggleSneak)
+    {
+        if (optionsDocument_ == nullptr)
+        {
+            return;
+        }
+
+        if (Rml::Element* value = optionsDocument_->GetElementById("toggle-sprint-value"))
+        {
+            value->SetInnerRML(toggleSprint ? "TOGGLE" : "HOLD");
+        }
+        if (Rml::Element* value = optionsDocument_->GetElementById("toggle-sneak-value"))
+        {
+            value->SetInnerRML(toggleSneak ? "TOGGLE" : "HOLD");
+        }
+    }
+
     void UiSystem::setOptionsLobbyBackground(bool lobbyBackground)
     {
         if (optionsDocument_ == nullptr)
@@ -630,7 +679,7 @@ namespace dolbuto::ui
         }
 
         if (suppressOptionChangeEvents_ && event.GetType() == "change" &&
-            (target->GetId() == "bgm-volume-slider" || target->GetId() == "sfx-volume-slider"))
+            (target->GetId() == "bgm-volume-slider" || target->GetId() == "sfx-volume-slider" || target->GetId() == "fov-slider"))
         {
             return;
         }
@@ -649,7 +698,7 @@ namespace dolbuto::ui
             return;
         }
 
-        constexpr std::array<const char*, 10> ButtonIds = {
+        constexpr std::array<const char*, 13> ButtonIds = {
             "start",
             "exit",
             "new-world",
@@ -659,16 +708,20 @@ namespace dolbuto::ui
             "resume",
             "exit-to-lobby",
             "options",
-            "options-back"
+            "options-back",
+            "toggle-view-bobbing",
+            "toggle-sprint",
+            "toggle-sneak"
         };
         for (const char* id : ButtonIds)
         {
             attachActionEvent(document->GetElementById(id), "click");
         }
 
-        constexpr std::array<const char*, 2> SliderIds = {
+        constexpr std::array<const char*, 3> SliderIds = {
             "bgm-volume-slider",
-            "sfx-volume-slider"
+            "sfx-volume-slider",
+            "fov-slider"
         };
         for (const char* id : SliderIds)
         {
