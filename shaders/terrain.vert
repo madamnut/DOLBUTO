@@ -19,6 +19,8 @@ layout(location = 3) flat out float fragTextureLayer;
 layout(location = 4) flat out float fragMipDistanceScale;
 layout(location = 5) flat out vec3 fragNormal;
 layout(location = 6) flat out float fragAlphaBlend;
+layout(location = 7) flat out float fragSkyLight;
+layout(location = 8) flat out float fragBlockLight;
 
 int decodeSignedFixed(uint packedValue)
 {
@@ -65,7 +67,7 @@ void main()
     float useU = (corner == 1u || corner == 2u) ? 1.0 : 0.0;
     float useV = (corner == 2u || corner == 3u) ? 1.0 : 0.0;
 
-    uint base = quadIndex * 10u;
+    uint base = quadIndex * 11u;
     uint p0x = terrainQuadBuffer.packedQuads[base + 0u];
     uint p0y = terrainQuadBuffer.packedQuads[base + 1u];
     uint p0z = terrainQuadBuffer.packedQuads[base + 2u];
@@ -76,6 +78,7 @@ void main()
     uint uvU = terrainQuadBuffer.packedQuads[base + 7u];
     uint uvV = terrainQuadBuffer.packedQuads[base + 8u];
     uint material = terrainQuadBuffer.packedQuads[base + 9u];
+    uint packedLight = terrainQuadBuffer.packedQuads[base + 10u];
 
     vec3 origin = vec3(
         float(decodeSignedFixed(p0x)) / 256.0,
@@ -106,4 +109,6 @@ void main()
     fragMipDistanceScale = float((material >> 8u) & 0x3FFu) / 16.0;
     fragNormal = normalize(cross(edgeU, edgeV));
     fragAlphaBlend = float((material >> 26u) & 0x3Fu) / 63.0;
+    fragSkyLight = float((packedLight >> 4u) & 0xFu) / 15.0;
+    fragBlockLight = float(packedLight & 0xFu) / 15.0;
 }

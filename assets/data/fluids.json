@@ -1,22 +1,27 @@
 [
   {
     "id": 0,
-    "name": "none"
+    "name": "none",
+    "lightAttenuation": 0
   },
   {
     "id": 1,
-    "name": "water"
+    "name": "water",
+    "lightAttenuation": 2
   },
   {
     "id": 2,
-    "name": "lava"
+    "name": "lava",
+    "lightAttenuation": 2
   },
   {
     "id": 300,
-    "name": "methane"
+    "name": "methane",
+    "lightAttenuation": 1
   },
   {
     "id": 301,
-    "name": "hydrogen"
+    "name": "hydrogen",
+    "lightAttenuation": 1
   }
 ]

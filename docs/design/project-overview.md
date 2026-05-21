@@ -96,6 +96,8 @@ src/save/SaveSystem.h
 src/save/SaveSystem.cpp
 src/world/ChunkLoadSystem.h
 src/world/ChunkLoadSystem.cpp
+src/world/ChunkPrepareSystem.h
+src/world/ChunkPrepareSystem.cpp
 src/world/DroppedItemRuntime.h
 src/world/DroppedItemRuntime.cpp
 src/world/DroppedItemSystem.h
@@ -110,10 +112,10 @@ src/world/WorldRuntime.h
 src/world/WorldRuntime.cpp
 ```
 
-`DataLoaders`는 `assets/data/blocks.json`과 `assets/data/items.json`의 정의 파싱만 담당한다.
+`DataLoaders`는 `assets/data/blocks.json`, `assets/data/fluids.json`, `assets/data/items.json`의 정의 파싱만 담당한다.
 `ConfigLoaders`는 `config/world.json`과 `config/render.json`의 설정 파일 읽기와 값 검증/클램프를 담당한다.
 `PropModelLoader`는 소품 모델 `.glb` 파싱, `.dpm` 변환/검증, 렌더링용 소품 quad 로드를 담당한다.
-`ClientContent`는 block/item 정의, 텍스처 layer 이름, block drop의 item key 해석, prop model binding을 로드하고 Renderer/Vulkan 타입에 의존하지 않는다.
+`ClientContent`는 block/fluid/item 정의, 텍스처 layer 이름, block drop의 item key 해석, prop model binding, light attenuation table을 로드하고 Renderer/Vulkan 타입에 의존하지 않는다.
 `ClientFrame`은 `GameClient`가 한 프레임 렌더링에 넘기는 카메라, 플레이어, overlay, debug, screenshot, world tick 입력을 담는 client 계층 DTO다.
 `ClientRuntime`은 `GameClient`가 사용하는 scene/gameplay/UI/render 경계 API를 제공하는 클라이언트 런타임 진입점이다.
 public API는 `render()`, `scene()`, `gameplay()`, `ui()`, `diagnostics()` access로 나누어 `GameClient` 호출부에서 역할이 드러나게 한다.
@@ -121,14 +123,14 @@ public API는 `render()`, `scene()`, `gameplay()`, `ui()`, `diagnostics()` acces
 `ClientRuntime`은 Renderer/GPU가 필요 없는 collision query, block selection state, inventory snapshot, UI action/input query, selected block/climate text를 `ClientRuntimeState`에서 직접 처리한다.
 `ClientRenderRuntime`은 현재 전환 단계의 렌더링 런타임 adapter이며 `Renderer` 직접 의존, renderer bridge 접근, `RendererFrame` 변환, mesh/particle/sound/viewport가 필요한 호출을 `GameClient`와 `ClientRuntime` 밖으로 숨긴다.
 `ClientSceneLifecycle`은 game scene load/unload 순서, active world 설정, gameplay reset, terrain scene runtime start/stop, save flush를 조율하고 Renderer 전용 작업은 hook으로 호출한다.
-`ClientTerrainCompletionHandler`는 terrain/chunk-load 완료 결과를 해석해 runtime 설치, 저장 snapshot enqueue, feature 전파, mesh retry/install 판정을 수행하고 Renderer에는 dropped-item tracking refresh와 GPU mesh install 대상만 반환한다.
-`ClientTerrainCoordinator`는 render/mesh/full/featuring 요청 cascade, feature finalize job queue, mesh retry queue, chunk-load 완료 뒤 ticket 재개를 조율한다.
-`ClientTerrainJobProcessor`는 `BuildFeaturing`과 `FinalizeFeatures` terrain job을 처리하며 `TerrainBuilder`를 호출해 초기 청크 데이터, heightmap, tree feature write 생성/반영을 수행한다.
+`ClientTerrainCompletionHandler`는 terrain/chunk-load 완료 결과를 해석해 runtime 설치, 저장 snapshot enqueue, 다음 단계 job 재검사, mesh retry/install 판정을 수행하고 Renderer에는 dropped-item tracking refresh와 GPU mesh install 대상만 반환한다.
+`ClientTerrainCoordinator`는 render 요청에서 target status 범위를 설정하고, frontier scheduling으로 feature/light/mesh job queue와 chunk-load 완료 뒤 재검사를 조율한다.
+`ClientTerrainJobProcessor`는 `BuildTerrainSource`, `ResolveFeatures`, `ResolveLight` terrain job을 처리하며 `TerrainBuilder`와 `SkyLightSystem`을 호출해 초기 청크 데이터, 3x3 feature resolve와 local skylight cache, 4방향 face 기반 skylight resolve를 수행한다.
 `ClientTerrainSceneRuntime`은 terrain scene load request, terrain/chunk-load/save worker lifecycle, completed terrain work drain, pending unload의 world/save 처리를 묶어 Renderer 밖에서 조율한다.
 `ClientUiTypes`는 `GameClient`와 렌더러/UI bridge 사이에서 주고받는 클라이언트 표시 DTO를 담는다.
 `ClientWorldRuntime`은 클라이언트 월드 런타임 전환 계층이며 `WorldRuntime`, `SaveSystem`, `ChunkLoadSystem`, `TerrainJobSystem`, terrain request set, unload queue, load order, active world 상태를 소유한다.
-terrain render/mesh/full/featuring ticket 설정, chunk-load 필요 판단, BuildFeaturing/FinalizeFeatures/BuildChunkMesh job 생성 조건은 `ClientWorldRuntime`이 제공하고, 요청 cascade와 job enqueue 조율은 `ClientTerrainCoordinator`가 담당한다.
-terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 판정, pending unload 후보 관리, 저장 snapshot 생성/복원, feature slot 전파도 `ClientWorldRuntime`이 담당한다.
+terrain render/mesh/source/local-light/light ticket 설정, chunk-load 필요 판단, `BuildTerrainSource`/`ResolveFeatures`/`ResolveLight`/`BuildChunkMesh` job 생성 조건은 `ClientWorldRuntime`이 제공하고, target status 설정과 frontier job enqueue 조율은 `ClientTerrainCoordinator`가 담당한다.
+terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 판정, pending unload 후보 관리, 저장 snapshot 생성/복원도 `ClientWorldRuntime`이 담당한다.
 `ClientTerrainSceneRuntime`은 `ClientTerrainCoordinator`가 만든 terrain job을 worker에 전달하고 scene lifecycle을 조율한다.
 `Renderer`는 GPU mesh 설치, 렌더 데이터 detach 같은 렌더러 의존 작업만 수행한다.
 `BlockInteractionSystem`은 블록 좌표 변환, 플레이어 충돌 범위 판정, 블록 레이캐스트, 블록 파괴 진행 상태를 담당한다.
@@ -141,11 +143,12 @@ terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 �
 `RmlInput`은 GLFW 키/수정키 상태를 RmlUi 입력 값으로 변환한다.
 `SaveFormat`은 region 청크 payload 직렬화/역직렬화, LZ4 block encode/decode, 저장 좌표 래핑 helper를 담당한다.
 `SaveSystem`은 save worker, 저장 큐, pending snapshot, clean revision cache, region header cache, region file IO, 저장/로드 카운터를 소유한다.
-`ChunkLoadSystem`은 chunk-load worker, snapshot load 요청 큐, 완료 큐, 중복 요청 추적을 소유한다.
+`ChunkLoadSystem`은 chunk-load worker, snapshot load 요청 큐, 완료 큐, 중복 요청 추적을 소유한다. worker는 region IO와 `SaveSystem::load` 호출만 담당한다.
+`ChunkPrepareSystem`은 chunk-prepare worker와 준비 큐를 소유한다. 저장 snapshot을 `RuntimeChunk`로 복원하고 derived cache를 재구축해 메인 스레드의 load 완료 처리 비용을 줄인다.
 `DroppedItemSystem`은 드롭 아이템 엔티티 생성, 청크 소유권 helper, 병합, 물리 tick, 플레이어 pickup 판정을 담당한다.
 `DroppedItemRuntime`은 클라이언트 런타임의 드랍 아이템 entity id 할당, 청크별 드랍 아이템 추적, 블록 드롭/수동 드롭 생성 연결, pickup/raycast, tick/update 조율을 담당하며 Renderer/Vulkan 타입에 의존하지 않는다.
 `Biome`은 temperature, precipitation, groundness 기반 5단계 biome band 분류와 biome 이름 조회를 담당한다.
-`TerrainBuilder`는 높이맵, 초기 청크 블록/유체/기후 데이터, tree feature write 생성과 feature write 반영을 담당한다.
+`TerrainBuilder`는 높이맵, 초기 청크 블록/유체/기후 데이터, TerrainSourceReady source checkpoint, 3x3 source view 기반 tree feature resolve를 담당한다.
 `TerrainJobSystem`은 terrain worker thread, terrain job 큐, terrain 완료 큐를 소유한다.
 `TerrainMesher`는 chunk mesh와 편집 subchunk mesh의 CPU orchestration을 담당한다.
 `WorldRuntime`은 runtime chunk map, chunk key/좌표 helper, runtime block 조회/수정, dirty marking, chunk derived cache 갱신, terrain 완료 결과의 runtime chunk 상태 설치를 소유한다.
@@ -197,8 +200,8 @@ frame acquire/submit/present와 command buffer 기록은 `RendererFrameLoop.cpp`
 `RendererUiRuntimeBridge`는 RmlUi runtime 호출과 `ClientUiBridge` 입력/표시 변환을 묶고, `RendererRmlUiBackend`는 RmlUi의 Vulkan `RenderInterface`, UI geometry 업로드, texture load/release, render command 연결을 담당한다.
 `Renderer`는 블록 상호작용 입력을 `ClientGameplayRuntime`에 전달하고 gameplay 결과에 따른 mesh 재생성, particle/sound 실행을 담당한다.
 `Renderer`는 runtime chunk와 terrain/save/load 시스템을 직접 소유하지 않고 `ClientRuntime`이 소유한 `ClientRuntimeState` 안의 `ClientWorldRuntime`과 worker system을 참조하는 전환 단계에 있다.
-저장할 runtime chunk snapshot 생성, terrain 완료 결과 snapshot 저장 enqueue, snapshot에서 runtime chunk 복원, load-state incoming feature merge는 `ClientWorldRuntime`이 담당한다.
-terrain 요청 cascade, chunk-load 완료 후 ticket 재개, feature finalize/mesh 재시도 queue는 `ClientTerrainCoordinator`가 담당한다.
+저장할 runtime chunk snapshot 생성, terrain 완료 결과 snapshot 저장 enqueue, snapshot에서 runtime chunk 복원은 `ClientWorldRuntime`이 담당한다.
+terrain target status 설정, chunk-load 완료 후 주변 frontier 재검사, feature/light/mesh 재시도 queue는 `ClientTerrainCoordinator`가 담당한다.
 terrain/chunk-load 완료 결과의 save/install/ignore/retry 판정 흐름은 `ClientTerrainCompletionHandler`가 담당한다.
 terrain scene load request, worker start/stop, completed work drain, pending unload의 world/save 처리 흐름은 `ClientTerrainSceneRuntime`이 담당한다.
 `Renderer`는 terrain job callback에서 render-dependent `BuildChunkMesh` 경계에 한해 `RendererTerrainMeshBridge`를 호출한다.

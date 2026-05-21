@@ -21,7 +21,8 @@ namespace dolbuto
     TerrainSubchunkBuildData RendererTerrainMeshBridge::buildEditedSubchunkMesh(
         const std::shared_ptr<ChunkData>& chunk,
         int subchunkY,
-        const world::TerrainMesher::WorldBlockSampler& blockAtWorld) const
+        const world::TerrainMesher::WorldBlockSampler& blockAtWorld,
+        const world::TerrainMesher::WorldLightSampler& lightAtWorld) const
     {
         const TerrainGeometryBuilder geometryBuilder(
             content_.blockDefinitions(),
@@ -32,9 +33,10 @@ namespace dolbuto
             chunk,
             subchunkY,
             blockAtWorld,
-            [&geometryBuilder](const std::shared_ptr<ChunkData>& sourceChunk, int sourceSubchunkY, const world::TerrainMesher::BlockSampler& blockAt)
+            lightAtWorld,
+            [&geometryBuilder](const std::shared_ptr<ChunkData>& sourceChunk, int sourceSubchunkY, const world::TerrainMesher::BlockSampler& blockAt, const world::TerrainMesher::LightSampler& lightAt)
             {
-                return geometryBuilder.buildSubchunkMesh(sourceChunk, sourceSubchunkY, blockAt);
+                return geometryBuilder.buildSubchunkMesh(sourceChunk, sourceSubchunkY, blockAt, lightAt);
             });
     }
 
@@ -50,9 +52,9 @@ namespace dolbuto
         return world::TerrainMesher().buildChunkMesh(
             chunks,
             generation,
-            [&geometryBuilder](const std::shared_ptr<ChunkData>& chunk, int subchunkY, const world::TerrainMesher::BlockSampler& blockAt)
+            [&geometryBuilder](const std::shared_ptr<ChunkData>& chunk, int subchunkY, const world::TerrainMesher::BlockSampler& blockAt, const world::TerrainMesher::LightSampler& lightAt)
             {
-                return geometryBuilder.buildSubchunkMesh(chunk, subchunkY, blockAt);
+                return geometryBuilder.buildSubchunkMesh(chunk, subchunkY, blockAt, lightAt);
             },
             [this](uint16_t block)
             {

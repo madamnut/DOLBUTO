@@ -1,5 +1,6 @@
 #pragma once
 
+#include "world/BlockData.h"
 #include "world/WorldTypes.h"
 
 #include <array>
@@ -21,6 +22,7 @@ namespace dolbuto::world
         std::array<float, TerrainSplineLutCount> pvWeightLut{};
         std::array<float, TerrainSplineLutCount> groundnessPvWeightLut{};
         std::array<float, TerrainSplineLutCount> smoothnessPvWeightLut{};
+        LightAttenuationTablesPtr lightAttenuationTables;
         int activeWorldSeedSalt = 0;
         int seaLevel = 256;
 
@@ -107,6 +109,8 @@ namespace dolbuto::world
         std::array<FeatureWriteListPtr, FeatureNeighborCount> buildTreeFeatures(
             const std::shared_ptr<ChunkData>& chunk,
             const std::array<int, ChunkColumnCount>& heights) const;
+        std::shared_ptr<ChunkData> resolveFeaturesForCenter(
+            const std::array<std::shared_ptr<ChunkData>, 9>& sourceChunks) const;
         bool applyFeatureWrites(
             const std::shared_ptr<ChunkData>& chunk,
             const std::array<FeatureWriteListPtr, FeatureNeighborCount>& incomingFeatureSlots) const;

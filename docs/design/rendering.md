@@ -30,6 +30,7 @@
 - CPU 메싱 결과는 임시 `TerrainVertex`/index 형태로 만들어진다.
 - 업로드 직전에 quad record로 변환한다.
 - terrain vertex shader가 SSBO에서 quad record를 읽어 6개의 가상 vertex를 생성한다.
+- packed terrain quad는 packed light 값도 함께 보관하고, shader는 skylight nibble을 꺼내 지형/유체 색에 곱한다.
 - terrain은 index buffer 없이 `vkCmdDraw`를 사용한다.
 - player는 별도 vertex/index 경로를 유지한다.
 
@@ -68,6 +69,8 @@
 `src/renderer/RendererRmlUiBackend.h/.cpp`는 RmlUi `RenderInterface`, UI geometry upload, UI texture load/generate/release, scissor 상태를 담고, `RendererUi.cpp`는 이 backend를 `UiSystem`에 연결한다.
 `src/renderer/RendererDroppedItems.cpp`는 `DroppedItemRuntime` update 호출, 렌더 후보 수집 입력 조립, push constant 준비, `DroppedItemRenderPath` draw 호출만 담는다.
 `src/renderer/RendererFrameLoop.cpp`는 frame acquire/submit/present, command buffer 기록, screenshot readback/BMP 저장, command buffer/sync object 생성을 담는다.
+`src/renderer/SkyRenderPath.h/.cpp`는 scene render pass의 첫 draw로 fullscreen sky shader를 호출한다. sky shader는 clear color 고정값 대신 `worldTicks`에서 계산한 실제 sun direction, 낮/밤 판정용 day direction, camera basis, FOV를 받아 view direction과 direction dot 값으로 하늘 위쪽/지평선/아래쪽 그라데이션, 일출/일몰 horizon glow, 태양 방향 glare를 계산한다.
+하늘색 디버그를 위해 게임 화면에서 `[`를 누르고 있으면 하루 안의 시간이 해가 뜨는 방향으로 되감기고, `]`를 누르고 있으면 해가 지는 방향으로 빨리 진행된다. 이 입력은 `worldTicks`만 조정하므로 sky shader와 sun/moon sprite 위치가 같은 기준으로 움직인다.
 `src/renderer/RendererGameplayBridge.h/.cpp`는 block selection/edit/breaking, pickup/drop, inventory snapshot, block lookup/collision helper, gameplay 결과의 mesh/particle/audio 반영을 담당하는 `RendererGameplayBridge`를 담는다.
 `src/renderer/RendererTerrainRuntimeBridge.h/.cpp`는 loaded chunk 갱신, terrain load request, terrain job completion, pending unload, retired terrain chunk 처리, edited mesh rebuild, terrain stats 갱신을 담당하는 `RendererTerrainRuntimeBridge` 객체를 담는다.
 `src/renderer/RendererSceneLifecycleBridge.h/.cpp`는 scene load/unload hook 조립과 renderer-specific scene lifecycle callback 연결을 담당하는 `RendererSceneLifecycleBridge` 객체를 담는다.
@@ -77,6 +80,8 @@
 `src/renderer/RendererClimateOverlay.cpp`는 climate overlay texture 생성을 담는다.
 `src/game/ClientFrame.h`는 `GameClient`가 한 프레임 렌더링에 넘기는 카메라, 플레이어, overlay, debug, screenshot, world tick 입력을 `ClientFrame` DTO로 묶는다.
 `ClientFrame`/`RendererFrame`은 현재 FOV를 `fovRadians`로 함께 전달한다.
+스카이라이트 전역 밝기는 `worldTicks`에서 시간 기반으로 계산한 `0.0~1.0` 범위의 `skyBrightness`로 렌더 프레임에 전달한다.
+`05:00~07:00`에는 최소 밝기 `0.08`에서 최대 밝기 `1.0`으로 부드럽게 밝아지고, `07:00~17:00`에는 최대 밝기를 유지하며, `17:00~21:00`에는 다시 최소 밝기로 어두워진다. `21:00~05:00`에는 최소 밝기를 유지한다.
 terrain/player/particle/selection/dropped item projection과 terrain/dropped item frustum culling, sky sprite projection은 이 값을 같은 프레임 기준으로 사용한다.
 1인칭 손과 든 아이템 viewmodel은 화면상 크기와 배치가 FOV 설정에 따라 흔들리지 않도록 별도 고정 FOV `60도`를 사용한다.
 FOV 설정은 `config/settings.json`의 `video.fovDegrees`에 저장되며 Options 화면에서 `30도 ~ 110도` 사이로 조정한다.
@@ -100,6 +105,8 @@ player mesh는 terrain chunk mesh와 별도 indexed vertex buffer 경로이며 `
 현재 선택 핫바 아이템은 `ClientFrame`/`RendererFrame`의 `heldItemId`로 전달되고, `RendererDroppedItems.cpp`가 기존 `DroppedItemRenderPath` item pipeline을 재사용해 1인칭 손 앞에 렌더링한다.
 1인칭 손과 든 아이템은 지형 depth에 묻히지 않도록 그리기 직전에 scene depth attachment를 clear한 뒤 viewmodel pipeline으로 그린다.
 viewmodel pipeline은 depth test/write를 사용해 viewmodel mesh 내부의 앞뒤 관계를 유지한다.
+플레이어 스킨과 1인칭 손은 GLB 원본 vertex/index를 정적 GPU mesh로 유지하고, vertex별 `nodeIndex`와 frame별 node transform storage buffer를 통해 shader에서 최종 위치를 계산한다.
+CPU는 매 프레임 vertex buffer를 덮어쓰지 않고, 현재 in-flight frame의 transform buffer만 갱신한다.
 아이템을 들고 있을 때는 손 mesh를 숨기고 아이템 viewmodel만 표시한다.
 든 아이템은 `item_viewmodel.vert`에서 카메라 회전을 적용하지 않는 view-space 좌표로 렌더링해 화면상 같은 면이 유지된다.
 `config/viewmodel.json`은 손/아이템 viewmodel의 view-space 위치, 스케일, 회전값을 제공하고, `RendererConfigBridge`가 `ClientRuntimeState::viewmodelConfig`로 로드한다.
@@ -188,6 +195,7 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 - 프러스텀 컬링을 적용한다.
 - 지형 메쉬는 청크/서브청크 렌더 데이터 기준으로 draw한다.
 - 와이어프레임은 F4로 토글한다.
+- 지형/유체 조명은 메쉬에 패킹된 skylight와 block light를 분리해 읽는다. skylight는 프레임 전역 `skyBrightness`를 곱하고, block light는 시간대 영향을 받지 않는 절대 밝기로 둔 뒤 `max(skyLight * skyBrightness, blockLight)`를 연속 light curve `x*x*(0.667482 + 0.332518*x)`로 매핑해 적용한다.
 
 ## 관련 문서
 

@@ -35,7 +35,7 @@ namespace dolbuto
             const bool& memoryBudgetSupported);
 
         world::ClimateSystem climateSystem() const;
-        void updateDebugTextBatch(std::string_view fpsText);
+        void updateDebugTextBatch(std::string_view fpsText, std::string_view perfText);
         void updatePerformanceText(double cpuFrameMs);
         void updateTerrainDebugText();
         void updateVramText();

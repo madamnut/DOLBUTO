@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
@@ -172,6 +173,8 @@ namespace dolbuto::game
             blockDefinition.alphaBlend = definition.alphaBlend;
             blockDefinition.mipDistanceScale = definition.mipDistanceScale;
             blockDefinition.hardness = definition.hardness;
+            blockDefinition.lightAttenuation = definition.lightAttenuation;
+            blockDefinition.lightEmission = definition.lightEmission;
             blockDefinition.randomOffset = definition.randomOffset;
             for (size_t dropIndex = 0; dropIndex < definition.dropItemKeys.size(); ++dropIndex)
             {
@@ -237,6 +240,33 @@ namespace dolbuto::game
             }
         }
 
+        const std::vector<char> fluidDefinitionData = readContentFile(assetDirectory / "data" / "fluids.json");
+        const std::string fluidDefinitionText(fluidDefinitionData.begin(), fluidDefinitionData.end());
+        const std::vector<data::ParsedFluidDefinition> parsedFluids = data::parseFluidDefinitions(fluidDefinitionText);
+        content.fluidDefinitions_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
+        for (const data::ParsedFluidDefinition& definition : parsedFluids)
+        {
+            FluidDefinition fluidDefinition{};
+            fluidDefinition.name = definition.name;
+            fluidDefinition.lightAttenuation = definition.lightAttenuation;
+            content.fluidDefinitions_[definition.id] = fluidDefinition;
+        }
+
+        auto lightAttenuationTables = std::make_shared<LightAttenuationTables>();
+        lightAttenuationTables->block.assign(content.blockDefinitions_.size(), 15);
+        lightAttenuationTables->blockEmission.assign(content.blockDefinitions_.size(), 0);
+        for (size_t i = 0; i < content.blockDefinitions_.size(); ++i)
+        {
+            lightAttenuationTables->block[i] = content.blockDefinitions_[i].lightAttenuation;
+            lightAttenuationTables->blockEmission[i] = content.blockDefinitions_[i].lightEmission;
+        }
+        lightAttenuationTables->fluid.assign(content.fluidDefinitions_.size(), 0);
+        for (size_t i = 0; i < content.fluidDefinitions_.size(); ++i)
+        {
+            lightAttenuationTables->fluid[i] = content.fluidDefinitions_[i].lightAttenuation;
+        }
+        content.lightAttenuationTables_ = std::move(lightAttenuationTables);
+
         for (size_t i = 0; i < content.blockBreakingTextureLayers_.size(); ++i)
         {
             content.blockBreakingTextureLayers_[i] = layerForTexture("breaking/destroy_stage_" + std::to_string(i));
@@ -253,6 +283,16 @@ namespace dolbuto::game
     const std::vector<BlockDefinition>& ClientContent::blockDefinitions() const
     {
         return blockDefinitions_;
+    }
+
+    const std::vector<FluidDefinition>& ClientContent::fluidDefinitions() const
+    {
+        return fluidDefinitions_;
+    }
+
+    LightAttenuationTablesPtr ClientContent::lightAttenuationTables() const
+    {
+        return lightAttenuationTables_;
     }
 
     const std::vector<BlockTextureLayers>& ClientContent::blockTextureLayers() const

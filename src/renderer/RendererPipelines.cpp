@@ -72,6 +72,117 @@ namespace dolbuto
 
 
 
+    void Renderer::createSkyPipeline()
+    {
+        const std::filesystem::path shaderDir = shaderDirectory();
+        VkShaderModule vertShader = createShaderModule((shaderDir / "sky.vert.spv").string());
+        VkShaderModule fragShader = createShaderModule((shaderDir / "sky.frag.spv").string());
+
+        VkPipelineShaderStageCreateInfo vertStage{};
+        vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertStage.module = vertShader;
+        vertStage.pName = "main";
+
+        VkPipelineShaderStageCreateInfo fragStage{};
+        fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragStage.module = fragShader;
+        fragStage.pName = "main";
+
+        VkPipelineShaderStageCreateInfo stages[] = {vertStage, fragStage};
+
+        VkPipelineVertexInputStateCreateInfo vertexInput{};
+        vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.scissorCount = 1;
+
+        std::array<VkDynamicState, 2> dynamicStates = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+
+        VkPipelineDynamicStateCreateInfo dynamicState{};
+        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+        dynamicState.pDynamicStates = dynamicStates.data();
+
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer.cullMode = VK_CULL_MODE_NONE;
+        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer.lineWidth = 1.0f;
+
+        VkPipelineMultisampleStateCreateInfo multisampling{};
+        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        VkPipelineColorBlendAttachmentState colorBlend{};
+        colorBlend.blendEnable = VK_FALSE;
+        colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+        VkPipelineColorBlendStateCreateInfo colorBlending{};
+        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlending.attachmentCount = 1;
+        colorBlending.pAttachments = &colorBlend;
+
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_FALSE;
+        depthStencil.depthWriteEnable = VK_FALSE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+
+        VkPushConstantRange pushRange{};
+        pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        pushRange.offset = 0;
+        pushRange.size = sizeof(SkyRenderPath::Push);
+        static_assert(sizeof(SkyRenderPath::Push) == sizeof(float) * 24);
+
+        VkPipelineLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layoutInfo.pushConstantRangeCount = 1;
+        layoutInfo.pPushConstantRanges = &pushRange;
+
+        if (vkCreatePipelineLayout(vulkan_.device, &layoutInfo, nullptr, &vulkan_.skyPipelineLayout) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create sky pipeline layout.");
+        }
+
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount = 2;
+        pipelineInfo.pStages = stages;
+        pipelineInfo.pVertexInputState = &vertexInput;
+        pipelineInfo.pInputAssemblyState = &inputAssembly;
+        pipelineInfo.pViewportState = &viewportState;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState = &multisampling;
+        pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.pDepthStencilState = &depthStencil;
+        pipelineInfo.pDynamicState = &dynamicState;
+        pipelineInfo.layout = vulkan_.skyPipelineLayout;
+        pipelineInfo.renderPass = vulkan_.sceneRenderPass;
+        pipelineInfo.subpass = 0;
+
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.skyPipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create sky pipeline.");
+        }
+
+        vkDestroyShaderModule(vulkan_.device, fragShader, nullptr);
+        vkDestroyShaderModule(vulkan_.device, vertShader, nullptr);
+    }
+
+
+
     void Renderer::createPipeline()
     {
         const std::filesystem::path shaderDir = shaderDirectory();
@@ -355,7 +466,7 @@ namespace dolbuto
     {
         const std::filesystem::path shaderDir = shaderDirectory();
         VkShaderModule vertShader = createShaderModule((shaderDir / "terrain.vert.spv").string());
-        VkShaderModule playerVertShader = createShaderModule((shaderDir / "player.vert.spv").string());
+        VkShaderModule playerVertShader = createShaderModule((shaderDir / "player_model.vert.spv").string());
         VkShaderModule fragShader = createShaderModule((shaderDir / "terrain.frag.spv").string());
         VkShaderModule fluidFragShader = createShaderModule((shaderDir / "fluid.frag.spv").string());
 
@@ -378,30 +489,34 @@ namespace dolbuto
 
         VkVertexInputBindingDescription playerBindingDescription{};
         playerBindingDescription.binding = 0;
-        playerBindingDescription.stride = sizeof(TerrainVertex);
+        playerBindingDescription.stride = sizeof(PlayerVertex);
         playerBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-        std::array<VkVertexInputAttributeDescription, 5> playerAttributes{};
+        std::array<VkVertexInputAttributeDescription, 6> playerAttributes{};
         playerAttributes[0].binding = 0;
         playerAttributes[0].location = 0;
         playerAttributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-        playerAttributes[0].offset = offsetof(TerrainVertex, x);
+        playerAttributes[0].offset = offsetof(PlayerVertex, x);
         playerAttributes[1].binding = 0;
         playerAttributes[1].location = 1;
         playerAttributes[1].format = VK_FORMAT_R32G32_SFLOAT;
-        playerAttributes[1].offset = offsetof(TerrainVertex, u);
+        playerAttributes[1].offset = offsetof(PlayerVertex, u);
         playerAttributes[2].binding = 0;
         playerAttributes[2].location = 2;
         playerAttributes[2].format = VK_FORMAT_R32_SFLOAT;
-        playerAttributes[2].offset = offsetof(TerrainVertex, ao);
+        playerAttributes[2].offset = offsetof(PlayerVertex, ao);
         playerAttributes[3].binding = 0;
         playerAttributes[3].location = 3;
         playerAttributes[3].format = VK_FORMAT_R32_SFLOAT;
-        playerAttributes[3].offset = offsetof(TerrainVertex, textureLayer);
+        playerAttributes[3].offset = offsetof(PlayerVertex, textureLayer);
         playerAttributes[4].binding = 0;
         playerAttributes[4].location = 4;
         playerAttributes[4].format = VK_FORMAT_R32_SFLOAT;
-        playerAttributes[4].offset = offsetof(TerrainVertex, mipDistanceScale);
+        playerAttributes[4].offset = offsetof(PlayerVertex, mipDistanceScale);
+        playerAttributes[5].binding = 0;
+        playerAttributes[5].location = 5;
+        playerAttributes[5].format = VK_FORMAT_R32_UINT;
+        playerAttributes[5].offset = offsetof(PlayerVertex, nodeIndex);
 
         VkPipelineVertexInputStateCreateInfo playerVertexInput{};
         playerVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;

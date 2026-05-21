@@ -6,6 +6,9 @@
 #include "renderer/RendererGpuResources.h"
 #include "renderer/TerrainTypes.h"
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <vector>
 
@@ -13,34 +16,72 @@
 
 namespace dolbuto
 {
+    struct PlayerVertex
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+        float u = 0.0f;
+        float v = 0.0f;
+        float ao = 1.0f;
+        float textureLayer = 0.0f;
+        float mipDistanceScale = 1.0f;
+        uint32_t nodeIndex = 0;
+    };
+
     class PlayerMeshRenderPath
     {
     public:
         PlayerMeshRenderPath() = default;
-        PlayerMeshRenderPath(const VkDevice* device, VulkanResourceManager* gpuResources);
+        PlayerMeshRenderPath(
+            const VkDevice* device,
+            const VkDescriptorPool* descriptorPool,
+            const VkDescriptorSetLayout* transformDescriptorSetLayout,
+            VulkanResourceManager* gpuResources);
 
-        void setHandles(const VkDevice* device, VulkanResourceManager* gpuResources);
+        void setHandles(
+            const VkDevice* device,
+            const VkDescriptorPool* descriptorPool,
+            const VkDescriptorSetLayout* transformDescriptorSetLayout,
+            VulkanResourceManager* gpuResources);
 
         void loadFromGlb(const std::filesystem::path& path);
-        void update(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount);
-        void updateFirstPersonHand(const Camera& camera, Vec3 cameraPosition, const config::ViewmodelHandConfig& config);
-        void draw(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture) const;
-        void drawFirstPersonHand(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture) const;
+        void update(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount, uint32_t frameIndex);
+        void updateFirstPersonHand(const Camera& camera, Vec3 cameraPosition, const config::ViewmodelHandConfig& config, uint32_t frameIndex);
+        void draw(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture, uint32_t frameIndex) const;
+        void drawFirstPersonHand(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture, uint32_t frameIndex) const;
         void destroy();
         bool ready() const;
         bool firstPersonHandReady() const;
 
     private:
+        struct TransformFrame
+        {
+            VkBuffer buffer = VK_NULL_HANDLE;
+            VkDeviceMemory memory = VK_NULL_HANDLE;
+            VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+        };
+
         VkDevice device() const;
+        VkDescriptorPool descriptorPool() const;
+        VkDescriptorSetLayout transformDescriptorSetLayout() const;
         VulkanResourceManager& gpuResources() const;
         void buildFirstPersonHandMesh();
-        void createMeshBuffers(TerrainMesh& mesh, const std::vector<TerrainVertex>& vertices, const std::vector<uint32_t>& indices);
+        void createMeshBuffers(TerrainMesh& mesh, const std::vector<PlayerVertex>& vertices, const std::vector<uint32_t>& indices);
+        void createTransformFrames(std::vector<TransformFrame>& frames, std::size_t nodeCount);
+        void updateTransformFrame(std::vector<TransformFrame>& frames, const std::vector<std::array<float, 16>>& transforms, uint32_t frameIndex);
         void destroyMesh(TerrainMesh& mesh);
+        void destroyTransformFrames(std::vector<TransformFrame>& frames);
+        VkDescriptorSet transformDescriptor(const std::vector<TransformFrame>& frames, uint32_t frameIndex) const;
 
         const VkDevice* device_ = nullptr;
+        const VkDescriptorPool* descriptorPool_ = nullptr;
+        const VkDescriptorSetLayout* transformDescriptorSetLayout_ = nullptr;
         VulkanResourceManager* gpuResources_ = nullptr;
         TerrainMesh mesh_{};
         TerrainMesh firstPersonHandMesh_{};
+        std::vector<TransformFrame> transformFrames_;
+        std::vector<TransformFrame> firstPersonHandTransformFrames_;
         std::vector<PlayerModelNode> nodes_;
         std::vector<PlayerModelVertex> sourceVertices_;
         std::vector<uint32_t> indices_;

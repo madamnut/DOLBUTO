@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -56,7 +57,24 @@ namespace dolbuto
         float alphaBlend = 1.0f;
         float mipDistanceScale = 1.0f;
         float hardness = -1.0f;
+        uint8_t lightAttenuation = 15;
+        uint8_t lightEmission = 0;
         bool randomOffset = false;
         std::vector<BlockDrop> drops;
     };
+
+    struct FluidDefinition
+    {
+        std::string name = "none";
+        uint8_t lightAttenuation = 0;
+    };
+
+    struct LightAttenuationTables
+    {
+        std::vector<uint8_t> block;
+        std::vector<uint8_t> blockEmission;
+        std::vector<uint8_t> fluid;
+    };
+
+    using LightAttenuationTablesPtr = std::shared_ptr<const LightAttenuationTables>;
 }

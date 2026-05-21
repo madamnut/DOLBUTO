@@ -19,6 +19,8 @@ struct GLFWwindow;
 
 namespace dolbuto::game
 {
+    enum class ClientPerfCounter;
+
     class ClientRenderRuntime;
     struct ClientRuntimeState;
 
@@ -58,7 +60,7 @@ namespace dolbuto::game
             bool playerColliderHasSupportBelow(DVec3 playerPosition) const;
             void updateBlockSelection(DVec3 origin, Vec3 direction);
             void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds);
-            bool editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition, double playerHeightScale);
+            bool editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale);
             bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
             bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction);
             std::array<ItemStack, gameplay::PlayerInventory::SlotCount> inventorySnapshot() const;
@@ -108,6 +110,9 @@ namespace dolbuto::game
             std::string climateText(DVec3 position) const;
             std::string biomeText(DVec3 position) const;
             std::string terrainText(DVec3 position) const;
+            std::string performanceMaxText() const;
+            void recordPerformanceMax(ClientPerfCounter counter, double milliseconds);
+            void resetPerformanceMax();
 
         private:
             ClientRuntime& owner_;

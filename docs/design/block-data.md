@@ -58,6 +58,42 @@ assets/textures/block/breaking/destroy_stage_0.png
 assets/textures/block/breaking/destroy_stage_9.png
 ```
 
+## LightAttenuation
+
+블록과 유체 정의는 조명 전파 감쇠값 `lightAttenuation`을 가진다.
+값 범위는 `0~15`이며 로더에서 이 범위로 클램프한다.
+
+```text
+0  감쇠 없음
+1  일반 투명 통과
+2  물, 나뭇잎, 얼음처럼 더 흐려지는 통과
+15 차단
+```
+
+청크 skylight 계산은 블록 ID를 직접 분기하지 않고 `BlockDefinition`/`FluidDefinition`에서 만든 attenuation table을 조회한다.
+셀에 유체가 있으면 `max(block.lightAttenuation, fluid.lightAttenuation)`을 사용한다.
+
+현재 초기값:
+
+```text
+air, plant, stone prop, branch prop  1
+leaves, ice                          2
+그 외 불투명 블록                    15
+none fluid                           0
+water, lava                          2
+methane, hydrogen                    1
+```
+
+## LightEmission
+
+블록 정의는 블록 라이트 원천값 `lightEmission`을 가질 수 있다.
+값 범위는 `0~15`이며 로더에서 이 범위로 클램프한다.
+
+`lightEmission`은 skyLight가 아니라 blockLight 채널에 들어가는 값이다.
+blockLight는 시간대별 하늘 밝기의 영향을 받지 않고, 렌더링에서는 `max(skyLight * skyBrightness, blockLight)`로 skyLight와 합성한다.
+
+테스트용 `glowing_rock`은 `rock` 텍스처를 재사용하고 `lightEmission = 15`를 가진다.
+
 ## 랜덤 오프셋
 
 `randomOffset`는 `cross`, `prop` 렌더 타입에 쓰는 블록 데이터 불리언 플래그다.
@@ -160,13 +196,13 @@ blend 블록은 terrain texture array를 그대로 사용하며, `alphaBlend` �
 assets/data/fluids.json
 ```
 
-유체 정의는 현재 `id`, `name`만 가진다.
-유체별 물성 파라미터는 아직 정의하지 않는다.
+유체 정의는 현재 `id`, `name`, `lightAttenuation`을 가진다.
 
 ```json
 {
   "id": 1,
-  "name": "water"
+  "name": "water",
+  "lightAttenuation": 2
 }
 ```
 

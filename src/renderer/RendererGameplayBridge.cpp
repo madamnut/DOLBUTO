@@ -10,11 +10,6 @@
 
 namespace dolbuto
 {
-    namespace
-    {
-        constexpr uint16_t BlockRock = 1;
-    }
-
     RendererGameplayBridge::RendererGameplayBridge(
         game::ClientRuntimeState& client,
         const RendererVulkanState& vulkan,
@@ -27,14 +22,14 @@ namespace dolbuto
     {
     }
 
-    bool RendererGameplayBridge::editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition, double playerHeightScale)
+    bool RendererGameplayBridge::editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale)
     {
         return applyBlockEditResult(
             client_.gameplayRuntime.editBlockInView(
                 origin,
                 direction,
-                placeRock,
-                BlockRock,
+                placeBlock,
+                placeBlockId,
                 playerPosition,
                 playerHeightScale,
                 [this](int x, int y, int z) { return blockAtWorld(x, y, z); },

@@ -42,17 +42,22 @@ region 인덱스는 파일명으로 구분한다.
 - 청크 revision
 - 청크 블록 데이터
 - 청크 유체 데이터
+- 청크 packed light 데이터
 - incoming feature slot 값
 - incoming feature mask 값
 
 블록 데이터와 유체 데이터는 각각 별도 RLE run으로 저장한다.
 유체 값은 `uint16_t` 패킹 값이다.
+packed light 값은 `uint8_t` RLE run으로 저장하며, 상위 4비트는 skylight, 하위 4비트는 block light이다.
+현재 구현은 skylight만 계산하고 block light는 `0`으로 둔다.
+저장되는 최종 청크 상태는 `LightResolved`이며, 중간 결과는 `TerrainSourceReady`, `LocalLightReady` 상태로 저장될 수 있다.
+현재 feature 기본 경로는 incoming feature write 전파가 아니라 3x3 source view 기반 center resolve다. 저장 포맷의 incoming feature slot 필드는 전환기 호환 필드로 남아 있지만 새 생성 파이프라인은 여기에 의존하지 않는다.
 
 저장하지 않는 것:
 
 - render ticket
 - mesh ticket
-- full/featuring ticket
+- source/feature/light ticket
 - job priority
 - GPU mesh
 - outgoing feature publish ticket
@@ -74,8 +79,10 @@ region 인덱스는 파일명으로 구분한다.
 `Renderer`는 전환 단계에서 저장 worker 시작/정지와 저장 완료 callback 연결만 수행한다.
 `WorldRuntime`은 runtime chunk dirty serial/dirty flag 갱신을 담당한다.
 저장 완료 callback에서 런타임 청크의 saved backing/dirty 상태를 갱신하는 연결은 아직 `Renderer`가 보유한다.
-snapshot load 완료 drain, desired 여부 판정, snapshot에서 runtime chunk 복원, 기존 render/full/mesh/feature ticket 보존과 loaded runtime chunk 설치는 `ClientWorldRuntime`과 `WorldRuntime`의 상태 설치 API를 통해 처리한다.
-`ChunkLoadSystem`은 비동기 snapshot load 요청을 받아 `SaveSystem`의 load 함수를 호출하고 완료 결과를 main thread가 drain할 수 있게 보관한다.
+snapshot load 완료 drain, desired 여부 판정, 기존 render/mesh/source/feature/local-light/light ticket 보존과 loaded runtime chunk 설치는 `ClientWorldRuntime`과 `WorldRuntime`의 상태 설치 API를 통해 처리한다.
+`ChunkLoadSystem`은 비동기 snapshot load 요청을 받아 `SaveSystem`의 load 함수를 호출하고 완료 결과를 prepare queue로 넘긴다.
+`ChunkPrepareSystem`은 별도 worker에서 저장 snapshot을 `RuntimeChunk`로 복원하고 derived cache를 재구축한다.
+메인 스레드는 준비된 `PreparedChunkLoad`를 설치하고, entity id 정규화와 저장 clean revision 갱신처럼 runtime 상태에 닿는 작업만 수행한다.
 
 저장 대상:
 
@@ -97,7 +104,7 @@ snapshot load 완료 drain, desired 여부 판정, snapshot에서 runtime chunk 
 - region header cache hit
 - save miss
 
-저장 데이터가 있으면 snapshot을 런타임 청크로 복원한다.
+저장 데이터가 있으면 snapshot을 prepare worker에서 런타임 청크로 복원한다.
 저장 데이터가 없으면 월드 생성 파이프라인으로 새 청크를 만든다.
 
 ## 종료 처리
@@ -109,12 +116,14 @@ snapshot load 완료 drain, desired 여부 판정, snapshot에서 runtime chunk 
 
 ## 기후 페이로드 데이터
 
-청크 payload는 block/fluid RLE 데이터 바로 뒤, incoming feature write 앞에 기후 데이터를 저장한다.
+청크 payload는 block/fluid/light RLE 데이터 바로 뒤, incoming feature write 앞에 기후 데이터를 저장한다.
 
 - `temperature`: 청크 컬럼당 `uint8_t` 하나, 총 256 raw byte.
 - `precipitation`: 청크 컬럼당 `uint8_t` 하나, 총 256 raw byte.
 - 값은 `0~255`로 인코딩하고 `0.0~1.0`으로 디코딩한다.
 - 유체는 런타임과 저장 데이터에서 별도의 packed `uint16_t` 배열로 유지한다.
+- light는 런타임과 저장 데이터에서 별도의 packed `uint8_t` 배열로 유지한다.
+- 현재 저장 포맷은 light payload가 없는 legacy 청크를 지원하지 않는다. 기존 세이브는 삭제하고 새로 생성하는 것을 전제로 한다.
 
 ## 청크 엔티티 페이로드 데이터
 

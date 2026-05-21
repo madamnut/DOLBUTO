@@ -9,52 +9,6 @@
 
 namespace dolbuto::save
 {
-    namespace
-    {
-        constexpr int ChunkSizeX = 16;
-        constexpr int ChunkSizeY = 512;
-        constexpr int ChunkSizeZ = 16;
-        constexpr uint16_t BlockAir = 0;
-        constexpr uint16_t BlockLeaves = 9;
-        constexpr uint16_t BlockPlant = 10000;
-
-        bool applySavedIncomingFeatureSlots(SaveChunkSnapshot& snapshot)
-        {
-            if (!snapshot.hasData)
-            {
-                return false;
-            }
-
-            bool changed = false;
-            for (const FeatureWriteListPtr& writes : snapshot.incomingFeatureSlots)
-            {
-                if (!writes)
-                {
-                    continue;
-                }
-                for (const FeatureWrite& write : *writes)
-                {
-                    if (write.block != BlockLeaves ||
-                        write.localX < 0 || write.localX >= ChunkSizeX ||
-                        write.localZ < 0 || write.localZ >= ChunkSizeZ ||
-                        write.y < 0 || write.y >= ChunkSizeY)
-                    {
-                        continue;
-                    }
-
-                    const size_t index = static_cast<size_t>((write.y * ChunkSizeZ + write.localZ) * ChunkSizeX + write.localX);
-                    uint16_t& existing = snapshot.blocks[index];
-                    if (existing == BlockAir || existing == BlockPlant)
-                    {
-                        existing = BlockLeaves;
-                        changed = true;
-                    }
-                }
-            }
-            return changed;
-        }
-    }
-
     SaveSystem::~SaveSystem()
     {
         stop();
@@ -105,8 +59,9 @@ namespace dolbuto::save
         const uint64_t key = storageChunkKey(snapshot.chunkX, snapshot.chunkZ);
         if (snapshot.genState == ChunkGenState::Meshed)
         {
-            snapshot.genState = ChunkGenState::Full;
+            snapshot.genState = ChunkGenState::LightResolved;
         }
+        const bool featureInputsConsumed = static_cast<int>(snapshot.genState) >= static_cast<int>(ChunkGenState::LocalLightReady);
 
         if (snapshot.hasData && !snapshot.forceSave)
         {
@@ -117,7 +72,7 @@ namespace dolbuto::save
             return;
         }
 
-        if (snapshot.genState == ChunkGenState::Full)
+        if (featureInputsConsumed)
         {
             snapshot.incomingFeatureMask = 0;
             snapshot.incomingFeatureSlots = {};
@@ -139,13 +94,13 @@ namespace dolbuto::save
             {
                 const SaveChunkSnapshot previous = pending;
                 if (snapshot.hasSavedBacking && !snapshot.forceSave && previous.hasData &&
-                    previous.genState == ChunkGenState::Full &&
-                    (snapshot.genState != ChunkGenState::Full || previous.revision > snapshot.revision))
+                    previous.genState == ChunkGenState::LightResolved &&
+                    (!featureInputsConsumed || previous.revision > snapshot.revision))
                 {
                     return;
                 }
                 pending = snapshot;
-                if (pending.genState != ChunkGenState::Full)
+                if (!featureInputsConsumed)
                 {
                     pending.incomingFeatureMask |= previous.incomingFeatureMask;
                     for (size_t slot = 0; slot < FeatureNeighborCount; ++slot)
@@ -308,7 +263,7 @@ namespace dolbuto::save
             return loadMiss();
         }
 
-        if (snapshot->genState == ChunkGenState::Full && snapshot->hasData)
+        if (snapshot->genState == ChunkGenState::LightResolved && snapshot->hasData)
         {
             markClean(chunkX, chunkZ, snapshot->revision);
         }
@@ -466,17 +421,17 @@ namespace dolbuto::save
         {
             const std::optional<SaveChunkSnapshot> previous = existingSnapshot;
             if (snapshot.hasSavedBacking && !snapshot.forceSave && previous && previous->hasData &&
-                previous->genState == ChunkGenState::Full &&
-                (snapshot.genState != ChunkGenState::Full || previous->revision > snapshot.revision))
+                previous->genState == ChunkGenState::LightResolved &&
+                (static_cast<int>(snapshot.genState) < static_cast<int>(ChunkGenState::LocalLightReady) || previous->revision > snapshot.revision))
             {
                 return;
             }
             merged = snapshot;
             if (merged.genState == ChunkGenState::Meshed)
             {
-                merged.genState = ChunkGenState::Full;
+                merged.genState = ChunkGenState::LightResolved;
             }
-            if (merged.genState == ChunkGenState::Full)
+            if (static_cast<int>(merged.genState) >= static_cast<int>(ChunkGenState::LocalLightReady))
             {
                 merged.incomingFeatureMask = 0;
                 merged.incomingFeatureSlots = {};
@@ -495,7 +450,7 @@ namespace dolbuto::save
         }
         else
         {
-            if (merged.genState != ChunkGenState::Full)
+            if (static_cast<int>(merged.genState) < static_cast<int>(ChunkGenState::LocalLightReady))
             {
                 merged.incomingFeatureMask |= snapshot.incomingFeatureMask;
             }
@@ -505,31 +460,22 @@ namespace dolbuto::save
                 {
                     continue;
                 }
-                if (merged.genState == ChunkGenState::Full && merged.hasData)
+                if (static_cast<int>(merged.genState) >= static_cast<int>(ChunkGenState::LocalLightReady) && merged.hasData)
                 {
-                    std::array<FeatureWriteListPtr, FeatureNeighborCount> singleSlot{};
-                    singleSlot[slot] = snapshot.incomingFeatureSlots[slot];
-                    merged.incomingFeatureSlots = singleSlot;
-                    if (applySavedIncomingFeatureSlots(merged))
-                    {
-                        merged.revision += 1;
-                    }
+                    merged.genState = ChunkGenState::TerrainSourceReady;
                     merged.incomingFeatureSlots = {};
-                    merged.incomingFeatureMask = 0;
+                    merged.incomingFeatureMask = 0xFFu;
                 }
-                else
-                {
-                    merged.incomingFeatureSlots[slot] = snapshot.incomingFeatureSlots[slot];
-                    merged.incomingFeatureMask |= static_cast<uint8_t>(1u << static_cast<uint32_t>(slot));
-                }
+                merged.incomingFeatureSlots[slot] = snapshot.incomingFeatureSlots[slot];
+                merged.incomingFeatureMask |= static_cast<uint8_t>(1u << static_cast<uint32_t>(slot));
             }
         }
 
         if (merged.genState == ChunkGenState::Meshed)
         {
-            merged.genState = ChunkGenState::Full;
+            merged.genState = ChunkGenState::LightResolved;
         }
-        if (merged.genState == ChunkGenState::Full)
+        if (static_cast<int>(merged.genState) >= static_cast<int>(ChunkGenState::LocalLightReady))
         {
             merged.incomingFeatureSlots = {};
             merged.incomingFeatureMask = 0;
@@ -578,7 +524,7 @@ namespace dolbuto::save
                 rawSize};
         }
 
-        if (merged.genState == ChunkGenState::Full && merged.hasData)
+        if (merged.genState == ChunkGenState::LightResolved && merged.hasData)
         {
             markClean(merged.chunkX, merged.chunkZ, merged.revision);
         }

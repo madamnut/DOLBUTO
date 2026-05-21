@@ -90,6 +90,7 @@ namespace dolbuto::game
             config.pvWeightLut = state.diagnostics.pvWeightLut;
             config.groundnessPvWeightLut = state.diagnostics.groundnessPvWeightLut;
             config.smoothnessPvWeightLut = state.diagnostics.smoothnessPvWeightLut;
+            config.lightAttenuationTables = state.content.lightAttenuationTables();
             config.activeWorldSeedSalt = state.clientWorldRuntime.activeWorldSeedSalt;
             config.seaLevel = state.worldConfig.seaLevel;
             config.groundnessNoiseFeatureScale = state.worldConfig.groundnessNoiseFeatureScale;
@@ -265,9 +266,9 @@ namespace dolbuto::game
         owner_.renderRuntime_->updateBlockBreaking(origin, direction, breaking, playerPosition, deltaSeconds);
     }
 
-    bool ClientRuntime::GameplayAccess::editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition, double playerHeightScale)
+    bool ClientRuntime::GameplayAccess::editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale)
     {
-        return owner_.renderRuntime_->editBlockInView(origin, direction, placeRock, playerPosition, playerHeightScale);
+        return owner_.renderRuntime_->editBlockInView(origin, direction, placeBlock, placeBlockId, playerPosition, playerHeightScale);
     }
 
     bool ClientRuntime::GameplayAccess::pickupDroppedItemInView(DVec3 origin, Vec3 direction)
@@ -472,6 +473,35 @@ namespace dolbuto::game
             "] VAL[" << terrainSample.terrainValue <<
             "] H[" << terrainSample.height << "]";
         return text.str();
+    }
+
+    std::string ClientRuntime::DiagnosticsAccess::performanceMaxText() const
+    {
+        const ClientPerfMaxStats& perf = owner_.state_->diagnostics.perfMax;
+        std::ostringstream text;
+        text << std::fixed << std::setprecision(2);
+        text << "PERF MAX [R]\n";
+        text << "TL_FINISH   " << std::setw(7) << perf.terrainLoadFinishMs << " ms\n";
+        text << "TL_SNAPSHOT " << std::setw(7) << perf.terrainLoadSnapshotMs << " ms\n";
+        text << "TL_INSTALL  " << std::setw(7) << perf.terrainLoadInstallMs << " ms\n";
+        text << "TL_RESUME   " << std::setw(7) << perf.terrainLoadResumeMs << " ms\n";
+        text << "TL_TOTAL    " << std::setw(7) << perf.terrainLoadHandleMs << " ms\n";
+        text << "TL_COUNT    " << std::setw(7) << perf.terrainLoadCount << "\n";
+        text << "TD_POP      " << std::setw(7) << perf.terrainPopMs << " ms\n";
+        text << "TD_HANDLE   " << std::setw(7) << perf.terrainHandleMs << " ms\n";
+        text << "TD_TERR_CNT " << std::setw(7) << perf.terrainCompletedCount << "\n";
+        text << "TD_POP_CNT  " << std::setw(7) << perf.terrainPopCount;
+        return text.str();
+    }
+
+    void ClientRuntime::DiagnosticsAccess::recordPerformanceMax(ClientPerfCounter counter, double milliseconds)
+    {
+        recordPerfMax(owner_.state_->diagnostics.perfMax, counter, milliseconds);
+    }
+
+    void ClientRuntime::DiagnosticsAccess::resetPerformanceMax()
+    {
+        owner_.state_->diagnostics.perfMax = ClientPerfMaxStats{};
     }
 
     ClientRuntime::AudioAccess::AudioAccess(ClientRuntime& owner) :

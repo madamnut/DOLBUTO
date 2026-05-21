@@ -43,9 +43,9 @@ namespace dolbuto
         return world::ClimateSystem(terrainRuntimeBridge_.terrainBuilderConfig());
     }
 
-    void RendererDiagnosticsBridge::updateDebugTextBatch(std::string_view fpsText)
+    void RendererDiagnosticsBridge::updateDebugTextBatch(std::string_view fpsText, std::string_view perfText)
     {
-        debugOverlayText_.buildBatch(textRenderPath_, fpsText, VersionText, vulkan_.swapchainExtent);
+        debugOverlayText_.buildBatch(textRenderPath_, fpsText, perfText, VersionText, vulkan_.swapchainExtent);
     }
 
     void RendererDiagnosticsBridge::updatePerformanceText(double cpuFrameMs)

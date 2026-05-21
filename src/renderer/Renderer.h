@@ -15,6 +15,7 @@
 #include "renderer/RendererVulkanState.h"
 #include "renderer/PlayerMeshRenderPath.h"
 #include "renderer/ScreenPresentation.h"
+#include "renderer/SkyRenderPath.h"
 #include "renderer/SpriteRenderPath.h"
 #include "renderer/TerrainRenderPath.h"
 #include "renderer/TerrainTypes.h"
@@ -75,6 +76,7 @@ namespace dolbuto
         VulkanResourceManager gpuResources_;
         TerrainRenderPath terrainRenderPath_;
         TextRenderPath textRenderPath_;
+        SkyRenderPath skyRenderPath_;
         SpriteRenderPath spriteRenderPath_;
         ScreenPresentation screenPresentation_;
         PlayerMeshRenderPath playerMeshRenderPath_;

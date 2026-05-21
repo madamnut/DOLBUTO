@@ -21,7 +21,8 @@ FastNoise2를 사용한다.
 현재 설정은 `config/world.json`에서 관리한다.
 파일 읽기와 설정 값 검증은 `src/config/ConfigLoaders.h/.cpp`의 `config::loadWorldConfig`가 맡는다.
 렌더러는 로드된 설정 값을 월드 생성, 청크 로딩, 기후 노이즈 계산에 적용한다.
-높이맵, 초기 청크 블록/유체 채우기, 기후 칼럼 채우기, 나무 feature write 생성과 반영은 `src/world/TerrainBuilder.h/.cpp`가 맡는다.
+높이맵, 초기 청크 블록/유체 채우기, 기후 칼럼 채우기, 3x3 source view 기반 나무 feature resolve는 `src/world/TerrainBuilder.h/.cpp`가 맡는다.
+청크 데이터의 skylight 재계산은 `src/world/SkyLightSystem.h/.cpp`가 맡는다.
 `Renderer`는 설정값을 `world::TerrainBuilderConfig`로 넘기고, 완료된 청크 설치와 메쉬/GPU 업로드 흐름만 유지한다.
 
 ```json
@@ -238,6 +239,10 @@ PV 자체 범위는 `-1.0 ~ +1.0`으로 보고, `pv_weight_lut.*`도 이 입력 
 4. 각 칼럼의 지형 최상단 위가 `water`이면 표면과 아래 4칸은 `sand`로 바꾼다.
 5. 식생과 나무 feature를 생성한다.
 
+`BuildTerrainSource`는 이 과정에서 column별 `terrainHeight`, `terrainSurfaceY`, deterministic tree 후보를 함께 저장한다.
+이 source checkpoint는 이후 `ResolveFeatures`가 3x3 입력 view를 읽을 때 높이맵을 다시 샘플링하지 않고 사용할 수 있는 재사용 지점이다.
+저장 파일에서 복원된 청크는 후보 목록을 저장하지 않으므로, `WorldRuntime::rebuildDerivedCaches`가 block scan으로 높이/표면 cache만 복원하고 feature 후보는 resolve 단계의 fallback 경로에서 다시 판단한다.
+
 기본 모양 규칙:
 
 - 맨 아래는 bedrock
@@ -257,33 +262,54 @@ bedrock 높이는 전역 난수를 사용해 1~4 범위로 만든다.
 grass 위에는 같은 0~255 식생 난수 구간에 따라 plant, stone prop, branch prop, tree 중 하나가 배타적으로 생성된다.
 tree는 grass 위에 trunk와 leaves를 배치한다.
 
-## 나무와 feature write
+## 나무와 feature resolve
 
-나무는 청크 경계를 넘을 수 있으므로 feature write를 사용한다.
+나무는 청크 경계를 넘을 수 있으므로 feature 단계는 center 청크 단독으로 판단하지 않는다.
 
-- trunk는 현재 기준으로 자기 청크 내부에만 배치된다.
-- leaves는 이웃 청크로 넘어갈 수 있다.
-- 이웃으로 넘어가는 leaves는 대상 청크의 incoming feature slot으로 전달된다.
+- `ResolveFeatures` job은 center 주변 3x3 `TerrainSourceReady` 청크를 입력으로 받는다.
+- fresh source 청크는 `TerrainSourceReady`에서 캐시한 deterministic tree 후보를 사용한다.
+- 후보 cache가 없는 로드 청크는 복원된 `terrainHeight`를 사용해 deterministic tree 후보를 fallback 평가한다.
+- trunk/leaves가 center 청크 좌표에 닿는 경우에만 center 결과 청크에 쓴다.
 - leaves는 air 또는 plant만 덮어쓴다.
 - trunk는 leaves/plant보다 우선한다.
+- worker는 주변 청크를 수정하지 않고 center 청크 복사본만 반환한다.
 
 ## 생성 파이프라인
 
-현재 단순화된 파이프라인:
+현재 파이프라인:
 
 ```text
 Empty
-  -> BuildFeaturing
-      높이맵 + 기본 지형/물 + 표면 + 자기 feature + outgoing feature 생성
-  -> FinalizeFeatures
-      incoming feature 반영
-  -> Full
+  -> BuildTerrainSource
+      높이맵 + 기본 지형/물 + 표면 + 기후 source 생성
+  -> TerrainSourceReady
+  -> ResolveFeatures
+      3x3 TerrainSourceReady 입력 view에서 center feature 확정 + local skylight cache 생성
+  -> LocalLightReady
+  -> ResolveLight
+      center localLight와 4방향 이웃 localLight face로 center resolved skylight 확정
+  -> LightResolved
   -> BuildChunkMesh
+      3x3 LightResolved 입력 view에서 center mesh 생성
   -> Meshed
 ```
 
-`BuildFeaturing`과 `FinalizeFeatures`의 CPU 지형 생성/feature 반영 처리는 `TerrainBuilder`가 수행한다.
-terrain worker 큐와 완료 큐 소유권은 `TerrainJobSystem`에 있고, `Renderer`는 job callback에서 빌더를 호출해 결과를 받는다.
+`BuildTerrainSource`, `ResolveFeatures`, `ResolveLight`의 CPU 처리는 `ClientTerrainJobProcessor`가 수행한다.
+feature resolve는 주변 3x3 청크를 입력으로 읽고, light resolve는 center와 동서남북 `localLight` face를 입력으로 읽지만 결과는 center 청크 하나만 반환한다.
+`ResolveFeatures`는 feature가 확정된 center 청크의 local skylight를 같은 worker 단계에서 1회 계산해 `localLight` cache에 저장한다.
+`ResolveLight`는 3x3 `ChunkData` 전체를 복사하거나 local light를 반복 계산하지 않고, center `localLight`와 동서남북 이웃의 맞닿은 `localLight` face만 읽어 center 내부 boundary propagation으로 resolved light를 산출한다.
+skylight 전파 루프는 청크별 attenuation cache와 block-index queue를 공유해 local light 계산과 resolved light 계산이 같은 propagation 경로를 사용한다.
+`BuildChunkMesh`는 `TerrainMesher`가 처리하며, light가 확정된 3x3 입력을 사용해 경계면과 AO/light 값을 안정적으로 샘플링한다.
+런타임 블록 편집은 별도 subchunk light resolve 경로를 사용한다. 편집된 subchunk는 자기 block/fluid attenuation과 6방향 인접 subchunk boundary light를 seed로 resolved light를 다시 만들고, face 값 변화가 있는 경우에만 인접 subchunk로 dirty 전파한다. 이 경로는 청크 생성 job을 다시 넣지 않고 바뀐 subchunk mesh만 즉시 재생성한다.
+렌더 요청은 하위 단계를 즉시 재귀 호출하지 않고 청크별 `targetGenState`를 먼저 설정한다.
+이후 `scheduleAround`가 현재 상태와 이웃 조건을 검사해 승급 가능한 frontier만 terrain job queue에 넣는다.
+mesh 요청의 target 범위는 실제 의존성 모양을 따른다. mesh center는 3x3 `LightResolved`를 요구하고, light resolve가 center + 4방향 `LocalLightReady`만 읽기 때문에 `LocalLightReady` 목표는 radius 2 square without corners로 제한된다. 그 feature 입력 source는 radius 3 square without corners까지만 필요하다.
+완료 이후 재검사는 단계별 dependent shape로 제한한다. source 완료는 local-light 후보 3x3, local-light 완료는 light 후보 center + 4방향, light 완료는 mesh 후보 3x3만 깨운다.
+terrain worker 큐와 완료 큐 소유권은 `TerrainJobSystem`에 있고, `Renderer`는 render-dependent mesh job과 GPU 설치 경계만 담당한다.
+
+저장 파일에서 불러온 청크는 생성 파이프라인을 새로 타지 않는다.
+`ChunkLoadSystem`은 snapshot IO만 수행하고, `ChunkPrepareSystem`이 별도 worker에서 snapshot blocks/fluids/light/source 데이터를 새 `RuntimeChunk`로 복원한 뒤 derived cache를 재구축한다.
+메인 스레드는 준비된 청크를 기존 shell의 ticket/load state와 병합해 설치하고, 필요한 주변 frontier만 다시 검사한다.
 
 관련 문서: [[chunk-system]], [[block-data]], [[save-load]]
 

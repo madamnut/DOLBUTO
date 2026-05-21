@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 namespace dolbuto::world
 {
@@ -18,12 +19,22 @@ namespace dolbuto::world
         using RuntimeChunkMap = std::unordered_map<uint64_t, RuntimeChunk>;
         using BlockDefinitionProvider = std::function<const BlockDefinition&(uint16_t)>;
 
+        struct EditedSubchunk
+        {
+            int chunkX = 0;
+            int chunkZ = 0;
+            int subchunkY = 0;
+        };
+
         struct RuntimeChunkLoadState
         {
             uint64_t renderTicket = 0;
             uint64_t meshTicket = 0;
-            uint64_t fullTicket = 0;
-            uint64_t featuringTicket = 0;
+            uint64_t sourceTicket = 0;
+            uint64_t lightTicket = 0;
+            uint64_t localLightTicket = 0;
+            uint64_t lightQueuedTicket = 0;
+            ChunkGenState targetGenState = ChunkGenState::Empty;
             uint32_t bestPriority = UINT32_MAX;
             std::array<FeatureWriteListPtr, FeatureNeighborCount> incomingFeatureSlots{};
             uint8_t incomingFeatureMask = 0;
@@ -43,10 +54,12 @@ namespace dolbuto::world
         static uint64_t chunkKey(int chunkX, int chunkZ);
         static void markDataDirty(RuntimeChunk& chunk);
         static void updateChunkEmptySubchunk(const std::shared_ptr<ChunkData>& chunk, int subchunkY);
-        static void rebuildDerivedCaches(ChunkData& chunk);
+        static void rebuildDerivedCaches(ChunkData& chunk, const LightAttenuationTables* lightAttenuation = nullptr);
 
         RuntimeChunkMap& chunks();
         const RuntimeChunkMap& chunks() const;
+        void setLightAttenuationTables(LightAttenuationTablesPtr lightAttenuationTables);
+        const LightAttenuationTables* lightAttenuationTables() const;
         void reserve(size_t capacity);
         void clear();
 
@@ -60,17 +73,21 @@ namespace dolbuto::world
         static RuntimeChunkLoadState captureLoadState(const RuntimeChunk& chunk);
         RuntimeChunk* finishSnapshotLoad(uint64_t key);
         RuntimeChunk& installLoadedChunk(RuntimeChunk loaded, const RuntimeChunkLoadState& state);
-        RuntimeChunk& installFeaturingChunk(const std::shared_ptr<ChunkData>& chunk, std::array<FeatureWriteListPtr, FeatureNeighborCount> outgoingFeatureSlots);
-        RuntimeChunk& installFullChunk(const std::shared_ptr<ChunkData>& chunk);
+        RuntimeChunk& installTerrainSourceChunk(const std::shared_ptr<ChunkData>& chunk, std::array<FeatureWriteListPtr, FeatureNeighborCount> outgoingFeatureSlots);
+        RuntimeChunk& installLocalLightChunk(const std::shared_ptr<ChunkData>& chunk);
+        RuntimeChunk& installLightResolvedChunk(const std::shared_ptr<ChunkData>& chunk);
         void clearMeshQueued(uint64_t key);
         bool meshRevisionMatches(uint64_t key, uint64_t revision) const;
         void markMeshed(uint64_t key);
 
         uint16_t blockAtWorld(int x, int y, int z) const;
+        uint8_t lightAtWorld(int x, int y, int z) const;
         bool terrainCellBlocksPlayer(int x, int y, int z, const BlockDefinitionProvider& blockDefinition) const;
         bool setBlockAtWorld(int x, int y, int z, uint16_t block);
+        std::vector<EditedSubchunk> resolveEditedSkyLightAtWorld(int x, int y, int z);
 
     private:
         RuntimeChunkMap chunks_;
+        LightAttenuationTablesPtr lightAttenuationTables_;
     };
 }

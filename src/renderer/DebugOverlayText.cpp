@@ -1,5 +1,6 @@
 #include "renderer/DebugOverlayText.h"
 
+#include <algorithm>
 #include <iomanip>
 #include <sstream>
 #include <utility>
@@ -54,11 +55,16 @@ namespace dolbuto
         dirty_ = true;
     }
 
-    void DebugOverlayText::buildBatch(TextRenderPath& textRenderPath, std::string_view fpsText, std::string_view versionText, VkExtent2D extent)
+    void DebugOverlayText::buildBatch(TextRenderPath& textRenderPath, std::string_view fpsText, std::string_view perfText, std::string_view versionText, VkExtent2D extent)
     {
         if (cachedFpsText_ != fpsText)
         {
             cachedFpsText_ = fpsText;
+            dirty_ = true;
+        }
+        if (cachedPerfText_ != perfText)
+        {
+            cachedPerfText_ = perfText;
             dirty_ = true;
         }
 
@@ -93,6 +99,20 @@ namespace dolbuto
         textRenderPath.addText(batch_, terrainDrawText_, rightX, 222.0f, true, extent);
         textRenderPath.addText(batch_, terrainFaceText_, rightX, 244.0f, true, extent);
         textRenderPath.addText(batch_, terrainVertexText_, rightX, 266.0f, true, extent);
+        if (!cachedPerfText_.empty())
+        {
+            size_t lineCount = 1;
+            for (char c : cachedPerfText_)
+            {
+                if (c == '\n')
+                {
+                    ++lineCount;
+                }
+            }
+            constexpr float LineHeight = 22.0f;
+            const float perfY = std::max(24.0f, static_cast<float>(extent.height) - static_cast<float>(lineCount) * LineHeight - 12.0f);
+            textRenderPath.addText(batch_, cachedPerfText_, 12.0f, perfY, false, extent);
+        }
 
         dirty_ = false;
     }

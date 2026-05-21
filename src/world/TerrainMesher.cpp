@@ -1,5 +1,7 @@
 #include "world/TerrainMesher.h"
 
+#include "world/SkyLightSystem.h"
+
 #include <array>
 #include <cstddef>
 #include <utility>
@@ -118,14 +120,66 @@ namespace dolbuto::world
             return sampleChunk->blocks[index];
         };
 
+        auto lightAt = [&](int localX, int y, int localZ) -> uint8_t
+        {
+            if (y >= ChunkSizeY)
+            {
+                return packLight(MaxSkyLight, 0);
+            }
+            if (y < 0)
+            {
+                return 0;
+            }
+
+            int chunkOffsetX = 0;
+            int chunkOffsetZ = 0;
+            int sampleX = localX;
+            int sampleZ = localZ;
+            if (sampleX < 0)
+            {
+                chunkOffsetX = -1;
+                sampleX += ChunkSizeX;
+            }
+            else if (sampleX >= ChunkSizeX)
+            {
+                chunkOffsetX = 1;
+                sampleX -= ChunkSizeX;
+            }
+
+            if (sampleZ < 0)
+            {
+                chunkOffsetZ = -1;
+                sampleZ += ChunkSizeZ;
+            }
+            else if (sampleZ >= ChunkSizeZ)
+            {
+                chunkOffsetZ = 1;
+                sampleZ -= ChunkSizeZ;
+            }
+
+            if (sampleX < 0 || sampleX >= ChunkSizeX || sampleZ < 0 || sampleZ >= ChunkSizeZ)
+            {
+                return 0;
+            }
+
+            const std::shared_ptr<ChunkData>& sampleChunk = chunks[static_cast<size_t>((chunkOffsetZ + 1) * 3 + (chunkOffsetX + 1))];
+            if (!sampleChunk || sampleChunk->light.size() != ChunkBlockCount)
+            {
+                return 0;
+            }
+
+            const size_t index = static_cast<size_t>((y * ChunkSizeZ + sampleZ) * ChunkSizeX + sampleX);
+            return sampleChunk->light[index];
+        };
+
         for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
         {
-            TerrainSubchunkBuildData terrainSubchunk = buildSolidSubchunk(chunk, subchunkY, blockAt);
+            TerrainSubchunkBuildData terrainSubchunk = buildSolidSubchunk(chunk, subchunkY, blockAt, lightAt);
             result.solidSubchunks[static_cast<size_t>(subchunkY)] = std::move(terrainSubchunk.solid);
             result.blendSubchunks[static_cast<size_t>(subchunkY)] = std::move(terrainSubchunk.blend);
             if (chunk->fluidSubchunkCounts[static_cast<size_t>(subchunkY)] > 0)
             {
-                result.fluidSubchunks[static_cast<size_t>(subchunkY)] = buildFluidSubchunkMesh(chunks, subchunkY, blockOccludesFluid);
+                result.fluidSubchunks[static_cast<size_t>(subchunkY)] = buildFluidSubchunkMesh(chunks, subchunkY, lightAt, blockOccludesFluid);
             }
         }
         return result;
@@ -134,6 +188,7 @@ namespace dolbuto::world
     TerrainBuildData TerrainMesher::buildFluidSubchunkMesh(
         const std::array<std::shared_ptr<ChunkData>, 9>& chunks,
         int subchunkY,
+        const LightSampler& lightAt,
         const BlockOcclusionPredicate& blockOccludesFluid) const
     {
         TerrainBuildData result{};
@@ -268,29 +323,37 @@ namespace dolbuto::world
             const float z0 = static_cast<float>(worldZ) - 0.5f;
             const float z1 = static_cast<float>(worldZ) + 0.5f;
 
+            const uint8_t packedLight = lightAt(localX, y, localZ);
+            auto litVertex = [packedLight](float x, float y, float z, float u, float v)
+            {
+                TerrainVertex vertex{x, y, z, u, v, 1.0f};
+                vertex.packedLight = packedLight;
+                return vertex;
+            };
+
             if (face == 0)
             {
-                appendQuad({x0, y1, z0, 0.0f, 0.0f, 1.0f}, {x0, y1, z1, 0.0f, 1.0f, 1.0f}, {x1, y1, z1, 1.0f, 1.0f, 1.0f}, {x1, y1, z0, 1.0f, 0.0f, 1.0f});
+                appendQuad(litVertex(x0, y1, z0, 0.0f, 0.0f), litVertex(x0, y1, z1, 0.0f, 1.0f), litVertex(x1, y1, z1, 1.0f, 1.0f), litVertex(x1, y1, z0, 1.0f, 0.0f));
             }
             else if (face == 1)
             {
-                appendQuad({x0, y0, z1, 0.0f, 0.0f, 1.0f}, {x0, y0, z0, 0.0f, 1.0f, 1.0f}, {x1, y0, z0, 1.0f, 1.0f, 1.0f}, {x1, y0, z1, 1.0f, 0.0f, 1.0f});
+                appendQuad(litVertex(x0, y0, z1, 0.0f, 0.0f), litVertex(x0, y0, z0, 0.0f, 1.0f), litVertex(x1, y0, z0, 1.0f, 1.0f), litVertex(x1, y0, z1, 1.0f, 0.0f));
             }
             else if (face == 2)
             {
-                appendQuad({x1, y0, z0, 0.0f, 1.0f, 1.0f}, {x1, y1, z0, 0.0f, 0.0f, 1.0f}, {x1, y1, z1, 1.0f, 0.0f, 1.0f}, {x1, y0, z1, 1.0f, 1.0f, 1.0f});
+                appendQuad(litVertex(x1, y0, z0, 0.0f, 1.0f), litVertex(x1, y1, z0, 0.0f, 0.0f), litVertex(x1, y1, z1, 1.0f, 0.0f), litVertex(x1, y0, z1, 1.0f, 1.0f));
             }
             else if (face == 3)
             {
-                appendQuad({x0, y0, z1, 0.0f, 1.0f, 1.0f}, {x0, y1, z1, 0.0f, 0.0f, 1.0f}, {x0, y1, z0, 1.0f, 0.0f, 1.0f}, {x0, y0, z0, 1.0f, 1.0f, 1.0f});
+                appendQuad(litVertex(x0, y0, z1, 0.0f, 1.0f), litVertex(x0, y1, z1, 0.0f, 0.0f), litVertex(x0, y1, z0, 1.0f, 0.0f), litVertex(x0, y0, z0, 1.0f, 1.0f));
             }
             else if (face == 4)
             {
-                appendQuad({x1, y0, z1, 0.0f, 1.0f, 1.0f}, {x1, y1, z1, 0.0f, 0.0f, 1.0f}, {x0, y1, z1, 1.0f, 0.0f, 1.0f}, {x0, y0, z1, 1.0f, 1.0f, 1.0f});
+                appendQuad(litVertex(x1, y0, z1, 0.0f, 1.0f), litVertex(x1, y1, z1, 0.0f, 0.0f), litVertex(x0, y1, z1, 1.0f, 0.0f), litVertex(x0, y0, z1, 1.0f, 1.0f));
             }
             else
             {
-                appendQuad({x0, y0, z0, 0.0f, 1.0f, 1.0f}, {x0, y1, z0, 0.0f, 0.0f, 1.0f}, {x1, y1, z0, 1.0f, 0.0f, 1.0f}, {x1, y0, z0, 1.0f, 1.0f, 1.0f});
+                appendQuad(litVertex(x0, y0, z0, 0.0f, 1.0f), litVertex(x0, y1, z0, 0.0f, 0.0f), litVertex(x1, y1, z0, 1.0f, 0.0f), litVertex(x1, y0, z0, 1.0f, 1.0f));
             }
         };
 
@@ -352,6 +415,7 @@ namespace dolbuto::world
         const std::shared_ptr<ChunkData>& chunk,
         int subchunkY,
         const WorldBlockSampler& blockAtWorld,
+        const WorldLightSampler& lightAtWorld,
         const SolidSubchunkBuilder& buildSolidSubchunk) const
     {
         if (!chunk)
@@ -411,6 +475,11 @@ namespace dolbuto::world
             return meshingBlocks[meshingIndex(meshX, meshY, meshZ)];
         };
 
-        return buildSolidSubchunk(chunk, subchunkY, blockAt);
+        auto lightAt = [&](int localX, int y, int localZ) -> uint8_t
+        {
+            return lightAtWorld(worldXStart + localX, y, worldZStart + localZ);
+        };
+
+        return buildSolidSubchunk(chunk, subchunkY, blockAt, lightAt);
     }
 }

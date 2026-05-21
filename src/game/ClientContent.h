@@ -27,6 +27,8 @@ namespace dolbuto::game
         static ClientContent load(const std::filesystem::path& assetDirectory);
 
         const std::vector<BlockDefinition>& blockDefinitions() const;
+        const std::vector<FluidDefinition>& fluidDefinitions() const;
+        LightAttenuationTablesPtr lightAttenuationTables() const;
         const std::vector<BlockTextureLayers>& blockTextureLayers() const;
         const std::array<uint32_t, BlockBreakingStageCount>& blockBreakingTextureLayers() const;
         const std::vector<ItemDefinition>& itemDefinitions() const;
@@ -37,6 +39,8 @@ namespace dolbuto::game
 
     private:
         std::vector<BlockDefinition> blockDefinitions_;
+        std::vector<FluidDefinition> fluidDefinitions_;
+        LightAttenuationTablesPtr lightAttenuationTables_;
         std::vector<BlockTextureLayers> blockTextureLayers_;
         std::array<uint32_t, BlockBreakingStageCount> blockBreakingTextureLayers_{};
         std::vector<ItemDefinition> itemDefinitions_;

@@ -84,6 +84,7 @@ namespace dolbuto
     void RendererConfigBridge::loadContentAndAssets(const std::filesystem::path& assetDirectory)
     {
         client_.content = game::ClientContent::load(assetDirectory);
+        client_.worldRuntime.setLightAttenuationTables(client_.content.lightAttenuationTables());
         rendererAssets_ = RendererAssetStore::load(assetDirectory, client_.content, gpuResources_);
     }
 

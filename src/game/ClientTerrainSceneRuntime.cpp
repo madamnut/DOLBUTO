@@ -4,10 +4,19 @@
 #include "game/ClientTerrainJobProcessor.h"
 #include "world/WorldRuntime.h"
 
+#include <chrono>
 #include <utility>
 
 namespace dolbuto::game
 {
+    namespace
+    {
+        double millisecondsSince(const std::chrono::steady_clock::time_point& start)
+        {
+            return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+        }
+    }
+
     ClientTerrainSceneRuntime::ClientTerrainSceneRuntime(ClientWorldRuntime& runtime) :
         runtime_(runtime)
     {
@@ -21,6 +30,7 @@ namespace dolbuto::game
         world::TerrainBuilderConfig terrainConfig,
         const MeshReadyPredicate& meshReady)
     {
+        (void)terrainConfig;
         if (runtime_.terrainLoadRequested &&
             centerGroupChunkX == runtime_.loadedCenterGroupChunkX &&
             centerGroupChunkZ == runtime_.loadedCenterGroupChunkZ)
@@ -38,7 +48,6 @@ namespace dolbuto::game
         ClientTerrainCoordinator coordinator(
             runtime_,
             loadPlan.generation,
-            terrainConfig,
             [this](int loadChunkX, int loadChunkZ, uint64_t loadGeneration)
             {
                 enqueueChunkLoadJob(loadChunkX, loadChunkZ, loadGeneration);
@@ -101,12 +110,21 @@ namespace dolbuto::game
         const MeshReadyPredicate& meshReady,
         const ClientWorldRuntime::EntityNormalizer& normalizeEntity)
     {
+        (void)terrainConfig;
+        const auto popStart = std::chrono::steady_clock::now();
         ClientWorldRuntime::CompletedWorkBatch work = runtime_.drainCompletedWork(maxMeshUploads);
+        const double popMs = millisecondsSince(popStart);
+        const uint32_t loadCount = static_cast<uint32_t>(work.completedLoads.size());
+        const uint32_t terrainCount =
+            static_cast<uint32_t>(work.terrain.completedChunks.size()) +
+            static_cast<uint32_t>(work.terrain.completedLocalLightChunks.size()) +
+            static_cast<uint32_t>(work.terrain.completedLightChunks.size()) +
+            static_cast<uint32_t>(work.terrain.completedMeshes.size());
+        const uint32_t buildMeshCount = static_cast<uint32_t>(work.terrain.completedMeshes.size());
 
         ClientTerrainCoordinator coordinator(
             runtime_,
             work.generation,
-            terrainConfig,
             [this](int loadChunkX, int loadChunkZ, uint64_t loadGeneration)
             {
                 enqueueChunkLoadJob(loadChunkX, loadChunkZ, loadGeneration);
@@ -119,9 +137,16 @@ namespace dolbuto::game
 
         ClientTerrainCompletionHandler completionHandler(
             runtime_,
-            coordinator,
-            terrainConfig);
-        return completionHandler.handle(std::move(work), normalizeEntity);
+            coordinator);
+        const auto handleStart = std::chrono::steady_clock::now();
+        ClientTerrainCompletionHandler::Result result = completionHandler.handle(std::move(work), normalizeEntity);
+        result.popMs = popMs;
+        result.handleMs = millisecondsSince(handleStart);
+        result.loadCount = loadCount;
+        result.terrainCount = terrainCount;
+        result.popCount = loadCount + terrainCount;
+        result.buildMeshCount = buildMeshCount;
+        return result;
     }
 
     void ClientTerrainSceneRuntime::startTerrainWorkers(
@@ -155,6 +180,19 @@ namespace dolbuto::game
 
     void ClientTerrainSceneRuntime::startChunkLoadWorker()
     {
+        runtime_.chunkPrepareSystem.start([this](CompletedChunkLoad completed)
+        {
+            PreparedChunkLoad prepared{};
+            prepared.completed = std::move(completed);
+            if (prepared.completed.snapshot)
+            {
+                prepared.preparedChunk = ClientWorldRuntime::prepareRuntimeChunkFromSnapshot(
+                    *prepared.completed.snapshot,
+                    prepared.completed.generation,
+                    runtime_.worldRuntime.lightAttenuationTables());
+            }
+            return prepared;
+        });
         runtime_.chunkLoadSystem.start([this](int chunkX, int chunkZ)
         {
             return runtime_.saveSystem.load(chunkX, chunkZ);
@@ -164,6 +202,7 @@ namespace dolbuto::game
     void ClientTerrainSceneRuntime::stopChunkLoadWorker()
     {
         runtime_.chunkLoadSystem.stop();
+        runtime_.chunkPrepareSystem.stop();
     }
 
     void ClientTerrainSceneRuntime::startSaveWorker()

@@ -131,6 +131,7 @@ namespace dolbuto
         push.cameraPosition[1] = 0.0f;
         push.cameraPosition[2] = 0.0f;
         push.cameraPosition[3] = static_cast<float>(glfwGetTime());
+        push.fluidWaterParams[1] = 1.0f;
 
         std::vector<DroppedItemRenderPath::RenderInstance> renderInstances{heldItem};
         droppedItemRenderPath_.draw(
@@ -210,6 +211,7 @@ namespace dolbuto
         push.cameraPosition[1] = cameraPosition.y;
         push.cameraPosition[2] = cameraPosition.z;
         push.cameraPosition[3] = static_cast<float>(glfwGetTime());
+        push.fluidWaterParams[1] = 1.0f;
 
         droppedItemRenderPath_.draw(
             commandBuffer,

@@ -153,6 +153,11 @@ namespace dolbuto::world
             return static_cast<uint16_t>(fluid & FluidAmountMask);
         }
 
+        int16_t clampCacheY(int value)
+        {
+            return static_cast<int16_t>(std::clamp(value, -1, ChunkSizeY));
+        }
+
         uint8_t encodeClimateValue(float value)
         {
             return static_cast<uint8_t>(std::clamp(
@@ -325,6 +330,8 @@ namespace dolbuto::world
         chunk->fluids.assign(ChunkBlockCount, FluidNone);
         chunk->fluidSubchunkCounts.fill(0);
         chunk->emptySubchunks.fill(true);
+        chunk->terrainFeatureCandidates.clear();
+        chunk->terrainFeatureCandidates.reserve(8);
         populateChunkClimate(*chunk);
 
         const std::array<TerrainDebugSample, ChunkColumnCount> terrainSamples = buildChunkTerrainDebugSamples(chunkX, chunkZ);
@@ -356,7 +363,10 @@ namespace dolbuto::world
             {
                 terrainTopY[column] = std::min(height - 1, ChunkSizeY - 1);
             }
+            chunk->terrainHeight[column] = clampCacheY(height);
+            chunk->terrainSurfaceY[column] = clampCacheY(terrainTopY[column]);
         }
+        chunk->terrainSourceCacheValid = true;
 
         const int solidHeightLimit = std::min(maxHeight, ChunkSizeY);
         const int filledSubchunks = std::min(SubchunksPerChunk, (solidHeightLimit + SubchunkSize - 1) / SubchunkSize);
@@ -516,6 +526,14 @@ namespace dolbuto::world
                     {
                         placedBlock = BlockBranchProp;
                     }
+                    else if (placement >= TreePlacementMin && placement <= TreePlacementMax)
+                    {
+                        chunk->terrainFeatureCandidates.push_back(TerrainFeatureCandidate{
+                            TerrainFeatureType::Tree,
+                            static_cast<uint8_t>(localX),
+                            static_cast<uint8_t>(localZ),
+                            clampCacheY(placeY)});
+                    }
 
                     if (placedBlock != BlockAir)
                     {
@@ -525,6 +543,7 @@ namespace dolbuto::world
                 }
             }
         }
+        chunk->terrainFeatureCandidatesValid = true;
 
         return chunk;
     }
@@ -1196,36 +1215,268 @@ namespace dolbuto::world
         return outgoingSlots;
     }
 
+    std::shared_ptr<ChunkData> TerrainBuilder::resolveFeaturesForCenter(
+        const std::array<std::shared_ptr<ChunkData>, 9>& sourceChunks) const
+    {
+        const std::shared_ptr<ChunkData>& center = sourceChunks[4];
+        if (!center || center->blocks.size() != ChunkBlockCount)
+        {
+            return nullptr;
+        }
+
+        auto result = std::make_shared<ChunkData>(*center);
+        result->localLight.clear();
+        result->light.clear();
+
+        auto canPlaceTrunk = [](uint16_t existing)
+        {
+            return existing == BlockAir || existing == BlockPlant || existing == BlockLeaves;
+        };
+
+        auto canPlaceLeaves = [](uint16_t existing)
+        {
+            return existing == BlockAir || existing == BlockPlant;
+        };
+
+        auto setCenterBlock = [&](int worldX, int y, int worldZ, uint16_t block)
+        {
+            if (y < 0 || y >= ChunkSizeY)
+            {
+                return;
+            }
+            const int targetChunkX = floorDiv(worldX, ChunkSizeX);
+            const int targetChunkZ = floorDiv(worldZ, ChunkSizeZ);
+            if (targetChunkX != center->chunkX || targetChunkZ != center->chunkZ)
+            {
+                return;
+            }
+
+            const int localX = positiveModulo(worldX, ChunkSizeX);
+            const int localZ = positiveModulo(worldZ, ChunkSizeZ);
+            const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+            uint16_t& existing = result->blocks[index];
+            const bool canPlace = block == BlockTrunk ? canPlaceTrunk(existing) : canPlaceLeaves(existing);
+            if (canPlace)
+            {
+                existing = block;
+                result->emptySubchunks[static_cast<size_t>(y / SubchunkSize)] = false;
+            }
+        };
+
+        auto emitTree = [&](int worldX, int height, int worldZ)
+        {
+            if (height <= 0 || height + 5 >= ChunkSizeY)
+            {
+                return;
+            }
+
+            for (int y = height; y <= height + 3; ++y)
+            {
+                setCenterBlock(worldX, y, worldZ, BlockTrunk);
+            }
+
+            for (int y = height + 2; y <= height + 3; ++y)
+            {
+                for (int dz = -2; dz <= 2; ++dz)
+                {
+                    for (int dx = -2; dx <= 2; ++dx)
+                    {
+                        if (std::abs(dx) == 2 && std::abs(dz) == 2)
+                        {
+                            continue;
+                        }
+                        setCenterBlock(worldX + dx, y, worldZ + dz, BlockLeaves);
+                    }
+                }
+            }
+
+            for (int dz = -1; dz <= 1; ++dz)
+            {
+                for (int dx = -1; dx <= 1; ++dx)
+                {
+                    setCenterBlock(worldX + dx, height + 4, worldZ + dz, BlockLeaves);
+                }
+            }
+        };
+
+        for (const std::shared_ptr<ChunkData>& source : sourceChunks)
+        {
+            if (!source || source->blocks.size() != ChunkBlockCount)
+            {
+                continue;
+            }
+
+            const int worldXStart = source->chunkX * ChunkSizeX;
+            const int worldZStart = source->chunkZ * ChunkSizeZ;
+            if (source->terrainFeatureCandidatesValid)
+            {
+                for (const TerrainFeatureCandidate& candidate : source->terrainFeatureCandidates)
+                {
+                    if (candidate.type != TerrainFeatureType::Tree)
+                    {
+                        continue;
+                    }
+                    emitTree(
+                        worldXStart + static_cast<int>(candidate.localX),
+                        std::clamp(static_cast<int>(candidate.baseY), 0, ChunkSizeY),
+                        worldZStart + static_cast<int>(candidate.localZ));
+                }
+                continue;
+            }
+
+            std::array<int, ChunkColumnCount> fallbackHeights{};
+            const bool useCachedHeights = source->terrainSourceCacheValid;
+            if (!useCachedHeights)
+            {
+                fallbackHeights = buildChunkHeightmap(source->chunkX, source->chunkZ);
+            }
+            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+            {
+                for (int localX = 0; localX < ChunkSizeX; ++localX)
+                {
+                    const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
+                    const int height = useCachedHeights
+                        ? std::clamp(static_cast<int>(source->terrainHeight[column]), 0, ChunkSizeY)
+                        : std::clamp(fallbackHeights[column], 0, ChunkSizeY);
+                    if (height <= 0 || height + 5 >= ChunkSizeY)
+                    {
+                        continue;
+                    }
+
+                    const int worldX = worldXStart + localX;
+                    const int worldZ = worldZStart + localZ;
+                    const uint8_t vegetationRandom = worldRandom8(worldX, height, worldZ, PlantPlacementSalt);
+                    if (vegetationRandom < TreePlacementMin || vegetationRandom > TreePlacementMax)
+                    {
+                        continue;
+                    }
+
+                    const size_t topIndex = static_cast<size_t>(((height - 1) * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+                    if (topIndex >= source->blocks.size() || source->blocks[topIndex] != BlockGrass)
+                    {
+                        continue;
+                    }
+
+                    emitTree(worldX, height, worldZ);
+                }
+            }
+        }
+
+        if (result->blocks != center->blocks)
+        {
+            ++result->revision;
+        }
+        return result;
+    }
+
     bool TerrainBuilder::applyFeatureWrites(
         const std::shared_ptr<ChunkData>& chunk,
         const std::array<FeatureWriteListPtr, FeatureNeighborCount>& incomingFeatureSlots) const
     {
-        bool changed = false;
-        for (const FeatureWriteListPtr& writes : incomingFeatureSlots)
+        struct OrderedFeatureWrite
         {
+            FeatureWrite write;
+            size_t sourceSlot = 0;
+            size_t order = 0;
+        };
+
+        auto blockPriority = [](uint16_t block)
+        {
+            if (block == BlockTrunk)
+            {
+                return 300;
+            }
+            if (block == BlockLeaves)
+            {
+                return 200;
+            }
+            if (block == BlockPlant)
+            {
+                return 100;
+            }
+            return 0;
+        };
+
+        auto canReplace = [](uint16_t block, uint16_t existing)
+        {
+            if (block == BlockTrunk)
+            {
+                return existing == BlockAir || existing == BlockPlant || existing == BlockLeaves;
+            }
+            if (block == BlockLeaves)
+            {
+                return existing == BlockAir || existing == BlockPlant;
+            }
+            if (block == BlockPlant)
+            {
+                return existing == BlockAir;
+            }
+            return false;
+        };
+
+        std::vector<OrderedFeatureWrite> orderedWrites;
+        for (size_t sourceSlot = 0; sourceSlot < incomingFeatureSlots.size(); ++sourceSlot)
+        {
+            const FeatureWriteListPtr& writes = incomingFeatureSlots[sourceSlot];
             if (!writes)
             {
                 continue;
             }
 
-            for (const FeatureWrite& write : *writes)
+            orderedWrites.reserve(orderedWrites.size() + writes->size());
+            for (size_t i = 0; i < writes->size(); ++i)
             {
-                if (write.block != BlockLeaves ||
-                    write.localX < 0 || write.localX >= ChunkSizeX ||
-                    write.localZ < 0 || write.localZ >= ChunkSizeZ ||
-                    write.y < 0 || write.y >= ChunkSizeY)
-                {
-                    continue;
-                }
+                orderedWrites.push_back(OrderedFeatureWrite{(*writes)[i], sourceSlot, i});
+            }
+        }
 
-                const size_t index = static_cast<size_t>((write.y * ChunkSizeZ + write.localZ) * ChunkSizeX + write.localX);
-                uint16_t& existing = chunk->blocks[index];
-                if (existing == BlockAir || existing == BlockPlant)
-                {
-                    existing = BlockLeaves;
-                    chunk->emptySubchunks[static_cast<size_t>(write.y / SubchunkSize)] = false;
-                    changed = true;
-                }
+        std::stable_sort(orderedWrites.begin(), orderedWrites.end(), [&](const OrderedFeatureWrite& left, const OrderedFeatureWrite& right)
+        {
+            const FeatureWrite& a = left.write;
+            const FeatureWrite& b = right.write;
+            if (a.y != b.y)
+            {
+                return a.y < b.y;
+            }
+            if (a.localZ != b.localZ)
+            {
+                return a.localZ < b.localZ;
+            }
+            if (a.localX != b.localX)
+            {
+                return a.localX < b.localX;
+            }
+            const int leftPriority = blockPriority(a.block);
+            const int rightPriority = blockPriority(b.block);
+            if (leftPriority != rightPriority)
+            {
+                return leftPriority > rightPriority;
+            }
+            if (left.sourceSlot != right.sourceSlot)
+            {
+                return left.sourceSlot < right.sourceSlot;
+            }
+            return left.order < right.order;
+        });
+
+        bool changed = false;
+        for (const OrderedFeatureWrite& orderedWrite : orderedWrites)
+        {
+            const FeatureWrite& write = orderedWrite.write;
+            if (write.localX < 0 || write.localX >= ChunkSizeX ||
+                write.localZ < 0 || write.localZ >= ChunkSizeZ ||
+                write.y < 0 || write.y >= ChunkSizeY)
+            {
+                continue;
+            }
+
+            const size_t index = static_cast<size_t>((write.y * ChunkSizeZ + write.localZ) * ChunkSizeX + write.localX);
+            uint16_t& existing = chunk->blocks[index];
+            if (canReplace(write.block, existing))
+            {
+                existing = write.block;
+                chunk->emptySubchunks[static_cast<size_t>(write.y / SubchunkSize)] = false;
+                changed = true;
             }
         }
 

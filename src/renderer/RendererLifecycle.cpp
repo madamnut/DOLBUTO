@@ -28,7 +28,7 @@ namespace dolbuto
         gpuResources_(&vulkan_.physicalDevice, &vulkan_.device, &vulkan_.graphicsQueue, &vulkan_.commandPool, &vulkan_.descriptorPool, &vulkan_.descriptorSetLayout, &vulkan_.sampler),
         terrainRenderPath_(&vulkan_.device, &vulkan_.descriptorPool, &vulkan_.terrainVertexDescriptorSetLayout, &gpuResources_),
         textRenderPath_(&vulkan_.device, &gpuResources_),
-        playerMeshRenderPath_(&vulkan_.device, &gpuResources_),
+        playerMeshRenderPath_(&vulkan_.device, &vulkan_.descriptorPool, &vulkan_.terrainVertexDescriptorSetLayout, &gpuResources_),
         particleRenderPath_(&vulkan_.device, &gpuResources_),
         droppedItemRenderPath_(&vulkan_.device, &gpuResources_)
     {
@@ -44,6 +44,7 @@ namespace dolbuto
         createDepthResources();
         createDescriptorSetLayout();
         createTerrainVertexDescriptorSetLayout();
+        createSkyPipeline();
         createPipeline();
         createUiPipeline();
         createTerrainPipeline();
@@ -196,6 +197,14 @@ namespace dolbuto
         if (vulkan_.terrainWireframePipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.terrainWireframePipeline, nullptr);
+        }
+        if (vulkan_.skyPipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.skyPipeline, nullptr);
+        }
+        if (vulkan_.skyPipelineLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(vulkan_.device, vulkan_.skyPipelineLayout, nullptr);
         }
         if (vulkan_.terrainBlendPipeline != VK_NULL_HANDLE)
         {

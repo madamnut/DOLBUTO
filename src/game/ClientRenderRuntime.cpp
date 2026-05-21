@@ -21,7 +21,9 @@ namespace dolbuto::game
             frame.camera,
             frame.cameraPosition,
             frame.fovRadians,
+            frame.skyBrightness,
             frame.fpsText,
+            frame.perfText,
             frame.debugTextVisible,
             frame.screenshotRequested,
             frame.showPlayer,
@@ -63,9 +65,9 @@ namespace dolbuto::game
         renderer_->gameplayBridge_->updateBlockBreaking(origin, direction, breaking, deltaSeconds);
     }
 
-    bool ClientRenderRuntime::editBlockInView(DVec3 origin, Vec3 direction, bool placeRock, DVec3 playerPosition, double playerHeightScale)
+    bool ClientRenderRuntime::editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale)
     {
-        return renderer_->gameplayBridge_->editBlockInView(origin, direction, placeRock, playerPosition, playerHeightScale);
+        return renderer_->gameplayBridge_->editBlockInView(origin, direction, placeBlock, placeBlockId, playerPosition, playerHeightScale);
     }
 
     bool ClientRenderRuntime::pickupDroppedItemInView(DVec3 origin, Vec3 direction)

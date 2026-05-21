@@ -136,12 +136,21 @@ namespace dolbuto
     {
         const Vec3 cameraPositionFloat = toVec3(frame.cameraPosition);
         const Vec3 playerPositionFloat = toVec3(frame.playerPosition);
+        auto recordMax = [this](game::ClientPerfCounter counter, const std::chrono::steady_clock::time_point& start)
+        {
+            game::recordPerfMax(
+                client_.diagnostics.perfMax,
+                counter,
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count());
+        };
 
         audioBridge_->updateListener(frame.camera, cameraPositionFloat);
         audioBridge_->updateMusicPlayback(frame.menuOverlayMode, frame.gameSceneRenderEnabled);
         diagnosticsBridge_->updateTerrainDebugText();
 
+        auto sectionStart = std::chrono::steady_clock::now();
         vkWaitForFences(vulkan_.device, 1, &vulkan_.inFlightFences[vulkan_.currentFrame], VK_TRUE, UINT64_MAX);
+        recordMax(game::ClientPerfCounter::RenderFenceWait, sectionStart);
         if (vulkan_.timestampSupported && vulkan_.timestampQueryPool != VK_NULL_HANDLE && vulkan_.timestampQueryReady[vulkan_.currentFrame])
         {
             std::array<uint64_t, 2> timestamps{};
@@ -167,7 +176,9 @@ namespace dolbuto
         const auto cpuStart = std::chrono::steady_clock::now();
 
         uint32_t imageIndex = 0;
+        sectionStart = std::chrono::steady_clock::now();
         VkResult result = vkAcquireNextImageKHR(vulkan_.device, vulkan_.swapchain, UINT64_MAX, vulkan_.imageAvailableSemaphores[vulkan_.currentFrame], VK_NULL_HANDLE, &imageIndex);
+        recordMax(game::ClientPerfCounter::RenderAcquire, sectionStart);
         if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
             recreateSwapchain();
@@ -196,22 +207,25 @@ namespace dolbuto
 
         if (frame.showPlayer)
         {
-            updatePlayerMesh(playerPositionFloat, frame.playerYaw, frame.playerHeadYaw, frame.playerHeadPitch, frame.playerWalkPhase, frame.playerWalkAmount);
+            updatePlayerMesh(playerPositionFloat, frame.playerYaw, frame.playerHeadYaw, frame.playerHeadPitch, frame.playerWalkPhase, frame.playerWalkAmount, vulkan_.currentFrame);
         }
         if (frame.showFirstPersonHand && frame.heldItemId == 0)
         {
-            updateFirstPersonHandMesh(frame.camera, cameraPositionFloat);
+            updateFirstPersonHandMesh(frame.camera, cameraPositionFloat, vulkan_.currentFrame);
         }
         ensureClimateOverlayTexture(frame.climateOverlayMode);
 
+        sectionStart = std::chrono::steady_clock::now();
         recordCommandBuffer(
             vulkan_.commandBuffers[vulkan_.currentFrame],
             imageIndex,
             frame.camera,
             cameraPositionFloat,
             frame.fovRadians,
+            frame.skyBrightness,
             playerPositionFloat,
             frame.fpsText,
+            frame.perfText,
             frame.debugTextVisible,
             screenshotBuffer,
             frame.showPlayer,
@@ -223,6 +237,7 @@ namespace dolbuto
             frame.showFirstPersonHand,
             frame.heldItemId,
             frame.worldTicks);
+        recordMax(game::ClientPerfCounter::RenderRecord, sectionStart);
 
         VkSemaphore waitSemaphores[] = {vulkan_.imageAvailableSemaphores[vulkan_.currentFrame]};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -238,6 +253,7 @@ namespace dolbuto
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
+        sectionStart = std::chrono::steady_clock::now();
         if (vkQueueSubmit(vulkan_.graphicsQueue, 1, &submitInfo, vulkan_.inFlightFences[vulkan_.currentFrame]) != VK_SUCCESS)
         {
             if (screenshotBuffer != VK_NULL_HANDLE)
@@ -247,6 +263,7 @@ namespace dolbuto
             }
             throw std::runtime_error("Failed to submit draw command buffer.");
         }
+        recordMax(game::ClientPerfCounter::RenderSubmit, sectionStart);
         if (vulkan_.timestampSupported && vulkan_.timestampQueryPool != VK_NULL_HANDLE)
         {
             vulkan_.timestampQueryReady[vulkan_.currentFrame] = true;
@@ -268,7 +285,9 @@ namespace dolbuto
         presentInfo.pSwapchains = &vulkan_.swapchain;
         presentInfo.pImageIndices = &imageIndex;
 
+        sectionStart = std::chrono::steady_clock::now();
         result = vkQueuePresentKHR(vulkan_.presentQueue, &presentInfo);
+        recordMax(game::ClientPerfCounter::RenderPresent, sectionStart);
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || vulkan_.framebufferResized)
         {
             vulkan_.framebufferResized = false;
@@ -280,7 +299,9 @@ namespace dolbuto
         }
 
         const auto cpuEnd = std::chrono::steady_clock::now();
-        diagnosticsBridge_->updatePerformanceText(std::chrono::duration<double, std::milli>(cpuEnd - cpuStart).count());
+        const double renderCpuMs = std::chrono::duration<double, std::milli>(cpuEnd - cpuStart).count();
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::RenderCpu, renderCpuMs);
+        diagnosticsBridge_->updatePerformanceText(renderCpuMs);
         vulkan_.currentFrame = (vulkan_.currentFrame + 1) % MaxFramesInFlight;
     }
 
@@ -329,7 +350,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, Vec3 playerPosition, std::string_view fpsText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, Vec3 playerPosition, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -346,7 +367,7 @@ namespace dolbuto
         }
 
         VkClearValue clearColor{};
-        clearColor.color = {{0.45f, 0.68f, 0.95f, 1.0f}};
+        clearColor.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         VkClearValue clearDepth{};
         clearDepth.depthStencil = {1.0f, 0};
         std::array<VkClearValue, 2> clearValues = {clearColor, clearDepth};
@@ -361,7 +382,6 @@ namespace dolbuto
         scenePassInfo.pClearValues = clearValues.data();
 
         vkCmdBeginRenderPass(commandBuffer, &scenePassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.pipeline);
 
         VkViewport viewport{};
         viewport.x = 0.0f;
@@ -379,6 +399,15 @@ namespace dolbuto
 
         if (gameSceneRenderEnabled)
         {
+            skyRenderPath_.draw(
+                commandBuffer,
+                vulkan_.skyPipeline,
+                vulkan_.skyPipelineLayout,
+                camera,
+                fovRadians,
+                vulkan_.swapchainExtent,
+                worldTicks);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.pipeline);
             screenPresentation_.drawSkySprites(
                 commandBuffer,
                 camera,
@@ -390,11 +419,11 @@ namespace dolbuto
                 vulkan_.pipelineLayout,
                 textRenderPath_.vertexBuffer());
 
-            drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, terrainWireframe, true, false, imageIndex);
-            drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, terrainWireframe, false, true, imageIndex);
+            drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, terrainWireframe, true, false, imageIndex);
+            drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, terrainWireframe, false, true, imageIndex);
             if (showPlayer && menuOverlayMode == 0)
             {
-                drawPlayer(commandBuffer, camera, cameraPosition, fovRadians);
+                drawPlayer(commandBuffer, camera, cameraPosition, fovRadians, vulkan_.currentFrame);
             }
             drawBlockBreakParticles(commandBuffer, camera, cameraPosition, fovRadians);
             drawDroppedItems(commandBuffer, camera, cameraPosition, fovRadians, playerPosition);
@@ -407,7 +436,7 @@ namespace dolbuto
                 clearDepthAttachment(commandBuffer, vulkan_.swapchainExtent);
                 if (heldItemId == 0)
                 {
-                    drawFirstPersonHand(commandBuffer, camera, cameraPosition);
+                    drawFirstPersonHand(commandBuffer, camera, cameraPosition, vulkan_.currentFrame);
                 }
                 else
                 {
@@ -454,7 +483,7 @@ namespace dolbuto
 
         if (debugTextVisible)
         {
-            diagnosticsBridge_->updateDebugTextBatch(fpsText);
+            diagnosticsBridge_->updateDebugTextBatch(fpsText, perfText);
             screenPresentation_.drawDebugText(
                 commandBuffer,
                 debugOverlayText_.batch(),

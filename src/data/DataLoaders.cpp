@@ -506,6 +506,14 @@ namespace dolbuto::data
             {
                 definition.hardness = *hardness;
             }
+            if (const std::optional<int> lightAttenuation = jsonIntField(object, "lightAttenuation"); lightAttenuation.has_value())
+            {
+                definition.lightAttenuation = static_cast<uint8_t>(std::clamp(*lightAttenuation, 0, 15));
+            }
+            if (const std::optional<int> lightEmission = jsonIntField(object, "lightEmission"); lightEmission.has_value())
+            {
+                definition.lightEmission = static_cast<uint8_t>(std::clamp(*lightEmission, 0, 15));
+            }
             if (const std::optional<bool> randomOffset = jsonBoolField(object, "randomOffset"); randomOffset.has_value())
             {
                 definition.randomOffset = *randomOffset;
@@ -549,6 +557,33 @@ namespace dolbuto::data
                     definition.dropMaxes.push_back(static_cast<uint16_t>(std::clamp(maxCount, 0, static_cast<int>(std::numeric_limits<uint16_t>::max()))));
                     definition.dropChances.push_back(std::clamp(chance, 0.0f, 1.0f));
                 }
+            }
+            definitions.push_back(std::move(definition));
+        }
+
+        return definitions;
+    }
+
+    std::vector<ParsedFluidDefinition> parseFluidDefinitions(const std::string& text)
+    {
+        std::vector<ParsedFluidDefinition> definitions;
+        for (const std::string& object : jsonTopLevelObjects(text))
+        {
+            const std::optional<int> id = jsonIntField(object, "id");
+            if (!id.has_value() || *id < 0 || *id > std::numeric_limits<uint16_t>::max())
+            {
+                continue;
+            }
+
+            ParsedFluidDefinition definition{};
+            definition.id = static_cast<uint16_t>(*id);
+            if (const std::optional<std::string> name = jsonStringField(object, "name"); name.has_value())
+            {
+                definition.name = *name;
+            }
+            if (const std::optional<int> lightAttenuation = jsonIntField(object, "lightAttenuation"); lightAttenuation.has_value())
+            {
+                definition.lightAttenuation = static_cast<uint8_t>(std::clamp(*lightAttenuation, 0, 15));
             }
             definitions.push_back(std::move(definition));
         }

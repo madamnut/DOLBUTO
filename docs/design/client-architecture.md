@@ -43,7 +43,7 @@ game scene 전환의 세부 순서도 `Renderer`가 아니라 `ClientSceneLifecy
 
 ## Client Runtime
 
-현재 구현 기준으로 저장 snapshot 생성/복원과 feature slot 전파는 `ClientWorldRuntime`이 담당한다.
+현재 구현 기준으로 저장 snapshot 생성/복원은 `ClientWorldRuntime`이 담당하고, feature는 3x3 source view 기반 center resolve 경로를 사용한다.
 `GameClient`가 사용하는 클라이언트 런타임 API는 `ClientRuntime`이 묶는다.
 `ClientRuntime`은 `ClientRuntimeState`를 소유하고, world/gameplay/save/UI/audio/content 상태는 이 경계 아래에 둔다.
 `ClientRuntime`의 public API는 `render()`, `scene()`, `gameplay()`, `ui()`, `diagnostics()` access로 나누어 평면 facade가 커지는 것을 막는다.
@@ -52,9 +52,9 @@ game scene 전환의 세부 순서도 `Renderer`가 아니라 `ClientSceneLifecy
 블록 편집/파괴처럼 mesh rebuild, particle, sound, viewport-dependent UI 처리가 필요한 작업만 `ClientRenderRuntime`을 거쳐 Renderer bridge로 전달한다.
 game scene load/unload 순서, active world 설정, gameplay reset, terrain scene start/stop, save flush는 `ClientSceneLifecycle`이 담당한다.
 terrain scene load request, worker lifecycle, completed work drain, pending unload의 world/save 처리는 `ClientTerrainSceneRuntime`이 담당한다.
-terrain request cascade와 feature finalize/mesh retry job queue 조율은 `ClientTerrainCoordinator`가 담당한다.
+terrain target status 설정, frontier scheduling, feature/light/mesh job queue 조율은 `ClientTerrainCoordinator`가 담당한다.
 terrain/chunk-load 완료 결과의 save/install/ignore/retry 처리 흐름은 `ClientTerrainCompletionHandler`가 담당한다.
-`BuildFeaturing`/`FinalizeFeatures` terrain job 처리는 `ClientTerrainJobProcessor`가 담당하고, render-dependent mesh job CPU 조립은 `RendererTerrainMeshBridge`가 담당한다.
+`BuildTerrainSource`/`ResolveFeatures`/`ResolveLight` terrain job 처리는 `ClientTerrainJobProcessor`가 담당하고, render-dependent mesh job CPU 조립은 `RendererTerrainMeshBridge`가 담당한다.
 `Renderer`는 일부 gameplay event 실행 시점, UI/audio bridge, GPU mesh install 경계를 유지한다.
 
 클라이언트 런타임 계층은 월드/게임플레이 상태의 클라이언트 실행 흐름을 담당한다.

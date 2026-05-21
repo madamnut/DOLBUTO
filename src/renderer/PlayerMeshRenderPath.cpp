@@ -18,6 +18,7 @@ namespace dolbuto
         constexpr float WalkElbowBendLimit = 0.35f;
         constexpr float WalkLegSwing = 0.65f;
         constexpr float WalkKneeBendLimit = 0.55f;
+        constexpr uint32_t PlayerTransformFrameCount = 2;
 
         struct PlayerAnimationPose
         {
@@ -91,6 +92,48 @@ namespace dolbuto
                 -s, c, 0.0f, 0.0f,
                 0.0f, 0.0f, 1.0f, 0.0f,
                 0.0f, 0.0f, 0.0f, 1.0f};
+        }
+
+        std::array<float, 16> translationMatrix(Vec3 translation)
+        {
+            std::array<float, 16> matrix = identityMatrix();
+            matrix[12] = translation.x;
+            matrix[13] = translation.y;
+            matrix[14] = translation.z;
+            return matrix;
+        }
+
+        std::array<float, 16> scaleMatrix(float x, float y, float z)
+        {
+            return {
+                x, 0.0f, 0.0f, 0.0f,
+                0.0f, y, 0.0f, 0.0f,
+                0.0f, 0.0f, z, 0.0f,
+                0.0f, 0.0f, 0.0f, 1.0f};
+        }
+
+        std::array<float, 16> basisMatrix(Vec3 xAxis, Vec3 yAxis, Vec3 zAxis, Vec3 origin)
+        {
+            return {
+                xAxis.x, xAxis.y, xAxis.z, 0.0f,
+                yAxis.x, yAxis.y, yAxis.z, 0.0f,
+                zAxis.x, zAxis.y, zAxis.z, 0.0f,
+                origin.x, origin.y, origin.z, 1.0f};
+        }
+
+        PlayerVertex playerVertexFromModelVertex(const PlayerModelVertex& source)
+        {
+            PlayerVertex vertex{};
+            vertex.x = source.vertex.x;
+            vertex.y = source.vertex.y;
+            vertex.z = source.vertex.z;
+            vertex.u = source.vertex.u;
+            vertex.v = source.vertex.v;
+            vertex.ao = source.vertex.ao;
+            vertex.textureLayer = source.vertex.textureLayer;
+            vertex.mipDistanceScale = source.vertex.mipDistanceScale;
+            vertex.nodeIndex = source.nodeIndex >= 0 ? static_cast<uint32_t>(source.nodeIndex) : 0u;
+            return vertex;
         }
 
         bool isHeadNodeName(const std::string& name)
@@ -207,20 +250,40 @@ namespace dolbuto
         }
     }
 
-    PlayerMeshRenderPath::PlayerMeshRenderPath(const VkDevice* device, VulkanResourceManager* gpuResources)
+    PlayerMeshRenderPath::PlayerMeshRenderPath(
+        const VkDevice* device,
+        const VkDescriptorPool* descriptorPool,
+        const VkDescriptorSetLayout* transformDescriptorSetLayout,
+        VulkanResourceManager* gpuResources)
     {
-        setHandles(device, gpuResources);
+        setHandles(device, descriptorPool, transformDescriptorSetLayout, gpuResources);
     }
 
-    void PlayerMeshRenderPath::setHandles(const VkDevice* device, VulkanResourceManager* gpuResources)
+    void PlayerMeshRenderPath::setHandles(
+        const VkDevice* device,
+        const VkDescriptorPool* descriptorPool,
+        const VkDescriptorSetLayout* transformDescriptorSetLayout,
+        VulkanResourceManager* gpuResources)
     {
         device_ = device;
+        descriptorPool_ = descriptorPool;
+        transformDescriptorSetLayout_ = transformDescriptorSetLayout;
         gpuResources_ = gpuResources;
     }
 
     VkDevice PlayerMeshRenderPath::device() const
     {
         return device_ != nullptr ? *device_ : VK_NULL_HANDLE;
+    }
+
+    VkDescriptorPool PlayerMeshRenderPath::descriptorPool() const
+    {
+        return descriptorPool_ != nullptr ? *descriptorPool_ : VK_NULL_HANDLE;
+    }
+
+    VkDescriptorSetLayout PlayerMeshRenderPath::transformDescriptorSetLayout() const
+    {
+        return transformDescriptorSetLayout_ != nullptr ? *transformDescriptorSetLayout_ : VK_NULL_HANDLE;
     }
 
     VulkanResourceManager& PlayerMeshRenderPath::gpuResources() const
@@ -243,18 +306,19 @@ namespace dolbuto
         mesh_.vertexCount = static_cast<uint32_t>(sourceVertices_.size());
         mesh_.indexCount = static_cast<uint32_t>(indices_.size());
 
-        std::vector<TerrainVertex> initialVertices;
+        std::vector<PlayerVertex> initialVertices;
         initialVertices.reserve(sourceVertices_.size());
         for (const PlayerModelVertex& source : sourceVertices_)
         {
-            initialVertices.push_back(source.vertex);
+            initialVertices.push_back(playerVertexFromModelVertex(source));
         }
 
         createMeshBuffers(mesh_, initialVertices, indices_);
+        createTransformFrames(transformFrames_, nodes_.size());
         buildFirstPersonHandMesh();
     }
 
-    void PlayerMeshRenderPath::createMeshBuffers(TerrainMesh& mesh, const std::vector<TerrainVertex>& vertices, const std::vector<uint32_t>& indices)
+    void PlayerMeshRenderPath::createMeshBuffers(TerrainMesh& mesh, const std::vector<PlayerVertex>& vertices, const std::vector<uint32_t>& indices)
     {
         if (vertices.empty() || indices.empty())
         {
@@ -263,7 +327,7 @@ namespace dolbuto
 
         mesh.vertexCount = static_cast<uint32_t>(vertices.size());
         mesh.indexCount = static_cast<uint32_t>(indices.size());
-        const VkDeviceSize vertexBufferSize = sizeof(TerrainVertex) * vertices.size();
+        const VkDeviceSize vertexBufferSize = sizeof(PlayerVertex) * vertices.size();
         const VkDeviceSize indexBufferSize = sizeof(uint32_t) * indices.size();
         gpuResources().createBuffer(
             vertexBufferSize,
@@ -289,7 +353,83 @@ namespace dolbuto
         vkUnmapMemory(device(), mesh.indexMemory);
     }
 
-    void PlayerMeshRenderPath::update(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount)
+    void PlayerMeshRenderPath::createTransformFrames(std::vector<TransformFrame>& frames, std::size_t nodeCount)
+    {
+        destroyTransformFrames(frames);
+        if (nodeCount == 0 || descriptorPool() == VK_NULL_HANDLE || transformDescriptorSetLayout() == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
+        frames.resize(PlayerTransformFrameCount);
+        const VkDeviceSize bufferSize = sizeof(std::array<float, 16>) * nodeCount;
+        for (TransformFrame& frame : frames)
+        {
+            gpuResources().createBuffer(
+                bufferSize,
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                frame.buffer,
+                frame.memory);
+
+            VkDescriptorSetAllocateInfo setInfo{};
+            setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+            setInfo.descriptorPool = descriptorPool();
+            setInfo.descriptorSetCount = 1;
+            const VkDescriptorSetLayout layout = transformDescriptorSetLayout();
+            setInfo.pSetLayouts = &layout;
+            if (vkAllocateDescriptorSets(device(), &setInfo, &frame.descriptorSet) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to allocate player transform descriptor set.");
+            }
+
+            VkDescriptorBufferInfo bufferInfo{};
+            bufferInfo.buffer = frame.buffer;
+            bufferInfo.offset = 0;
+            bufferInfo.range = bufferSize;
+
+            VkWriteDescriptorSet write{};
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = frame.descriptorSet;
+            write.dstBinding = 0;
+            write.descriptorCount = 1;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            write.pBufferInfo = &bufferInfo;
+            vkUpdateDescriptorSets(device(), 1, &write, 0, nullptr);
+        }
+    }
+
+    void PlayerMeshRenderPath::updateTransformFrame(
+        std::vector<TransformFrame>& frames,
+        const std::vector<std::array<float, 16>>& transforms,
+        uint32_t frameIndex)
+    {
+        if (frames.empty() || transforms.empty())
+        {
+            return;
+        }
+
+        TransformFrame& frame = frames[static_cast<std::size_t>(frameIndex) % frames.size()];
+        if (frame.memory == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
+        const VkDeviceSize size = sizeof(std::array<float, 16>) * transforms.size();
+        void* data = nullptr;
+        vkMapMemory(device(), frame.memory, 0, size, 0, &data);
+        std::memcpy(data, transforms.data(), static_cast<std::size_t>(size));
+        vkUnmapMemory(device(), frame.memory);
+    }
+
+    void PlayerMeshRenderPath::update(
+        Vec3 playerPosition,
+        float playerYaw,
+        float playerHeadYaw,
+        float playerHeadPitch,
+        float playerWalkPhase,
+        float playerWalkAmount,
+        uint32_t frameIndex)
     {
         if (!ready())
         {
@@ -305,29 +445,19 @@ namespace dolbuto
 
         const Vec3 forward{std::cos(playerYaw), 0.0f, std::sin(playerYaw)};
         const Vec3 right{std::sin(playerYaw), 0.0f, -std::cos(playerYaw)};
-        const VkDeviceSize size = sizeof(TerrainVertex) * sourceVertices_.size();
-        void* data = nullptr;
-        vkMapMemory(device(), mesh_.vertexMemory, 0, size, 0, &data);
-        auto* vertices = static_cast<TerrainVertex*>(data);
-        for (std::size_t i = 0; i < sourceVertices_.size(); ++i)
+        const std::array<float, 16> worldBasis = basisMatrix(
+            {right.x * PlayerModelScale, right.y * PlayerModelScale, right.z * PlayerModelScale},
+            {0.0f, PlayerModelScale, 0.0f},
+            {-forward.x * PlayerModelScale, -forward.y * PlayerModelScale, -forward.z * PlayerModelScale},
+            playerPosition);
+
+        std::vector<std::array<float, 16>> transforms;
+        transforms.reserve(worldTransforms.size());
+        for (const std::array<float, 16>& nodeTransform : worldTransforms)
         {
-            const PlayerModelVertex& source = sourceVertices_[i];
-            const TerrainVertex& local = source.vertex;
-            const std::array<float, 16>& nodeTransform = source.nodeIndex >= 0 && static_cast<size_t>(source.nodeIndex) < worldTransforms.size()
-                ? worldTransforms[static_cast<size_t>(source.nodeIndex)]
-                : worldTransforms.front();
-            const Vec3 modelPoint = transformPoint(nodeTransform, {local.x, local.y, local.z});
-            const Vec3 scaledLocal{
-                modelPoint.x * PlayerModelScale,
-                modelPoint.y * PlayerModelScale,
-                modelPoint.z * PlayerModelScale};
-            TerrainVertex vertex = local;
-            vertex.x = playerPosition.x + scaledLocal.x * right.x - scaledLocal.z * forward.x;
-            vertex.y = playerPosition.y + scaledLocal.y;
-            vertex.z = playerPosition.z + scaledLocal.x * right.z - scaledLocal.z * forward.z;
-            vertices[i] = vertex;
+            transforms.push_back(multiplyMatrix(worldBasis, nodeTransform));
         }
-        vkUnmapMemory(device(), mesh_.vertexMemory);
+        updateTransformFrame(transformFrames_, transforms, frameIndex);
     }
 
     void PlayerMeshRenderPath::buildFirstPersonHandMesh()
@@ -366,16 +496,21 @@ namespace dolbuto
             firstPersonHandIndices_.push_back(static_cast<uint32_t>(mappedC));
         }
 
-        std::vector<TerrainVertex> initialVertices;
+        std::vector<PlayerVertex> initialVertices;
         initialVertices.reserve(firstPersonHandSourceVertices_.size());
         for (const PlayerModelVertex& source : firstPersonHandSourceVertices_)
         {
-            initialVertices.push_back(source.vertex);
+            initialVertices.push_back(playerVertexFromModelVertex(source));
         }
         createMeshBuffers(firstPersonHandMesh_, initialVertices, firstPersonHandIndices_);
+        createTransformFrames(firstPersonHandTransformFrames_, nodes_.size());
     }
 
-    void PlayerMeshRenderPath::updateFirstPersonHand(const Camera& camera, Vec3 cameraPosition, const config::ViewmodelHandConfig& config)
+    void PlayerMeshRenderPath::updateFirstPersonHand(
+        const Camera& camera,
+        Vec3 cameraPosition,
+        const config::ViewmodelHandConfig& config,
+        uint32_t frameIndex)
     {
         if (!firstPersonHandReady())
         {
@@ -423,29 +558,23 @@ namespace dolbuto
         const std::array<float, 16> rotation = multiplyMatrix(
             rotationY(config.rotationY),
             multiplyMatrix(rotationZ(config.rotationZ), rotationX(config.rotationX)));
+        const std::array<float, 16> viewmodelBasis = basisMatrix(handRight, handUp, handForward, anchor);
+        const std::array<float, 16> mirrorScale = scaleMatrix(-config.scale, config.scale, config.scale);
+        const std::array<float, 16> originOffset = translationMatrix({-origin.x, -origin.y, -origin.z});
+        const std::array<float, 16> modelScale = scaleMatrix(PlayerModelScale, PlayerModelScale, PlayerModelScale);
+        const std::array<float, 16> viewmodelTransform =
+            multiplyMatrix(viewmodelBasis, multiplyMatrix(rotation, multiplyMatrix(mirrorScale, multiplyMatrix(originOffset, modelScale))));
 
-        const VkDeviceSize size = sizeof(TerrainVertex) * firstPersonHandSourceVertices_.size();
-        void* data = nullptr;
-        vkMapMemory(device(), firstPersonHandMesh_.vertexMemory, 0, size, 0, &data);
-        auto* vertices = static_cast<TerrainVertex*>(data);
-        for (std::size_t i = 0; i < firstPersonHandSourceVertices_.size(); ++i)
+        std::vector<std::array<float, 16>> transforms;
+        transforms.reserve(worldTransforms.size());
+        for (const std::array<float, 16>& nodeTransform : worldTransforms)
         {
-            const Vec3 local{
-                -(modelPoints[i].x - origin.x) * config.scale,
-                (modelPoints[i].y - origin.y) * config.scale,
-                (modelPoints[i].z - origin.z) * config.scale};
-            const Vec3 posedLocal = transformPoint(rotation, local);
-
-            TerrainVertex vertex = firstPersonHandSourceVertices_[i].vertex;
-            vertex.x = anchor.x + handRight.x * posedLocal.x + handUp.x * posedLocal.y + handForward.x * posedLocal.z;
-            vertex.y = anchor.y + handRight.y * posedLocal.x + handUp.y * posedLocal.y + handForward.y * posedLocal.z;
-            vertex.z = anchor.z + handRight.z * posedLocal.x + handUp.z * posedLocal.y + handForward.z * posedLocal.z;
-            vertices[i] = vertex;
+            transforms.push_back(multiplyMatrix(viewmodelTransform, nodeTransform));
         }
-        vkUnmapMemory(device(), firstPersonHandMesh_.vertexMemory);
+        updateTransformFrame(firstPersonHandTransformFrames_, transforms, frameIndex);
     }
 
-    void PlayerMeshRenderPath::draw(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture) const
+    void PlayerMeshRenderPath::draw(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture, uint32_t frameIndex) const
     {
         if (!ready())
         {
@@ -453,13 +582,18 @@ namespace dolbuto
         }
 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout, 0, 1, &texture.descriptorSet, 0, nullptr);
+        const VkDescriptorSet transformSet = transformDescriptor(transformFrames_, frameIndex);
+        if (transformSet != VK_NULL_HANDLE)
+        {
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout, 1, 1, &transformSet, 0, nullptr);
+        }
         const VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &mesh_.vertexBuffer, &offset);
         vkCmdBindIndexBuffer(commandBuffer, mesh_.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(commandBuffer, mesh_.indexCount, 1, 0, 0, 0);
     }
 
-    void PlayerMeshRenderPath::drawFirstPersonHand(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture) const
+    void PlayerMeshRenderPath::drawFirstPersonHand(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture, uint32_t frameIndex) const
     {
         if (!firstPersonHandReady())
         {
@@ -467,6 +601,11 @@ namespace dolbuto
         }
 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout, 0, 1, &texture.descriptorSet, 0, nullptr);
+        const VkDescriptorSet transformSet = transformDescriptor(firstPersonHandTransformFrames_, frameIndex);
+        if (transformSet != VK_NULL_HANDLE)
+        {
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, terrainPipelineLayout, 1, 1, &transformSet, 0, nullptr);
+        }
         const VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &firstPersonHandMesh_.vertexBuffer, &offset);
         vkCmdBindIndexBuffer(commandBuffer, firstPersonHandMesh_.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -477,6 +616,8 @@ namespace dolbuto
     {
         destroyMesh(mesh_);
         destroyMesh(firstPersonHandMesh_);
+        destroyTransformFrames(transformFrames_);
+        destroyTransformFrames(firstPersonHandTransformFrames_);
         nodes_.clear();
         sourceVertices_.clear();
         indices_.clear();
@@ -510,15 +651,50 @@ namespace dolbuto
         mesh = {};
     }
 
+    void PlayerMeshRenderPath::destroyTransformFrames(std::vector<TransformFrame>& frames)
+    {
+        const VkDevice logicalDevice = device();
+        for (TransformFrame& frame : frames)
+        {
+            if (frame.descriptorSet != VK_NULL_HANDLE && descriptorPool() != VK_NULL_HANDLE)
+            {
+                vkFreeDescriptorSets(logicalDevice, descriptorPool(), 1, &frame.descriptorSet);
+            }
+            if (frame.buffer != VK_NULL_HANDLE)
+            {
+                vkDestroyBuffer(logicalDevice, frame.buffer, nullptr);
+            }
+            if (frame.memory != VK_NULL_HANDLE)
+            {
+                vkFreeMemory(logicalDevice, frame.memory, nullptr);
+            }
+            frame = {};
+        }
+        frames.clear();
+    }
+
+    VkDescriptorSet PlayerMeshRenderPath::transformDescriptor(const std::vector<TransformFrame>& frames, uint32_t frameIndex) const
+    {
+        if (frames.empty())
+        {
+            return VK_NULL_HANDLE;
+        }
+        return frames[static_cast<std::size_t>(frameIndex) % frames.size()].descriptorSet;
+    }
+
     bool PlayerMeshRenderPath::ready() const
     {
-        return mesh_.indexCount > 0 && mesh_.vertexBuffer != VK_NULL_HANDLE && mesh_.indexBuffer != VK_NULL_HANDLE;
+        return mesh_.indexCount > 0 &&
+            mesh_.vertexBuffer != VK_NULL_HANDLE &&
+            mesh_.indexBuffer != VK_NULL_HANDLE &&
+            !transformFrames_.empty();
     }
 
     bool PlayerMeshRenderPath::firstPersonHandReady() const
     {
         return firstPersonHandMesh_.indexCount > 0 &&
             firstPersonHandMesh_.vertexBuffer != VK_NULL_HANDLE &&
-            firstPersonHandMesh_.indexBuffer != VK_NULL_HANDLE;
+            firstPersonHandMesh_.indexBuffer != VK_NULL_HANDLE &&
+            !firstPersonHandTransformFrames_.empty();
     }
 }

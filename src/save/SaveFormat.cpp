@@ -206,6 +206,16 @@ namespace dolbuto::save
             fluids = &value.fluids;
         }
 
+        const std::vector<uint8_t>* light = nullptr;
+        if (value.chunkData && !value.chunkData->light.empty())
+        {
+            light = &value.chunkData->light;
+        }
+        else if (!value.light.empty())
+        {
+            light = &value.light;
+        }
+
         const std::array<uint8_t, ChunkColumnCount>* temperature = value.chunkData ? &value.chunkData->temperature : &value.temperature;
         const std::array<uint8_t, ChunkColumnCount>* precipitation = value.chunkData ? &value.chunkData->precipitation : &value.precipitation;
 
@@ -242,8 +252,49 @@ namespace dolbuto::save
             writeU32At(payload, runCountOffset, runCount);
         };
 
+        auto writeByteRuns = [&](const std::vector<uint8_t>* values)
+        {
+            if (!value.hasData || !values || values->empty())
+            {
+                if (value.hasData)
+                {
+                    writeU32(payload, 1);
+                    writeU8(payload, 0);
+                    writeU32(payload, static_cast<uint32_t>(ChunkBlockCount));
+                    return;
+                }
+                writeU32(payload, 0);
+                return;
+            }
+
+            const size_t runCountOffset = payload.size();
+            writeU32(payload, 0);
+            uint32_t runCount = 0;
+            uint8_t current = (*values)[0];
+            uint32_t count = 1;
+            for (size_t i = 1; i < values->size(); ++i)
+            {
+                const uint8_t item = (*values)[i];
+                if (item == current && count < std::numeric_limits<uint32_t>::max())
+                {
+                    ++count;
+                    continue;
+                }
+                writeU8(payload, current);
+                writeU32(payload, count);
+                ++runCount;
+                current = item;
+                count = 1;
+            }
+            writeU8(payload, current);
+            writeU32(payload, count);
+            ++runCount;
+            writeU32At(payload, runCountOffset, runCount);
+        };
+
         writeRuns(blocks);
         writeRuns(fluids);
+        writeByteRuns(light);
         if (value.hasData)
         {
             payload.insert(payload.end(), temperature->begin(), temperature->end());
@@ -366,6 +417,33 @@ namespace dolbuto::save
                     value.fluids.insert(value.fluids.end(), count, fluid);
                 }
                 if (value.fluids.size() != ChunkBlockCount)
+                {
+                    return std::nullopt;
+                }
+            }
+
+            const uint32_t lightRunCount = readU32(payload, offset);
+            if (value.hasData)
+            {
+                if (lightRunCount == 0)
+                {
+                    return std::nullopt;
+                }
+
+                value.light.reserve(ChunkBlockCount);
+                uint64_t totalCount = 0;
+                for (uint32_t run = 0; run < lightRunCount; ++run)
+                {
+                    const uint8_t light = readU8(payload, offset);
+                    const uint32_t count = readU32(payload, offset);
+                    totalCount += count;
+                    if (totalCount > ChunkBlockCount)
+                    {
+                        return std::nullopt;
+                    }
+                    value.light.insert(value.light.end(), count, light);
+                }
+                if (value.light.size() != ChunkBlockCount)
                 {
                     return std::nullopt;
                 }

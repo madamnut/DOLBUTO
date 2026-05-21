@@ -120,6 +120,8 @@ set(DOLBUTO_RUNTIME_DLLS
 )
 
 set(SHADER_SOURCES
+    shaders/sky.vert
+    shaders/sky.frag
     shaders/sprite.vert
     shaders/sprite.frag
     shaders/rmlui.vert
@@ -128,6 +130,7 @@ set(SHADER_SOURCES
     shaders/terrain.frag
     shaders/fluid.frag
     shaders/player.vert
+    shaders/player_model.vert
     shaders/item.vert
     shaders/item_viewmodel.vert
     shaders/selection.vert
@@ -252,6 +255,8 @@ add_executable(DOLBUTO
     src/renderer/DebugOverlayText.h
     src/renderer/ScreenPresentation.cpp
     src/renderer/ScreenPresentation.h
+    src/renderer/SkyRenderPath.cpp
+    src/renderer/SkyRenderPath.h
     src/renderer/SpriteRenderPath.cpp
     src/renderer/SpriteRenderPath.h
     src/renderer/TerrainGeometryBuilder.cpp
@@ -288,12 +293,16 @@ add_executable(DOLBUTO
     src/world/Biome.h
     src/world/ChunkLoadSystem.cpp
     src/world/ChunkLoadSystem.h
+    src/world/ChunkPrepareSystem.cpp
+    src/world/ChunkPrepareSystem.h
     src/world/ClimateSystem.cpp
     src/world/ClimateSystem.h
     src/world/DroppedItemRuntime.cpp
     src/world/DroppedItemRuntime.h
     src/world/DroppedItemSystem.cpp
     src/world/DroppedItemSystem.h
+    src/world/SkyLightSystem.cpp
+    src/world/SkyLightSystem.h
     src/world/TerrainBuilder.cpp
     src/world/TerrainBuilder.h
     src/world/TerrainJobSystem.cpp

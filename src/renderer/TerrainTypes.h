@@ -18,6 +18,7 @@ namespace dolbuto
         float textureLayer = 0.0f;
         float mipDistanceScale = 1.0f;
         float alphaBlend = 1.0f;
+        uint8_t packedLight = 0;
     };
 
     struct PackedTerrainQuad
@@ -32,6 +33,7 @@ namespace dolbuto
         uint32_t uvU = 0;
         uint32_t uvV = 0;
         uint32_t material = 0;
+        uint32_t light = 0;
     };
 
     struct TerrainMesh

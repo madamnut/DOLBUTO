@@ -11,6 +11,7 @@ void createDepthResources();
 void createSceneTargets();
 void createDescriptorSetLayout();
 void createTerrainVertexDescriptorSetLayout();
+void createSkyPipeline();
 void createPipeline();
 void createUiPipeline();
 void createTerrainPipeline();

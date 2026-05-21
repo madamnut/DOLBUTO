@@ -11,6 +11,7 @@
 #include "ui/UiSystem.h"
 #include "world/WorldRuntime.h"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -78,6 +79,193 @@ namespace dolbuto::game
         float fluidWaterAlpha = 0.8f;
     };
 
+    enum class ClientPerfCounter
+    {
+        Frame,
+        Poll,
+        UiActions,
+        Physics,
+        DebugText,
+        RenderCall,
+        TerrainRequest,
+        TerrainComplete,
+        TerrainDrain,
+        TerrainTracking,
+        TerrainInstall,
+        TerrainMark,
+        TerrainStats,
+        TerrainUnload,
+        TerrainRetired,
+        TerrainPop,
+        TerrainHandle,
+        TerrainLoadHandle,
+        TerrainDataHandle,
+        TerrainMeshHandle,
+        TerrainSaveQueue,
+        TerrainSourceHandle,
+        TerrainLightHandle,
+        TerrainLoadFinish,
+        TerrainLoadSnapshot,
+        TerrainLoadInstall,
+        TerrainLoadResume,
+        RenderFenceWait,
+        RenderAcquire,
+        RenderRecord,
+        RenderSubmit,
+        RenderPresent,
+        RenderCpu
+    };
+
+    struct ClientPerfMaxStats
+    {
+        double frameMs = 0.0;
+        double pollMs = 0.0;
+        double uiActionsMs = 0.0;
+        double physicsMs = 0.0;
+        double debugTextMs = 0.0;
+        double renderCallMs = 0.0;
+        double terrainRequestMs = 0.0;
+        double terrainCompleteMs = 0.0;
+        double terrainDrainMs = 0.0;
+        double terrainTrackingMs = 0.0;
+        double terrainInstallMs = 0.0;
+        double terrainMarkMs = 0.0;
+        double terrainStatsMs = 0.0;
+        double terrainUnloadMs = 0.0;
+        double terrainRetiredMs = 0.0;
+        double terrainPopMs = 0.0;
+        double terrainHandleMs = 0.0;
+        double terrainLoadHandleMs = 0.0;
+        double terrainDataHandleMs = 0.0;
+        double terrainMeshHandleMs = 0.0;
+        double terrainSaveQueueMs = 0.0;
+        double terrainSourceHandleMs = 0.0;
+        double terrainLightHandleMs = 0.0;
+        double terrainLoadFinishMs = 0.0;
+        double terrainLoadSnapshotMs = 0.0;
+        double terrainLoadInstallMs = 0.0;
+        double terrainLoadResumeMs = 0.0;
+        double renderFenceWaitMs = 0.0;
+        double renderAcquireMs = 0.0;
+        double renderRecordMs = 0.0;
+        double renderSubmitMs = 0.0;
+        double renderPresentMs = 0.0;
+        double renderCpuMs = 0.0;
+        uint32_t terrainMeshes = 0;
+        uint32_t terrainRefreshChunks = 0;
+        uint32_t terrainUnloadedChunks = 0;
+        uint32_t terrainPopCount = 0;
+        uint32_t terrainCompletedCount = 0;
+        uint32_t terrainLoadCount = 0;
+        uint32_t terrainBuildMeshCount = 0;
+    };
+
+    inline void recordPerfMax(ClientPerfMaxStats& stats, ClientPerfCounter counter, double milliseconds)
+    {
+        switch (counter)
+        {
+        case ClientPerfCounter::Frame:
+            stats.frameMs = std::max(stats.frameMs, milliseconds);
+            break;
+        case ClientPerfCounter::Poll:
+            stats.pollMs = std::max(stats.pollMs, milliseconds);
+            break;
+        case ClientPerfCounter::UiActions:
+            stats.uiActionsMs = std::max(stats.uiActionsMs, milliseconds);
+            break;
+        case ClientPerfCounter::Physics:
+            stats.physicsMs = std::max(stats.physicsMs, milliseconds);
+            break;
+        case ClientPerfCounter::DebugText:
+            stats.debugTextMs = std::max(stats.debugTextMs, milliseconds);
+            break;
+        case ClientPerfCounter::RenderCall:
+            stats.renderCallMs = std::max(stats.renderCallMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainRequest:
+            stats.terrainRequestMs = std::max(stats.terrainRequestMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainComplete:
+            stats.terrainCompleteMs = std::max(stats.terrainCompleteMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainDrain:
+            stats.terrainDrainMs = std::max(stats.terrainDrainMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainTracking:
+            stats.terrainTrackingMs = std::max(stats.terrainTrackingMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainInstall:
+            stats.terrainInstallMs = std::max(stats.terrainInstallMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainMark:
+            stats.terrainMarkMs = std::max(stats.terrainMarkMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainStats:
+            stats.terrainStatsMs = std::max(stats.terrainStatsMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainUnload:
+            stats.terrainUnloadMs = std::max(stats.terrainUnloadMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainRetired:
+            stats.terrainRetiredMs = std::max(stats.terrainRetiredMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainPop:
+            stats.terrainPopMs = std::max(stats.terrainPopMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainHandle:
+            stats.terrainHandleMs = std::max(stats.terrainHandleMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainLoadHandle:
+            stats.terrainLoadHandleMs = std::max(stats.terrainLoadHandleMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainDataHandle:
+            stats.terrainDataHandleMs = std::max(stats.terrainDataHandleMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainMeshHandle:
+            stats.terrainMeshHandleMs = std::max(stats.terrainMeshHandleMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainSaveQueue:
+            stats.terrainSaveQueueMs = std::max(stats.terrainSaveQueueMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainSourceHandle:
+            stats.terrainSourceHandleMs = std::max(stats.terrainSourceHandleMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainLightHandle:
+            stats.terrainLightHandleMs = std::max(stats.terrainLightHandleMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainLoadFinish:
+            stats.terrainLoadFinishMs = std::max(stats.terrainLoadFinishMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainLoadSnapshot:
+            stats.terrainLoadSnapshotMs = std::max(stats.terrainLoadSnapshotMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainLoadInstall:
+            stats.terrainLoadInstallMs = std::max(stats.terrainLoadInstallMs, milliseconds);
+            break;
+        case ClientPerfCounter::TerrainLoadResume:
+            stats.terrainLoadResumeMs = std::max(stats.terrainLoadResumeMs, milliseconds);
+            break;
+        case ClientPerfCounter::RenderFenceWait:
+            stats.renderFenceWaitMs = std::max(stats.renderFenceWaitMs, milliseconds);
+            break;
+        case ClientPerfCounter::RenderAcquire:
+            stats.renderAcquireMs = std::max(stats.renderAcquireMs, milliseconds);
+            break;
+        case ClientPerfCounter::RenderRecord:
+            stats.renderRecordMs = std::max(stats.renderRecordMs, milliseconds);
+            break;
+        case ClientPerfCounter::RenderSubmit:
+            stats.renderSubmitMs = std::max(stats.renderSubmitMs, milliseconds);
+            break;
+        case ClientPerfCounter::RenderPresent:
+            stats.renderPresentMs = std::max(stats.renderPresentMs, milliseconds);
+            break;
+        case ClientPerfCounter::RenderCpu:
+            stats.renderCpuMs = std::max(stats.renderCpuMs, milliseconds);
+            break;
+        }
+    }
+
     struct ClientDiagnosticsState
     {
         std::array<float, 1024> heightLut{};
@@ -96,6 +284,7 @@ namespace dolbuto::game
         double accumulatedCpuFrameMs = 0.0;
         double accumulatedGpuFrameMs = 0.0;
         uint32_t performanceSampleCount = 0;
+        ClientPerfMaxStats perfMax;
     };
 
     struct ClientRuntimeState

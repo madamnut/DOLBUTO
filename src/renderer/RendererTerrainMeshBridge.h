@@ -19,7 +19,8 @@ namespace dolbuto
         TerrainSubchunkBuildData buildEditedSubchunkMesh(
             const std::shared_ptr<ChunkData>& chunk,
             int subchunkY,
-            const world::TerrainMesher::WorldBlockSampler& blockAtWorld) const;
+            const world::TerrainMesher::WorldBlockSampler& blockAtWorld,
+            const world::TerrainMesher::WorldLightSampler& lightAtWorld) const;
 
         CompletedChunkMesh buildChunkMesh(
             const std::array<std::shared_ptr<ChunkData>, 9>& chunks,

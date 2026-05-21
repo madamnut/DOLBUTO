@@ -6,6 +6,8 @@
 #include "renderer/RendererTerrainMeshBridge.h"
 #include "renderer/TerrainRenderPath.h"
 
+#include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <optional>
@@ -73,6 +75,7 @@ namespace dolbuto
 
     void RendererTerrainRuntimeBridge::requestTerrainLoad(int centerGroupChunkX, int centerGroupChunkZ)
     {
+        const auto perfStart = std::chrono::steady_clock::now();
         const game::ClientTerrainSceneRuntime::TerrainLoadResult loadResult = client_.terrainSceneRuntime.requestTerrainLoad(
             centerGroupChunkX,
             centerGroupChunkZ,
@@ -86,6 +89,10 @@ namespace dolbuto
 
         if (!loadResult.requested)
         {
+            game::recordPerfMax(
+                client_.diagnostics.perfMax,
+                game::ClientPerfCounter::TerrainRequest,
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - perfStart).count());
             return;
         }
 
@@ -95,6 +102,10 @@ namespace dolbuto
 
         updateTerrainStats();
         debugOverlayText_.markDirty();
+        game::recordPerfMax(
+            client_.diagnostics.perfMax,
+            game::ClientPerfCounter::TerrainRequest,
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - perfStart).count());
     }
 
     world::TerrainJobResult RendererTerrainRuntimeBridge::processRenderTerrainMeshJob(TerrainJob job)
@@ -126,6 +137,8 @@ namespace dolbuto
 
     void RendererTerrainRuntimeBridge::processCompletedTerrainJobs()
     {
+        const auto perfStart = std::chrono::steady_clock::now();
+        auto sectionStart = perfStart;
         auto completionResult = client_.terrainSceneRuntime.processCompletedTerrainJobs(
             static_cast<uint32_t>(client_.worldConfig.maxTerrainUploadChunksPerFrame),
             terrainBuilderConfig(),
@@ -137,29 +150,92 @@ namespace dolbuto
             {
                 client_.gameplayRuntime.normalizeLoadedEntity(entity);
             });
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainPop, completionResult.popMs);
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainHandle, completionResult.handleMs);
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainLoadHandle, completionResult.loadHandleMs);
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainLoadFinish, completionResult.loadFinishMs);
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainLoadSnapshot, completionResult.loadSnapshotMs);
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainLoadInstall, completionResult.loadInstallMs);
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainLoadResume, completionResult.loadResumeMs);
+        game::recordPerfMax(
+            client_.diagnostics.perfMax,
+            game::ClientPerfCounter::TerrainDataHandle,
+            completionResult.sourceHandleMs + completionResult.localLightHandleMs + completionResult.lightHandleMs);
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainMeshHandle, completionResult.meshHandleMs);
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainSaveQueue, completionResult.saveQueueMs);
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainSourceHandle, completionResult.sourceHandleMs);
+        game::recordPerfMax(
+            client_.diagnostics.perfMax,
+            game::ClientPerfCounter::TerrainLightHandle,
+            completionResult.localLightHandleMs + completionResult.lightHandleMs);
+        game::recordPerfMax(
+            client_.diagnostics.perfMax,
+            game::ClientPerfCounter::TerrainDrain,
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sectionStart).count());
+        client_.diagnostics.perfMax.terrainPopCount = std::max<uint32_t>(
+            client_.diagnostics.perfMax.terrainPopCount,
+            completionResult.popCount);
+        client_.diagnostics.perfMax.terrainCompletedCount = std::max<uint32_t>(
+            client_.diagnostics.perfMax.terrainCompletedCount,
+            completionResult.terrainCount);
+        client_.diagnostics.perfMax.terrainLoadCount = std::max<uint32_t>(
+            client_.diagnostics.perfMax.terrainLoadCount,
+            completionResult.loadCount);
+        client_.diagnostics.perfMax.terrainBuildMeshCount = std::max<uint32_t>(
+            client_.diagnostics.perfMax.terrainBuildMeshCount,
+            completionResult.buildMeshCount);
+        client_.diagnostics.perfMax.terrainMeshes = std::max<uint32_t>(
+            client_.diagnostics.perfMax.terrainMeshes,
+            static_cast<uint32_t>(completionResult.meshesToInstall.size()));
+        client_.diagnostics.perfMax.terrainRefreshChunks = std::max<uint32_t>(
+            client_.diagnostics.perfMax.terrainRefreshChunks,
+            static_cast<uint32_t>(completionResult.refreshDroppedItemChunkKeys.size()));
 
+        sectionStart = std::chrono::steady_clock::now();
         for (uint64_t key : completionResult.refreshDroppedItemChunkKeys)
         {
             client_.gameplayRuntime.refreshDroppedItemChunkTracking(key);
         }
+        game::recordPerfMax(
+            client_.diagnostics.perfMax,
+            game::ClientPerfCounter::TerrainTracking,
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sectionStart).count());
 
+        double installMs = 0.0;
+        double markMs = 0.0;
         for (CompletedChunkMesh& mesh : completionResult.meshesToInstall)
         {
             const uint64_t key = chunkKey(mesh.chunkX, mesh.chunkZ);
+            sectionStart = std::chrono::steady_clock::now();
             terrainRenderPath_.installCompletedMesh(key, mesh, static_cast<uint32_t>(MaxFramesInFlight + 1));
+            installMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sectionStart).count();
+            sectionStart = std::chrono::steady_clock::now();
             client_.worldRuntime.markMeshed(key);
+            markMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sectionStart).count();
         }
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainInstall, installMs);
+        game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainMark, markMs);
 
+        sectionStart = std::chrono::steady_clock::now();
         if (completionResult.terrainStatsDirty)
         {
             updateTerrainStats();
         }
+        game::recordPerfMax(
+            client_.diagnostics.perfMax,
+            game::ClientPerfCounter::TerrainStats,
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sectionStart).count());
+        game::recordPerfMax(
+            client_.diagnostics.perfMax,
+            game::ClientPerfCounter::TerrainComplete,
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - perfStart).count());
         processRetiredTerrainChunks();
         processPendingTerrainUnloads();
     }
 
     uint32_t RendererTerrainRuntimeBridge::processPendingTerrainUnloads()
     {
+        const auto perfStart = std::chrono::steady_clock::now();
         uint32_t unloadedCount = 0;
         while (unloadedCount < static_cast<uint32_t>(client_.worldConfig.maxTerrainUnloadChunksPerFrame))
         {
@@ -181,13 +257,25 @@ namespace dolbuto
             updateTerrainStats();
             debugOverlayText_.markDirty();
         }
+        client_.diagnostics.perfMax.terrainUnloadedChunks = std::max<uint32_t>(
+            client_.diagnostics.perfMax.terrainUnloadedChunks,
+            unloadedCount);
 
+        game::recordPerfMax(
+            client_.diagnostics.perfMax,
+            game::ClientPerfCounter::TerrainUnload,
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - perfStart).count());
         return unloadedCount;
     }
 
     void RendererTerrainRuntimeBridge::processRetiredTerrainChunks()
     {
+        const auto perfStart = std::chrono::steady_clock::now();
         terrainRenderPath_.processRetired(static_cast<uint32_t>(client_.worldConfig.maxTerrainRetiredDestroyPerFrame));
+        game::recordPerfMax(
+            client_.diagnostics.perfMax,
+            game::ClientPerfCounter::TerrainRetired,
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - perfStart).count());
     }
 
     world::TerrainBuilderConfig RendererTerrainRuntimeBridge::terrainBuilderConfig() const
@@ -200,6 +288,7 @@ namespace dolbuto
         config.pvWeightLut = client_.diagnostics.pvWeightLut;
         config.groundnessPvWeightLut = client_.diagnostics.groundnessPvWeightLut;
         config.smoothnessPvWeightLut = client_.diagnostics.smoothnessPvWeightLut;
+        config.lightAttenuationTables = client_.content.lightAttenuationTables();
         config.activeWorldSeedSalt = client_.clientWorldRuntime.activeWorldSeedSalt;
         config.seaLevel = client_.worldConfig.seaLevel;
         config.groundnessNoiseFeatureScale = client_.worldConfig.groundnessNoiseFeatureScale;
@@ -270,6 +359,10 @@ namespace dolbuto
             [this](int x, int y, int z)
             {
                 return client_.worldRuntime.blockAtWorld(x, y, z);
+            },
+            [this](int x, int y, int z)
+            {
+                return client_.worldRuntime.lightAtWorld(x, y, z);
             });
 
         client_.clientWorldRuntime.clearRequestedMeshJob(key);
@@ -359,6 +452,13 @@ namespace dolbuto
                     addAffectedSubchunk(chunkX + offsetX, chunkZ + offsetZ, affectedSubchunkY);
                 }
             }
+        }
+
+        const std::vector<world::WorldRuntime::EditedSubchunk> lightChangedSubchunks =
+            client_.worldRuntime.resolveEditedSkyLightAtWorld(blockX, blockY, blockZ);
+        for (const world::WorldRuntime::EditedSubchunk& changed : lightChangedSubchunks)
+        {
+            addAffectedSubchunk(changed.chunkX, changed.chunkZ, changed.subchunkY);
         }
 
         for (const AffectedSubchunk& affected : affectedSubchunks)

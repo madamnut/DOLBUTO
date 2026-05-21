@@ -14,12 +14,14 @@ namespace dolbuto::world
             {
             case TerrainJob::Type::BuildChunkMesh:
                 return 0;
-            case TerrainJob::Type::FinalizeFeatures:
+            case TerrainJob::Type::ResolveLight:
                 return 1;
-            case TerrainJob::Type::BuildFeaturing:
+            case TerrainJob::Type::ResolveFeatures:
                 return 2;
+            case TerrainJob::Type::BuildTerrainSource:
+                return 3;
             }
-            return 3;
+            return 4;
         }
 
         bool jobLess(const TerrainJob& left, const TerrainJob& right)
@@ -63,6 +65,7 @@ namespace dolbuto::world
             stopRequested_ = true;
             featureJobs_.clear();
             finalizeJobs_.clear();
+            lightJobs_.clear();
             meshJobs_.clear();
         }
         condition_.notify_all();
@@ -82,7 +85,11 @@ namespace dolbuto::world
         std::lock_guard<std::mutex> lock(mutex_);
         featureJobs_.clear();
         finalizeJobs_.clear();
+        lightJobs_.clear();
         meshJobs_.clear();
+        completedChunkData_.clear();
+        completedLocalLightChunks_.clear();
+        completedLightChunks_.clear();
         completedChunkMeshes_.clear();
     }
 
@@ -91,13 +98,17 @@ namespace dolbuto::world
         {
             std::lock_guard<std::mutex> lock(mutex_);
             job.sequence = ++jobSequence_;
-            if (job.type == TerrainJob::Type::BuildFeaturing)
+            if (job.type == TerrainJob::Type::BuildTerrainSource)
             {
                 featureJobs_.push_back(std::move(job));
             }
-            else if (job.type == TerrainJob::Type::FinalizeFeatures)
+            else if (job.type == TerrainJob::Type::ResolveFeatures)
             {
                 finalizeJobs_.push_back(std::move(job));
+            }
+            else if (job.type == TerrainJob::Type::ResolveLight)
+            {
+                lightJobs_.push_back(std::move(job));
             }
             else
             {
@@ -117,10 +128,15 @@ namespace dolbuto::world
             batch.completedChunks.push_back(std::move(completedChunkData_.front()));
             completedChunkData_.pop_front();
         }
-        while (!completedMergedChunks_.empty())
+        while (!completedLocalLightChunks_.empty())
         {
-            batch.completedMergedChunks.push_back(std::move(completedMergedChunks_.front()));
-            completedMergedChunks_.pop_front();
+            batch.completedLocalLightChunks.push_back(std::move(completedLocalLightChunks_.front()));
+            completedLocalLightChunks_.pop_front();
+        }
+        while (!completedLightChunks_.empty())
+        {
+            batch.completedLightChunks.push_back(std::move(completedLightChunks_.front()));
+            completedLightChunks_.pop_front();
         }
         while (!completedChunkMeshes_.empty())
         {
@@ -150,10 +166,15 @@ namespace dolbuto::world
             batch.completedChunks.push_back(std::move(completedChunkData_.front()));
             completedChunkData_.pop_front();
         }
-        while (!completedMergedChunks_.empty())
+        while (!completedLocalLightChunks_.empty())
         {
-            batch.completedMergedChunks.push_back(std::move(completedMergedChunks_.front()));
-            completedMergedChunks_.pop_front();
+            batch.completedLocalLightChunks.push_back(std::move(completedLocalLightChunks_.front()));
+            completedLocalLightChunks_.pop_front();
+        }
+        while (!completedLightChunks_.empty())
+        {
+            batch.completedLightChunks.push_back(std::move(completedLightChunks_.front()));
+            completedLightChunks_.pop_front();
         }
         completedChunkMeshes_.clear();
         return batch;
@@ -168,7 +189,7 @@ namespace dolbuto::world
                 std::unique_lock<std::mutex> lock(mutex_);
                 condition_.wait(lock, [this]
                 {
-                    return stopRequested_ || !featureJobs_.empty() || !finalizeJobs_.empty() || !meshJobs_.empty();
+                    return stopRequested_ || !featureJobs_.empty() || !finalizeJobs_.empty() || !lightJobs_.empty() || !meshJobs_.empty();
                 });
 
                 if (stopRequested_)
@@ -197,9 +218,13 @@ namespace dolbuto::world
             {
                 completedChunkData_.push_back(std::move(*result.completedChunkData));
             }
-            if (result.completedMergedChunk)
+            if (result.completedLocalLightChunk)
             {
-                completedMergedChunks_.push_back(std::move(result.completedMergedChunk));
+                completedLocalLightChunks_.push_back(std::move(result.completedLocalLightChunk));
+            }
+            if (result.completedLightChunk)
+            {
+                completedLightChunks_.push_back(std::move(result.completedLightChunk));
             }
             if (result.completedChunkMesh)
             {
@@ -228,6 +253,7 @@ namespace dolbuto::world
         };
 
         considerQueue(finalizeJobs_);
+        considerQueue(lightJobs_);
         considerQueue(meshJobs_);
 
         if (!hasBest)

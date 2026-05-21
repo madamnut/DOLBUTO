@@ -3,6 +3,7 @@
 #include "camera/CameraViewBob.h"
 #include "game/CommandSystem.h"
 #include "game/ClientUiTypes.h"
+#include "game/ClientRuntimeState.h"
 #include "gameplay/PlayerInventory.h"
 #include "items/ItemData.h"
 #include "platform/Log.h"
@@ -67,6 +68,11 @@ namespace dolbuto
         constexpr uint64_t TicksPerHour = TicksPerMinute * MinutesPerHour;
         constexpr uint64_t TicksPerDay = TicksPerHour * HoursPerDay;
         constexpr uint64_t DefaultWorldTicks = TicksPerHour * 6u;
+        constexpr double SkyDebugTicksPerSecond = static_cast<double>(TicksPerHour);
+        constexpr float MinSkyBrightness = 0.08f;
+        constexpr float MaxSkyBrightness = 1.0f;
+        constexpr uint16_t BlockRock = 1;
+        constexpr uint16_t BlockGlowingRock = 12;
         constexpr float MenuButtonWidth = 240.0f;
         constexpr float MenuButtonHeight = 56.0f;
         constexpr float LobbyStartButtonY = 0.45f;
@@ -76,6 +82,41 @@ namespace dolbuto
         constexpr float PauseExitButtonY = 0.57f;
         constexpr size_t MaxChatMessages = 8;
         constexpr int ChatLineHeight = 20;
+
+        double millisecondsSince(const std::chrono::steady_clock::time_point& start)
+        {
+            return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+        }
+
+        float smoothstep01(float value)
+        {
+            const float t = std::clamp(value, 0.0f, 1.0f);
+            return t * t * (3.0f - 2.0f * t);
+        }
+
+        float skyBrightnessForTicks(uint64_t worldTicks)
+        {
+            const double hour = static_cast<double>(worldTicks % TicksPerDay) / static_cast<double>(TicksPerHour);
+            if (hour < 5.0)
+            {
+                return MinSkyBrightness;
+            }
+            if (hour < 7.0)
+            {
+                const float t = smoothstep01(static_cast<float>((hour - 5.0) / 2.0));
+                return MinSkyBrightness + (MaxSkyBrightness - MinSkyBrightness) * t;
+            }
+            if (hour < 17.0)
+            {
+                return MaxSkyBrightness;
+            }
+            if (hour < 21.0)
+            {
+                const float t = smoothstep01(static_cast<float>((hour - 17.0) / 4.0));
+                return MaxSkyBrightness + (MinSkyBrightness - MaxSkyBrightness) * t;
+            }
+            return MinSkyBrightness;
+        }
 
         std::optional<double> jsonDoubleField(const std::string& object, const std::string& key)
         {
@@ -560,13 +601,20 @@ namespace dolbuto
     {
         while (!glfwWindowShouldClose(window_))
         {
+            const auto framePerfStart = std::chrono::steady_clock::now();
+            auto sectionPerfStart = framePerfStart;
             glfwPollEvents();
+            if (runtime_ != nullptr)
+            {
+                runtime_->diagnostics().recordPerformanceMax(game::ClientPerfCounter::Poll, millisecondsSince(sectionPerfStart));
+            }
             if (glfwWindowShouldClose(window_))
             {
                 break;
             }
             if (runtime_ != nullptr)
             {
+                sectionPerfStart = std::chrono::steady_clock::now();
                 while (std::optional<std::string> action = runtime_->ui().consumeAction())
                 {
                     if (*action == "start")
@@ -638,14 +686,33 @@ namespace dolbuto
                         toggleViewBobbingOption();
                     }
                 }
+                runtime_->diagnostics().recordPerformanceMax(game::ClientPerfCounter::UiActions, millisecondsSince(sectionPerfStart));
             }
 
             const auto now = std::chrono::steady_clock::now();
             const std::chrono::duration<double> delta = now - lastFrameTime_;
             lastFrameTime_ = now;
 
+            if (screen_ == AppScreen::Game && !chatOpen_)
+            {
+                const bool rotateToSunrise = glfwGetKey(window_, GLFW_KEY_LEFT_BRACKET) == GLFW_PRESS;
+                const bool rotateToSunset = glfwGetKey(window_, GLFW_KEY_RIGHT_BRACKET) == GLFW_PRESS;
+                if (rotateToSunrise != rotateToSunset)
+                {
+                    const uint64_t step = static_cast<uint64_t>(std::max(1.0, std::round(delta.count() * SkyDebugTicksPerSecond)));
+                    const uint64_t dayStart = (worldTicks_ / TicksPerDay) * TicksPerDay;
+                    const uint64_t tickOfDay = worldTicks_ % TicksPerDay;
+                    const uint64_t wrappedStep = step % TicksPerDay;
+                    const uint64_t nextTickOfDay = rotateToSunset
+                        ? (tickOfDay + wrappedStep) % TicksPerDay
+                        : (tickOfDay + TicksPerDay - wrappedStep) % TicksPerDay;
+                    worldTicks_ = dayStart + nextTickOfDay;
+                }
+            }
+
             physicsAccumulator_ += std::min(delta.count(), MaxPhysicsFrameTime);
             const bool gameSimulationActive = screen_ == AppScreen::Game || screen_ == AppScreen::Inventory;
+            sectionPerfStart = std::chrono::steady_clock::now();
             while (gameSimulationActive && physicsAccumulator_ >= FixedPhysicsTimestep)
             {
                 previousPlayerPosition_ = playerPosition_;
@@ -686,6 +753,10 @@ namespace dolbuto
                 previousSprintFovAmount_ = sprintFovAmount_;
                 previousEyeHeightScale_ = eyeHeightScale_;
             }
+            if (runtime_ != nullptr)
+            {
+                runtime_->diagnostics().recordPerformanceMax(game::ClientPerfCounter::Physics, millisecondsSince(sectionPerfStart));
+            }
 
             const double physicsAlpha = std::clamp(physicsAccumulator_ / FixedPhysicsTimestep, 0.0, 1.0);
             const DVec3 renderPlayerPosition = interpolatedPlayerPosition(physicsAlpha);
@@ -707,7 +778,18 @@ namespace dolbuto
                     {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
                     renderViewDirection(camera_));
             }
+            sectionPerfStart = std::chrono::steady_clock::now();
             updateDebugText();
+            if (runtime_ != nullptr)
+            {
+                const std::string perfText = runtime_->diagnostics().performanceMaxText();
+                std::snprintf(
+                    perfDebugText_.data(),
+                    perfDebugText_.size(),
+                    "%s",
+                    perfText.c_str());
+                runtime_->diagnostics().recordPerformanceMax(game::ClientPerfCounter::DebugText, millisecondsSince(sectionPerfStart));
+            }
             Camera renderCamera = camera_;
             DVec3 renderCameraPosition = eyePosition;
             bool showPlayer = false;
@@ -762,11 +844,14 @@ namespace dolbuto
                 }
             }
             const bool showFirstPersonHand = gameSceneRenderEnabled && menuOverlayMode == 0 && viewMode_ == ViewMode::FirstPerson;
+            sectionPerfStart = std::chrono::steady_clock::now();
             runtime_->render().frame(game::ClientFrame{
                 renderCamera,
                 renderCameraPosition,
                 static_cast<float>(worldFovDegrees * Pi / 180.0),
+                skyBrightnessForTicks(worldTicks_),
                 debugText_.data(),
+                perfDebugText_.data(),
                 renderDebugText,
                 screenshotRequested_,
                 showPlayer,
@@ -786,6 +871,8 @@ namespace dolbuto
                 gameSceneRenderEnabled,
                 worldTicks_
             });
+            runtime_->diagnostics().recordPerformanceMax(game::ClientPerfCounter::RenderCall, millisecondsSince(sectionPerfStart));
+            runtime_->diagnostics().recordPerformanceMax(game::ClientPerfCounter::Frame, millisecondsSince(framePerfStart));
             screenshotRequested_ = false;
         }
     }
@@ -955,6 +1042,11 @@ namespace dolbuto
             {
                 app->debugTextVisible_ = !app->debugTextVisible_;
             }
+            else if (key == GLFW_KEY_R && action == GLFW_PRESS && app != nullptr && app->runtime_ != nullptr &&
+                !app->chatOpen_ && (app->screen_ == GameClient::AppScreen::Game || app->screen_ == GameClient::AppScreen::Inventory))
+            {
+                app->runtime_->diagnostics().resetPerformanceMax();
+            }
             else if (key == GLFW_KEY_F1 && action == GLFW_PRESS && app != nullptr)
             {
                 app->hudVisible_ = !app->hudVisible_;
@@ -974,6 +1066,11 @@ namespace dolbuto
             else if (key == GLFW_KEY_F6 && action == GLFW_PRESS && app != nullptr)
             {
                 app->climateOverlayMode_ = (app->climateOverlayMode_ + 1) % ClimateOverlayModeCount;
+            }
+            else if (key == GLFW_KEY_M && action == GLFW_PRESS && app != nullptr && app->screen_ == GameClient::AppScreen::Game && !app->chatOpen_)
+            {
+                app->placeBlockId_ = app->placeBlockId_ == BlockRock ? BlockGlowingRock : BlockRock;
+                app->appendChatSystemMessage(app->placeBlockId_ == BlockGlowingRock ? "Place mode: glowing_rock" : "Place mode: rock");
             }
             else if (key == GLFW_KEY_E && action == GLFW_PRESS && app != nullptr)
             {
@@ -1099,6 +1196,7 @@ namespace dolbuto
                         {app->playerPosition_.x, app->playerPosition_.y + app->currentEyeHeight(), app->playerPosition_.z},
                         renderViewDirection(app->camera_),
                         true,
+                        app->placeBlockId_,
                         app->playerPosition_,
                         app->currentPlayerHeightScale());
                 }
@@ -2243,11 +2341,12 @@ namespace dolbuto
         const uint64_t minuteOfDay = (worldTicks_ % TicksPerDay) / TicksPerMinute;
         const uint64_t hour = minuteOfDay / MinutesPerHour;
         const uint64_t minute = minuteOfDay % MinutesPerHour;
+        const float skyBrightness = skyBrightnessForTicks(worldTicks_);
 
         std::snprintf(
             debugText_.data(),
             debugText_.size(),
-            "FPS: %04d [%07.3fMS]\nPOS: X %.3f [%.3f] / Y %.3f / Z %.3f [%.3f]\nVIEW: YAW %.1f / PITCH %.1f [%s]\n%s\n%s\n%s\n%s\nTIME: %lluD %02lluH %02lluM\nSEED: %llu",
+            "FPS: %04d [%07.3fMS]\nPOS: X %.3f [%.3f] / Y %.3f / Z %.3f [%.3f]\nVIEW: YAW %.1f / PITCH %.1f [%s]\n%s\n%s\n%s\n%s\nLIGHT: SKY[%.2f]\nTIME: %lluD %02lluH %02lluM\nSEED: %llu",
             clampedFps,
             milliseconds,
             wrappedPlayerX,
@@ -2262,6 +2361,7 @@ namespace dolbuto
             climateText.c_str(),
             biomeText.c_str(),
             terrainText.c_str(),
+            skyBrightness,
             static_cast<unsigned long long>(day),
             static_cast<unsigned long long>(hour),
             static_cast<unsigned long long>(minute),
