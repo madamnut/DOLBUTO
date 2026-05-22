@@ -18,6 +18,13 @@ float saturate(float value)
     return clamp(value, 0.0, 1.0);
 }
 
+float screenNoise(vec2 pixel)
+{
+    vec3 value = fract(vec3(pixel.xyx) * 0.1031);
+    value += dot(value, value.yzx + 33.33);
+    return fract((value.x + value.y) * value.z);
+}
+
 vec3 mixSkyRamp(vec3 upColor, vec3 middleColor, vec3 downColor, float vdotu, float sunFacing)
 {
     float upper = max(vdotu, 0.0);
@@ -60,9 +67,9 @@ void main()
     vec3 twilightMiddle = vec3(0.42, 0.28, 0.45);
     vec3 twilightDown = vec3(1.00, 0.50, 0.24);
 
-    vec3 nightUp = vec3(0.006, 0.010, 0.030);
-    vec3 nightMiddle = vec3(0.020, 0.030, 0.070);
-    vec3 nightDown = vec3(0.040, 0.055, 0.105);
+    vec3 nightUp = vec3(0.0008, 0.0015, 0.0060);
+    vec3 nightMiddle = vec3(0.0040, 0.0070, 0.0200);
+    vec3 nightDown = vec3(0.0100, 0.0160, 0.0380);
 
     vec3 dayUp = mix(twilightUp, noonUp, noonFactor);
     vec3 dayMiddle = mix(twilightMiddle, noonMiddle, noonFactor);
@@ -89,8 +96,8 @@ void main()
     float groundFade = smoothstep(0.0, 0.42, -vdotu);
     color *= mix(1.0, 0.45 + 0.25 * sunVisibility, groundFade);
 
-    float dither = fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)));
-    color += (dither - 0.5) / 255.0;
+    float dither = screenNoise(gl_FragCoord.xy);
+    color += (dither - 0.5) / 512.0;
 
     outColor = vec4(max(color, vec3(0.0)), 1.0);
 }

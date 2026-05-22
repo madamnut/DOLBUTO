@@ -168,15 +168,23 @@ double z
 float yaw
 float pitch
 uint8 moveMode        // 0 = fly, 1 = ground
+uint8 gameMode        // 0 = survival, 1 = sandbox
 double verticalVelocity
+uint16 hp
+uint16 maxHp
+uint16 hunger
+uint16 maxHunger
+uint16 thirst
+uint16 maxThirst
 repeat 50:
   uint16 itemId
   uint16 count
 ```
 
-전체 크기는 241바이트다. X/Z는 래핑된 월드 좌표로 저장한다.
+전체 크기는 254바이트다. X/Z는 래핑된 월드 좌표로 저장한다.
 인벤토리 슬롯 `0~49`는 이동 상태 뒤에 저장한다.
 임시 인벤토리 커서 스택은 저장하지 않는다.
+현재 포맷은 레거시 `player.dat` 호환을 제공하지 않으며, 파일 크기가 부족하면 기본 플레이어 상태를 사용한다.
 
 ## 게임 씬 저장 경계
 
@@ -211,9 +219,9 @@ seed는 좌상단 디버그 텍스트에 `SEED: <value>`로 표시한다.
 ## 월드 슬롯
 
 로비는 저장된 월드 목록과 새 월드 생성 폼이 있는 월드 선택 UI를 가진다.
-월드 생성에는 월드 이름과 seed가 필요하다.
+월드 생성에는 월드 이름, seed, 초기 게임모드가 필요하다.
 월드는 `saves` 바로 아래의 폴더로 저장한다.
 월드 폴더 이름은 월드 이름이다.
 월드 선택 UI는 월드 목록 화면 진입 시 `saves`를 스캔하고 `world.dat`를 포함한 디렉터리를 표시한다.
 각 월드 행은 월드 생성 시각과 최근 플레이 시각을 표시한다.
-월드를 생성하면 `saves/<world-name>/regions`를 만들고, `world.dat`와 기본 `player.dat`를 쓴 뒤 게임 씬에 진입한다.
+월드를 생성하면 `saves/<world-name>/regions`를 만들고, `world.dat`와 선택한 게임모드가 반영된 기본 `player.dat`를 쓴 뒤 게임 씬에 진입한다.

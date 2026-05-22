@@ -361,6 +361,16 @@ namespace dolbuto::game
         owner_.state_->ui.setOptionsLobbyBackground(lobbyBackground);
     }
 
+    void ClientRuntime::UiAccess::setWorldCreateGameMode(bool sandbox)
+    {
+        owner_.state_->ui.setWorldCreateGameMode(sandbox);
+    }
+
+    void ClientRuntime::UiAccess::setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst)
+    {
+        owner_.state_->ui.setPlayerStats(hp, maxHp, hunger, maxHunger, thirst, maxThirst);
+    }
+
     void ClientRuntime::UiAccess::mouseMove(double x, double y)
     {
         owner_.renderRuntime_->uiMouseMove(x, y);

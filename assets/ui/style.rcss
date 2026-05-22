@@ -116,10 +116,57 @@ body {
     display: none;
 }
 
+.stat-gauge {
+    position: absolute;
+    bottom: 24px;
+    width: 32px;
+    height: 200px;
+}
+
+.hp-gauge {
+    left: 24px;
+}
+
+.hunger-gauge {
+    left: 64px;
+}
+
+.thirst-gauge {
+    left: 104px;
+}
+
+.stat-bar-fill {
+    position: absolute;
+    left: 4px;
+    bottom: 4px;
+    width: 24px;
+    height: 192px;
+}
+
+.hp-bar-fill {
+    background-color: #d83737;
+}
+
+.hunger-bar-fill {
+    background-color: #b9823a;
+}
+
+.thirst-bar-fill {
+    background-color: #2d8fe6;
+}
+
+.stat-gauge-image {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 32px;
+    height: 200px;
+}
+
 .chat-panel {
     position: absolute;
     left: 24px;
-    bottom: 112px;
+    bottom: 232px;
     width: 520px;
     height: 232px;
 }
@@ -459,9 +506,9 @@ body {
     left: 50%;
     top: 50%;
     width: 520px;
-    height: 360px;
+    height: 430px;
     margin-left: -260px;
-    margin-top: -180px;
+    margin-top: -215px;
 }
 
 .world-list-large {
@@ -573,6 +620,30 @@ input {
     left: 84px;
     top: 86px;
     width: 360px;
+}
+
+.mode-button {
+    display: block;
+    width: 332px;
+    height: 44px;
+    line-height: 44px;
+    margin-bottom: 18px;
+    padding-left: 10px;
+    padding-right: 10px;
+    background-color: rgba(16, 23, 28, 235);
+    border-width: 1px;
+    border-color: rgba(170, 205, 220, 120);
+    text-align: center;
+    font-size: 16px;
+}
+
+.mode-button:hover {
+    background-color: rgba(36, 54, 64, 245);
+}
+
+.mode-button.selected {
+    background-color: rgba(70, 100, 112, 245);
+    border-color: rgba(225, 245, 255, 220);
 }
 
 .bottom-actions {

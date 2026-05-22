@@ -36,7 +36,6 @@ namespace dolbuto
         std::string gpuFrameText_ = "GPU: ---.---MS";
         std::string vramText_ = "VRAM: 0MB";
         std::string cachedFpsText_;
-        std::string cachedPerfText_;
         VkExtent2D lastResolutionExtent_{};
         TextRenderPath::TextBatch batch_;
         bool dirty_ = true;

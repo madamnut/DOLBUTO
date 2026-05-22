@@ -70,6 +70,7 @@
 `src/renderer/RendererDroppedItems.cpp`는 `DroppedItemRuntime` update 호출, 렌더 후보 수집 입력 조립, push constant 준비, `DroppedItemRenderPath` draw 호출만 담는다.
 `src/renderer/RendererFrameLoop.cpp`는 frame acquire/submit/present, command buffer 기록, screenshot readback/BMP 저장, command buffer/sync object 생성을 담는다.
 `src/renderer/SkyRenderPath.h/.cpp`는 scene render pass의 첫 draw로 fullscreen sky shader를 호출한다. sky shader는 clear color 고정값 대신 `worldTicks`에서 계산한 실제 sun direction, 낮/밤 판정용 day direction, camera basis, FOV를 받아 view direction과 direction dot 값으로 하늘 위쪽/지평선/아래쪽 그라데이션, 일출/일몰 horizon glow, 태양 방향 glare를 계산한다.
+밤하늘은 낮보다 낮은 RGB ramp를 사용하고, 어두운 계조에서 줄무늬가 보이지 않도록 screen-space hash noise 기반의 약한 dither를 적용한다.
 하늘색 디버그를 위해 게임 화면에서 `[`를 누르고 있으면 하루 안의 시간이 해가 뜨는 방향으로 되감기고, `]`를 누르고 있으면 해가 지는 방향으로 빨리 진행된다. 이 입력은 `worldTicks`만 조정하므로 sky shader와 sun/moon sprite 위치가 같은 기준으로 움직인다.
 `src/renderer/RendererGameplayBridge.h/.cpp`는 block selection/edit/breaking, pickup/drop, inventory snapshot, block lookup/collision helper, gameplay 결과의 mesh/particle/audio 반영을 담당하는 `RendererGameplayBridge`를 담는다.
 `src/renderer/RendererTerrainRuntimeBridge.h/.cpp`는 loaded chunk 갱신, terrain load request, terrain job completion, pending unload, retired terrain chunk 처리, edited mesh rebuild, terrain stats 갱신을 담당하는 `RendererTerrainRuntimeBridge` 객체를 담는다.
@@ -85,7 +86,7 @@
 terrain/player/particle/selection/dropped item projection과 terrain/dropped item frustum culling, sky sprite projection은 이 값을 같은 프레임 기준으로 사용한다.
 1인칭 손과 든 아이템 viewmodel은 화면상 크기와 배치가 FOV 설정에 따라 흔들리지 않도록 별도 고정 FOV `60도`를 사용한다.
 FOV 설정은 `config/settings.json`의 `video.fovDegrees`에 저장되며 Options 화면에서 `30도 ~ 110도` 사이로 조정한다.
-달리기 중에는 월드 FOV 목표값을 현재 Options FOV의 `1.15`배로 두고, 별도 최대값 clamp 없이 보간해 적용한다.
+달리기 중에는 실제 수평 이동이 발생할 때만 월드 FOV 목표값을 현재 Options FOV의 `1.15`배로 두고, 별도 최대값 clamp 없이 보간해 적용한다. Ctrl 또는 toggle sprint 상태여도 플레이어가 정지해 있으면 월드 FOV는 걷기 기본값으로 돌아간다.
 이 동적 FOV는 viewmodel에는 적용하지 않는다.
 `src/game/ClientRuntime.h/.cpp`는 `GameClient`가 호출하는 클라이언트 런타임 진입점이고, `render()`, `scene()`, `gameplay()`, `ui()`, `diagnostics()` access로 역할별 호출 표면을 제공한다.
 Renderer/GPU가 필요 없는 collision query, block selection state, inventory snapshot, UI action/input query, selected block/climate text는 `ClientRuntimeState`에서 직접 처리하고, 렌더러 의존 작업은 `ClientRenderRuntime`에 위임한다.

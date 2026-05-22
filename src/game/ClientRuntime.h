@@ -88,6 +88,8 @@ namespace dolbuto::game
             void setOptionsViewBobbing(bool enabled);
             void setOptionsControls(bool toggleSprint, bool toggleSneak);
             void setOptionsLobbyBackground(bool lobbyBackground);
+            void setWorldCreateGameMode(bool sandbox);
+            void setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst);
             void mouseMove(double x, double y);
             void mouseButton(int button, bool pressed, int modifiers);
             void mouseWheel(double yOffset);

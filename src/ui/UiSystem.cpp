@@ -10,9 +10,13 @@
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
 #include <RmlUi/Core/Event.h>
+#include <RmlUi/Core/ID.h>
+#include <RmlUi/Core/Property.h>
 #include <RmlUi/Core/SystemInterface.h>
+#include <RmlUi/Core/Unit.h>
 
 #include <array>
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
@@ -59,6 +63,22 @@ namespace dolbuto::ui
         private:
             GLFWwindow* window_ = nullptr;
         };
+
+        int statBarHeight(int value, int maxValue)
+        {
+            const int clampedMax = std::max(1, maxValue);
+            const int clampedValue = std::clamp(value, 0, clampedMax);
+            constexpr int BarPixelHeight = 192;
+            return static_cast<int>(std::round(static_cast<double>(BarPixelHeight) * static_cast<double>(clampedValue) / static_cast<double>(clampedMax)));
+        }
+
+        void setStatBarHeight(Rml::ElementDocument* document, const char* elementId, int value, int maxValue)
+        {
+            if (Rml::Element* fill = document->GetElementById(elementId))
+            {
+                fill->SetProperty(Rml::PropertyId::Height, Rml::Property(static_cast<float>(statBarHeight(value, maxValue)), Rml::Unit::PX));
+            }
+        }
     }
 
     std::string escapeRml(std::string_view text)
@@ -438,6 +458,32 @@ namespace dolbuto::ui
         }
     }
 
+    void UiSystem::setWorldCreateGameMode(bool sandbox)
+    {
+        if (worldCreateDocument_ == nullptr)
+        {
+            return;
+        }
+
+        if (Rml::Element* modeButton = worldCreateDocument_->GetElementById("create-mode-toggle"))
+        {
+            modeButton->SetAttribute("class", "mode-button selected");
+            modeButton->SetInnerRML(sandbox ? "SANDBOX" : "SURVIVAL");
+        }
+    }
+
+    void UiSystem::setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst)
+    {
+        if (hudDocument_ == nullptr)
+        {
+            return;
+        }
+
+        setStatBarHeight(hudDocument_, "hp-bar-fill", hp, maxHp);
+        setStatBarHeight(hudDocument_, "hunger-bar-fill", hunger, maxHunger);
+        setStatBarHeight(hudDocument_, "thirst-bar-fill", thirst, maxThirst);
+    }
+
     void UiSystem::setHotbarScopeClass(int selectedSlot)
     {
         if (hudDocument_ == nullptr)
@@ -698,11 +744,12 @@ namespace dolbuto::ui
             return;
         }
 
-        constexpr std::array<const char*, 13> ButtonIds = {
+        constexpr std::array<const char*, 14> ButtonIds = {
             "start",
             "exit",
             "new-world",
             "create-world",
+            "create-mode-toggle",
             "back-to-lobby",
             "back-to-world-select",
             "resume",

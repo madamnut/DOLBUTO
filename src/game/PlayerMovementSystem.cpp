@@ -91,12 +91,6 @@ namespace dolbuto::game
         const bool holdSprintActive = !input.toggleSprint && (input.ctrlHeld || input.doubleTapSprintActive);
         const bool toggleSprintActive = input.toggleSprint && input.sprintToggled;
         const bool groundSprinting = state.moveMode == PlayerMoveMode::Ground && !groundSneaking && (holdSprintActive || toggleSprintActive);
-        const double sprintFovBlend = 1.0 - std::exp(-SprintFovResponse * fixedDeltaSeconds);
-        const double targetSprintFovAmount = groundSprinting ? 1.0 : 0.0;
-        state.sprintFovAmount = static_cast<float>(std::clamp(
-            static_cast<double>(state.sprintFovAmount) + (targetSprintFovAmount - static_cast<double>(state.sprintFovAmount)) * sprintFovBlend,
-            0.0,
-            1.0));
         const double playerHeightScale = groundSneaking ? config.sneakHeightScale : 1.0;
         const double eyeHeightBlend = 1.0 - std::exp(-EyeHeightResponse * fixedDeltaSeconds);
         state.eyeHeightScale = static_cast<float>(std::clamp(
@@ -276,6 +270,12 @@ namespace dolbuto::game
         const double targetWalkAmount = input.allowInput && referenceSpeed > 0.0
             ? std::clamp(horizontalDistance / (referenceSpeed * fixedDeltaSeconds), 0.0, MaxWalkAmount)
             : 0.0;
+        const double sprintFovBlend = 1.0 - std::exp(-SprintFovResponse * fixedDeltaSeconds);
+        const double targetSprintFovAmount = groundSprinting && targetWalkAmount > 0.01 ? 1.0 : 0.0;
+        state.sprintFovAmount = static_cast<float>(std::clamp(
+            static_cast<double>(state.sprintFovAmount) + (targetSprintFovAmount - static_cast<double>(state.sprintFovAmount)) * sprintFovBlend,
+            0.0,
+            1.0));
         const double response = targetWalkAmount > static_cast<double>(state.walkAmount) ? WalkAmountRiseResponse : WalkAmountFallResponse;
         const double blend = 1.0 - std::exp(-response * fixedDeltaSeconds);
         state.walkAmount = static_cast<float>(std::clamp(

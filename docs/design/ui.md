@@ -89,6 +89,7 @@ RmlUi와 FreeType 소스 트리는 참고용이며, 일반 게임 빌드에서 �
 월드 선택의 `NEW WORLD`는 새 월드 생성 화면을 연다.
 월드 선택의 `EXIT`는 로비로 돌아간다.
 월드 생성의 `CREATE`는 새 월드를 만들고 게임에 진입한다.
+월드 생성 화면은 클릭할 때마다 `SURVIVAL`/`SANDBOX`가 전환되는 게임모드 토글 버튼을 가지며, 기본 선택값은 `SANDBOX`다.
 월드 생성의 `EXIT`는 월드 선택으로 돌아간다.
 일시정지의 `RESUME`은 게임으로 돌아간다.
 일시정지의 `EXIT`는 게임 씬을 언로드하고 로비로 돌아간다.
@@ -170,7 +171,7 @@ assets/textures/ui/player
 
 월드 선택 문서는 저장된 월드 목록과 하단 작업 버튼을 가진다.
 저장된 월드 행에는 생성 시각과 최근 플레이 시각을 표시한다.
-월드 생성 문서는 이름과 시드 입력창을 가진다.
+월드 생성 문서는 이름, 시드 입력창과 게임모드 토글 버튼을 가진다.
 월드 목록 항목은 `saves` 아래 월드별 저장 디렉터리를 스캔해 채운다.
 
 ## 런타임 통합
@@ -275,3 +276,12 @@ Options 화면은 `BGM`, `SFX` 볼륨 슬라이더와 `SPRINT`, `SNEAK` 입력 �
 
 Options 화면은 `FOV` 슬라이더를 포함하며 `30`부터 `110`까지 1도 단위로 조정한다.
 FOV 설정값은 `config/settings.json`의 `video.fovDegrees`에 저장한다.
+
+## HUD 생존 스탯 게이지
+
+HUD 좌하단에는 플레이어 HP, 허기, 갈증 게이지를 표시한다.
+`Gauge.png`는 공통 프레임으로 사용하고, 스탯 바는 스탯별 색을 가진 RmlUi 사각형 요소의 높이를 현재 스탯 비율에 맞춰 직접 갱신한다.
+HP는 붉은색, 허기는 황갈색, 갈증은 파란색으로 표시한다.
+현재 스탯 상태는 `GameClient`의 `PlayerStats`가 소유하고, `UiSystem::setPlayerStats`는 RmlUi 요소 갱신만 담당한다.
+채팅 명령어 `/stat`, `/stat <hp|hunger|thirst>`, `/stat <hp|hunger|thirst> add <value>`, `/stat <hp|hunger|thirst> set <value>`로 스탯 게이지를 테스트한다.
+채팅 패널은 스탯 게이지와 같은 좌측 padding을 사용하되, 게이지 위쪽에 배치해 서로 가리지 않게 한다.

@@ -2,7 +2,9 @@
 
 #include "camera/Camera.h"
 #include "game/ClientRuntime.h"
+#include "game/GameMode.h"
 #include "game/PlayerMovementSystem.h"
+#include "game/PlayerStats.h"
 
 #include <array>
 #include <chrono>
@@ -78,6 +80,8 @@ namespace dolbuto
         void openWorldByIndex(size_t index);
         void createWorldFromUi();
         void resetPlayerRuntimeState();
+        void setCreateWorldGameMode(game::GameMode mode);
+        void applyGameMode(game::GameMode mode);
         std::filesystem::path playerStatePath() const;
         std::filesystem::path worldStatePath() const;
         void returnToLobbyScene();
@@ -97,6 +101,7 @@ namespace dolbuto
         void saveWorldState();
         void loadPlayerState();
         void savePlayerState() const;
+        void updatePlayerStatsUi();
         DVec3 interpolatedPlayerPosition(double alpha) const;
         double currentPlayerHeightScale() const;
         double currentEyeHeight() const;
@@ -121,6 +126,8 @@ namespace dolbuto
         AppScreen screen_ = AppScreen::Lobby;
         AppScreen optionsReturnScreen_ = AppScreen::Lobby;
         ViewMode viewMode_ = ViewMode::FirstPerson;
+        game::GameMode gameMode_ = game::GameMode::Sandbox;
+        game::GameMode pendingCreateGameMode_ = game::GameMode::Sandbox;
         MoveMode moveMode_ = MoveMode::Fly;
         std::vector<WorldInfo> availableWorlds_;
         std::vector<std::string> chatMessages_;
@@ -130,6 +137,7 @@ namespace dolbuto
         uint64_t worldCreatedUnixSeconds_ = 0;
         uint64_t worldLastPlayedUnixSeconds_ = 0;
         bool hasSelectedWorld_ = false;
+        game::PlayerStats playerStats_{};
         DVec3 playerPosition_{0.0, DefaultPlayerSpawnHeight, 0.0};
         DVec3 previousPlayerPosition_{0.0, DefaultPlayerSpawnHeight, 0.0};
         double flyMoveSpeed_ = 64.0;
@@ -177,7 +185,6 @@ namespace dolbuto
         int fpsSampleFrames_ = 0;
         uint64_t worldTicks_ = 7200;
         std::array<char, 768> debugText_{"FPS: 0000 [000.000MS]\nPOS: X 0.000 [0.000] / Y 512.000 / Z 0.000 [0.000]\nVIEW: YAW 0.0 / PITCH 0.0 [EAST]\nLOOKAT: none\nCLIMATE: T[0.000] P[0.000]\nBIOME: T[0] P[0] GND[0] - FrozenOcean\nTERRAIN: GND[0.000] SMTH[0.000] W[0.000] PV[0.000]\nVALUE: RAW[0.000] NORM[0.000] PVW[0.000] PVMUL[0.000] BASE[0.000] INF[0.000] VAL[0.000] H[0]\nLIGHT: SKY[1.00]\nTIME: 0D 06H 00M\nSEED: 0"};
-        std::array<char, 768> perfDebugText_{"PERF MAX [R]\nTL_FINISH     0.00 ms\nTL_SNAPSHOT   0.00 ms\nTL_INSTALL    0.00 ms\nTL_RESUME     0.00 ms\nTL_TOTAL      0.00 ms\nTL_COUNT         0\nTD_POP        0.00 ms\nTD_HANDLE     0.00 ms\nTD_TERR_CNT      0\nTD_POP_CNT       0"};
         bool firstMouse_ = true;
         double lastMouseX_ = 0.0;
         double lastMouseY_ = 0.0;

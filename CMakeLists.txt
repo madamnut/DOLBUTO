@@ -181,8 +181,10 @@ add_executable(DOLBUTO
     src/game/CommandSystem.h
     src/game/GameClient.cpp
     src/game/GameClient.h
+    src/game/GameMode.h
     src/game/PlayerMovementSystem.cpp
     src/game/PlayerMovementSystem.h
+    src/game/PlayerStats.h
     src/gameplay/BlockInteractionSystem.cpp
     src/gameplay/BlockInteractionSystem.h
     src/gameplay/ClientGameplayRuntime.cpp

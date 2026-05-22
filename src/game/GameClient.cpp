@@ -58,7 +58,8 @@ namespace dolbuto
         constexpr double WorldSizeBlocks = 65536.0;
         constexpr int ClimateOverlayModeCount = 7;
         constexpr size_t PlayerInventorySlotCount = gameplay::PlayerInventory::SlotCount;
-        constexpr size_t PlayerStateBaseFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t);
+        constexpr size_t PlayerStatsFileSize = sizeof(uint16_t) * 6u;
+        constexpr size_t PlayerStateBaseFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t) * 2u + PlayerStatsFileSize;
         constexpr size_t PlayerInventoryFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 2u;
         constexpr size_t PlayerStateFileSize = PlayerStateBaseFileSize + PlayerInventoryFileSize;
         constexpr size_t WorldStateFileSize = sizeof(uint64_t) * 4u;
@@ -644,6 +645,12 @@ namespace dolbuto
                     {
                         createWorldFromUi();
                     }
+                    else if (*action == "create-mode-toggle")
+                    {
+                        setCreateWorldGameMode(pendingCreateGameMode_ == game::GameMode::Sandbox
+                            ? game::GameMode::Survival
+                            : game::GameMode::Sandbox);
+                    }
                     else if (*action == "back-to-lobby")
                     {
                         setScreen(AppScreen::Lobby);
@@ -780,14 +787,9 @@ namespace dolbuto
             }
             sectionPerfStart = std::chrono::steady_clock::now();
             updateDebugText();
+            updatePlayerStatsUi();
             if (runtime_ != nullptr)
             {
-                const std::string perfText = runtime_->diagnostics().performanceMaxText();
-                std::snprintf(
-                    perfDebugText_.data(),
-                    perfDebugText_.size(),
-                    "%s",
-                    perfText.c_str());
                 runtime_->diagnostics().recordPerformanceMax(game::ClientPerfCounter::DebugText, millisecondsSince(sectionPerfStart));
             }
             Camera renderCamera = camera_;
@@ -851,7 +853,7 @@ namespace dolbuto
                 static_cast<float>(worldFovDegrees * Pi / 180.0),
                 skyBrightnessForTicks(worldTicks_),
                 debugText_.data(),
-                perfDebugText_.data(),
+                "",
                 renderDebugText,
                 screenshotRequested_,
                 showPlayer,
@@ -937,7 +939,8 @@ namespace dolbuto
                 {
                     const double now = glfwGetTime();
                     bool toggledMoveMode = false;
-                    if (now - app->lastJumpTapTime_ <= app->movementDoubleTapWindow_)
+                    const bool canToggleMoveMode = app->gameMode_ == game::GameMode::Sandbox;
+                    if (canToggleMoveMode && now - app->lastJumpTapTime_ <= app->movementDoubleTapWindow_)
                     {
                         if (app->moveMode_ == MoveMode::Ground)
                         {
@@ -1389,7 +1392,14 @@ namespace dolbuto
                 game::CommandResult commandResult = game::executeCommand(text, game::CommandContext{
                     playerPosition_,
                     worldSeed_,
-                    worldTicks_
+                    worldTicks_,
+                    playerStats_.hp,
+                    playerStats_.maxHp,
+                    playerStats_.hunger,
+                    playerStats_.maxHunger,
+                    playerStats_.thirst,
+                    playerStats_.maxThirst,
+                    gameMode_
                 });
 
                 if (commandResult.teleportPosition)
@@ -1405,6 +1415,27 @@ namespace dolbuto
                 if (commandResult.worldTicks)
                 {
                     worldTicks_ = *commandResult.worldTicks;
+                }
+                if (commandResult.playerHp)
+                {
+                    playerStats_.hp = *commandResult.playerHp;
+                }
+                if (commandResult.playerHunger)
+                {
+                    playerStats_.hunger = *commandResult.playerHunger;
+                }
+                if (commandResult.playerThirst)
+                {
+                    playerStats_.thirst = *commandResult.playerThirst;
+                }
+                if (commandResult.playerHp || commandResult.playerHunger || commandResult.playerThirst)
+                {
+                    playerStats_.clamp();
+                    updatePlayerStatsUi();
+                }
+                if (commandResult.gameMode)
+                {
+                    applyGameMode(*commandResult.gameMode);
                 }
                 for (const std::string& message : commandResult.messages)
                 {
@@ -1524,6 +1555,10 @@ namespace dolbuto
         {
             refreshWorldList();
         }
+        if (screen_ == AppScreen::WorldCreate && runtime_ != nullptr)
+        {
+            runtime_->ui().setWorldCreateGameMode(pendingCreateGameMode_ == game::GameMode::Sandbox);
+        }
         if (screen_ == AppScreen::Options)
         {
             if (runtime_ != nullptr)
@@ -1599,7 +1634,7 @@ namespace dolbuto
         previousSprintFovAmount_ = 0.0f;
         eyeHeightScale_ = 1.0f;
         previousEyeHeightScale_ = 1.0f;
-        moveMode_ = MoveMode::Fly;
+        moveMode_ = gameMode_ == game::GameMode::Sandbox ? MoveMode::Fly : MoveMode::Ground;
         verticalVelocity_ = 0.0;
         grounded_ = false;
         jumpHeld_ = false;
@@ -1610,6 +1645,45 @@ namespace dolbuto
         lastForwardTapTime_ = -1000.0;
         lastJumpTapTime_ = -1000.0;
         physicsAccumulator_ = 0.0;
+        playerStats_ = game::PlayerStats{};
+        updatePlayerStatsUi();
+    }
+
+    void GameClient::setCreateWorldGameMode(game::GameMode mode)
+    {
+        pendingCreateGameMode_ = mode;
+        if (runtime_ != nullptr)
+        {
+            runtime_->ui().setWorldCreateGameMode(pendingCreateGameMode_ == game::GameMode::Sandbox);
+        }
+    }
+
+    void GameClient::applyGameMode(game::GameMode mode)
+    {
+        gameMode_ = mode;
+        if (gameMode_ == game::GameMode::Survival && moveMode_ == MoveMode::Fly)
+        {
+            moveMode_ = MoveMode::Ground;
+            verticalVelocity_ = 0.0;
+            grounded_ = false;
+            doubleTapSprintActive_ = false;
+            lastJumpTapTime_ = -1000.0;
+        }
+    }
+
+    void GameClient::updatePlayerStatsUi()
+    {
+        playerStats_.clamp();
+        if (runtime_ != nullptr)
+        {
+            runtime_->ui().setPlayerStats(
+                playerStats_.hp,
+                playerStats_.maxHp,
+                playerStats_.hunger,
+                playerStats_.maxHunger,
+                playerStats_.thirst,
+                playerStats_.maxThirst);
+        }
     }
 
     void GameClient::refreshWorldList()
@@ -1700,6 +1774,8 @@ namespace dolbuto
         worldSeed_ = world.seed;
         worldCreatedUnixSeconds_ = world.createdUnixSeconds;
         worldLastPlayedUnixSeconds_ = world.lastPlayedUnixSeconds;
+        gameMode_ = game::GameMode::Sandbox;
+        playerStats_ = game::PlayerStats{};
         hasSelectedWorld_ = true;
         log::info("World selected: " + selectedWorldName_);
         enterGameScene();
@@ -1727,6 +1803,7 @@ namespace dolbuto
             selectedWorldDirectory_ = worldPath;
             worldTicks_ = DefaultWorldTicks;
             worldSeed_ = seed;
+            gameMode_ = pendingCreateGameMode_;
             worldCreatedUnixSeconds_ = currentUnixSeconds();
             worldLastPlayedUnixSeconds_ = worldCreatedUnixSeconds_;
             hasSelectedWorld_ = true;
@@ -2096,7 +2173,16 @@ namespace dolbuto
             const float yaw = readF32(bytes, offset);
             const float pitch = readF32(bytes, offset);
             const uint8_t moveMode = readU8(bytes, offset);
+            const uint8_t gameMode = readU8(bytes, offset);
             const double verticalVelocity = readF64(bytes, offset);
+            game::PlayerStats stats{};
+            stats.hp = readU16(bytes, offset);
+            stats.maxHp = readU16(bytes, offset);
+            stats.hunger = readU16(bytes, offset);
+            stats.maxHunger = readU16(bytes, offset);
+            stats.thirst = readU16(bytes, offset);
+            stats.maxThirst = readU16(bytes, offset);
+            stats.clamp();
             std::array<ItemStack, PlayerInventorySlotCount> inventorySlots{};
             for (ItemStack& slot : inventorySlots)
             {
@@ -2110,7 +2196,8 @@ namespace dolbuto
                 !std::isfinite(yaw) ||
                 !std::isfinite(pitch) ||
                 !std::isfinite(verticalVelocity) ||
-                moveMode > 1u)
+                moveMode > 1u ||
+                gameMode > 1u)
             {
                 log::warn("Player state file contains invalid values, using default player state.");
                 previousPlayerPosition_ = playerPosition_;
@@ -2130,7 +2217,14 @@ namespace dolbuto
             previousSprintFovAmount_ = 0.0f;
             eyeHeightScale_ = 1.0f;
             previousEyeHeightScale_ = 1.0f;
+            gameMode_ = gameMode == 0u ? game::GameMode::Survival : game::GameMode::Sandbox;
             moveMode_ = moveMode == 0u ? MoveMode::Fly : MoveMode::Ground;
+            if (gameMode_ == game::GameMode::Survival && moveMode_ == MoveMode::Fly)
+            {
+                moveMode_ = MoveMode::Ground;
+            }
+            playerStats_ = stats;
+            updatePlayerStatsUi();
             verticalVelocity_ = verticalVelocity;
             grounded_ = false;
             jumpHeld_ = false;
@@ -2173,7 +2267,16 @@ namespace dolbuto
             writeF32(bytes, camera_.yaw());
             writeF32(bytes, camera_.pitch());
             writeU8(bytes, static_cast<uint8_t>(moveMode_ == MoveMode::Fly ? 0u : 1u));
+            writeU8(bytes, static_cast<uint8_t>(gameMode_ == game::GameMode::Survival ? 0u : 1u));
             writeF64(bytes, verticalVelocity_);
+            game::PlayerStats stats = playerStats_;
+            stats.clamp();
+            writeU16(bytes, static_cast<uint16_t>(stats.hp));
+            writeU16(bytes, static_cast<uint16_t>(stats.maxHp));
+            writeU16(bytes, static_cast<uint16_t>(stats.hunger));
+            writeU16(bytes, static_cast<uint16_t>(stats.maxHunger));
+            writeU16(bytes, static_cast<uint16_t>(stats.thirst));
+            writeU16(bytes, static_cast<uint16_t>(stats.maxThirst));
             const std::array<ItemStack, PlayerInventorySlotCount> inventorySlots = runtime_ != nullptr
                 ? runtime_->gameplay().inventorySnapshot()
                 : std::array<ItemStack, PlayerInventorySlotCount>{};

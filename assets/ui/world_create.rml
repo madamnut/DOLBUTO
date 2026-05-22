@@ -11,6 +11,8 @@
                 <input type="text" id="new-world-name" value="New World"/>
                 <div class="label">Seed</div>
                 <input type="text" id="new-world-seed" value=""/>
+                <div class="label">Game Mode</div>
+                <div id="create-mode-toggle" class="mode-button selected">SANDBOX</div>
             </div>
             <div class="bottom-actions">
                 <div id="create-world" class="button left">CREATE</div>

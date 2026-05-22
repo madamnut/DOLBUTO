@@ -85,9 +85,18 @@ F5로 순환한다.
 
 ## 이동 모드
 
-`Space` 더블탭은 ground/fly 모드를 서로 전환한다.
-fly 상태에서 `Shift`로 하강하며, 하강 중 지면에 닿으면 ground 모드로 돌아간다.
-기본 모드는 fly다.
+게임 모드는 `Survival`과 `Sandbox` 두 가지다.
+`Survival`은 체력/허기/갈증이 적용되는 생존 모드이며, `Space` 더블탭 fly 전환을 허용하지 않는다.
+`Sandbox`는 무적/자유 이동용 모드이며 기존처럼 `Space` 더블탭으로 ground/fly 모드를 서로 전환한다.
+Sandbox fly 상태에서 `Shift`로 하강하며, 하강 중 지면에 닿으면 ground 모드로 돌아간다.
+새 월드의 기본 선택값은 `Sandbox`다.
+
+게임 모드는 채팅 명령어로 바꿀 수 있다.
+
+```text
+/gamemode survival
+/gamemode sandbox
+```
 
 현재 `config/world.json` 기준:
 
@@ -121,6 +130,7 @@ fly 상태에서 `Shift`로 하강하며, 하강 중 지면에 닿으면 ground 
 - View Bobbing이 켜져 있으면 ground 이동 중 렌더 카메라 위치에만 좌우/상하 보빙을 적용한다.
 - 보빙 강도는 실제 수평 이동량에서 계산한 `walkAmount`를 사용하므로 웅크리기처럼 느린 이동은 약해지고 달리기처럼 빠른 이동은 강해진다.
 - 보빙은 카메라 방향, 블록 선택/파괴/설치 raycast, 플레이어 실제 위치에는 반영하지 않는다.
+- 달리기 FOV 증가는 sprint 입력 상태만 보지 않고 실제 수평 이동량이 있을 때만 올라간다. Ctrl 또는 toggle sprint 상태로 가만히 있으면 FOV는 걷기 기본값으로 보간 복귀한다.
 
 ## 충돌
 
@@ -150,12 +160,32 @@ ground 웅크리기 중 수평 이동은 플레이어 바닥 사각형 아래에
 클라이언트에서는 `ClientGameplayRuntime`이 block breaking 상태와 블록 상호작용 결과를 조율한다.
 `Renderer`는 gameplay 결과를 받아 mesh 재생성, 파괴/설치 효과음, 파티클 생성을 실행한다.
 
+## 플레이어 스탯
+
+현재 플레이어 스탯은 `PlayerStats`가 HP, 허기, 갈증과 각 최대값을 가진다.
+각 스탯의 기본값과 최대값은 모두 `100`이며, 현재 단계에서는 사망 처리, 허기/갈증 감소 규칙, 저장 포맷에는 연결하지 않는다.
+HUD 좌하단의 세로 게이지 3개는 왼쪽부터 HP, 허기, 갈증을 표시한다.
+세 게이지 모두 `assets/textures/ui/player/Gauge.png` 프레임 위에 각 스탯 색상의 RmlUi 사각형 바를 각 스탯 비율만큼 bottom-up으로 표시한다.
+HP는 붉은색, 허기는 황갈색, 갈증은 파란색을 사용한다.
+
+채팅 명령어로 스탯을 테스트할 수 있다.
+
+```text
+/stat
+/stat hp
+/stat hunger
+/stat thirst
+/stat hp add -10
+/stat hunger set 50
+/stat thirst add 20
+```
+
 ## 입력
 
 - `W/S`: 앞뒤 이동
 - `A/D`: 좌우 이동
 - `Space`: fly 상승, ground 점프
-- `Space` 더블탭: ground/fly 전환
+- `Space` 더블탭: Sandbox에서만 ground/fly 전환
 - `W` 더블탭: 달리기 시작
 - `Ctrl`: ground 달리기, fly 가속
 - `Shift`: fly 모드 하강
@@ -172,6 +202,7 @@ ground 웅크리기 중 수평 이동은 플레이어 바닥 사각형 아래에
 - `F6`: 기후 오버레이 전환
 - `F11`: 전체화면 전환
 - `Esc`: 게임에서는 일시정지, 인벤토리/일시정지에서는 게임 복귀
+- `Enter`: 채팅/명령어 입력창 열기
 
 관련 문서: [[block-data]], [[debug-profiling]]
 
@@ -200,7 +231,9 @@ ground 웅크리기 중 수평 이동은 플레이어 바닥 사각형 아래에
 - `x`, `z`는 래핑된 월드 좌표로 저장한다.
 - `yaw`, `pitch`는 카메라 시점을 복원한다.
 - `moveMode`는 `0 = fly`, `1 = ground`로 저장한다.
+- `gameMode`는 `0 = survival`, `1 = sandbox`로 저장한다.
 - `verticalVelocity`는 지상 이동의 점프/낙하 관성을 복원한다.
+- HP, 허기, 갈증과 각 최대값을 저장한다.
 - 50개 런타임 인벤토리 슬롯은 이동 상태 뒤에 `uint16 itemId`, `uint16 count` 쌍으로 저장한다.
 - 임시 인벤토리 커서 스택은 저장하지 않는다.
 - 보간 상태는 저장하지 않는다. 로드 시 이전 위치는 로드된 위치로 설정한다.

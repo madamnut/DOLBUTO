@@ -8,6 +8,18 @@
             <div id="chat-log" class="chat-log"></div>
             <input type="text" id="chat-input" class="chat-input" value=""/>
         </div>
+        <div id="hp-gauge" class="stat-gauge hp-gauge">
+            <img class="stat-gauge-image" src="../textures/ui/player/Gauge.png"/>
+            <div id="hp-bar-fill" class="stat-bar-fill hp-bar-fill"></div>
+        </div>
+        <div id="hunger-gauge" class="stat-gauge hunger-gauge">
+            <img class="stat-gauge-image" src="../textures/ui/player/Gauge.png"/>
+            <div id="hunger-bar-fill" class="stat-bar-fill hunger-bar-fill"></div>
+        </div>
+        <div id="thirst-gauge" class="stat-gauge thirst-gauge">
+            <img class="stat-gauge-image" src="../textures/ui/player/Gauge.png"/>
+            <div id="thirst-bar-fill" class="stat-bar-fill thirst-bar-fill"></div>
+        </div>
         <img class="hotbar-image" src="../textures/ui/player/Hotbar.png"/>
         <div id="hotbar-items" class="hotbar-items"></div>
         <div id="hotbar-debug-slots" class="hotbar-items"></div>

@@ -46,37 +46,12 @@ QUADS
 
 ## 좌하단
 
-좌하단은 프레임 단계별 피크 시간을 millisecond 단위로 표시한다.
-값은 실행 중 누적 최댓값이며, 게임 또는 인벤토리 화면에서 `R`을 누르면 초기화한다.
-
-```text
-PERF MAX [R]
-TL_FINISH
-TL_SNAPSHOT
-TL_INSTALL
-TL_RESUME
-TL_TOTAL
-TL_COUNT
-TD_POP
-TD_HANDLE
-TD_TERR_CNT
-TD_POP_CNT
-```
-
-`TL_FINISH`는 chunk-load 완료 shell을 찾고 load state를 캡처하는 구간이다.
-`TL_SNAPSHOT`은 prepare worker가 만든 runtime chunk를 메인 스레드에서 마무리하는 구간이다. 현재 메인 스레드에는 entity 정규화와 clean revision 갱신만 남고, 저장 snapshot 복원과 derived cache 재구축은 `ChunkPrepareSystem`에서 처리한다.
-`TL_INSTALL`은 복원된 runtime chunk를 `WorldRuntime`에 설치하는 구간이다.
-`TL_RESUME`은 로드 완료 이후 주변 frontier scheduling을 재개하는 구간이다.
-`TL_TOTAL`은 chunk-load 완료 처리 전체 구간이다.
-`TL_COUNT`는 프레임별 chunk-load 완료 처리 개수의 누적 최댓값이다.
-`TD_POP`은 worker 완료 큐와 chunk-load 완료 큐에서 완료 결과를 꺼내는 구간이다.
-`TD_HANDLE`은 꺼낸 완료 결과를 runtime 상태에 반영하고 다음 단계 job을 깨우는 completion handler 전체 구간이다.
-`TD_TERR_CNT`, `TD_POP_CNT`는 각각 terrain 완료와 전체 pop 개수의 누적 최댓값이다.
+현재 좌하단 디버그 텍스트는 표시하지 않는다.
+프레임 단계별 피크 시간은 내부 진단 상태로만 누적하며, 화면에는 렌더링하지 않는다.
 
 ## 우하단 피크 프로파일러
 
 현재 우하단 피크 프로파일러 텍스트는 표시하지 않는다.
-피크 재측정용 `R` 입력은 좌하단 피크 프로파일러가 사용한다.
 
 ## 텍스트 렌더링
 
@@ -120,4 +95,4 @@ logs/DOLBUTO_YYYYMMDD_HHMMSS_mmm.txt
 
 ## 하단 디버그 텍스트
 
-하단 디버그 텍스트는 현재 좌하단 피크 프로파일러로 사용한다.
+하단 디버그 텍스트는 현재 사용하지 않는다.
