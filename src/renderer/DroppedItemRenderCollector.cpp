@@ -1,6 +1,7 @@
 #include "renderer/DroppedItemRenderCollector.h"
 
 #include "world/DroppedItemSystem.h"
+#include "world/SkyLightSystem.h"
 
 #include <algorithm>
 #include <array>
@@ -115,6 +116,16 @@ namespace dolbuto
             }
             return 1;
         }
+
+        int blockCoordinateXz(float worldCoordinate)
+        {
+            return static_cast<int>(std::floor(worldCoordinate + 0.5f));
+        }
+
+        int blockCoordinateY(float worldCoordinate)
+        {
+            return static_cast<int>(std::floor(worldCoordinate));
+        }
     }
 
     std::vector<DroppedItemRenderPath::RenderInstance> DroppedItemRenderCollector::collect(const Input& input)
@@ -202,6 +213,14 @@ namespace dolbuto
                 }
 
                 const float layer = static_cast<float>(definition.droppedTextureLayer);
+                const uint8_t packedLight = input.lightAtWorld
+                    ? input.lightAtWorld(
+                        blockCoordinateXz(interpolatedPosition.x),
+                        blockCoordinateY(interpolatedPosition.y + DroppedItemThickness),
+                        blockCoordinateXz(interpolatedPosition.z))
+                    : world::packLight(world::MaxSkyLight, 0);
+                const float skyLight = static_cast<float>(world::skyLightFromPacked(packedLight)) / static_cast<float>(world::MaxSkyLight);
+                const float blockLight = static_cast<float>(world::blockLightFromPacked(packedLight)) / static_cast<float>(world::MaxSkyLight);
                 const std::size_t copies = visualCopyCount(item.droppedItem.stack.count);
                 for (std::size_t copy = 0; copy < copies && renderInstances.size() < MaxDroppedItemRenderInstances; ++copy)
                 {
@@ -217,6 +236,8 @@ namespace dolbuto
                     renderInstance.instance.rotationZ = item.renderRotationZ;
                     renderInstance.instance.textureLayer = layer;
                     renderInstance.instance.mipDistanceScale = 1.0f;
+                    renderInstance.instance.skyLight = skyLight;
+                    renderInstance.instance.blockLight = blockLight;
                     renderInstances.push_back(renderInstance);
                 }
                 ++renderedItems;

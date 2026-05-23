@@ -4,6 +4,7 @@
 #include "game/ClientUiTypes.h"
 #include "gameplay/PlayerInventory.h"
 #include "items/ItemData.h"
+#include "world/TerrainBuilder.h"
 #include "world/WorldTypes.h"
 
 #include <array>
@@ -143,6 +144,7 @@ namespace dolbuto::game
         UiAccess& ui();
         DiagnosticsAccess& diagnostics();
         AudioAccess& audio();
+        world::TerrainBuilderConfig terrainConfigForWorldSeed(uint64_t worldSeed) const;
 
         const RenderAccess& render() const;
         const SceneAccess& scene() const;

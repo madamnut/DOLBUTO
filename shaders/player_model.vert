@@ -17,6 +17,7 @@ layout(location = 2) in float inAo;
 layout(location = 3) in float inTextureLayer;
 layout(location = 4) in float inMipDistanceScale;
 layout(location = 5) in uint inNodeIndex;
+layout(location = 6) in uint inPackedLight;
 
 layout(location = 0) out vec2 fragUv;
 layout(location = 1) out float fragAo;
@@ -38,6 +39,6 @@ void main()
     fragTextureLayer = inTextureLayer;
     fragMipDistanceScale = inMipDistanceScale;
     fragAlphaBlend = 1.0;
-    fragSkyLight = 1.0;
-    fragBlockLight = 0.0;
+    fragSkyLight = float((inPackedLight >> 4u) & 0xFu) / 15.0;
+    fragBlockLight = float(inPackedLight & 0xFu) / 15.0;
 }

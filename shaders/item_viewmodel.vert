@@ -12,6 +12,7 @@ layout(location = 1) in vec2 inUv;
 layout(location = 2) in float inAo;
 layout(location = 3) in vec4 inCenterRotX;
 layout(location = 4) in vec4 inRotYRotZLayerMip;
+layout(location = 5) in vec2 inLight;
 
 layout(location = 0) out vec2 fragUv;
 layout(location = 1) out float fragAo;
@@ -57,6 +58,6 @@ void main()
     fragTextureLayer = inRotYRotZLayerMip.z;
     fragMipDistanceScale = 0.0;
     fragAlphaBlend = 1.0;
-    fragSkyLight = 1.0;
-    fragBlockLight = 0.0;
+    fragSkyLight = inLight.x;
+    fragBlockLight = inLight.y;
 }

@@ -570,6 +570,13 @@ namespace dolbuto::game
         return audioAccess_;
     }
 
+    world::TerrainBuilderConfig ClientRuntime::terrainConfigForWorldSeed(uint64_t worldSeed) const
+    {
+        world::TerrainBuilderConfig config = terrainBuilderConfig(*state_);
+        config.activeWorldSeedSalt = static_cast<int>((worldSeed ^ (worldSeed >> 32u)) & 0x7fffffffu);
+        return config;
+    }
+
     const ClientRuntime::RenderAccess& ClientRuntime::render() const
     {
         return renderAccess_;

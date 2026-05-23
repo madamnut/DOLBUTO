@@ -225,3 +225,4 @@ seed는 좌상단 디버그 텍스트에 `SEED: <value>`로 표시한다.
 월드 선택 UI는 월드 목록 화면 진입 시 `saves`를 스캔하고 `world.dat`를 포함한 디렉터리를 표시한다.
 각 월드 행은 월드 생성 시각과 최근 플레이 시각을 표시한다.
 월드를 생성하면 `saves/<world-name>/regions`를 만들고, `world.dat`와 선택한 게임모드가 반영된 기본 `player.dat`를 쓴 뒤 게임 씬에 진입한다.
+초기 `player.dat`의 이동 모드는 게임모드와 무관하게 ground로 저장한다.

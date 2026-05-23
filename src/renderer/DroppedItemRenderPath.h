@@ -47,6 +47,8 @@ namespace dolbuto
             float rotationZ = 0.0f;
             float textureLayer = 0.0f;
             float mipDistanceScale = 1.0f;
+            float skyLight = 1.0f;
+            float blockLight = 0.0f;
         };
 
         struct RenderInstance

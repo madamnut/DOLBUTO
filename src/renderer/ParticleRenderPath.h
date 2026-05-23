@@ -45,6 +45,7 @@ namespace dolbuto
         };
 
         using TerrainCollisionFn = std::function<bool(int, int, int)>;
+        using LightSamplerFn = std::function<uint8_t(int, int, int)>;
 
         ParticleRenderPath() = default;
         ParticleRenderPath(const VkDevice* device, VulkanResourceManager* gpuResources);
@@ -68,7 +69,8 @@ namespace dolbuto
             const PushConstants& push,
             const BreakingOverlay& overlay,
             double now,
-            const TerrainCollisionFn& terrainBlocks);
+            const TerrainCollisionFn& terrainBlocks,
+            const LightSamplerFn& lightAtWorld);
 
         bool empty() const;
 

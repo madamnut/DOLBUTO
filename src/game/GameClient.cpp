@@ -9,6 +9,7 @@
 #include "platform/Log.h"
 #include "platform/RuntimePaths.h"
 #include "ui/UiSystem.h"
+#include "world/TerrainBuilder.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -25,6 +26,7 @@
 #include <fstream>
 #include <iomanip>
 #include <optional>
+#include <random>
 #include <stdexcept>
 #include <sstream>
 #include <string>
@@ -73,7 +75,10 @@ namespace dolbuto
         constexpr float MinSkyBrightness = 0.08f;
         constexpr float MaxSkyBrightness = 1.0f;
         constexpr uint16_t BlockRock = 1;
+        constexpr uint16_t BlockGrass = 2;
         constexpr uint16_t BlockGlowingRock = 12;
+        constexpr int InitialSpawnZ = 16384;
+        constexpr int InitialSpawnMaxAttempts = 1024;
         constexpr float MenuButtonWidth = 240.0f;
         constexpr float MenuButtonHeight = 56.0f;
         constexpr float LobbyStartButtonY = 0.45f;
@@ -1634,7 +1639,7 @@ namespace dolbuto
         previousSprintFovAmount_ = 0.0f;
         eyeHeightScale_ = 1.0f;
         previousEyeHeightScale_ = 1.0f;
-        moveMode_ = gameMode_ == game::GameMode::Sandbox ? MoveMode::Fly : MoveMode::Ground;
+        moveMode_ = MoveMode::Ground;
         verticalVelocity_ = 0.0;
         grounded_ = false;
         jumpHeld_ = false;
@@ -1656,6 +1661,44 @@ namespace dolbuto
         {
             runtime_->ui().setWorldCreateGameMode(pendingCreateGameMode_ == game::GameMode::Sandbox);
         }
+    }
+
+    DVec3 GameClient::findInitialSpawnPosition(uint64_t worldSeed) const
+    {
+        if (runtime_ == nullptr)
+        {
+            return {0.0, DefaultPlayerSpawnHeight, static_cast<double>(InitialSpawnZ)};
+        }
+
+        const world::TerrainBuilder builder(runtime_->terrainConfigForWorldSeed(worldSeed));
+        std::mt19937_64 random(worldSeed ^ 0xD01B0705A5A5A5A5ull);
+        std::uniform_int_distribution<int> xDistribution(0, static_cast<int>(WorldSizeBlocks) - 1);
+
+        for (int attempt = 0; attempt < InitialSpawnMaxAttempts; ++attempt)
+        {
+            const int worldX = xDistribution(random);
+            int surfaceY = -1;
+            const uint16_t surfaceBlock = builder.surfaceBlockAtWorld(worldX, InitialSpawnZ, &surfaceY);
+            if (surfaceY < 0)
+            {
+                continue;
+            }
+
+            if (surfaceBlock == BlockGrass)
+            {
+                log::info("Initial grass spawn found at X " + std::to_string(worldX) +
+                    " / Y " + std::to_string(surfaceY + 1) +
+                    " / Z " + std::to_string(InitialSpawnZ) + ".");
+                return {
+                    static_cast<double>(worldX),
+                    static_cast<double>(surfaceY + 1),
+                    static_cast<double>(InitialSpawnZ)
+                };
+            }
+        }
+
+        log::warn("Grass spawn search failed, using fallback spawn.");
+        return {0.0, DefaultPlayerSpawnHeight, static_cast<double>(InitialSpawnZ)};
     }
 
     void GameClient::applyGameMode(game::GameMode mode)
@@ -1810,6 +1853,8 @@ namespace dolbuto
             std::filesystem::create_directories(selectedWorldDirectory_ / "regions");
             saveWorldState();
             resetPlayerRuntimeState();
+            playerPosition_ = findInitialSpawnPosition(worldSeed_);
+            previousPlayerPosition_ = playerPosition_;
             savePlayerState();
             log::info("World created: " + selectedWorldName_);
             enterGameScene();

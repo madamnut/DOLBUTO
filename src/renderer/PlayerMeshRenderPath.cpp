@@ -133,6 +133,7 @@ namespace dolbuto
             vertex.textureLayer = source.vertex.textureLayer;
             vertex.mipDistanceScale = source.vertex.mipDistanceScale;
             vertex.nodeIndex = source.nodeIndex >= 0 ? static_cast<uint32_t>(source.nodeIndex) : 0u;
+            vertex.packedLight = source.vertex.packedLight;
             return vertex;
         }
 
@@ -422,6 +423,25 @@ namespace dolbuto
         vkUnmapMemory(device(), frame.memory);
     }
 
+    void PlayerMeshRenderPath::updateMeshLight(TerrainMesh& mesh, uint8_t packedLight, uint8_t& cachedLight)
+    {
+        if (mesh.vertexMemory == VK_NULL_HANDLE || mesh.vertexCount == 0 || cachedLight == packedLight)
+        {
+            return;
+        }
+
+        const VkDeviceSize size = sizeof(PlayerVertex) * mesh.vertexCount;
+        void* data = nullptr;
+        vkMapMemory(device(), mesh.vertexMemory, 0, size, 0, &data);
+        PlayerVertex* vertices = static_cast<PlayerVertex*>(data);
+        for (uint32_t i = 0; i < mesh.vertexCount; ++i)
+        {
+            vertices[i].packedLight = packedLight;
+        }
+        vkUnmapMemory(device(), mesh.vertexMemory);
+        cachedLight = packedLight;
+    }
+
     void PlayerMeshRenderPath::update(
         Vec3 playerPosition,
         float playerYaw,
@@ -429,12 +449,14 @@ namespace dolbuto
         float playerHeadPitch,
         float playerWalkPhase,
         float playerWalkAmount,
-        uint32_t frameIndex)
+        uint32_t frameIndex,
+        uint8_t packedLight)
     {
         if (!ready())
         {
             return;
         }
+        updateMeshLight(mesh_, packedLight, meshPackedLight_);
 
         const std::array<float, 16> headRotation = multiplyMatrix(rotationY(playerHeadYaw), rotationX(-playerHeadPitch));
         const PlayerAnimationPose animationPose{
@@ -510,12 +532,14 @@ namespace dolbuto
         const Camera& camera,
         Vec3 cameraPosition,
         const config::ViewmodelHandConfig& config,
-        uint32_t frameIndex)
+        uint32_t frameIndex,
+        uint8_t packedLight)
     {
         if (!firstPersonHandReady())
         {
             return;
         }
+        updateMeshLight(firstPersonHandMesh_, packedLight, firstPersonHandPackedLight_);
 
         const std::vector<std::array<float, 16>> worldTransforms = nodeWorldTransforms(nodes_, nullptr, nullptr);
         std::vector<Vec3> modelPoints(firstPersonHandSourceVertices_.size());
@@ -623,6 +647,8 @@ namespace dolbuto
         indices_.clear();
         firstPersonHandSourceVertices_.clear();
         firstPersonHandIndices_.clear();
+        meshPackedLight_ = 0xFFu;
+        firstPersonHandPackedLight_ = 0xFFu;
     }
 
     void PlayerMeshRenderPath::destroyMesh(TerrainMesh& mesh)

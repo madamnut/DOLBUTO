@@ -87,14 +87,14 @@ namespace dolbuto
         }
     }
 
-    void Renderer::updatePlayerMesh(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount, uint32_t frameIndex)
+    void Renderer::updatePlayerMesh(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount, uint32_t frameIndex, uint8_t packedLight)
     {
-        playerMeshRenderPath_.update(playerPosition, playerYaw, playerHeadYaw, playerHeadPitch, playerWalkPhase, playerWalkAmount, frameIndex);
+        playerMeshRenderPath_.update(playerPosition, playerYaw, playerHeadYaw, playerHeadPitch, playerWalkPhase, playerWalkAmount, frameIndex, packedLight);
     }
 
-    void Renderer::updateFirstPersonHandMesh(const Camera& camera, Vec3 cameraPosition, uint32_t frameIndex)
+    void Renderer::updateFirstPersonHandMesh(const Camera& camera, Vec3 cameraPosition, uint32_t frameIndex, uint8_t packedLight)
     {
-        playerMeshRenderPath_.updateFirstPersonHand(camera, cameraPosition, client_.viewmodelConfig.hand, frameIndex);
+        playerMeshRenderPath_.updateFirstPersonHand(camera, cameraPosition, client_.viewmodelConfig.hand, frameIndex, packedLight);
     }
 
     void Renderer::drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, bool wireframe, bool drawBlocks, bool drawFluids, uint32_t sceneImageIndex)
@@ -193,7 +193,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, uint32_t frameIndex) const
+    void Renderer::drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint32_t frameIndex) const
     {
         const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
         const Mat4 projection = perspective(fovRadians, aspect, TerrainNearPlane, TerrainFarPlane);
@@ -206,14 +206,14 @@ namespace dolbuto
         push.cameraPosition[1] = cameraPosition.y;
         push.cameraPosition[2] = cameraPosition.z;
         push.cameraPosition[3] = 0.0f;
-        push.fluidWaterParams[1] = 1.0f;
+        push.fluidWaterParams[1] = skyBrightness;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.playerPipeline);
         vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
         playerMeshRenderPath_.draw(commandBuffer, vulkan_.terrainPipelineLayout, rendererAssets_.playerTexture, frameIndex);
     }
 
-    void Renderer::drawFirstPersonHand(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, uint32_t frameIndex) const
+    void Renderer::drawFirstPersonHand(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float skyBrightness, uint32_t frameIndex) const
     {
         if (vulkan_.playerViewmodelPipeline == VK_NULL_HANDLE)
         {
@@ -231,14 +231,14 @@ namespace dolbuto
         push.cameraPosition[1] = cameraPosition.y;
         push.cameraPosition[2] = cameraPosition.z;
         push.cameraPosition[3] = 0.0f;
-        push.fluidWaterParams[1] = 1.0f;
+        push.fluidWaterParams[1] = skyBrightness;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.playerViewmodelPipeline);
         vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
         playerMeshRenderPath_.drawFirstPersonHand(commandBuffer, vulkan_.terrainPipelineLayout, rendererAssets_.playerTexture, frameIndex);
     }
 
-    void Renderer::drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians)
+    void Renderer::drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness)
     {
         const gameplay::BlockBreakingState& blockBreaking = client_.gameplayRuntime.blockBreakingState();
         const bool drawBreakingOverlay =
@@ -259,7 +259,7 @@ namespace dolbuto
         push.cameraPosition[1] = cameraPosition.y;
         push.cameraPosition[2] = cameraPosition.z;
         push.cameraPosition[3] = static_cast<float>(now);
-        push.fluidWaterParams[1] = 1.0f;
+        push.fluidWaterParams[1] = skyBrightness;
 
         ParticleRenderPath::BreakingOverlay overlay{};
         if (drawBreakingOverlay)
@@ -286,6 +286,10 @@ namespace dolbuto
             [this](int x, int y, int z)
             {
                 return gameplayBridge_->terrainCellBlocksPlayer(x, y, z);
+            },
+            [this](int x, int y, int z)
+            {
+                return client_.worldRuntime.lightAtWorld(x, y, z);
             });
     }
 

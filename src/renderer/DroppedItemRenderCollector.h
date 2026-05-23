@@ -29,6 +29,7 @@ namespace dolbuto
             float renderAlpha = 0.0f;
             std::function<const RuntimeChunk*(uint64_t)> findChunk;
             std::function<bool(uint16_t)> meshReady;
+            std::function<uint8_t(int, int, int)> lightAtWorld;
         };
 
         static std::vector<DroppedItemRenderPath::RenderInstance> collect(const Input& input);

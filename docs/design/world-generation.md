@@ -169,6 +169,16 @@ T4      WarmOcean       TropicalOcean   TropicalOcean   TropicalOcean   Tropical
 
 디버그 텍스트는 `CLIMATE` 아래에 `BIOME: T[n] P[n] GND[n] - BiomeName` 형식으로 표시한다.
 
+## 초기 스폰
+
+새 월드를 만들 때 플레이어 초기 위치는 월드 생성 전에 결정한다.
+
+- Z 좌표는 온도 중간대에 가까운 `16384`를 사용한다.
+- X 좌표는 world seed 기반 난수로 `0..65535` 범위에서 고른다.
+- 후보 X/Z column의 표면 블록을 `TerrainBuilder`로 평가하고, 지형 표면 블록이 `grass`이면 그 위 `surfaceY + 1`을 스폰 위치로 저장한다.
+- 조건은 현재 `grass` 여부만 본다. 주변 평탄도, 공기 공간, 물가 여부는 검사하지 않는다.
+- 최대 후보 횟수 안에 찾지 못하면 fallback 위치를 사용한다.
+
 ## 표면 룰
 
 청크 생성은 column별 바이옴을 계산한 뒤 표면/표층 블록을 선택한다.

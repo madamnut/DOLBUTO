@@ -33,6 +33,7 @@
 - packed terrain quad는 packed light 값도 함께 보관하고, shader는 skylight nibble을 꺼내 지형/유체 색에 곱한다.
 - terrain은 index buffer 없이 `vkCmdDraw`를 사용한다.
 - player는 별도 vertex/index 경로를 유지한다.
+- 플레이어 스킨, 1인칭 손, 손에 든 아이템, 드랍 아이템, 블록 파괴 파티클도 지형과 같은 packed light/`skyBrightness`/block light curve를 사용한다. 플레이어 관련 viewmodel은 플레이어 위치의 light를 사용하고, 드랍 아이템과 파티클은 각 렌더 위치의 light를 샘플링한다.
 
 렌더링 지형 데이터 타입은 `src/renderer/TerrainTypes.h`에 둔다.
 현재 포함 타입은 `TerrainVertex`, `PackedTerrainQuad`, `TerrainMesh`, `TerrainBuildData`이다.
@@ -249,6 +250,7 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 - 충돌: solid terrain cell에 대한 단순 바닥 충돌, 약한 bounce, 강한 X/Z friction.
 - Pipeline: 기존 block texture array를 사용하는 전용 particle graphics pipeline.
 - Depth test는 켜고 depth write는 끈다.
+- 파티클 vertex는 파티클 위치에서 `WorldRuntime::lightAtWorld`를 샘플링한 packed light를 담고, 프레임 전역 `skyBrightness`와 같은 light curve를 통해 밝아지거나 어두워진다.
 
 씬 그리기 순서는 solid 블록, blend 블록, 유체, 3인칭 플레이어, 블록 파괴 파티클, 드랍 아이템, 선택 외곽선, 1인칭 viewmodel 순서다.
 1인칭 viewmodel은 마지막에 그리기 직전 scene depth를 clear하고, viewmodel끼리는 depth test/write를 사용한다.
@@ -273,6 +275,7 @@ instance buffer는 persistent mapping 상태로 유지해 매 프레임 `vkMapMe
 - 시각 복제본 수는 count `1`, `2~16`, `17~48`, `49~99` 구간에 따라 각각 1, 2, 3, 4개다.
 - 복제본은 기존 드랍 아이템 두께인 `0.05`블록 단위로 Y 오프셋을 쌓고, 작은 XZ 오프셋과 Y 회전 차이를 둔다.
 - 같은 아이템 mesh를 사용하는 instance는 item id 기준으로 정렬한 뒤 batch draw한다.
+- instance buffer에는 위치/회전/텍스처 layer와 함께 정규화된 sky/block light가 들어간다. 드랍 아이템은 보간된 월드 위치의 light를 사용하고, 손에 든 viewmodel 아이템은 플레이어 위치의 light를 사용한다.
 
 이 컬링은 렌더링 후보만 줄이며, 드랍 아이템 물리, 저장, 획득 판정에는 영향을 주지 않는다.
 

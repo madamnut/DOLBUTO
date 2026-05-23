@@ -1,5 +1,7 @@
 #include "renderer/ParticleRenderPath.h"
 
+#include "world/SkyLightSystem.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -308,7 +310,8 @@ namespace dolbuto
         const PushConstants& push,
         const BreakingOverlay& overlay,
         double now,
-        const TerrainCollisionFn& terrainBlocks)
+        const TerrainCollisionFn& terrainBlocks,
+        const LightSamplerFn& lightAtWorld)
     {
         update(now, terrainBlocks);
 
@@ -332,7 +335,7 @@ namespace dolbuto
         vertices.reserve(MaxBlockBreakParticles * 4u);
         indices.reserve(MaxBlockBreakParticles * 6u);
 
-        auto appendQuad = [&](const std::array<Vec3, 4>& positions, float u0, float v0, float u1, float v1, float ao, uint32_t textureLayer, float mipDistanceScale)
+        auto appendQuad = [&](const std::array<Vec3, 4>& positions, float u0, float v0, float u1, float v1, float ao, uint32_t textureLayer, float mipDistanceScale, uint8_t packedLight)
         {
             if (vertices.size() + 4u > MaxBlockBreakParticles * 4u)
             {
@@ -345,6 +348,10 @@ namespace dolbuto
             vertices.push_back({positions[1].x, positions[1].y, positions[1].z, u0, v0, ao, layer, mipDistanceScale});
             vertices.push_back({positions[2].x, positions[2].y, positions[2].z, u1, v0, ao, layer, mipDistanceScale});
             vertices.push_back({positions[3].x, positions[3].y, positions[3].z, u1, v1, ao, layer, mipDistanceScale});
+            vertices[baseIndex].packedLight = packedLight;
+            vertices[baseIndex + 1u].packedLight = packedLight;
+            vertices[baseIndex + 2u].packedLight = packedLight;
+            vertices[baseIndex + 3u].packedLight = packedLight;
             indices.push_back(baseIndex);
             indices.push_back(baseIndex + 1u);
             indices.push_back(baseIndex + 2u);
@@ -366,12 +373,13 @@ namespace dolbuto
             const float maxY = static_cast<float>(overlay.y + 1) + Expand;
             const float minZ = static_cast<float>(overlay.z) - 0.5f - Expand;
             const float maxZ = static_cast<float>(overlay.z) + 0.5f + Expand;
-            appendQuad({Vec3{minX, maxY, minZ}, Vec3{minX, maxY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, maxY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f);
-            appendQuad({Vec3{minX, minY, maxZ}, Vec3{minX, minY, minZ}, Vec3{maxX, minY, minZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f);
-            appendQuad({Vec3{minX, minY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, maxY, minZ}, Vec3{minX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f);
-            appendQuad({Vec3{maxX, minY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f);
-            appendQuad({Vec3{minX, minY, minZ}, Vec3{minX, maxY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f);
-            appendQuad({Vec3{maxX, minY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f);
+            const uint8_t overlayLight = lightAtWorld ? lightAtWorld(overlay.x, overlay.y + 1, overlay.z) : world::packLight(world::MaxSkyLight, 0);
+            appendQuad({Vec3{minX, maxY, minZ}, Vec3{minX, maxY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, maxY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, overlayLight);
+            appendQuad({Vec3{minX, minY, maxZ}, Vec3{minX, minY, minZ}, Vec3{maxX, minY, minZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, overlayLight);
+            appendQuad({Vec3{minX, minY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, maxY, minZ}, Vec3{minX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, overlayLight);
+            appendQuad({Vec3{maxX, minY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, overlayLight);
+            appendQuad({Vec3{minX, minY, minZ}, Vec3{minX, maxY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, overlayLight);
+            appendQuad({Vec3{maxX, minY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, overlayLight);
         }
 
         const Vec3 cameraRight = camera.right();
@@ -388,6 +396,9 @@ namespace dolbuto
             const Vec3 rightOffset{right.x * half, right.y * half, right.z * half};
             const Vec3 upOffset{up.x * half, up.y * half, up.z * half};
             const float ao = std::clamp(1.0f - particle.age / particle.lifetime * 0.25f, 0.75f, 1.0f);
+            const uint8_t particleLight = lightAtWorld
+                ? lightAtWorld(blockCoordinateXz(particle.position.x), blockCoordinateY(particle.position.y), blockCoordinateXz(particle.position.z))
+                : world::packLight(world::MaxSkyLight, 0);
             appendQuad({
                 Vec3{particle.position.x - rightOffset.x - upOffset.x, particle.position.y - rightOffset.y - upOffset.y, particle.position.z - rightOffset.z - upOffset.z},
                 Vec3{particle.position.x - rightOffset.x + upOffset.x, particle.position.y - rightOffset.y + upOffset.y, particle.position.z - rightOffset.z + upOffset.z},
@@ -399,7 +410,8 @@ namespace dolbuto
                 particle.v1,
                 ao,
                 particle.textureLayer,
-                1.0f);
+                1.0f,
+                particleLight);
         }
 
         if (indices.empty())

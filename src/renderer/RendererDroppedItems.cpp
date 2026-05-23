@@ -5,6 +5,7 @@
 #include "renderer/RendererGameplayBridge.h"
 #include "renderer/RendererTerrainRuntimeBridge.h"
 #include "renderer/RendererUiRuntimeBridge.h"
+#include "world/SkyLightSystem.h"
 
 #include <cmath>
 #include <cstddef>
@@ -90,7 +91,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::drawHeldItem(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, uint16_t heldItemId)
+    void Renderer::drawHeldItem(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, uint16_t heldItemId, float skyBrightness, uint8_t playerPackedLight)
     {
         if (heldItemId == 0 ||
             static_cast<std::size_t>(heldItemId) >= client_.content.itemDefinitions().size() ||
@@ -121,6 +122,8 @@ namespace dolbuto
         heldItem.instance.rotationZ = client_.viewmodelConfig.heldItem.rotationZ;
         heldItem.instance.textureLayer = static_cast<float>(definition.heldTextureLayer);
         heldItem.instance.mipDistanceScale = client_.viewmodelConfig.heldItem.scale;
+        heldItem.instance.skyLight = static_cast<float>(world::skyLightFromPacked(playerPackedLight)) / static_cast<float>(world::MaxSkyLight);
+        heldItem.instance.blockLight = static_cast<float>(world::blockLightFromPacked(playerPackedLight)) / static_cast<float>(world::MaxSkyLight);
 
         const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
         const Mat4 projection = perspective(ViewmodelFieldOfViewRadians, aspect, TerrainNearPlane, TerrainFarPlane);
@@ -131,7 +134,7 @@ namespace dolbuto
         push.cameraPosition[1] = 0.0f;
         push.cameraPosition[2] = 0.0f;
         push.cameraPosition[3] = static_cast<float>(glfwGetTime());
-        push.fluidWaterParams[1] = 1.0f;
+        push.fluidWaterParams[1] = skyBrightness;
 
         std::vector<DroppedItemRenderPath::RenderInstance> renderInstances{heldItem};
         droppedItemRenderPath_.draw(
@@ -144,7 +147,7 @@ namespace dolbuto
             renderInstances);
     }
 
-    void Renderer::drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, Vec3 playerPosition)
+    void Renderer::drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, Vec3 playerPosition)
     {
         const bool inventoryChanged = client_.gameplayRuntime.updateDroppedItems(
             playerPosition,
@@ -193,6 +196,10 @@ namespace dolbuto
                 [this](uint16_t itemId)
                 {
                     return droppedItemRenderPath_.meshReady(itemId);
+                },
+                [this](int x, int y, int z)
+                {
+                    return client_.worldRuntime.lightAtWorld(x, y, z);
                 }
             });
 
@@ -211,7 +218,7 @@ namespace dolbuto
         push.cameraPosition[1] = cameraPosition.y;
         push.cameraPosition[2] = cameraPosition.z;
         push.cameraPosition[3] = static_cast<float>(glfwGetTime());
-        push.fluidWaterParams[1] = 1.0f;
+        push.fluidWaterParams[1] = skyBrightness;
 
         droppedItemRenderPath_.draw(
             commandBuffer,

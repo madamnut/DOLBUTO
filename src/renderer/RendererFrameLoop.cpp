@@ -5,10 +5,11 @@
 #include "renderer/RendererDiagnosticsBridge.h"
 #include "renderer/RendererTerrainRuntimeBridge.h"
 #include "renderer/RendererUiRuntimeBridge.h"
-
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstring>
+#include <cstdint>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -130,12 +131,26 @@ namespace dolbuto
 
             vkCmdClearAttachments(commandBuffer, 1, &depthClear, 1, &clearRect);
         }
+
+        int blockCoordinateXz(float worldCoordinate)
+        {
+            return static_cast<int>(std::floor(worldCoordinate + 0.5f));
+        }
+
+        int blockCoordinateY(float worldCoordinate)
+        {
+            return static_cast<int>(std::floor(worldCoordinate));
+        }
     }
 
     void Renderer::drawFrame(const RendererFrame& frame)
     {
         const Vec3 cameraPositionFloat = toVec3(frame.cameraPosition);
         const Vec3 playerPositionFloat = toVec3(frame.playerPosition);
+        const uint8_t playerPackedLight = client_.worldRuntime.lightAtWorld(
+            blockCoordinateXz(playerPositionFloat.x),
+            blockCoordinateY(playerPositionFloat.y + 1.0f),
+            blockCoordinateXz(playerPositionFloat.z));
         auto recordMax = [this](game::ClientPerfCounter counter, const std::chrono::steady_clock::time_point& start)
         {
             game::recordPerfMax(
@@ -207,11 +222,11 @@ namespace dolbuto
 
         if (frame.showPlayer)
         {
-            updatePlayerMesh(playerPositionFloat, frame.playerYaw, frame.playerHeadYaw, frame.playerHeadPitch, frame.playerWalkPhase, frame.playerWalkAmount, vulkan_.currentFrame);
+            updatePlayerMesh(playerPositionFloat, frame.playerYaw, frame.playerHeadYaw, frame.playerHeadPitch, frame.playerWalkPhase, frame.playerWalkAmount, vulkan_.currentFrame, playerPackedLight);
         }
         if (frame.showFirstPersonHand && frame.heldItemId == 0)
         {
-            updateFirstPersonHandMesh(frame.camera, cameraPositionFloat, vulkan_.currentFrame);
+            updateFirstPersonHandMesh(frame.camera, cameraPositionFloat, vulkan_.currentFrame, playerPackedLight);
         }
         ensureClimateOverlayTexture(frame.climateOverlayMode);
 
@@ -224,6 +239,7 @@ namespace dolbuto
             frame.fovRadians,
             frame.skyBrightness,
             playerPositionFloat,
+            playerPackedLight,
             frame.fpsText,
             frame.perfText,
             frame.debugTextVisible,
@@ -350,7 +366,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, Vec3 playerPosition, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, Vec3 playerPosition, uint8_t playerPackedLight, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -423,10 +439,10 @@ namespace dolbuto
             drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, terrainWireframe, false, true, imageIndex);
             if (showPlayer && menuOverlayMode == 0)
             {
-                drawPlayer(commandBuffer, camera, cameraPosition, fovRadians, vulkan_.currentFrame);
+                drawPlayer(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, vulkan_.currentFrame);
             }
-            drawBlockBreakParticles(commandBuffer, camera, cameraPosition, fovRadians);
-            drawDroppedItems(commandBuffer, camera, cameraPosition, fovRadians, playerPosition);
+            drawBlockBreakParticles(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness);
+            drawDroppedItems(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, playerPosition);
             if (menuOverlayMode == 0)
             {
                 drawBlockSelection(commandBuffer, camera, cameraPosition, fovRadians);
@@ -436,11 +452,11 @@ namespace dolbuto
                 clearDepthAttachment(commandBuffer, vulkan_.swapchainExtent);
                 if (heldItemId == 0)
                 {
-                    drawFirstPersonHand(commandBuffer, camera, cameraPosition, vulkan_.currentFrame);
+                    drawFirstPersonHand(commandBuffer, camera, cameraPosition, skyBrightness, vulkan_.currentFrame);
                 }
                 else
                 {
-                    drawHeldItem(commandBuffer, camera, cameraPosition, heldItemId);
+                    drawHeldItem(commandBuffer, camera, cameraPosition, heldItemId, skyBrightness, playerPackedLight);
                 }
             }
         }

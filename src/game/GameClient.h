@@ -79,6 +79,7 @@ namespace dolbuto
         void refreshWorldList();
         void openWorldByIndex(size_t index);
         void createWorldFromUi();
+        DVec3 findInitialSpawnPosition(uint64_t worldSeed) const;
         void resetPlayerRuntimeState();
         void setCreateWorldGameMode(game::GameMode mode);
         void applyGameMode(game::GameMode mode);
@@ -128,7 +129,7 @@ namespace dolbuto
         ViewMode viewMode_ = ViewMode::FirstPerson;
         game::GameMode gameMode_ = game::GameMode::Sandbox;
         game::GameMode pendingCreateGameMode_ = game::GameMode::Sandbox;
-        MoveMode moveMode_ = MoveMode::Fly;
+        MoveMode moveMode_ = MoveMode::Ground;
         std::vector<WorldInfo> availableWorlds_;
         std::vector<std::string> chatMessages_;
         std::string selectedWorldName_;

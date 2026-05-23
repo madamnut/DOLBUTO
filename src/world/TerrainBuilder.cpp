@@ -1078,6 +1078,52 @@ namespace dolbuto::world
         return samples[static_cast<size_t>(localZ * ChunkSizeX + localX)];
     }
 
+    uint16_t TerrainBuilder::surfaceBlockAtWorld(int worldX, int worldZ, int* surfaceY) const
+    {
+        const int chunkX = floorDiv(worldX, ChunkSizeX);
+        const int chunkZ = floorDiv(worldZ, ChunkSizeZ);
+        const int localX = positiveModulo(worldX, ChunkSizeX);
+        const int localZ = positiveModulo(worldZ, ChunkSizeZ);
+        const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
+
+        const std::array<TerrainDebugSample, ChunkColumnCount> terrainSamples = buildChunkTerrainDebugSamples(chunkX, chunkZ);
+        const int topY = terrainSamples[column].height > 0 ? std::min(terrainSamples[column].height - 1, ChunkSizeY - 1) : -1;
+        if (surfaceY != nullptr)
+        {
+            *surfaceY = topY;
+        }
+        if (topY < 0 || topY >= ChunkSizeY)
+        {
+            return BlockAir;
+        }
+
+        const std::array<float, ChunkColumnCount> temperatureNoise = buildChunkTileableClimateNoise(
+            chunkX,
+            chunkZ,
+            config_.temperatureNoiseFeatureScale,
+            config_.temperatureNoiseSimplexScale,
+            config_.temperatureNoiseOctaveCount,
+            config_.temperatureNoiseLacunarity,
+            config_.temperatureNoiseGain,
+            temperatureSeed());
+        const std::array<float, ChunkColumnCount> precipitationNoise = buildChunkTileableClimateNoise(
+            chunkX,
+            chunkZ,
+            config_.precipitationNoiseFeatureScale,
+            config_.precipitationNoiseSimplexScale,
+            config_.precipitationNoiseOctaveCount,
+            config_.precipitationNoiseLacunarity,
+            config_.precipitationNoiseGain,
+            precipitationSeed());
+
+        const BiomeSample biome = classifyBiome(
+            temperatureAtWrapped(wrapBlockCoordinate(worldZ), temperatureNoise[column]),
+            precipitationAtNoise(precipitationNoise[column]),
+            terrainSamples[column].groundness);
+        const SurfaceRule rule = surfaceRuleForBiome(biome.id);
+        return topY < config_.seaLevel ? rule.underwaterSurface : rule.airSurface;
+    }
+
     std::array<FeatureWriteListPtr, FeatureNeighborCount> TerrainBuilder::buildTreeFeatures(
         const std::shared_ptr<ChunkData>& chunk,
         const std::array<int, ChunkColumnCount>& heights) const

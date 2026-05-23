@@ -106,6 +106,7 @@ namespace dolbuto::world
         std::vector<float> buildTerrainDebugNoise(TerrainDebugNoise noise, int sampleSize, int worldExtentBlocks) const;
         float groundnessAtWorld(int worldX, int worldZ) const;
         TerrainDebugSample sampleTerrainAtWorld(int worldX, int worldZ) const;
+        uint16_t surfaceBlockAtWorld(int worldX, int worldZ, int* surfaceY = nullptr) const;
         std::array<FeatureWriteListPtr, FeatureNeighborCount> buildTreeFeatures(
             const std::shared_ptr<ChunkData>& chunk,
             const std::array<int, ChunkColumnCount>& heights) const;

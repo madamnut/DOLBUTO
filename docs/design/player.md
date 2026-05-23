@@ -90,6 +90,7 @@ F5로 순환한다.
 `Sandbox`는 무적/자유 이동용 모드이며 기존처럼 `Space` 더블탭으로 ground/fly 모드를 서로 전환한다.
 Sandbox fly 상태에서 `Shift`로 하강하며, 하강 중 지면에 닿으면 ground 모드로 돌아간다.
 새 월드의 기본 선택값은 `Sandbox`다.
+새 월드를 Sandbox로 생성하더라도 초기 이동 모드는 ground로 시작하고, 이후 `Space` 더블탭으로 fly에 진입한다.
 
 게임 모드는 채팅 명령어로 바꿀 수 있다.
 
