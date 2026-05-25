@@ -105,6 +105,33 @@ namespace dolbuto
         return true;
     }
 
+    gameplay::ItemInteractionMenu RendererGameplayBridge::beginItemInteractionInView(DVec3 origin, Vec3 direction)
+    {
+        return client_.gameplayRuntime.beginItemInteractionInView(
+            origin,
+            direction,
+            client_.content.itemInteractionRecipes());
+    }
+
+    bool RendererGameplayBridge::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex)
+    {
+        return client_.gameplayRuntime.executePendingItemInteraction(
+            actionIndex,
+            candidateIndex,
+            [this](RuntimeChunk& chunk)
+            {
+                if (hooks_.markRuntimeChunkDataDirty)
+                {
+                    hooks_.markRuntimeChunkDataDirty(chunk);
+                }
+            });
+    }
+
+    void RendererGameplayBridge::cancelPendingItemInteraction()
+    {
+        client_.gameplayRuntime.cancelPendingItemInteraction();
+    }
+
     void RendererGameplayBridge::setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots)
     {
         client_.gameplayRuntime.setInventorySnapshot(slots);

@@ -281,6 +281,21 @@ namespace dolbuto::game
         return owner_.renderRuntime_->dropSelectedHotbarItem(wholeStack, playerPosition, direction);
     }
 
+    gameplay::ItemInteractionMenu ClientRuntime::GameplayAccess::beginItemInteractionInView(DVec3 origin, Vec3 direction)
+    {
+        return owner_.renderRuntime_->beginItemInteractionInView(origin, direction);
+    }
+
+    bool ClientRuntime::GameplayAccess::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex)
+    {
+        return owner_.renderRuntime_->executePendingItemInteraction(actionIndex, candidateIndex);
+    }
+
+    void ClientRuntime::GameplayAccess::cancelPendingItemInteraction()
+    {
+        owner_.renderRuntime_->cancelPendingItemInteraction();
+    }
+
     std::array<ItemStack, gameplay::PlayerInventory::SlotCount> ClientRuntime::GameplayAccess::inventorySnapshot() const
     {
         return owner_.state_->gameplayRuntime.inventorySnapshot();
@@ -369,6 +384,19 @@ namespace dolbuto::game
     void ClientRuntime::UiAccess::setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst)
     {
         owner_.state_->ui.setPlayerStats(hp, maxHp, hunger, maxHunger, thirst, maxThirst);
+    }
+
+    void ClientRuntime::UiAccess::setRadialMenu(
+        const std::vector<gameplay::ItemInteractionActionMenu>& actions,
+        std::optional<std::size_t> selectedActionIndex,
+        std::optional<std::size_t> selectedCandidateIndex)
+    {
+        owner_.state_->uiBridge.setRadialMenu(actions, selectedActionIndex, selectedCandidateIndex);
+    }
+
+    void ClientRuntime::UiAccess::hideRadialMenu()
+    {
+        owner_.state_->uiBridge.hideRadialMenu();
     }
 
     void ClientRuntime::UiAccess::mouseMove(double x, double y)

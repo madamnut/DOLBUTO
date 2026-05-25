@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -29,6 +30,19 @@ namespace dolbuto::gameplay
         BlockEditType type = BlockEditType::None;
         BlockRaycastHit hit{};
         uint16_t block = 0;
+    };
+
+    struct ItemInteractionActionMenu
+    {
+        std::string action;
+        std::vector<uint16_t> candidateItemIds;
+    };
+
+    struct ItemInteractionMenu
+    {
+        bool available = false;
+        uint16_t targetItemId = 0;
+        std::vector<ItemInteractionActionMenu> actions;
     };
 
     class ClientGameplayRuntime
@@ -77,6 +91,9 @@ namespace dolbuto::gameplay
 
         bool pickupDroppedItemInView(DVec3 origin, Vec3 direction, const MarkDirtyFn& markDirty);
         bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction, const MarkDirtyFn& markDirty);
+        ItemInteractionMenu beginItemInteractionInView(DVec3 origin, Vec3 direction, const std::vector<ItemInteractionRecipe>& recipes);
+        bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, const MarkDirtyFn& markDirty);
+        void cancelPendingItemInteraction();
         bool updateDroppedItems(
             Vec3 playerPosition,
             double now,
@@ -111,10 +128,19 @@ namespace dolbuto::gameplay
     private:
         const std::vector<ItemDefinition>& itemDefinitions() const;
 
+        struct PendingItemInteraction
+        {
+            bool active = false;
+            WorldEntityHandle targetHandle{};
+            uint64_t targetEntityId = 0;
+            std::vector<ItemInteractionActionMenu> actions;
+        };
+
         const std::vector<ItemDefinition>* itemDefinitions_ = nullptr;
         int hotbarSelectedSlot_ = 0;
         BlockBreakingState blockBreaking_;
         PlayerInventory playerInventory_;
         world::DroppedItemRuntime droppedItemRuntime_;
+        PendingItemInteraction pendingItemInteraction_;
     };
 }

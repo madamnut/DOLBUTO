@@ -1,0 +1,11 @@
+[
+    {
+        "action": "knapping",
+        "target": "stone_shard",
+        "candidates": [
+            "dirt_pile",
+            "leaf",
+            "branch"
+        ]
+    }
+]

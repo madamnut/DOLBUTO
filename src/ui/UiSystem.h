@@ -70,6 +70,7 @@ namespace dolbuto::ui
         void setInventoryDebugSlots(std::string_view hotbarRml, std::string_view inventoryRml, bool visible);
         void setInventoryItems(std::string_view hotbarRml, std::string_view inventoryRml);
         void setInventoryCursorItem(std::string_view rml, bool visible);
+        void setRadialMenu(std::string_view actionsRml, std::string_view candidatesRml, bool visible);
         void hideItemTooltip();
         void showItemTooltip(std::string_view rml, int left, int top, int width, int height);
         void setWorldList(const std::vector<WorldListEntry>& worlds);

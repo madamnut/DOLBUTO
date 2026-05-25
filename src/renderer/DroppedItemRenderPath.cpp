@@ -11,6 +11,9 @@ namespace dolbuto
     namespace
     {
         constexpr std::size_t MaxDroppedItemRenderInstances = world::DroppedItemSystem::MaxDroppedItemRenderInstances;
+        constexpr std::size_t MaxBufferedItemFrames = 2u;
+        constexpr std::size_t ItemInstanceFrameStride = MaxDroppedItemRenderInstances + 1u;
+        constexpr std::size_t MaxItemRenderInstances = ItemInstanceFrameStride * MaxBufferedItemFrames;
     }
 
     DroppedItemRenderPath::DroppedItemRenderPath(const VkDevice* device, VulkanResourceManager* gpuResources)
@@ -117,12 +120,12 @@ namespace dolbuto
         }
 
         gpuResources().createBuffer(
-            sizeof(Instance) * MaxDroppedItemRenderInstances,
+            sizeof(Instance) * MaxItemRenderInstances,
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             instanceBuffer_,
             instanceMemory_);
-        if (vkMapMemory(device(), instanceMemory_, 0, sizeof(Instance) * MaxDroppedItemRenderInstances, 0, &instanceMapped_) != VK_SUCCESS)
+        if (vkMapMemory(device(), instanceMemory_, 0, sizeof(Instance) * MaxItemRenderInstances, 0, &instanceMapped_) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to map dropped item instance buffer.");
         }
@@ -203,15 +206,21 @@ namespace dolbuto
         VkPipelineLayout pipelineLayout,
         const Texture& texture,
         const PushConstants& push,
-        std::vector<RenderInstance>& renderInstances)
+        std::vector<RenderInstance>& renderInstances,
+        std::size_t instanceOffset)
     {
         if (renderInstances.empty() ||
             !ready() ||
             pipeline == VK_NULL_HANDLE ||
             pipelineLayout == VK_NULL_HANDLE ||
-            texture.descriptorSet == VK_NULL_HANDLE)
+            texture.descriptorSet == VK_NULL_HANDLE ||
+            instanceOffset >= MaxItemRenderInstances)
         {
             return;
+        }
+        if (renderInstances.size() > MaxItemRenderInstances - instanceOffset)
+        {
+            renderInstances.resize(MaxItemRenderInstances - instanceOffset);
         }
 
         std::sort(renderInstances.begin(), renderInstances.end(), [](const RenderInstance& lhs, const RenderInstance& rhs)
@@ -222,7 +231,7 @@ namespace dolbuto
         auto* mappedInstances = static_cast<Instance*>(instanceMapped_);
         for (std::size_t i = 0; i < renderInstances.size(); ++i)
         {
-            mappedInstances[i] = renderInstances[i].instance;
+            mappedInstances[instanceOffset + i] = renderInstances[i].instance;
         }
 
         VkViewport viewport{};
@@ -267,7 +276,7 @@ namespace dolbuto
                     static_cast<uint32_t>(batchEnd - batchStart),
                     mesh.firstIndex,
                     0,
-                    static_cast<uint32_t>(batchStart));
+                    static_cast<uint32_t>(instanceOffset + batchStart));
             }
             batchStart = batchEnd;
         }

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace dolbuto
 {
@@ -23,10 +24,18 @@ namespace dolbuto
         std::string slotTexture = "none";
         std::string droppedTexture = "none";
         std::string heldTexture = "none";
+        std::vector<std::string> actions;
         uint16_t stackSize = 0;
         uint32_t droppedTextureLayer = 0;
         uint32_t heldTextureLayer = 0;
         ItemRenderType droppedRender = ItemRenderType::ExtrudedSprite;
         ItemRenderType heldRender = ItemRenderType::ExtrudedSprite;
+    };
+
+    struct ItemInteractionRecipe
+    {
+        std::string action;
+        uint16_t targetItemId = 0;
+        std::vector<uint16_t> candidateItemIds;
     };
 }

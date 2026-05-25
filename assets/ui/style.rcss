@@ -272,6 +272,113 @@ body {
     margin-left: 270px;
 }
 
+.radial-menu {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 420px;
+    height: 420px;
+    margin-left: -210px;
+    margin-top: -210px;
+}
+
+.radial-dead-zone {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 112px;
+    height: 112px;
+    margin-left: -56px;
+    margin-top: -56px;
+    background-color: rgba(4, 8, 10, 210);
+    border-width: 2px;
+    border-color: rgba(205, 225, 235, 180);
+    border-radius: 56px;
+}
+
+.radial-cancel {
+    position: absolute;
+    left: 8px;
+    top: 40px;
+    width: 96px;
+    height: 28px;
+    line-height: 28px;
+    text-align: center;
+    font-size: 14px;
+    color: rgba(230, 238, 242, 220);
+}
+
+.radial-actions {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 420px;
+    height: 420px;
+}
+
+.radial-action {
+    position: absolute;
+    width: 116px;
+    height: 42px;
+    line-height: 42px;
+    text-align: center;
+    font-size: 14px;
+    color: #f2f6f8;
+    background-color: rgba(10, 18, 22, 220);
+    border-width: 1px;
+    border-color: rgba(155, 185, 200, 150);
+}
+
+.radial-action.selected {
+    color: #ffffff;
+    background-color: rgba(48, 86, 92, 245);
+    border-width: 2px;
+    border-color: rgba(235, 250, 255, 240);
+}
+
+.radial-candidates {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 420px;
+    height: 420px;
+}
+
+.radial-candidate {
+    position: absolute;
+    width: 96px;
+    height: 104px;
+    background-color: rgba(8, 14, 18, 210);
+    border-width: 1px;
+    border-color: rgba(155, 185, 200, 150);
+}
+
+.radial-candidate.selected {
+    background-color: rgba(48, 86, 92, 245);
+    border-width: 2px;
+    border-color: rgba(235, 250, 255, 240);
+}
+
+.radial-candidate-icon {
+    position: absolute;
+    left: 16px;
+    top: 8px;
+    width: 64px;
+    height: 64px;
+}
+
+.radial-candidate-name {
+    position: absolute;
+    left: 4px;
+    top: 74px;
+    width: 88px;
+    height: 24px;
+    line-height: 12px;
+    text-align: center;
+    font-size: 12px;
+    color: #f2f6f8;
+}
+
 .inventory-image {
     position: absolute;
     left: 50%;

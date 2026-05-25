@@ -54,6 +54,7 @@
 - options 화면에 BGM/SFX volume, 조작 토글, FOV, view bobbing 설정을 추가하고 `settings.json`에 저장하도록 했다.
 - HP/허기/갈증 스탯 게이지와 `PlayerStats`를 추가했다.
 - `Survival`/`Sandbox` 게임모드를 추가하고, player save에 게임모드와 스탯을 저장하도록 확장했다.
+- 새 월드는 선택한 게임모드가 Sandbox여도 초기 이동 모드는 ground로 저장하고, 이후 `Space` 더블탭으로 fly에 진입하도록 했다.
 
 ## 저장과 호환성
 - 저장/로드는 `SaveSystem`, `ChunkLoadSystem`, `ChunkPrepareSystem`으로 책임을 분리했다.
@@ -64,3 +65,4 @@
 - `docs/design`의 client architecture, rendering, chunk system, world generation, save/load, player, UI, block data 문서를 현재 구조에 맞춰 갱신했다.
 - 0.0.0.2 일일 로그 중 영어 중심으로 작성된 기록을 한글 작업 기록 형식으로 정리했다.
 - 날짜 규칙에 맞지 않던 `2026-05-21-chunk-prepare.md`는 `2026-05-21.md`에 병합했다.
+- 0.0.0.3 준비를 위해 현재 버전 표기와 개발 기록 위치를 새 버전으로 넘길 수 있게 정리했다.

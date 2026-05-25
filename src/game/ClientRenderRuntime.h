@@ -1,11 +1,13 @@
 #pragma once
 
 #include "game/ClientFrame.h"
+#include "gameplay/ClientGameplayRuntime.h"
 #include "gameplay/PlayerInventory.h"
 #include "items/ItemData.h"
 #include "world/WorldTypes.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -39,6 +41,9 @@ namespace dolbuto
             bool editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale);
             bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
             bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction);
+            gameplay::ItemInteractionMenu beginItemInteractionInView(DVec3 origin, Vec3 direction);
+            bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex);
+            void cancelPendingItemInteraction();
 
             void setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots);
             void uiMouseMove(double x, double y);

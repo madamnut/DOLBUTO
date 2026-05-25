@@ -14,13 +14,13 @@
             "texture": "none"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
     },
     {
         "id": 1,
         "key": "rock_chunk",
         "name": "Rock Chunk",
-        "stackSize": 99,
+        "stackSize": 1,
         "slotTexture": "rock_chunk",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -31,13 +31,13 @@
             "texture": "rock_chunk"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
     },
     {
         "id": 2,
         "key": "dirt_pile",
         "name": "Dirt Pile",
-        "stackSize": 99,
+        "stackSize": 1,
         "slotTexture": "dirt_pile",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -48,13 +48,13 @@
             "texture": "dirt_pile"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
     },
     {
         "id": 3,
         "key": "sand_pile",
         "name": "Sand Pile",
-        "stackSize": 99,
+        "stackSize": 1,
         "slotTexture": "sand_pile",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -65,13 +65,13 @@
             "texture": "sand_pile"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
     },
     {
         "id": 4,
         "key": "plant",
         "name": "Plant",
-        "stackSize": 99,
+        "stackSize": 1,
         "slotTexture": "plant",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -82,13 +82,13 @@
             "texture": "plant"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
     },
     {
         "id": 5,
         "key": "plant_fiber",
         "name": "Plant Fiber",
-        "stackSize": 99,
+        "stackSize": 1,
         "slotTexture": "plant_fiber",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -99,13 +99,13 @@
             "texture": "plant_fiber"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
     },
     {
         "id": 6,
         "key": "plant_twine",
         "name": "Plant Twine",
-        "stackSize": 99,
+        "stackSize": 1,
         "slotTexture": "plant_twine",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -116,13 +116,13 @@
             "texture": "plant_twine"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
     },
     {
         "id": 7,
         "key": "seed",
         "name": "Seed",
-        "stackSize": 99,
+        "stackSize": 1,
         "slotTexture": "seed",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -133,13 +133,13 @@
             "texture": "seed"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
     },
     {
         "id": 8,
         "key": "grass_scrap",
         "name": "Grass Scrap",
-        "stackSize": 99,
+        "stackSize": 1,
         "slotTexture": "grass_scrap",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -150,13 +150,13 @@
             "texture": "grass_scrap"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
     },
     {
         "id": 9,
         "key": "branch",
         "name": "Branch",
-        "stackSize": 99,
+        "stackSize": 1,
         "slotTexture": "branch",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -167,13 +167,13 @@
             "texture": "branch"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
     },
     {
         "id": 10,
         "key": "bough",
         "name": "Bough",
-        "stackSize": 99,
+        "stackSize": 1,
         "slotTexture": "bough",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -184,13 +184,13 @@
             "texture": "bough"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
     },
     {
         "id": 11,
         "key": "bark_strip",
         "name": "Bark Strip",
-        "stackSize": 99,
+        "stackSize": 1,
         "slotTexture": "bark_strip",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -201,13 +201,13 @@
             "texture": "bark_strip"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
     },
     {
         "id": 12,
         "key": "leaf",
         "name": "Leaf",
-        "stackSize": 99,
+        "stackSize": 1,
         "slotTexture": "leaf",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -218,6 +218,25 @@
             "texture": "leaf"
         },
         "tags": [],
-        "actions": {}
+        "actions": []
+    },
+    {
+        "id": 13,
+        "key": "stone_shard",
+        "name": "Stone Shard",
+        "stackSize": 1,
+        "slotTexture": "stone_shard",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_shard"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_shard"
+        },
+        "tags": [],
+        "actions": [
+            "knapping"
+        ]
     }
 ]

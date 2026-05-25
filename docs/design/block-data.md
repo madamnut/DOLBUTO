@@ -309,7 +309,10 @@ GLB 삼각형 쌍은 변환 중 다시 쿼드로 병합한다.
   "prop": {
     "model": "stone",
     "texture": "rock"
-  }
+  },
+  "drops": [
+    { "item": "stone_shard", "min": 1, "max": 1, "chance": 1.0 }
+  ]
 }
 ```
 

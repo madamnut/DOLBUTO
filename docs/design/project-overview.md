@@ -29,8 +29,8 @@ DOLBUTO는 Vulkan/C++ 기반의 샌드박스 복셀 게임이다.
 
 `main.cpp`는 로그 초기화, GLFW/window 생성, 최상위 예외 처리, `GameClient` 실행을 담당한다.
 `src/game/GameClient.h/.cpp`는 클라이언트 런타임 오케스트레이터로서 메인 루프, 입력, 플레이어 상태, 월드 선택/생성, 월드/플레이어 상태 저장, UI action 처리를 담당한다.
-현재 `Renderer`는 Vulkan 렌더링뿐 아니라 월드 런타임, 청크 저장/로드, UI, 오디오, 아이템 렌더링까지 넓은 책임을 아직 많이 가진다.
-0.0.0.2에서는 `GameClient`를 기준으로 전체 흐름과 렌더링 책임을 나누는 방향으로 정리를 진행한다.
+현재 `Renderer`는 Vulkan/GPU 리소스와 화면 출력 경계를 맡고, 월드 런타임, 청크 저장/로드, UI, 오디오, gameplay 상태 조율은 `ClientRuntime` 계열 subsystem으로 분리되어 있다.
+0.0.0.3에서는 이 구조를 기준으로 새 기능을 추가하되, renderer 중심 구조로 되돌아가지 않도록 유지한다.
 클라이언트 계층과 의존 방향은 [[client-architecture]]를 기준으로 한다.
 
 현재 분리된 타입 헤더:
@@ -135,7 +135,7 @@ terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 �
 `Renderer`는 GPU mesh 설치, 렌더 데이터 detach 같은 렌더러 의존 작업만 수행한다.
 `BlockInteractionSystem`은 블록 좌표 변환, 플레이어 충돌 범위 판정, 블록 레이캐스트, 블록 파괴 진행 상태를 담당한다.
 `ClientGameplayRuntime`은 클라이언트 gameplay 전환 계층이며 `PlayerInventory`, `DroppedItemRuntime`, block breaking 상태를 소유하고 블록 상호작용, 드랍 아이템, 인벤토리 조작을 Renderer/Vulkan 타입 없이 조율한다.
-`PlayerInventory`는 플레이어 인벤토리 슬롯, 임시 커서 스택, 스택 병합, 클릭/Shift-click/핫바 교환 규칙을 담당한다.
+`PlayerInventory`는 플레이어 인벤토리 슬롯, 임시 커서 스택, 클릭/Shift-click/핫바 교환 규칙을 담당한다.
 `AudioSystem`은 OpenAL device/context, 효과음 buffer/source pool, 음악 source와 OGG/WAV 재생 상태를 소유한다.
 `ClientUiBridge`는 `UiSystem`과 `ClientGameplayRuntime` 사이에서 hotbar/inventory RML 조립, tooltip/cursor 갱신, slot hit test, world list 표시 변환, UI 입력 기반 인벤토리 조작을 담당한다.
 `UiSystem`은 RmlUi 초기화/종료, context, 문서, 버튼 이벤트 수신, 문서 표시 상태, 문서 element 갱신을 소유한다.
@@ -145,7 +145,7 @@ terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 �
 `SaveSystem`은 save worker, 저장 큐, pending snapshot, clean revision cache, region header cache, region file IO, 저장/로드 카운터를 소유한다.
 `ChunkLoadSystem`은 chunk-load worker, snapshot load 요청 큐, 완료 큐, 중복 요청 추적을 소유한다. worker는 region IO와 `SaveSystem::load` 호출만 담당한다.
 `ChunkPrepareSystem`은 chunk-prepare worker와 준비 큐를 소유한다. 저장 snapshot을 `RuntimeChunk`로 복원하고 derived cache를 재구축해 메인 스레드의 load 완료 처리 비용을 줄인다.
-`DroppedItemSystem`은 드롭 아이템 엔티티 생성, 청크 소유권 helper, 병합, 물리 tick, 플레이어 pickup 판정을 담당한다.
+`DroppedItemSystem`은 드롭 아이템 엔티티 생성, 청크 소유권 helper, 드롭 아이템끼리의 물리 충돌, 물리 tick, 플레이어 pickup 판정을 담당한다.
 `DroppedItemRuntime`은 클라이언트 런타임의 드랍 아이템 entity id 할당, 청크별 드랍 아이템 추적, 블록 드롭/수동 드롭 생성 연결, pickup/raycast, tick/update 조율을 담당하며 Renderer/Vulkan 타입에 의존하지 않는다.
 `Biome`은 temperature, precipitation, groundness 기반 5단계 biome band 분류와 biome 이름 조회를 담당한다.
 `TerrainBuilder`는 높이맵, 초기 청크 블록/유체/기후 데이터, TerrainSourceReady source checkpoint, 3x3 source view 기반 tree feature resolve를 담당한다.
@@ -190,7 +190,7 @@ terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 �
 `src/renderer/PlayerMeshRenderPath.h/.cpp`는 player GLB 모델 로드, player vertex/index buffer 생성, 매 프레임 GLB node transform 기반 player vertex 갱신, player indexed draw와 buffer 수명을 담당한다.
 플레이어 머리 회전은 `ClientFrame`/`RendererFrame`의 head yaw/pitch 값을 `Head` node transform에 추가 적용하는 방식으로 처리한다.
 `src/renderer/ParticleRenderPath.h/.cpp`는 블록 파괴 파티클과 파괴 오버레이 렌더링 상태, host-visible particle vertex/index buffer, 파티클 갱신과 draw path를 담당한다.
-`src/renderer/DroppedItemRenderCollector.h/.cpp`는 dropped item 렌더 후보 수집, 청크 frustum culling, 거리 culling, stack count별 시각 복제본 생성을 담당한다.
+`src/renderer/DroppedItemRenderCollector.h/.cpp`는 dropped item 렌더 후보 수집, 청크 frustum culling, 거리 culling, 렌더 instance 생성을 담당한다.
 `src/renderer/DroppedItemRenderPath.h/.cpp`는 dropped item의 아이템 스프라이트 GPU mesh, persistent instance buffer, instance 업로드, item id별 batch draw를 담당한다.
 `src/renderer/ItemSpriteMeshBuilder.h/.cpp`는 아이템 텍스처 alpha에서 드랍 아이템용 extruded sprite mesh를 생성한다.
 `RendererDroppedItems.cpp`는 `DroppedItemRuntime` update 호출, 렌더 후보 수집 입력 조립, push constant 준비, `DroppedItemRenderPath` draw 호출만 담당한다.
@@ -225,6 +225,6 @@ game scene load/unload의 전체 순서와 정책은 `ClientSceneLifecycle`이 �
 
 ## 현재 주의점
 
-- 현재 버전은 `0.0.0.2`이다.
-- `docs/design`은 확정된 설계만 남기는 공간이고, 실험 과정은 `docs/0.0.0.2` 날짜 로그에 기록한다.
+- 현재 버전은 `0.0.0.3`이다.
+- `docs/design`은 확정된 설계만 남기는 공간이고, 실험 과정은 `docs/0.0.0.3` 날짜 로그에 기록한다.
 - Release 경로와 Debug 경로가 다르므로 경로 관련 작업은 [[runtime-paths]] 기준을 따른다.

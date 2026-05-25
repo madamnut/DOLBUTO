@@ -338,7 +338,7 @@
     },
     "drops": [
       {
-        "item": "rock_chunk",
+        "item": "stone_shard",
         "min": 1,
         "max": 1,
         "chance": 1

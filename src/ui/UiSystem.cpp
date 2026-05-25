@@ -557,6 +557,27 @@ namespace dolbuto::ui
         cursor->SetInnerRML(std::string(rml));
     }
 
+    void UiSystem::setRadialMenu(std::string_view actionsRml, std::string_view candidatesRml, bool visible)
+    {
+        if (hudDocument_ == nullptr)
+        {
+            return;
+        }
+
+        if (Rml::Element* radial = hudDocument_->GetElementById("radial-menu"))
+        {
+            radial->SetAttribute("class", visible ? "radial-menu" : "radial-menu ui-hidden");
+        }
+        if (Rml::Element* radialActions = hudDocument_->GetElementById("radial-actions"))
+        {
+            radialActions->SetInnerRML(std::string(actionsRml));
+        }
+        if (Rml::Element* radialCandidates = hudDocument_->GetElementById("radial-candidates"))
+        {
+            radialCandidates->SetInnerRML(std::string(candidatesRml));
+        }
+    }
+
     void UiSystem::hideItemTooltip()
     {
         if (inventoryDocument_ == nullptr)

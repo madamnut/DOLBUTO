@@ -31,7 +31,7 @@ namespace dolbuto::world
         static constexpr float DroppedItemMaxFrameSeconds = 0.25f;
         static constexpr float DroppedItemRenderDistance = 48.0f;
         static constexpr float DroppedItemRenderDistanceSquared = DroppedItemRenderDistance * DroppedItemRenderDistance;
-        static constexpr size_t MaxDroppedItemRenderInstances = MaxDroppedItems * 4u;
+        static constexpr size_t MaxDroppedItemRenderInstances = MaxDroppedItems;
 
         static int blockCoordinateXz(double worldCoordinate);
         static int blockCoordinateY(double worldCoordinate);
@@ -56,13 +56,6 @@ namespace dolbuto::world
             DVec3 playerPosition,
             Vec3 direction,
             const EntityIdProvider& allocateEntityId);
-
-        static uint16_t mergeIntoNearby(
-            WorldEntity& source,
-            RuntimeChunkMap& runtimeChunks,
-            const std::vector<ItemDefinition>& itemDefinitions,
-            const DirtyChunkCallback& markDirty,
-            const ChunkTrackingCallback& refreshTracking);
 
         static void updateTick(
             RuntimeChunkMap& runtimeChunks,

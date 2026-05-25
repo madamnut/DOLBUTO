@@ -9,9 +9,40 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 
 namespace dolbuto::ui
 {
+    namespace
+    {
+        std::string displayActionName(std::string_view action)
+        {
+            std::string text;
+            text.reserve(action.size());
+            bool upperNext = true;
+            for (const char c : action)
+            {
+                if (c == '_' || c == '-')
+                {
+                    text.push_back(' ');
+                    upperNext = true;
+                    continue;
+                }
+                if (upperNext && c >= 'a' && c <= 'z')
+                {
+                    text.push_back(static_cast<char>(c - 'a' + 'A'));
+                }
+                else
+                {
+                    text.push_back(c);
+                }
+                upperNext = false;
+            }
+            return text;
+        }
+    }
+
     void ClientUiBridge::setContext(
         UiSystem* uiSystem,
         gameplay::ClientGameplayRuntime* gameplayRuntime,
@@ -160,6 +191,86 @@ namespace dolbuto::ui
         }
 
         uiSystem().showItemTooltip(rml, layout->left, layout->top, layout->width, layout->height);
+    }
+
+    void ClientUiBridge::setRadialMenu(
+        const std::vector<gameplay::ItemInteractionActionMenu>& actions,
+        std::optional<std::size_t> selectedActionIndex,
+        std::optional<std::size_t> selectedCandidateIndex)
+    {
+        if (actions.empty())
+        {
+            hideRadialMenu();
+            return;
+        }
+
+        constexpr double Pi = 3.14159265358979323846;
+        constexpr int Center = 210;
+        const double startAngle = -Pi * 0.5;
+
+        constexpr int ActionRadius = 92;
+        constexpr int ActionWidth = 116;
+        constexpr int ActionHeight = 42;
+        const double actionStep = (2.0 * Pi) / static_cast<double>(actions.size());
+        std::string actionsRml;
+        for (std::size_t i = 0; i < actions.size(); ++i)
+        {
+            const double angle = startAngle + static_cast<double>(i) * actionStep;
+            const int left = static_cast<int>(std::round(static_cast<double>(Center) + std::cos(angle) * ActionRadius - static_cast<double>(ActionWidth) * 0.5));
+            const int top = static_cast<int>(std::round(static_cast<double>(Center) + std::sin(angle) * ActionRadius - static_cast<double>(ActionHeight) * 0.5));
+            const bool selected = selectedActionIndex.has_value() && *selectedActionIndex == i;
+
+            actionsRml += "<div class=\"radial-action";
+            if (selected)
+            {
+                actionsRml += " selected";
+            }
+            actionsRml += "\" style=\"left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px;\">";
+            actionsRml += escapeRml(displayActionName(actions[i].action));
+            actionsRml += "</div>";
+        }
+
+        std::string candidatesRml;
+        if (selectedActionIndex.has_value() && *selectedActionIndex < actions.size())
+        {
+            constexpr int CandidateRadius = 156;
+            constexpr int CandidateWidth = 96;
+            constexpr int CandidateHeight = 104;
+            const std::vector<uint16_t>& candidateItemIds = actions[*selectedActionIndex].candidateItemIds;
+            const double candidateStep = candidateItemIds.empty() ? 0.0 : (2.0 * Pi) / static_cast<double>(candidateItemIds.size());
+            const std::vector<ItemDefinition>& definitions = itemDefinitions();
+            for (std::size_t i = 0; i < candidateItemIds.size(); ++i)
+            {
+                const uint16_t itemId = candidateItemIds[i];
+                if (itemId == 0 || static_cast<std::size_t>(itemId) >= definitions.size())
+                {
+                    continue;
+                }
+
+                const ItemDefinition& definition = definitions[itemId];
+                const double angle = startAngle + static_cast<double>(i) * candidateStep;
+                const int left = static_cast<int>(std::round(static_cast<double>(Center) + std::cos(angle) * CandidateRadius - static_cast<double>(CandidateWidth) * 0.5));
+                const int top = static_cast<int>(std::round(static_cast<double>(Center) + std::sin(angle) * CandidateRadius - static_cast<double>(CandidateHeight) * 0.5));
+                const bool selected = selectedCandidateIndex.has_value() && *selectedCandidateIndex == i;
+
+                candidatesRml += "<div class=\"radial-candidate";
+                if (selected)
+                {
+                    candidatesRml += " selected";
+                }
+                candidatesRml += "\" style=\"left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px;\">";
+                candidatesRml += "<img class=\"radial-candidate-icon\" src=\"../textures/item/" + escapeRml(definition.slotTexture) + ".png\"/>";
+                candidatesRml += "<div class=\"radial-candidate-name\">" + escapeRml(definition.name) + "</div>";
+                candidatesRml += "</div>";
+            }
+        }
+
+        uiSystem().setRadialMenu(actionsRml, candidatesRml, true);
+    }
+
+    void ClientUiBridge::hideRadialMenu()
+    {
+        uiSystem().setRadialMenu("", "", false);
     }
 
     void ClientUiBridge::closeInventoryInteraction(uint32_t screenWidth, uint32_t screenHeight)

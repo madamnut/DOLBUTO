@@ -8,6 +8,7 @@
 
 #include <array>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -65,6 +66,9 @@ namespace dolbuto
 
         void attachWindowCallbacks();
         void handleMouse(double x, double y);
+        bool openRadialInteraction();
+        void updateRadialSelection(double x, double y);
+        void closeRadialInteraction(bool execute);
         void handleMenuClick(double x, double y);
         void toggleFullscreen();
         void setMouseCaptured(bool captured);
@@ -176,6 +180,13 @@ namespace dolbuto
         double lastForwardTapTime_ = -1000.0;
         double lastJumpTapTime_ = -1000.0;
         bool breakHeld_ = false;
+        bool radialActive_ = false;
+        bool radialRestoreMouseCaptured_ = true;
+        std::vector<gameplay::ItemInteractionActionMenu> radialActions_;
+        std::optional<std::size_t> radialSelectedActionIndex_;
+        std::optional<std::size_t> radialSelectedCandidateIndex_;
+        double radialCenterX_ = 0.0;
+        double radialCenterY_ = 0.0;
         double physicsAccumulator_ = 0.0;
         std::chrono::steady_clock::time_point lastFrameTime_{};
         int windowedX_ = 0;

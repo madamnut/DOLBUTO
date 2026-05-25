@@ -53,7 +53,7 @@
 `src/renderer/PlayerMeshRenderPath.h/.cpp`는 player GLB 모델 로드, player vertex/index buffer 생성, GLB node transform 기반 매 프레임 player vertex 위치 갱신, player indexed draw와 buffer 수명을 담당한다.
 `PlayerMeshRenderPath`는 `Head` node에 렌더 프레임의 head yaw/pitch 추가 transform을 적용한다.
 `src/renderer/ParticleRenderPath.h/.cpp`는 블록 파괴 파티클 상태, 파괴 오버레이 quad 생성, 파티클 수명/단순 terrain 충돌 갱신, host-visible particle vertex/index buffer 업로드, particle draw path를 담당한다.
-`src/renderer/DroppedItemRenderCollector.h/.cpp`는 드랍 아이템 청크 frustum culling, 거리 culling, stack count별 시각 복제본 생성, `DroppedItemRenderPath::RenderInstance` 목록 생성을 담당한다.
+`src/renderer/DroppedItemRenderCollector.h/.cpp`는 드랍 아이템 청크 frustum culling, 거리 culling, `DroppedItemRenderPath::RenderInstance` 목록 생성을 담당한다.
 `src/renderer/DroppedItemRenderPath.h/.cpp`는 드랍 아이템 로컬 스프라이트 mesh 타입, GPU static vertex/index buffer, persistent instance buffer, instance 업로드, item id별 batch draw를 담당한다.
 `src/renderer/ItemSpriteMeshBuilder.h/.cpp`는 아이템 텍스처 alpha를 읽어 드랍 아이템용 extruded sprite mesh를 생성한다.
 `src/renderer/RendererVulkanContext.cpp`는 Vulkan instance, surface, physical/logical device, queue, command pool, timestamp query pool, hardware debug 정보 수집을 담는다.
@@ -93,7 +93,7 @@ FOV 설정은 `config/settings.json`의 `video.fovDegrees`에 저장되며 Optio
 Renderer/GPU가 필요 없는 collision query, block selection state, inventory snapshot, UI action/input query, selected block/climate text는 `ClientRuntimeState`에서 직접 처리하고, 렌더러 의존 작업은 `ClientRenderRuntime`에 위임한다.
 `src/game/ClientRenderRuntime.h/.cpp`는 `Renderer`를 소유하고 scene/gameplay/UI/render 호출을 현재 renderer bridge 객체로 연결하는 전환기 adapter다.
 `src/renderer/RendererFrame.h`는 `ClientRenderRuntime`이 Renderer 호출 직전에 변환하는 renderer 내부 경계 DTO다.
-드롭 아이템 생성/병합/물리 tick/pickup 판정은 `src/world/DroppedItemSystem.h/.cpp`가 담당한다.
+드롭 아이템 생성, 드롭 아이템끼리의 물리 충돌, 물리 tick, pickup 판정은 `src/world/DroppedItemSystem.h/.cpp`가 담당한다.
 드롭 아이템 entity id, 청크별 추적, spawn/drop/pickup/raycast/update 조율은 `src/world/DroppedItemRuntime.h/.cpp`가 담당한다.
 `src/world/TerrainMesher.h/.cpp`는 chunk mesh와 편집 subchunk mesh의 CPU orchestration을 맡는다.
 solid/blend/cross/prop subchunk mesh 생성은 `TerrainGeometryBuilder`가 담당하고, render chunk storage 조작, Vulkan upload, terrain render data 수명, terrain mesh draw loop는 `TerrainRenderPath`가 담당한다.
@@ -262,6 +262,8 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 로컬 extruded mesh 생성은 `ItemSpriteMeshBuilder`가 담당하고, 결과 타입은 `DroppedItemRenderPath::ItemSpriteMesh`이다.
 프레임마다 CPU가 아이템 쿼드 정점을 다시 펼치지 않고, 드랍 아이템 위치/회전/텍스처 layer만 담은 instance buffer를 갱신한다.
 instance buffer는 persistent mapping 상태로 유지해 매 프레임 `vkMapMemory`/`vkUnmapMemory`를 반복하지 않는다.
+item instance buffer는 frame-in-flight별 영역을 나누고, 각 프레임 영역 안에서 월드 드랍 아이템 영역과 1인칭 viewmodel 아이템 영역을 분리한다.
+따라서 같은 프레임에서 viewmodel 아이템을 그려도 이미 기록된 월드 드랍 아이템 draw command의 instance data를 덮어쓰지 않는다.
 정적 mesh GPU buffer, instance buffer, instance 업로드, 정렬, item id별 batch draw는 `DroppedItemRenderPath`가 소유한다.
 `DroppedItemRuntime`은 드랍 아이템 runtime 상태와 tick을 갱신하고, `DroppedItemRenderCollector`는 월드 엔티티를 순회해 렌더 후보 `RenderInstance` 목록을 만들며, `RendererDroppedItems.cpp`는 카메라/pipeline/texture 정보를 `DroppedItemRenderPath`에 전달한다.
 렌더 후보 수를 줄이기 위해 다음 컬링을 적용한다.
@@ -271,9 +273,8 @@ instance buffer는 persistent mapping 상태로 유지해 매 프레임 `vkMapMe
 - 청크 AABB가 카메라 프러스텀 밖이면 해당 청크의 드랍 아이템은 모두 건너뛴다.
 - 청크가 프러스텀 안에 있어도, 개별 드랍 아이템 위치가 카메라에서 48블록보다 멀면 렌더링하지 않는다.
 - 거리 판정은 보간된 드랍 아이템 위치와 카메라 위치 사이의 3D 거리 제곱으로 처리한다.
-- 드랍 아이템 스택은 count에 따라 1~4개의 시각 복제본으로 렌더링한다.
-- 시각 복제본 수는 count `1`, `2~16`, `17~48`, `49~99` 구간에 따라 각각 1, 2, 3, 4개다.
-- 복제본은 기존 드랍 아이템 두께인 `0.05`블록 단위로 Y 오프셋을 쌓고, 작은 XZ 오프셋과 Y 회전 차이를 둔다.
+- 드랍 아이템 엔티티 하나는 렌더 instance 하나로 렌더링한다.
+- 현재 드랍 아이템은 스택으로 병합하지 않으므로 `count` 기반 시각 복제본은 만들지 않는다.
 - 같은 아이템 mesh를 사용하는 instance는 item id 기준으로 정렬한 뒤 batch draw한다.
 - instance buffer에는 위치/회전/텍스처 layer와 함께 정규화된 sky/block light가 들어간다. 드랍 아이템은 보간된 월드 위치의 light를 사용하고, 손에 든 viewmodel 아이템은 플레이어 위치의 light를 사용한다.
 

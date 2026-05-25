@@ -1,6 +1,7 @@
 #pragma once
 
 #include "game/ClientUiTypes.h"
+#include "gameplay/ClientGameplayRuntime.h"
 #include "items/ItemData.h"
 #include "ui/InventoryUi.h"
 
@@ -36,6 +37,11 @@ namespace dolbuto::ui
         void updateInventoryUi();
         void updateInventoryCursorUi();
         void updateItemTooltipUi(uint32_t screenWidth, uint32_t screenHeight);
+        void setRadialMenu(
+            const std::vector<gameplay::ItemInteractionActionMenu>& actions,
+            std::optional<std::size_t> selectedActionIndex,
+            std::optional<std::size_t> selectedCandidateIndex);
+        void hideRadialMenu();
         void closeInventoryInteraction(uint32_t screenWidth, uint32_t screenHeight);
         void setWorldList(const std::vector<game::WorldListItem>& worlds);
 

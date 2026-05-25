@@ -568,7 +568,7 @@ namespace dolbuto
             throw std::runtime_error("GameClient requires a valid GLFW window.");
         }
 
-        log::info("DOLBUTO 0.0.0.2 start");
+        log::info("DOLBUTO 0.0.0.3 start");
         log::info("Asset directory: " + assetDirectory().string());
         log::info("Config directory: " + configDirectory().string());
         log::info("Shader directory: " + shaderDirectory().string());
@@ -733,7 +733,7 @@ namespace dolbuto
                 previousPlayerWalkAmount_ = playerWalkAmount_;
                 previousSprintFovAmount_ = sprintFovAmount_;
                 previousEyeHeightScale_ = eyeHeightScale_;
-                updatePlayer(FixedPhysicsTimestep, screen_ == AppScreen::Game && !chatOpen_);
+                updatePlayer(FixedPhysicsTimestep, screen_ == AppScreen::Game && !chatOpen_ && !radialActive_);
                 if (runtime_ != nullptr)
                 {
                     runtime_->gameplay().updateBlockBreaking(
@@ -836,7 +836,7 @@ namespace dolbuto
             const bool worldUpdateEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory || optionsOverGame;
             const bool gameSceneRenderEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory || optionsOverGame;
             const bool renderDebugText = (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory) && debugTextVisible_;
-            const bool frameHudVisible = hudVisible_ || chatOpen_;
+            const bool frameHudVisible = hudVisible_ || chatOpen_ || radialActive_;
             float playerHeadYaw = 0.0f;
             float playerHeadPitch = 0.0f;
             updatePlayerLookPose(renderBodyYaw, playerHeadYaw, playerHeadPitch);
@@ -924,6 +924,15 @@ namespace dolbuto
                 if (app->runtime_ != nullptr)
                 {
                     app->runtime_->ui().key(key, action != GLFW_RELEASE, mods);
+                }
+                return;
+            }
+            if (app != nullptr && app->radialActive_ &&
+                (action == GLFW_PRESS || action == GLFW_REPEAT || action == GLFW_RELEASE))
+            {
+                if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
+                {
+                    app->closeRadialInteraction(false);
                 }
                 return;
             }
@@ -1164,6 +1173,15 @@ namespace dolbuto
                 return;
             }
 
+            if (app->radialActive_)
+            {
+                if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE)
+                {
+                    app->closeRadialInteraction(true);
+                }
+                return;
+            }
+
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
             {
                 app->breakHeld_ = false;
@@ -1200,6 +1218,10 @@ namespace dolbuto
             {
                 if (app->mouseCaptured_ && app->runtime_ != nullptr)
                 {
+                    if (app->openRadialInteraction())
+                    {
+                        return;
+                    }
                     app->runtime_->gameplay().editBlockInView(
                         {app->playerPosition_.x, app->playerPosition_.y + app->currentEyeHeight(), app->playerPosition_.z},
                         renderViewDirection(app->camera_),
@@ -1225,6 +1247,10 @@ namespace dolbuto
 
             if (app->screen_ == GameClient::AppScreen::Game)
             {
+                if (app->radialActive_)
+                {
+                    return;
+                }
                 if (app->chatOpen_)
                 {
                     if (app->runtime_ != nullptr)
@@ -1263,6 +1289,12 @@ namespace dolbuto
 
     void GameClient::handleMouse(double x, double y)
     {
+        if (radialActive_)
+        {
+            updateRadialSelection(x, y);
+            return;
+        }
+
         if (screen_ != AppScreen::Game)
         {
             if (runtime_ != nullptr)
@@ -1297,6 +1329,151 @@ namespace dolbuto
         camera_.rotate(static_cast<float>(x - lastMouseX_), static_cast<float>(y - lastMouseY_));
         lastMouseX_ = x;
         lastMouseY_ = y;
+    }
+
+    bool GameClient::openRadialInteraction()
+    {
+        if (runtime_ == nullptr || screen_ != AppScreen::Game || chatOpen_)
+        {
+            return false;
+        }
+
+        const gameplay::ItemInteractionMenu menu = runtime_->gameplay().beginItemInteractionInView(
+            {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
+            renderViewDirection(camera_));
+        if (!menu.available || menu.actions.empty())
+        {
+            return false;
+        }
+
+        int width = 0;
+        int height = 0;
+        glfwGetWindowSize(window_, &width, &height);
+        if (width <= 0 || height <= 0)
+        {
+            return false;
+        }
+
+        radialActive_ = true;
+        radialRestoreMouseCaptured_ = mouseCaptured_;
+        radialActions_ = menu.actions;
+        radialSelectedActionIndex_.reset();
+        radialSelectedCandidateIndex_.reset();
+        if (radialActions_.size() == 1)
+        {
+            radialSelectedActionIndex_ = 0;
+        }
+        radialCenterX_ = static_cast<double>(width) * 0.5;
+        radialCenterY_ = static_cast<double>(height) * 0.5;
+        breakHeld_ = false;
+
+        runtime_->ui().setRadialMenu(radialActions_, radialSelectedActionIndex_, radialSelectedCandidateIndex_);
+        setMouseCaptured(false);
+        glfwSetCursorPos(window_, radialCenterX_, radialCenterY_);
+        runtime_->ui().mouseMove(radialCenterX_, radialCenterY_);
+        return true;
+    }
+
+    void GameClient::updateRadialSelection(double x, double y)
+    {
+        if (!radialActive_ || runtime_ == nullptr || radialActions_.empty())
+        {
+            return;
+        }
+
+        constexpr double DeadZoneRadius = 56.0;
+        constexpr double ActionOuterRadius = 132.0;
+        constexpr double TwoPi = 2.0 * static_cast<double>(Pi);
+        const double startAngle = -0.5 * static_cast<double>(Pi);
+        const double dx = x - radialCenterX_;
+        const double dy = y - radialCenterY_;
+        const double distanceSquared = dx * dx + dy * dy;
+
+        const auto angleIndex = [&](std::size_t count) -> std::size_t
+        {
+            const double step = TwoPi / static_cast<double>(count);
+            double relative = std::atan2(dy, dx) - startAngle;
+            while (relative < 0.0)
+            {
+                relative += TwoPi;
+            }
+            while (relative >= TwoPi)
+            {
+                relative -= TwoPi;
+            }
+
+            std::size_t index = static_cast<std::size_t>(std::floor((relative + step * 0.5) / step));
+            if (index >= count)
+            {
+                index = 0;
+            }
+            return index;
+        };
+
+        std::optional<std::size_t> selectedAction;
+        std::optional<std::size_t> selectedCandidate;
+        if (distanceSquared >= DeadZoneRadius * DeadZoneRadius)
+        {
+            if (distanceSquared < ActionOuterRadius * ActionOuterRadius)
+            {
+                selectedAction = angleIndex(radialActions_.size());
+            }
+            else
+            {
+                selectedAction = radialSelectedActionIndex_;
+                if (!selectedAction.has_value())
+                {
+                    selectedAction = angleIndex(radialActions_.size());
+                }
+                if (selectedAction.has_value() && *selectedAction < radialActions_.size())
+                {
+                    const std::size_t candidateCount = radialActions_[*selectedAction].candidateItemIds.size();
+                    if (candidateCount > 0)
+                    {
+                        selectedCandidate = angleIndex(candidateCount);
+                    }
+                }
+            }
+        }
+
+        if (selectedAction == radialSelectedActionIndex_ && selectedCandidate == radialSelectedCandidateIndex_)
+        {
+            return;
+        }
+
+        radialSelectedActionIndex_ = selectedAction;
+        radialSelectedCandidateIndex_ = selectedCandidate;
+        runtime_->ui().setRadialMenu(radialActions_, radialSelectedActionIndex_, radialSelectedCandidateIndex_);
+    }
+
+    void GameClient::closeRadialInteraction(bool execute)
+    {
+        if (!radialActive_)
+        {
+            return;
+        }
+
+        if (runtime_ != nullptr)
+        {
+            if (execute && radialSelectedActionIndex_.has_value() && radialSelectedCandidateIndex_.has_value())
+            {
+                runtime_->gameplay().executePendingItemInteraction(*radialSelectedActionIndex_, *radialSelectedCandidateIndex_);
+            }
+            else
+            {
+                runtime_->gameplay().cancelPendingItemInteraction();
+            }
+            runtime_->ui().hideRadialMenu();
+        }
+
+        radialActive_ = false;
+        radialActions_.clear();
+        radialSelectedActionIndex_.reset();
+        radialSelectedCandidateIndex_.reset();
+        if (screen_ == AppScreen::Game)
+        {
+            setMouseCaptured(radialRestoreMouseCaptured_);
+        }
     }
 
     void GameClient::toggleFullscreen()
@@ -1551,6 +1728,10 @@ namespace dolbuto
 
     void GameClient::setScreen(AppScreen screen)
     {
+        if (radialActive_)
+        {
+            closeRadialInteraction(false);
+        }
         if (chatOpen_ && screen != AppScreen::Game)
         {
             closeChatInput();

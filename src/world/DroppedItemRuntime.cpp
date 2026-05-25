@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <stdexcept>
 #include <utility>
 
@@ -104,6 +105,10 @@ namespace dolbuto::world
         entity.previousPosition = entity.position;
         entity.collecting = false;
         entity.collectAge = 0.0f;
+        if (entity.type == WorldEntityType::DroppedItem && entity.droppedItem.stack.count > 1)
+        {
+            entity.droppedItem.stack.count = 1;
+        }
         if (DroppedItemSystem::grounded(entity))
         {
             entity.renderRotationX = 0.0f;
@@ -141,15 +146,6 @@ namespace dolbuto::world
         if (entity.entityId == 0)
         {
             entity.entityId = allocateEntityId();
-        }
-
-        if (entity.type == WorldEntityType::DroppedItem)
-        {
-            mergeIntoNearby(entity, markDirty);
-            if (entity.droppedItem.stack.count == 0)
-            {
-                return true;
-            }
         }
 
         RuntimeChunk* chunk = runtimeChunkForEntity(entity);
@@ -210,19 +206,6 @@ namespace dolbuto::world
 
         loadedItemCount_ -= oldIt->second;
         droppedItemCountsByChunk_.erase(oldIt);
-    }
-
-    uint16_t DroppedItemRuntime::mergeIntoNearby(WorldEntity& source, const MarkDirtyFn& markDirty)
-    {
-        return DroppedItemSystem::mergeIntoNearby(
-            source,
-            worldRuntime().chunks(),
-            itemDefinitions(),
-            markDirty,
-            [this](uint64_t key)
-            {
-                refreshChunkTracking(key);
-            });
     }
 
     void DroppedItemRuntime::spawnBlockDrops(int x, int y, int z, const BlockDefinition& block, const MarkDirtyFn& markDirty)
@@ -339,6 +322,119 @@ namespace dolbuto::world
         }
 
         return found;
+    }
+
+    bool DroppedItemRuntime::targetInView(DVec3 origin, Vec3 direction, Target& target) const
+    {
+        WorldEntityHandle itemHandle{};
+        if (!raycast(origin, direction, itemHandle))
+        {
+            return false;
+        }
+
+        const RuntimeChunk* chunk = worldRuntime().find(itemHandle.chunkKey);
+        if (chunk == nullptr || !chunk->data ||
+            itemHandle.index >= chunk->data->entities.size())
+        {
+            return false;
+        }
+
+        const WorldEntity& item = chunk->data->entities[itemHandle.index];
+        if (item.type != WorldEntityType::DroppedItem ||
+            item.droppedItem.stack.itemId == 0 ||
+            item.droppedItem.stack.count == 0 ||
+            item.collecting)
+        {
+            return false;
+        }
+
+        target.handle = itemHandle;
+        target.entityId = item.entityId;
+        target.stack = item.droppedItem.stack;
+        target.position = item.position;
+        return true;
+    }
+
+    bool DroppedItemRuntime::replaceOneTargetItem(
+        const WorldEntityHandle& itemHandle,
+        uint64_t entityId,
+        uint16_t resultItemId,
+        const MarkDirtyFn& markDirty)
+    {
+        if (resultItemId == 0 || static_cast<std::size_t>(resultItemId) >= itemDefinitions().size())
+        {
+            return false;
+        }
+        if (itemDefinitions()[resultItemId].stackSize == 0)
+        {
+            return false;
+        }
+
+        uint64_t chunkKey = itemHandle.chunkKey;
+        RuntimeChunk* chunk = worldRuntime().find(chunkKey);
+        std::size_t targetIndex = itemHandle.index;
+        if (chunk == nullptr ||
+            !chunk->data ||
+            targetIndex >= chunk->data->entities.size() ||
+            chunk->data->entities[targetIndex].entityId != entityId)
+        {
+            chunk = nullptr;
+            for (auto& entry : worldRuntime().chunks())
+            {
+                RuntimeChunk& candidateChunk = entry.second;
+                if (!candidateChunk.data)
+                {
+                    continue;
+                }
+
+                for (std::size_t i = 0; i < candidateChunk.data->entities.size(); ++i)
+                {
+                    if (candidateChunk.data->entities[i].entityId == entityId)
+                    {
+                        chunk = &candidateChunk;
+                        chunkKey = entry.first;
+                        targetIndex = i;
+                        break;
+                    }
+                }
+                if (chunk != nullptr)
+                {
+                    break;
+                }
+            }
+            if (chunk == nullptr || !chunk->data)
+            {
+                return false;
+            }
+        }
+
+        WorldEntity& target = chunk->data->entities[targetIndex];
+        if (target.entityId != entityId ||
+            target.type != WorldEntityType::DroppedItem ||
+            target.droppedItem.stack.itemId == 0 ||
+            target.droppedItem.stack.count == 0 ||
+            target.collecting)
+        {
+            return false;
+        }
+
+        constexpr float InteractionBounceVelocity = 2.4f;
+        constexpr float InteractionSpin = 7.0f;
+        const Vec3 resultPosition = target.position;
+        target.previousPosition = target.position;
+        target.position = resultPosition;
+        target.velocity.y = std::max(target.velocity.y, InteractionBounceVelocity);
+        target.droppedItem.stack = ItemStack{resultItemId, 1};
+        target.renderSpinX = InteractionSpin;
+        target.renderSpin = InteractionSpin;
+        target.renderSpinZ = InteractionSpin;
+        DroppedItemSystem::setGrounded(target, false);
+        refreshChunkTracking(chunkKey);
+        if (markDirty)
+        {
+            markDirty(*chunk);
+        }
+        return true;
     }
 
     bool DroppedItemRuntime::pickupInView(DVec3 origin, Vec3 direction, const MarkDirtyFn& markDirty)

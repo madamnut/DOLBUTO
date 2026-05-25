@@ -5,6 +5,7 @@
 #include "renderer/RendererGameplayBridge.h"
 #include "renderer/RendererTerrainRuntimeBridge.h"
 #include "renderer/RendererUiRuntimeBridge.h"
+#include "world/DroppedItemSystem.h"
 #include "world/SkyLightSystem.h"
 
 #include <cmath>
@@ -19,6 +20,7 @@ namespace dolbuto
         constexpr float TerrainNearPlane = 0.1f;
         constexpr float TerrainFarPlane = 4000.0f;
         constexpr float ViewmodelFieldOfViewRadians = 1.0471975512f;
+        constexpr std::size_t ItemInstanceFrameStride = world::DroppedItemSystem::MaxDroppedItemRenderInstances + 1u;
 
         struct Mat4
         {
@@ -137,6 +139,7 @@ namespace dolbuto
         push.fluidWaterParams[1] = skyBrightness;
 
         std::vector<DroppedItemRenderPath::RenderInstance> renderInstances{heldItem};
+        const std::size_t frameInstanceOffset = static_cast<std::size_t>(vulkan_.currentFrame) * ItemInstanceFrameStride;
         droppedItemRenderPath_.draw(
             commandBuffer,
             vulkan_.swapchainExtent,
@@ -144,7 +147,8 @@ namespace dolbuto
             vulkan_.particlePipelineLayout,
             rendererAssets_.itemTextureArray,
             push,
-            renderInstances);
+            renderInstances,
+            frameInstanceOffset + world::DroppedItemSystem::MaxDroppedItemRenderInstances);
     }
 
     void Renderer::drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, Vec3 playerPosition)
@@ -227,6 +231,7 @@ namespace dolbuto
             vulkan_.particlePipelineLayout,
             rendererAssets_.itemTextureArray,
             push,
-            renderInstances);
+            renderInstances,
+            static_cast<std::size_t>(vulkan_.currentFrame) * ItemInstanceFrameStride);
     }
 }

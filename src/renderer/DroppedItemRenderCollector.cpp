@@ -4,7 +4,6 @@
 #include "world/SkyLightSystem.h"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 
 namespace dolbuto
@@ -100,23 +99,6 @@ namespace dolbuto
             return true;
         }
 
-        std::size_t visualCopyCount(uint16_t count)
-        {
-            if (count >= 49)
-            {
-                return 4;
-            }
-            if (count >= 17)
-            {
-                return 3;
-            }
-            if (count >= 2)
-            {
-                return 2;
-            }
-            return 1;
-        }
-
         int blockCoordinateXz(float worldCoordinate)
         {
             return static_cast<int>(std::floor(worldCoordinate + 0.5f));
@@ -137,16 +119,10 @@ namespace dolbuto
         }
 
         const std::size_t itemCount = std::min(input.loadedItemCount, MaxDroppedItems);
-        renderInstances.reserve(std::min<std::size_t>(itemCount * 4u, MaxDroppedItemRenderInstances));
+        renderInstances.reserve(std::min<std::size_t>(itemCount, MaxDroppedItemRenderInstances));
 
         const Vec3 cameraPosition = input.cameraPosition;
         const Frustum frustum = makeFrustum(input.camera, {}, input.aspect, input.fovRadians);
-        const std::array<Vec3, 4> visualOffsets{{
-            {0.0f, 0.0f, 0.0f},
-            {-0.08f, 0.0f, -0.04f},
-            {0.08f, 0.0f, 0.04f},
-            {-0.02f, 0.0f, 0.10f}
-        }};
 
         std::size_t renderedItems = 0;
         for (const auto& trackedChunk : input.droppedItemCountsByChunk)
@@ -221,25 +197,19 @@ namespace dolbuto
                     : world::packLight(world::MaxSkyLight, 0);
                 const float skyLight = static_cast<float>(world::skyLightFromPacked(packedLight)) / static_cast<float>(world::MaxSkyLight);
                 const float blockLight = static_cast<float>(world::blockLightFromPacked(packedLight)) / static_cast<float>(world::MaxSkyLight);
-                const std::size_t copies = visualCopyCount(item.droppedItem.stack.count);
-                for (std::size_t copy = 0; copy < copies && renderInstances.size() < MaxDroppedItemRenderInstances; ++copy)
-                {
-                    const Vec3& offset = visualOffsets[copy];
-                    const float copyRotationY = item.renderRotation + static_cast<float>(copy) * 1.5707963268f;
-                    DroppedItemRenderPath::RenderInstance renderInstance{};
-                    renderInstance.itemId = item.droppedItem.stack.itemId;
-                    renderInstance.instance.centerX = interpolatedPosition.x + offset.x;
-                    renderInstance.instance.centerY = interpolatedPosition.y + DroppedItemThickness * 0.5f + static_cast<float>(copy) * DroppedItemThickness;
-                    renderInstance.instance.centerZ = interpolatedPosition.z + offset.z;
-                    renderInstance.instance.rotationX = item.renderRotationX;
-                    renderInstance.instance.rotationY = copyRotationY;
-                    renderInstance.instance.rotationZ = item.renderRotationZ;
-                    renderInstance.instance.textureLayer = layer;
-                    renderInstance.instance.mipDistanceScale = 1.0f;
-                    renderInstance.instance.skyLight = skyLight;
-                    renderInstance.instance.blockLight = blockLight;
-                    renderInstances.push_back(renderInstance);
-                }
+                DroppedItemRenderPath::RenderInstance renderInstance{};
+                renderInstance.itemId = item.droppedItem.stack.itemId;
+                renderInstance.instance.centerX = interpolatedPosition.x;
+                renderInstance.instance.centerY = interpolatedPosition.y + DroppedItemThickness * 0.5f;
+                renderInstance.instance.centerZ = interpolatedPosition.z;
+                renderInstance.instance.rotationX = item.renderRotationX;
+                renderInstance.instance.rotationY = item.renderRotation;
+                renderInstance.instance.rotationZ = item.renderRotationZ;
+                renderInstance.instance.textureLayer = layer;
+                renderInstance.instance.mipDistanceScale = 1.0f;
+                renderInstance.instance.skyLight = skyLight;
+                renderInstance.instance.blockLight = blockLight;
+                renderInstances.push_back(renderInstance);
                 ++renderedItems;
             }
         }

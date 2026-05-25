@@ -81,7 +81,8 @@ namespace dolbuto
             VkPipelineLayout pipelineLayout,
             const Texture& texture,
             const PushConstants& push,
-            std::vector<RenderInstance>& renderInstances);
+            std::vector<RenderInstance>& renderInstances,
+            std::size_t instanceOffset = 0);
 
     private:
         struct ItemSpriteGpuMesh

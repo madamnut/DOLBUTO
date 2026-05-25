@@ -119,6 +119,7 @@ namespace dolbuto::game
             itemDefinition.slotTexture = slotTexture;
             itemDefinition.droppedTexture = droppedTexture;
             itemDefinition.heldTexture = heldTexture;
+            itemDefinition.actions = definition.actions;
             itemDefinition.stackSize = definition.stackSize;
             itemDefinition.droppedRender = parseItemRenderType(definition.droppedRender);
             itemDefinition.heldRender = parseItemRenderType(definition.heldRender);
@@ -134,6 +135,41 @@ namespace dolbuto::game
             if (!definition.key.empty())
             {
                 content.itemIdByKey_[definition.key] = definition.id;
+            }
+        }
+
+        const std::filesystem::path interactionPath = assetDirectory / "data" / "interactions.json";
+        if (std::filesystem::exists(interactionPath))
+        {
+            const std::vector<char> interactionData = readContentFile(interactionPath);
+            const std::string interactionText(interactionData.begin(), interactionData.end());
+            const std::vector<data::ParsedInteractionDefinition> parsedInteractions = data::parseInteractionDefinitions(interactionText);
+            for (const data::ParsedInteractionDefinition& definition : parsedInteractions)
+            {
+                const auto targetIt = content.itemIdByKey_.find(definition.target);
+                if (targetIt == content.itemIdByKey_.end())
+                {
+                    log::warn("Interaction references unknown target item key: " + definition.action + " -> " + definition.target);
+                    continue;
+                }
+
+                ItemInteractionRecipe recipe{};
+                recipe.action = definition.action;
+                recipe.targetItemId = targetIt->second;
+                for (const std::string& candidate : definition.candidates)
+                {
+                    const auto candidateIt = content.itemIdByKey_.find(candidate);
+                    if (candidateIt == content.itemIdByKey_.end())
+                    {
+                        log::warn("Interaction references unknown candidate item key: " + definition.action + " -> " + candidate);
+                        continue;
+                    }
+                    recipe.candidateItemIds.push_back(candidateIt->second);
+                }
+                if (!recipe.action.empty() && recipe.targetItemId != 0 && !recipe.candidateItemIds.empty())
+                {
+                    content.itemInteractionRecipes_.push_back(std::move(recipe));
+                }
             }
         }
 
@@ -313,6 +349,11 @@ namespace dolbuto::game
     const std::unordered_map<std::string, uint16_t>& ClientContent::itemIdByKey() const
     {
         return itemIdByKey_;
+    }
+
+    const std::vector<ItemInteractionRecipe>& ClientContent::itemInteractionRecipes() const
+    {
+        return itemInteractionRecipes_;
     }
 
     const std::vector<std::string>& ClientContent::blockTextureNames() const

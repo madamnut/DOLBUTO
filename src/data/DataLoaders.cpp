@@ -357,6 +357,47 @@ namespace dolbuto::data
 
             return objects;
         }
+
+        std::vector<std::string> jsonStringArrayValues(const std::string& array)
+        {
+            std::vector<std::string> values;
+            bool inString = false;
+            bool escaped = false;
+            std::string value;
+            for (size_t i = 0; i < array.size(); ++i)
+            {
+                const char c = array[i];
+                if (!inString)
+                {
+                    if (c == '"')
+                    {
+                        inString = true;
+                        value.clear();
+                    }
+                    continue;
+                }
+
+                if (escaped)
+                {
+                    value.push_back(c);
+                    escaped = false;
+                    continue;
+                }
+                if (c == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                if (c == '"')
+                {
+                    values.push_back(value);
+                    inString = false;
+                    continue;
+                }
+                value.push_back(c);
+            }
+            return values;
+        }
     }
 
     std::vector<ParsedItemDefinition> parseItemDefinitions(const std::string& text)
@@ -435,6 +476,10 @@ namespace dolbuto::data
                 {
                     definition.heldTexture = *texture;
                 }
+            }
+            if (const std::optional<std::string> actions = jsonArrayField(object, "actions"); actions.has_value())
+            {
+                definition.actions = jsonStringArrayValues(*actions);
             }
 
             definitions.push_back(std::move(definition));
@@ -586,6 +631,34 @@ namespace dolbuto::data
                 definition.lightAttenuation = static_cast<uint8_t>(std::clamp(*lightAttenuation, 0, 15));
             }
             definitions.push_back(std::move(definition));
+        }
+
+        return definitions;
+    }
+
+    std::vector<ParsedInteractionDefinition> parseInteractionDefinitions(const std::string& text)
+    {
+        std::vector<ParsedInteractionDefinition> definitions;
+
+        for (const std::string& object : jsonTopLevelObjects(text))
+        {
+            ParsedInteractionDefinition definition{};
+            if (const std::optional<std::string> action = jsonStringField(object, "action"); action.has_value())
+            {
+                definition.action = *action;
+            }
+            if (const std::optional<std::string> target = jsonStringField(object, "target"); target.has_value())
+            {
+                definition.target = *target;
+            }
+            if (const std::optional<std::string> candidates = jsonArrayField(object, "candidates"); candidates.has_value())
+            {
+                definition.candidates = jsonStringArrayValues(*candidates);
+            }
+            if (!definition.action.empty() && !definition.target.empty() && !definition.candidates.empty())
+            {
+                definitions.push_back(std::move(definition));
+            }
         }
 
         return definitions;

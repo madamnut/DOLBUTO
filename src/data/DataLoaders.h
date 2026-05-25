@@ -53,9 +53,18 @@ namespace dolbuto::data
         std::string heldTexture = "none";
         std::string droppedRender = "extruded_sprite";
         std::string heldRender = "extruded_sprite";
+        std::vector<std::string> actions;
+    };
+
+    struct ParsedInteractionDefinition
+    {
+        std::string action;
+        std::string target;
+        std::vector<std::string> candidates;
     };
 
     std::vector<ParsedItemDefinition> parseItemDefinitions(const std::string& text);
     std::vector<ParsedBlockDefinition> parseBlockDefinitions(const std::string& text);
     std::vector<ParsedFluidDefinition> parseFluidDefinitions(const std::string& text);
+    std::vector<ParsedInteractionDefinition> parseInteractionDefinitions(const std::string& text);
 }

@@ -176,7 +176,8 @@ namespace dolbuto::gameplay
             return false;
         }
 
-        const uint16_t dropCount = wholeStack ? slot.count : 1u;
+        (void)wholeStack;
+        const uint16_t dropCount = 1u;
         ItemStack dropStack{};
         dropStack.itemId = slot.itemId;
         dropStack.count = dropCount;
@@ -188,6 +189,93 @@ namespace dolbuto::gameplay
         }
 
         return playerInventory_.removeFromSlot(slotIndex, dropCount);
+    }
+
+    ItemInteractionMenu ClientGameplayRuntime::beginItemInteractionInView(
+        DVec3 origin,
+        Vec3 direction,
+        const std::vector<ItemInteractionRecipe>& recipes)
+    {
+        pendingItemInteraction_ = {};
+
+        const std::size_t slotIndex = static_cast<std::size_t>(std::clamp(hotbarSelectedSlot_, 0, 9));
+        const ItemStack& heldStack = playerInventory_.slot(slotIndex);
+        const std::vector<ItemDefinition>& definitions = itemDefinitions();
+        if (heldStack.itemId == 0 ||
+            heldStack.count == 0 ||
+            static_cast<std::size_t>(heldStack.itemId) >= definitions.size())
+        {
+            return {};
+        }
+
+        const ItemDefinition& heldDefinition = definitions[heldStack.itemId];
+        if (heldDefinition.actions.empty())
+        {
+            return {};
+        }
+
+        world::DroppedItemRuntime::Target target{};
+        if (!droppedItemRuntime_.targetInView(origin, direction, target) ||
+            target.stack.itemId == 0 ||
+            static_cast<std::size_t>(target.stack.itemId) >= definitions.size())
+        {
+            return {};
+        }
+
+        ItemInteractionMenu menu{};
+        menu.targetItemId = target.stack.itemId;
+        for (const std::string& action : heldDefinition.actions)
+        {
+            for (const ItemInteractionRecipe& recipe : recipes)
+            {
+                if (recipe.action != action ||
+                    recipe.targetItemId != target.stack.itemId ||
+                    recipe.candidateItemIds.empty())
+                {
+                    continue;
+                }
+
+                menu.actions.push_back(ItemInteractionActionMenu{
+                    action,
+                    recipe.candidateItemIds
+                });
+                break;
+            }
+        }
+
+        if (menu.actions.empty())
+        {
+            return {};
+        }
+
+        menu.available = true;
+        pendingItemInteraction_.active = true;
+        pendingItemInteraction_.targetHandle = target.handle;
+        pendingItemInteraction_.targetEntityId = target.entityId;
+        pendingItemInteraction_.actions = menu.actions;
+        return menu;
+    }
+
+    bool ClientGameplayRuntime::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, const MarkDirtyFn& markDirty)
+    {
+        if (!pendingItemInteraction_.active ||
+            actionIndex >= pendingItemInteraction_.actions.size() ||
+            candidateIndex >= pendingItemInteraction_.actions[actionIndex].candidateItemIds.size())
+        {
+            pendingItemInteraction_ = {};
+            return false;
+        }
+
+        const uint16_t resultItemId = pendingItemInteraction_.actions[actionIndex].candidateItemIds[candidateIndex];
+        const WorldEntityHandle targetHandle = pendingItemInteraction_.targetHandle;
+        const uint64_t targetEntityId = pendingItemInteraction_.targetEntityId;
+        pendingItemInteraction_ = {};
+        return droppedItemRuntime_.replaceOneTargetItem(targetHandle, targetEntityId, resultItemId, markDirty);
+    }
+
+    void ClientGameplayRuntime::cancelPendingItemInteraction()
+    {
+        pendingItemInteraction_ = {};
     }
 
     bool ClientGameplayRuntime::updateDroppedItems(

@@ -123,4 +123,4 @@ ECS는 현재 필수 구조로 도입하지 않는다.
 ## 현재 전환 상태
 
 `Renderer`는 아직 terrain job callback, 일부 gameplay event 실행 시점, UI/audio bridge, GPU mesh install 경계를 유지한다.
-0.0.0.2에서는 이 책임들을 renderer 밖의 runtime 시스템으로 점진적으로 옮긴다.
+0.0.0.3에서는 0.0.0.2에서 분리한 runtime 시스템 경계를 유지하면서 새 gameplay/world 기능을 그 경계 안에 배치한다.

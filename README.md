@@ -24,11 +24,15 @@ Vulkan / C++
 - W/S: 전후 이동
 - A/D: 좌우 이동
 - Space: fly 모드에서는 상승, ground 모드에서는 점프
+- Space 더블탭: Sandbox 모드에서 fly/ground 전환
 - Shift: fly 모드에서 하강
+- Shift: ground 모드에서 웅크리기
+- Ctrl: ground 모드에서 달리기, fly 모드에서 가속
+- Enter: 채팅/명령어 입력 열기
 - F: 바라보는 드랍 아이템 획득
 - Q: 선택된 핫바 아이템 1개 버리기
 - Shift+Q: 선택된 핫바 아이템 스택 전체 버리기
-- V: fly 모드와 ground 모드 전환
+- M: 배치 모드 rock/glowing_rock 전환
 - E: 인벤토리 열기/닫기
 - F1: 핫바 HUD와 크로스헤어 표시 전환
 - F2: 스크린샷 저장
@@ -38,13 +42,13 @@ Vulkan / C++
 - F6: 기후 오버레이 전환
 - F11: 전체화면 전환
 - 좌클릭: 선택한 블럭 파괴
-- 우클릭: 선택한 위치에 rock 블럭 배치
+- 우클릭: 선택한 위치에 현재 배치 모드 블록 배치
 - Esc: 게임에서는 일시정지, 인벤토리/일시정지에서는 게임 복귀
 
 ## 디버그 텍스트
 
 - 좌상단: FPS, 프레임 시간, 플레이어 위치, yaw/pitch, 4방위 시야 방향, LOOKAT, 기후, 시간, 시드
-- 우상단: `DOLBUTO 0.0.0.2`
+- 우상단: `DOLBUTO 0.0.0.3`
 - 우상단 버전 아래: CPU/GPU 이름, Vulkan API 버전, driver 버전, 해상도
 - 우상단 하단: VRAM, terrain draw, face, quad 통계
 - 하단 디버그 텍스트와 peak profiler는 현재 표시하지 않는다.

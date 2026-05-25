@@ -2,12 +2,14 @@
 
 #include "game/ClientFrame.h"
 #include "game/ClientUiTypes.h"
+#include "gameplay/ClientGameplayRuntime.h"
 #include "gameplay/PlayerInventory.h"
 #include "items/ItemData.h"
 #include "world/TerrainBuilder.h"
 #include "world/WorldTypes.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -64,6 +66,9 @@ namespace dolbuto::game
             bool editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale);
             bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
             bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction);
+            gameplay::ItemInteractionMenu beginItemInteractionInView(DVec3 origin, Vec3 direction);
+            bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex);
+            void cancelPendingItemInteraction();
             std::array<ItemStack, gameplay::PlayerInventory::SlotCount> inventorySnapshot() const;
             void setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots);
 
@@ -91,6 +96,11 @@ namespace dolbuto::game
             void setOptionsLobbyBackground(bool lobbyBackground);
             void setWorldCreateGameMode(bool sandbox);
             void setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst);
+            void setRadialMenu(
+                const std::vector<gameplay::ItemInteractionActionMenu>& actions,
+                std::optional<std::size_t> selectedActionIndex,
+                std::optional<std::size_t> selectedCandidateIndex);
+            void hideRadialMenu();
             void mouseMove(double x, double y);
             void mouseButton(int button, bool pressed, int modifiers);
             void mouseWheel(double yOffset);
