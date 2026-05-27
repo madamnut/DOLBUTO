@@ -5,6 +5,8 @@
 
 #include <cstdint>
 #include <functional>
+#include <string>
+#include <vector>
 
 namespace dolbuto::gameplay
 {
@@ -35,6 +37,14 @@ namespace dolbuto::gameplay
         bool spawnMiningParticle = false;
         BlockRaycastHit hit{};
         uint16_t block = 0;
+        uint16_t durabilityCost = 0;
+    };
+
+    struct BlockBreakTool
+    {
+        uint16_t level = 0;
+        std::vector<std::string> actions;
+        bool durable = false;
     };
 
     class BlockInteractionSystem
@@ -81,6 +91,7 @@ namespace dolbuto::gameplay
             Vec3 direction,
             bool breaking,
             float deltaSeconds,
+            const BlockBreakTool& tool,
             const BlockSampler& blockAtWorld,
             const BlockDefinitionProvider& blockDefinition);
 

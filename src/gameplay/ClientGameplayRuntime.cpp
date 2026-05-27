@@ -69,7 +69,7 @@ namespace dolbuto::gameplay
 
         if (!placeBlock)
         {
-            return breakBlockAtHit(hit, blockAtWorld, blockDefinition, setBlockAtWorld, markDirty);
+            return breakBlockAtHit(hit, 0, blockAtWorld, blockDefinition, setBlockAtWorld, markDirty);
         }
 
         if (BlockInteractionSystem::blockIntersectsPlayerCollider(
@@ -98,6 +98,7 @@ namespace dolbuto::gameplay
 
     BlockEditResult ClientGameplayRuntime::breakBlockAtHit(
         const BlockRaycastHit& hit,
+        uint16_t durabilityCost,
         const BlockSampler& blockAtWorld,
         const BlockDefinitionProvider& blockDefinition,
         const SetBlockFn& setBlockAtWorld,
@@ -126,6 +127,7 @@ namespace dolbuto::gameplay
         result.type = BlockEditType::Break;
         result.hit = hit;
         result.block = destroyedBlock;
+        result.inventoryChanged = damageSelectedHotbarItem(durabilityCost);
         return result;
     }
 
@@ -143,6 +145,7 @@ namespace dolbuto::gameplay
             direction,
             breaking,
             deltaSeconds,
+            currentBlockBreakTool(),
             blockAtWorld,
             blockDefinition);
     }
@@ -181,6 +184,7 @@ namespace dolbuto::gameplay
         ItemStack dropStack{};
         dropStack.itemId = slot.itemId;
         dropStack.count = dropCount;
+        dropStack.durability = slot.durability;
 
         WorldEntity item = droppedItemRuntime_.createManualDropEntity(dropStack, playerPosition, direction);
         if (!droppedItemRuntime_.addWorldEntity(std::move(item), markDirty))
@@ -209,7 +213,7 @@ namespace dolbuto::gameplay
         }
 
         const ItemDefinition& heldDefinition = definitions[heldStack.itemId];
-        if (heldDefinition.actions.empty())
+        if (heldDefinition.useActions.empty())
         {
             return {};
         }
@@ -224,7 +228,7 @@ namespace dolbuto::gameplay
 
         ItemInteractionMenu menu{};
         menu.targetItemId = target.stack.itemId;
-        for (const std::string& action : heldDefinition.actions)
+        for (const std::string& action : heldDefinition.useActions)
         {
             for (const ItemInteractionRecipe& recipe : recipes)
             {
@@ -237,7 +241,9 @@ namespace dolbuto::gameplay
 
                 menu.actions.push_back(ItemInteractionActionMenu{
                     action,
-                    recipe.candidateItemIds
+                    recipe.candidateItemIds,
+                    recipe.resultCountMin,
+                    recipe.resultCountMax
                 });
                 break;
             }
@@ -250,6 +256,7 @@ namespace dolbuto::gameplay
 
         menu.available = true;
         pendingItemInteraction_.active = true;
+        pendingItemInteraction_.heldSlotIndex = slotIndex;
         pendingItemInteraction_.targetHandle = target.handle;
         pendingItemInteraction_.targetEntityId = target.entityId;
         pendingItemInteraction_.actions = menu.actions;
@@ -267,10 +274,19 @@ namespace dolbuto::gameplay
         }
 
         const uint16_t resultItemId = pendingItemInteraction_.actions[actionIndex].candidateItemIds[candidateIndex];
+        const uint16_t resultCountMin = pendingItemInteraction_.actions[actionIndex].resultCountMin;
+        const uint16_t resultCountMax = pendingItemInteraction_.actions[actionIndex].resultCountMax;
+        const std::size_t heldSlotIndex = pendingItemInteraction_.heldSlotIndex;
         const WorldEntityHandle targetHandle = pendingItemInteraction_.targetHandle;
         const uint64_t targetEntityId = pendingItemInteraction_.targetEntityId;
         pendingItemInteraction_ = {};
-        return droppedItemRuntime_.replaceOneTargetItem(targetHandle, targetEntityId, resultItemId, markDirty);
+        if (!droppedItemRuntime_.replaceTargetItems(targetHandle, targetEntityId, resultItemId, resultCountMin, resultCountMax, markDirty))
+        {
+            return false;
+        }
+
+        playerInventory_.damageSlot(heldSlotIndex, 1, itemDefinitions());
+        return true;
     }
 
     void ClientGameplayRuntime::cancelPendingItemInteraction()
@@ -426,5 +442,35 @@ namespace dolbuto::gameplay
     bool ClientGameplayRuntime::closeInventoryCursor()
     {
         return playerInventory_.closeCursor(itemDefinitions());
+    }
+
+    BlockBreakTool ClientGameplayRuntime::currentBlockBreakTool() const
+    {
+        BlockBreakTool tool{};
+        const std::size_t slotIndex = static_cast<std::size_t>(std::clamp(hotbarSelectedSlot_, 0, 9));
+        const ItemStack& heldStack = playerInventory_.slot(slotIndex);
+        const std::vector<ItemDefinition>& definitions = itemDefinitions();
+        if (heldStack.itemId == 0 ||
+            heldStack.count == 0 ||
+            static_cast<std::size_t>(heldStack.itemId) >= definitions.size())
+        {
+            return tool;
+        }
+
+        const ItemDefinition& definition = definitions[heldStack.itemId];
+        tool.level = definition.breakLevel;
+        tool.actions = definition.breakActions;
+        tool.durable = definition.maxDurability > 0;
+        return tool;
+    }
+
+    bool ClientGameplayRuntime::damageSelectedHotbarItem(uint16_t damage)
+    {
+        if (damage == 0)
+        {
+            return false;
+        }
+        const std::size_t slotIndex = static_cast<std::size_t>(std::clamp(hotbarSelectedSlot_, 0, 9));
+        return playerInventory_.damageSlot(slotIndex, damage, itemDefinitions());
     }
 }

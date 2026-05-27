@@ -39,6 +39,7 @@ namespace dolbuto
     {
         particleRenderPath_.createBuffers();
         droppedItemRenderPath_.createBuffers(rendererAssets_.itemSpriteMeshes);
+        radialMenuRenderPath_.createBuffers();
     }
 
     void Renderer::createSelectionLineBuffer()

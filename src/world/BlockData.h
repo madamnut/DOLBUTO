@@ -57,6 +57,8 @@ namespace dolbuto
         float alphaBlend = 1.0f;
         float mipDistanceScale = 1.0f;
         float hardness = -1.0f;
+        uint16_t breakLevel = 0;
+        std::string breakAction = "none";
         uint8_t lightAttenuation = 15;
         uint8_t lightEmission = 0;
         bool randomOffset = false;

@@ -119,8 +119,11 @@ namespace dolbuto::game
             itemDefinition.slotTexture = slotTexture;
             itemDefinition.droppedTexture = droppedTexture;
             itemDefinition.heldTexture = heldTexture;
-            itemDefinition.actions = definition.actions;
+            itemDefinition.useActions = definition.useActions;
+            itemDefinition.breakActions = definition.breakActions;
             itemDefinition.stackSize = definition.stackSize;
+            itemDefinition.breakLevel = definition.breakLevel;
+            itemDefinition.maxDurability = definition.maxDurability;
             itemDefinition.droppedRender = parseItemRenderType(definition.droppedRender);
             itemDefinition.heldRender = parseItemRenderType(definition.heldRender);
             if (droppedTexture != "none")
@@ -156,6 +159,8 @@ namespace dolbuto::game
                 ItemInteractionRecipe recipe{};
                 recipe.action = definition.action;
                 recipe.targetItemId = targetIt->second;
+                recipe.resultCountMin = definition.resultCountMin;
+                recipe.resultCountMax = definition.resultCountMax;
                 for (const std::string& candidate : definition.candidates)
                 {
                     const auto candidateIt = content.itemIdByKey_.find(candidate);
@@ -209,6 +214,8 @@ namespace dolbuto::game
             blockDefinition.alphaBlend = definition.alphaBlend;
             blockDefinition.mipDistanceScale = definition.mipDistanceScale;
             blockDefinition.hardness = definition.hardness;
+            blockDefinition.breakLevel = definition.breakLevel;
+            blockDefinition.breakAction = definition.breakAction;
             blockDefinition.lightAttenuation = definition.lightAttenuation;
             blockDefinition.lightEmission = definition.lightEmission;
             blockDefinition.randomOffset = definition.randomOffset;

@@ -352,6 +352,7 @@ namespace dolbuto::save
             writeU8(payload, static_cast<uint8_t>(entity.flags & WorldEntityFlagGrounded));
             writeU16(payload, entity.droppedItem.stack.itemId);
             writeU16(payload, entity.droppedItem.stack.count);
+            writeU16(payload, entity.droppedItem.stack.durability);
             ++writtenEntities;
         }
         payload[entityCountOffset] = static_cast<uint8_t>(writtenEntities & 0xFFu);
@@ -487,6 +488,15 @@ namespace dolbuto::save
                 value.entities.reserve(entityCount);
                 const float worldXStart = static_cast<float>(chunkX * ChunkSizeX);
                 const float worldZStart = static_cast<float>(chunkZ * ChunkSizeZ);
+                constexpr size_t DroppedItemEntityLegacyBytes = 39;
+                constexpr size_t DroppedItemEntityBytes = 41;
+                const size_t entityBytesWithRevision = payload.size() >= offset + 8 ? payload.size() - offset - 8 : 0;
+                const bool hasEntityDurability = entityBytesWithRevision == static_cast<size_t>(entityCount) * DroppedItemEntityBytes;
+                if (entityBytesWithRevision != static_cast<size_t>(entityCount) * DroppedItemEntityLegacyBytes &&
+                    !hasEntityDurability)
+                {
+                    return std::nullopt;
+                }
                 for (uint16_t i = 0; i < entityCount; ++i)
                 {
                     WorldEntity entity{};
@@ -512,6 +522,7 @@ namespace dolbuto::save
                     }
                     entity.droppedItem.stack.itemId = readU16(payload, offset);
                     entity.droppedItem.stack.count = readU16(payload, offset);
+                    entity.droppedItem.stack.durability = hasEntityDurability ? readU16(payload, offset) : 0;
                     if (entity.entityId != 0 &&
                         entity.droppedItem.stack.itemId != 0 &&
                         entity.droppedItem.stack.count != 0)

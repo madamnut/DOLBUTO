@@ -252,7 +252,8 @@ namespace dolbuto
             frame.gameSceneRenderEnabled,
             frame.showFirstPersonHand,
             frame.heldItemId,
-            frame.worldTicks);
+            frame.worldTicks,
+            frame.radialMenu);
         recordMax(game::ClientPerfCounter::RenderRecord, sectionStart);
 
         VkSemaphore waitSemaphores[] = {vulkan_.imageAvailableSemaphores[vulkan_.currentFrame]};
@@ -366,7 +367,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, Vec3 playerPosition, uint8_t playerPackedLight, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, Vec3 playerPosition, uint8_t playerPackedLight, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -507,6 +508,15 @@ namespace dolbuto
                 textRenderPath_,
                 vulkan_.swapchainExtent,
                 vulkan_.pipelineLayout);
+        }
+        if (gameSceneRenderEnabled && menuOverlayMode == 0 && radialMenu.visible)
+        {
+            radialMenuRenderPath_.draw(
+                commandBuffer,
+                vulkan_.pipelineLayout,
+                rendererAssets_.white,
+                vulkan_.swapchainExtent,
+                radialMenu);
         }
         if (!uiRuntimeBridge_->render(commandBuffer, menuOverlayMode, hudVisible))
         {

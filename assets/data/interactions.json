@@ -1,11 +1,33 @@
 [
     {
-        "action": "knapping",
+        "action": "chip",
         "target": "stone_shard",
         "candidates": [
-            "dirt_pile",
-            "leaf",
-            "branch"
+            "stone_chopper"
+        ]
+    },
+    {
+        "action": "smash",
+        "target": "stone_shard",
+        "min": 1,
+        "max": 2,
+        "candidates": [
+            "stone_flake"
+        ]
+    },
+    {
+        "action": "chip",
+        "target": "stone_flake",
+        "candidates": [
+            "stone_blade",
+            "stone_scraper"
+        ]
+    },
+    {
+        "action": "scrape",
+        "target": "plant",
+        "candidates": [
+            "plant_fiber"
         ]
     }
 ]

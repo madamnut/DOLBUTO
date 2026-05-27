@@ -30,12 +30,15 @@ namespace dolbuto::gameplay
         BlockEditType type = BlockEditType::None;
         BlockRaycastHit hit{};
         uint16_t block = 0;
+        bool inventoryChanged = false;
     };
 
     struct ItemInteractionActionMenu
     {
         std::string action;
         std::vector<uint16_t> candidateItemIds;
+        uint16_t resultCountMin = 1;
+        uint16_t resultCountMax = 1;
     };
 
     struct ItemInteractionMenu
@@ -75,6 +78,7 @@ namespace dolbuto::gameplay
             const MarkDirtyFn& markDirty);
         BlockEditResult breakBlockAtHit(
             const BlockRaycastHit& hit,
+            uint16_t durabilityCost,
             const BlockSampler& blockAtWorld,
             const BlockDefinitionProvider& blockDefinition,
             const SetBlockFn& setBlockAtWorld,
@@ -127,10 +131,13 @@ namespace dolbuto::gameplay
 
     private:
         const std::vector<ItemDefinition>& itemDefinitions() const;
+        BlockBreakTool currentBlockBreakTool() const;
+        bool damageSelectedHotbarItem(uint16_t damage);
 
         struct PendingItemInteraction
         {
             bool active = false;
+            std::size_t heldSlotIndex = 0;
             WorldEntityHandle targetHandle{};
             uint64_t targetEntityId = 0;
             std::vector<ItemInteractionActionMenu> actions;

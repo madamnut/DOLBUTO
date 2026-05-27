@@ -41,6 +41,7 @@
 `src/game/ClientContent.h/.cpp`는 block/item 정의와 텍스처 layer 이름을 Renderer/Vulkan 타입 없이 로드한다.
 `src/renderer/RendererAssetStore.h/.cpp`는 `ClientContent`를 입력으로 받아 sky/UI/player/terrain/fluid/item texture, item sprite mesh, prop render mesh를 생성하고 해제한다.
 `src/renderer/SpriteRenderPath.h/.cpp`는 sprite pipeline의 push constant 구성, descriptor bind, 6-vertex draw primitive를 담당한다.
+`src/renderer/RadialMenuRenderPath.h/.cpp`는 같은 sprite pipeline과 1x1 white texture를 재사용해 아이템 상호작용 원형 UI의 중앙 원, 액션 부채꼴 링, 후보 부채꼴 링을 native Vulkan geometry로 그린다.
 `src/renderer/ScreenPresentation.h/.cpp`는 sky sprites, scene color target composite, climate overlay, crosshair, fallback menu, debug text 호출을 조율한다.
 `src/world/ClimateSystem.h/.cpp`는 climate seed, tileable climate noise sampling, chunk climate population, temperature/precipitation 계산을 담당한다.
 `src/renderer/ClimateOverlayTextureBuilder.h/.cpp`는 temperature/precipitation과 terrain noise overlay texture에 업로드할 RGBA pixel 데이터를 생성한다.
@@ -82,6 +83,7 @@
 `src/renderer/RendererClimateOverlay.cpp`는 climate overlay texture 생성을 담는다.
 `src/game/ClientFrame.h`는 `GameClient`가 한 프레임 렌더링에 넘기는 카메라, 플레이어, overlay, debug, screenshot, world tick 입력을 `ClientFrame` DTO로 묶는다.
 `ClientFrame`/`RendererFrame`은 현재 FOV를 `fovRadians`로 함께 전달한다.
+`ClientFrame`/`RendererFrame`은 아이템 상호작용 원형 UI의 표시 여부, 액션 수, 후보 수, 선택 인덱스를 `RadialMenuRenderFrame`으로 함께 전달한다.
 스카이라이트 전역 밝기는 `worldTicks`에서 시간 기반으로 계산한 `0.0~1.0` 범위의 `skyBrightness`로 렌더 프레임에 전달한다.
 `05:00~07:00`에는 최소 밝기 `0.08`에서 최대 밝기 `1.0`으로 부드럽게 밝아지고, `07:00~17:00`에는 최대 밝기를 유지하며, `17:00~21:00`에는 다시 최소 밝기로 어두워진다. `21:00~05:00`에는 최소 밝기를 유지한다.
 terrain/player/particle/selection/dropped item projection과 terrain/dropped item frustum culling, sky sprite projection은 이 값을 같은 프레임 기준으로 사용한다.

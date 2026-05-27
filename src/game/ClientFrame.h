@@ -1,6 +1,7 @@
 #pragma once
 
 #include "camera/Camera.h"
+#include "game/RadialMenuRenderFrame.h"
 
 #include <cstdint>
 #include <string_view>
@@ -33,5 +34,6 @@ namespace dolbuto::game
         bool worldUpdateEnabled = false;
         bool gameSceneRenderEnabled = false;
         uint64_t worldTicks = 0;
+        RadialMenuRenderFrame radialMenu;
     };
 }

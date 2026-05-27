@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <random>
 #include <stdexcept>
 #include <utility>
 
@@ -108,6 +109,15 @@ namespace dolbuto::world
         if (entity.type == WorldEntityType::DroppedItem && entity.droppedItem.stack.count > 1)
         {
             entity.droppedItem.stack.count = 1;
+        }
+        if (entity.type == WorldEntityType::DroppedItem &&
+            entity.droppedItem.stack.itemId != 0 &&
+            static_cast<std::size_t>(entity.droppedItem.stack.itemId) < itemDefinitions().size())
+        {
+            const uint16_t maxDurability = itemDefinitions()[entity.droppedItem.stack.itemId].maxDurability;
+            entity.droppedItem.stack.durability = maxDurability == 0
+                ? 0
+                : (entity.droppedItem.stack.durability == 0 ? maxDurability : std::min(entity.droppedItem.stack.durability, maxDurability));
         }
         if (DroppedItemSystem::grounded(entity))
         {
@@ -355,10 +365,12 @@ namespace dolbuto::world
         return true;
     }
 
-    bool DroppedItemRuntime::replaceOneTargetItem(
+    bool DroppedItemRuntime::replaceTargetItems(
         const WorldEntityHandle& itemHandle,
         uint64_t entityId,
         uint16_t resultItemId,
+        uint16_t resultCountMin,
+        uint16_t resultCountMax,
         const MarkDirtyFn& markDirty)
     {
         if (resultItemId == 0 || static_cast<std::size_t>(resultItemId) >= itemDefinitions().size())
@@ -420,11 +432,18 @@ namespace dolbuto::world
 
         constexpr float InteractionBounceVelocity = 2.4f;
         constexpr float InteractionSpin = 7.0f;
+        static thread_local std::mt19937 random{std::random_device{}()};
+        if (resultCountMax < resultCountMin)
+        {
+            resultCountMax = resultCountMin;
+        }
+        std::uniform_int_distribution<int> countDistribution(resultCountMin, resultCountMax);
+        const uint16_t resultCount = static_cast<uint16_t>(countDistribution(random));
         const Vec3 resultPosition = target.position;
         target.previousPosition = target.position;
         target.position = resultPosition;
         target.velocity.y = std::max(target.velocity.y, InteractionBounceVelocity);
-        target.droppedItem.stack = ItemStack{resultItemId, 1};
+        target.droppedItem.stack = ItemStack{resultItemId, 1, itemDefinitions()[resultItemId].maxDurability};
         target.renderSpinX = InteractionSpin;
         target.renderSpin = InteractionSpin;
         target.renderSpinZ = InteractionSpin;
@@ -433,6 +452,34 @@ namespace dolbuto::world
         if (markDirty)
         {
             markDirty(*chunk);
+        }
+        if (resultCount > 1)
+        {
+            std::uniform_real_distribution<float> offsetDistribution(-0.12f, 0.12f);
+            std::uniform_real_distribution<float> velocityDistribution(-0.45f, 0.45f);
+            for (uint16_t i = 1; i < resultCount; ++i)
+            {
+                WorldEntity extra{};
+                extra.entityId = allocateEntityId();
+                extra.type = WorldEntityType::DroppedItem;
+                extra.position = {
+                    resultPosition.x + offsetDistribution(random),
+                    resultPosition.y + 0.02f,
+                    resultPosition.z + offsetDistribution(random)
+                };
+                extra.previousPosition = extra.position;
+                extra.velocity = {
+                    velocityDistribution(random),
+                    InteractionBounceVelocity + velocityDistribution(random) * 0.5f,
+                    velocityDistribution(random)
+                };
+                extra.droppedItem.stack = ItemStack{resultItemId, 1, itemDefinitions()[resultItemId].maxDurability};
+                extra.renderSpinX = InteractionSpin;
+                extra.renderSpin = InteractionSpin;
+                extra.renderSpinZ = InteractionSpin;
+                DroppedItemSystem::setGrounded(extra, false);
+                addWorldEntity(std::move(extra), markDirty);
+            }
         }
         return true;
     }

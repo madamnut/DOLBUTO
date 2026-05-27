@@ -62,7 +62,9 @@ namespace dolbuto
         constexpr size_t PlayerInventorySlotCount = gameplay::PlayerInventory::SlotCount;
         constexpr size_t PlayerStatsFileSize = sizeof(uint16_t) * 6u;
         constexpr size_t PlayerStateBaseFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t) * 2u + PlayerStatsFileSize;
-        constexpr size_t PlayerInventoryFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 2u;
+        constexpr size_t PlayerInventoryLegacyFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 2u;
+        constexpr size_t PlayerInventoryFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 3u;
+        constexpr size_t PlayerStateLegacyFileSize = PlayerStateBaseFileSize + PlayerInventoryLegacyFileSize;
         constexpr size_t PlayerStateFileSize = PlayerStateBaseFileSize + PlayerInventoryFileSize;
         constexpr size_t WorldStateFileSize = sizeof(uint64_t) * 4u;
         constexpr uint64_t TicksPerMinute = 20;
@@ -851,6 +853,18 @@ namespace dolbuto
                 }
             }
             const bool showFirstPersonHand = gameSceneRenderEnabled && menuOverlayMode == 0 && viewMode_ == ViewMode::FirstPerson;
+            game::RadialMenuRenderFrame radialMenuRenderFrame{};
+            radialMenuRenderFrame.visible = radialActive_;
+            radialMenuRenderFrame.actionCount = static_cast<uint32_t>(radialActions_.size());
+            if (radialSelectedActionIndex_.has_value() && *radialSelectedActionIndex_ < radialActions_.size())
+            {
+                radialMenuRenderFrame.selectedActionIndex = static_cast<uint32_t>(*radialSelectedActionIndex_);
+                radialMenuRenderFrame.candidateCount = static_cast<uint32_t>(radialActions_[*radialSelectedActionIndex_].candidateItemIds.size());
+            }
+            if (radialSelectedCandidateIndex_.has_value())
+            {
+                radialMenuRenderFrame.selectedCandidateIndex = static_cast<uint32_t>(*radialSelectedCandidateIndex_);
+            }
             sectionPerfStart = std::chrono::steady_clock::now();
             runtime_->render().frame(game::ClientFrame{
                 renderCamera,
@@ -876,7 +890,8 @@ namespace dolbuto
                 frameHudVisible,
                 worldUpdateEnabled,
                 gameSceneRenderEnabled,
-                worldTicks_
+                worldTicks_,
+                radialMenuRenderFrame
             });
             runtime_->diagnostics().recordPerformanceMax(game::ClientPerfCounter::RenderCall, millisecondsSince(sectionPerfStart));
             runtime_->diagnostics().recordPerformanceMax(game::ClientPerfCounter::Frame, millisecondsSince(framePerfStart));
@@ -930,7 +945,11 @@ namespace dolbuto
             if (app != nullptr && app->radialActive_ &&
                 (action == GLFW_PRESS || action == GLFW_REPEAT || action == GLFW_RELEASE))
             {
-                if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
+                if (action == GLFW_PRESS && key == GLFW_KEY_F2)
+                {
+                    app->screenshotRequested_ = true;
+                }
+                else if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
                 {
                     app->closeRadialInteraction(false);
                 }
@@ -1388,21 +1407,20 @@ namespace dolbuto
         const double dx = x - radialCenterX_;
         const double dy = y - radialCenterY_;
         const double distanceSquared = dx * dx + dy * dy;
+        double relativeAngle = std::atan2(dy, dx) - startAngle;
+        while (relativeAngle < 0.0)
+        {
+            relativeAngle += TwoPi;
+        }
+        while (relativeAngle >= TwoPi)
+        {
+            relativeAngle -= TwoPi;
+        }
 
-        const auto angleIndex = [&](std::size_t count) -> std::size_t
+        const auto sectionIndex = [&](std::size_t count) -> std::size_t
         {
             const double step = TwoPi / static_cast<double>(count);
-            double relative = std::atan2(dy, dx) - startAngle;
-            while (relative < 0.0)
-            {
-                relative += TwoPi;
-            }
-            while (relative >= TwoPi)
-            {
-                relative -= TwoPi;
-            }
-
-            std::size_t index = static_cast<std::size_t>(std::floor((relative + step * 0.5) / step));
+            std::size_t index = static_cast<std::size_t>(std::floor(relativeAngle / step));
             if (index >= count)
             {
                 index = 0;
@@ -1416,21 +1434,32 @@ namespace dolbuto
         {
             if (distanceSquared < ActionOuterRadius * ActionOuterRadius)
             {
-                selectedAction = angleIndex(radialActions_.size());
+                selectedAction = sectionIndex(radialActions_.size());
             }
             else
             {
                 selectedAction = radialSelectedActionIndex_;
                 if (!selectedAction.has_value())
                 {
-                    selectedAction = angleIndex(radialActions_.size());
+                    selectedAction = sectionIndex(radialActions_.size());
                 }
                 if (selectedAction.has_value() && *selectedAction < radialActions_.size())
                 {
                     const std::size_t candidateCount = radialActions_[*selectedAction].candidateItemIds.size();
                     if (candidateCount > 0)
                     {
-                        selectedCandidate = angleIndex(candidateCount);
+                        const double actionStep = TwoPi / static_cast<double>(radialActions_.size());
+                        const double actionStart = actionStep * static_cast<double>(*selectedAction);
+                        const double actionEnd = actionStart + actionStep;
+                        if (relativeAngle >= actionStart && relativeAngle < actionEnd)
+                        {
+                            const double candidateStep = actionStep / static_cast<double>(candidateCount);
+                            selectedCandidate = static_cast<std::size_t>(std::floor((relativeAngle - actionStart) / candidateStep));
+                            if (*selectedCandidate >= candidateCount)
+                            {
+                                selectedCandidate = candidateCount - 1;
+                            }
+                        }
                     }
                 }
             }
@@ -2381,7 +2410,18 @@ namespace dolbuto
             return;
         }
 
-        std::vector<uint8_t> bytes(PlayerStateFileSize);
+        file.seekg(0, std::ios::end);
+        const std::streamoff fileSize = file.tellg();
+        file.seekg(0, std::ios::beg);
+        if (fileSize != static_cast<std::streamoff>(PlayerStateFileSize) &&
+            fileSize != static_cast<std::streamoff>(PlayerStateLegacyFileSize))
+        {
+            log::warn("Player state file has unsupported size, using default player state.");
+            previousPlayerPosition_ = playerPosition_;
+            return;
+        }
+
+        std::vector<uint8_t> bytes(static_cast<std::size_t>(fileSize));
         file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
         if (!file)
         {
@@ -2410,10 +2450,12 @@ namespace dolbuto
             stats.maxThirst = readU16(bytes, offset);
             stats.clamp();
             std::array<ItemStack, PlayerInventorySlotCount> inventorySlots{};
+            const bool hasDurability = bytes.size() == PlayerStateFileSize;
             for (ItemStack& slot : inventorySlots)
             {
                 slot.itemId = readU16(bytes, offset);
                 slot.count = readU16(bytes, offset);
+                slot.durability = hasDurability ? readU16(bytes, offset) : 0;
             }
 
             if (!std::isfinite(x) ||
@@ -2510,6 +2552,7 @@ namespace dolbuto
             {
                 writeU16(bytes, slot.itemId);
                 writeU16(bytes, slot.count);
+                writeU16(bytes, slot.durability);
             }
 
             std::ofstream file(playerStatePath(), std::ios::binary | std::ios::trunc);

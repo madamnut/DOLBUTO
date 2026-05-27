@@ -185,6 +185,7 @@ add_executable(DOLBUTO
     src/game/PlayerMovementSystem.cpp
     src/game/PlayerMovementSystem.h
     src/game/PlayerStats.h
+    src/game/RadialMenuRenderFrame.h
     src/gameplay/BlockInteractionSystem.cpp
     src/gameplay/BlockInteractionSystem.h
     src/gameplay/ClientGameplayRuntime.cpp
@@ -241,6 +242,8 @@ add_executable(DOLBUTO
     src/renderer/RendererGpuResources.cpp
     src/renderer/RendererGpuResources.h
     src/renderer/Renderer.h
+    src/renderer/RadialMenuRenderPath.cpp
+    src/renderer/RadialMenuRenderPath.h
     src/renderer/RendererRenderMethods.inc
     src/renderer/RendererRmlUiBackend.h
     src/renderer/RendererSceneLifecycleBridge.h

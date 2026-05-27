@@ -41,7 +41,8 @@ namespace dolbuto::game
             frame.hudVisible,
             frame.worldUpdateEnabled,
             frame.gameSceneRenderEnabled,
-            frame.worldTicks
+            frame.worldTicks,
+            frame.radialMenu
         });
     }
 

@@ -190,7 +190,7 @@ namespace dolbuto::ui
             return;
         }
 
-        uiSystem().showItemTooltip(rml, layout->left, layout->top, layout->width, layout->height);
+        uiSystem().showItemTooltip(rml, layout->left, layout->top);
     }
 
     void ClientUiBridge::setRadialMenu(
@@ -208,16 +208,31 @@ namespace dolbuto::ui
         constexpr int Center = 210;
         const double startAngle = -Pi * 0.5;
 
-        constexpr int ActionRadius = 92;
-        constexpr int ActionWidth = 116;
-        constexpr int ActionHeight = 42;
+        std::string centerLabel = "Cancel";
+        if (selectedActionIndex.has_value() && *selectedActionIndex < actions.size())
+        {
+            centerLabel = displayActionName(actions[*selectedActionIndex].action);
+            const std::vector<uint16_t>& candidateItemIds = actions[*selectedActionIndex].candidateItemIds;
+            if (selectedCandidateIndex.has_value() && *selectedCandidateIndex < candidateItemIds.size())
+            {
+                const uint16_t itemId = candidateItemIds[*selectedCandidateIndex];
+                const std::vector<ItemDefinition>& definitions = itemDefinitions();
+                if (itemId != 0 && static_cast<std::size_t>(itemId) < definitions.size())
+                {
+                    centerLabel = definitions[itemId].name;
+                }
+            }
+        }
+
+        constexpr int ActionRadius = 95;
+        constexpr int ActionSize = 54;
         const double actionStep = (2.0 * Pi) / static_cast<double>(actions.size());
         std::string actionsRml;
         for (std::size_t i = 0; i < actions.size(); ++i)
         {
-            const double angle = startAngle + static_cast<double>(i) * actionStep;
-            const int left = static_cast<int>(std::round(static_cast<double>(Center) + std::cos(angle) * ActionRadius - static_cast<double>(ActionWidth) * 0.5));
-            const int top = static_cast<int>(std::round(static_cast<double>(Center) + std::sin(angle) * ActionRadius - static_cast<double>(ActionHeight) * 0.5));
+            const double angle = startAngle + (static_cast<double>(i) + 0.5) * actionStep;
+            const int left = static_cast<int>(std::round(static_cast<double>(Center) + std::cos(angle) * ActionRadius - static_cast<double>(ActionSize) * 0.5));
+            const int top = static_cast<int>(std::round(static_cast<double>(Center) + std::sin(angle) * ActionRadius - static_cast<double>(ActionSize) * 0.5));
             const bool selected = selectedActionIndex.has_value() && *selectedActionIndex == i;
 
             actionsRml += "<div class=\"radial-action";
@@ -226,18 +241,19 @@ namespace dolbuto::ui
                 actionsRml += " selected";
             }
             actionsRml += "\" style=\"left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px;\">";
-            actionsRml += escapeRml(displayActionName(actions[i].action));
+            actionsRml += "<img class=\"radial-action-symbol\" src=\"../textures/symbol/actions/" + escapeRml(actions[i].action) + ".png\"/>";
             actionsRml += "</div>";
         }
 
         std::string candidatesRml;
         if (selectedActionIndex.has_value() && *selectedActionIndex < actions.size())
         {
-            constexpr int CandidateRadius = 156;
-            constexpr int CandidateWidth = 96;
-            constexpr int CandidateHeight = 104;
+            constexpr int CandidateRadius = 172;
+            constexpr int CandidateWidth = 72;
+            constexpr int CandidateHeight = 72;
             const std::vector<uint16_t>& candidateItemIds = actions[*selectedActionIndex].candidateItemIds;
-            const double candidateStep = candidateItemIds.empty() ? 0.0 : (2.0 * Pi) / static_cast<double>(candidateItemIds.size());
+            const double selectedActionStart = startAngle + actionStep * static_cast<double>(*selectedActionIndex);
+            const double candidateStep = candidateItemIds.empty() ? 0.0 : actionStep / static_cast<double>(candidateItemIds.size());
             const std::vector<ItemDefinition>& definitions = itemDefinitions();
             for (std::size_t i = 0; i < candidateItemIds.size(); ++i)
             {
@@ -248,7 +264,7 @@ namespace dolbuto::ui
                 }
 
                 const ItemDefinition& definition = definitions[itemId];
-                const double angle = startAngle + static_cast<double>(i) * candidateStep;
+                const double angle = selectedActionStart + (static_cast<double>(i) + 0.5) * candidateStep;
                 const int left = static_cast<int>(std::round(static_cast<double>(Center) + std::cos(angle) * CandidateRadius - static_cast<double>(CandidateWidth) * 0.5));
                 const int top = static_cast<int>(std::round(static_cast<double>(Center) + std::sin(angle) * CandidateRadius - static_cast<double>(CandidateHeight) * 0.5));
                 const bool selected = selectedCandidateIndex.has_value() && *selectedCandidateIndex == i;
@@ -260,17 +276,16 @@ namespace dolbuto::ui
                 }
                 candidatesRml += "\" style=\"left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px;\">";
                 candidatesRml += "<img class=\"radial-candidate-icon\" src=\"../textures/item/" + escapeRml(definition.slotTexture) + ".png\"/>";
-                candidatesRml += "<div class=\"radial-candidate-name\">" + escapeRml(definition.name) + "</div>";
                 candidatesRml += "</div>";
             }
         }
 
-        uiSystem().setRadialMenu(actionsRml, candidatesRml, true);
+        uiSystem().setRadialMenu(escapeRml(centerLabel), actionsRml, candidatesRml, true);
     }
 
     void ClientUiBridge::hideRadialMenu()
     {
-        uiSystem().setRadialMenu("", "", false);
+        uiSystem().setRadialMenu("", "", "", false);
     }
 
     void ClientUiBridge::closeInventoryInteraction(uint32_t screenWidth, uint32_t screenHeight)
@@ -371,6 +386,9 @@ namespace dolbuto::ui
         };
 
         item.stackSize = definition.stackSize;
+        item.durability = stack.durability;
+        item.maxDurability = definition.maxDurability;
+        item.breakLevel = definition.breakLevel;
         item.name = definition.name;
         item.key = definition.key;
         item.slotTexture = definition.slotTexture;
@@ -378,6 +396,8 @@ namespace dolbuto::ui
         item.droppedTexture = definition.droppedTexture;
         item.heldRender = renderTypeText(definition.heldRender);
         item.heldTexture = definition.heldTexture;
+        item.useActions = definition.useActions;
+        item.breakActions = definition.breakActions;
         return item;
     }
 

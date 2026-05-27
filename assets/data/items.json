@@ -14,7 +14,7 @@
             "texture": "none"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 1,
@@ -31,7 +31,7 @@
             "texture": "rock_chunk"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 2,
@@ -48,7 +48,7 @@
             "texture": "dirt_pile"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 3,
@@ -65,7 +65,7 @@
             "texture": "sand_pile"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 4,
@@ -82,7 +82,7 @@
             "texture": "plant"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 5,
@@ -99,7 +99,7 @@
             "texture": "plant_fiber"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 6,
@@ -116,7 +116,7 @@
             "texture": "plant_twine"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 7,
@@ -133,7 +133,7 @@
             "texture": "seed"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 8,
@@ -150,7 +150,7 @@
             "texture": "grass_scrap"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 9,
@@ -167,7 +167,7 @@
             "texture": "branch"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 10,
@@ -184,7 +184,7 @@
             "texture": "bough"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 11,
@@ -201,7 +201,7 @@
             "texture": "bark_strip"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 12,
@@ -218,7 +218,7 @@
             "texture": "leaf"
         },
         "tags": [],
-        "actions": []
+        "useActions": []
     },
     {
         "id": 13,
@@ -235,8 +235,102 @@
             "texture": "stone_shard"
         },
         "tags": [],
-        "actions": [
-            "knapping"
+        "useActions": [
+            "chip",
+            "smash"
+        ],
+        "breakActions": [
+            "smash"
+        ],
+        "breakLevel": 1,
+        "maxDurability": 64
+    },
+    {
+        "id": 14,
+        "key": "stone_flake",
+        "name": "Stone Flake",
+        "stackSize": 1,
+        "slotTexture": "stone_flake",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_flake"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_flake"
+        },
+        "tags": [],
+        "useActions": [
+            "chip"
+        ]
+    },
+    {
+        "id": 15,
+        "key": "stone_chopper",
+        "name": "Stone Chopper",
+        "stackSize": 1,
+        "slotTexture": "stone_chopper",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_chopper"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_chopper"
+        },
+        "tags": [],
+        "useActions": [
+            "smash"
+        ],
+        "breakActions": [
+            "chop",
+            "dig"
+        ],
+        "breakLevel": 1,
+        "maxDurability": 64
+    },
+    {
+        "id": 16,
+        "key": "stone_blade",
+        "name": "Stone Blade",
+        "stackSize": 1,
+        "slotTexture": "stone_blade",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_blade"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_blade"
+        },
+        "tags": [],
+        "useActions": [
+            "cut"
+        ],
+        "breakActions": [
+            "cut"
+        ],
+        "breakLevel": 1,
+        "maxDurability": 64
+    },
+    {
+        "id": 17,
+        "key": "stone_scraper",
+        "name": "Stone Scraper",
+        "stackSize": 1,
+        "slotTexture": "stone_scraper",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_scraper"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_scraper"
+        },
+        "tags": [],
+        "useActions": [
+            "scrape",
+            "pierce"
         ]
     }
 ]

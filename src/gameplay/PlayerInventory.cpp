@@ -38,9 +38,7 @@ namespace dolbuto::gameplay
                 continue;
             }
 
-            const uint16_t maxStack = itemDefinitions[source.itemId].stackSize;
-            slots_[i].itemId = source.itemId;
-            slots_[i].count = std::min(source.count, maxStack);
+            slots_[i] = normalizedStack(source, itemDefinitions);
         }
         cursorStack_ = {};
     }
@@ -61,6 +59,7 @@ namespace dolbuto::gameplay
         {
             return stack.count;
         }
+        stack = normalizedStack(stack, itemDefinitions);
 
         end = std::min(end, slots_.size());
         if (begin >= end)
@@ -94,7 +93,12 @@ namespace dolbuto::gameplay
             const uint16_t moved = std::min(maxStack, stack.count);
             target.itemId = stack.itemId;
             target.count = moved;
+            target.durability = stack.durability;
             stack.count = static_cast<uint16_t>(stack.count - moved);
+            if (stack.count == 0)
+            {
+                stack.durability = 0;
+            }
         }
 
         return stack.count;
@@ -121,9 +125,46 @@ namespace dolbuto::gameplay
         return true;
     }
 
+    bool PlayerInventory::damageSlot(size_t slotIndex, uint16_t damage, const std::vector<ItemDefinition>& itemDefinitions)
+    {
+        if (slotIndex >= slots_.size() || damage == 0)
+        {
+            return false;
+        }
+
+        ItemStack& target = slots_[slotIndex];
+        if (!validStack(target, itemDefinitions))
+        {
+            return false;
+        }
+
+        const uint16_t maxDurability = itemDefinitions[target.itemId].maxDurability;
+        if (maxDurability == 0)
+        {
+            return false;
+        }
+
+        if (target.durability == 0 || target.durability > maxDurability)
+        {
+            target.durability = maxDurability;
+        }
+        if (damage >= target.durability)
+        {
+            target = {};
+            return true;
+        }
+
+        target.durability = static_cast<uint16_t>(target.durability - damage);
+        return true;
+    }
+
     bool PlayerInventory::stackCanMerge(const ItemStack& slot, const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions) const
     {
         if (slot.itemId == 0 || stack.itemId == 0 || slot.itemId != stack.itemId || static_cast<size_t>(slot.itemId) >= itemDefinitions.size())
+        {
+            return false;
+        }
+        if (slot.durability != stack.durability)
         {
             return false;
         }
@@ -195,6 +236,7 @@ namespace dolbuto::gameplay
             const uint16_t taken = static_cast<uint16_t>((target.count + 1u) / 2u);
             cursorStack_.itemId = target.itemId;
             cursorStack_.count = taken;
+            cursorStack_.durability = target.durability;
             target.count = static_cast<uint16_t>(target.count - taken);
             if (target.count == 0)
             {
@@ -207,6 +249,7 @@ namespace dolbuto::gameplay
         {
             target.itemId = cursorStack_.itemId;
             target.count = 1;
+            target.durability = cursorStack_.durability;
             cursorStack_.count = static_cast<uint16_t>(cursorStack_.count - 1u);
             if (cursorStack_.count == 0)
             {
@@ -267,5 +310,28 @@ namespace dolbuto::gameplay
             return false;
         }
         return itemDefinitions[stack.itemId].stackSize != 0;
+    }
+
+    ItemStack PlayerInventory::normalizedStack(ItemStack stack, const std::vector<ItemDefinition>& itemDefinitions)
+    {
+        if (!validStack(stack, itemDefinitions))
+        {
+            return {};
+        }
+
+        const ItemDefinition& definition = itemDefinitions[stack.itemId];
+        stack.count = std::min(stack.count, definition.stackSize);
+        if (definition.maxDurability > 0)
+        {
+            stack.count = std::min<uint16_t>(stack.count, 1u);
+            stack.durability = stack.durability == 0
+                ? definition.maxDurability
+                : std::min(stack.durability, definition.maxDurability);
+        }
+        else
+        {
+            stack.durability = 0;
+        }
+        return stack;
     }
 }

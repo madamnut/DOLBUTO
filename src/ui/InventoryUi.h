@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace dolbuto::ui
 {
@@ -13,6 +14,9 @@ namespace dolbuto::ui
         uint16_t itemId = 0;
         uint16_t count = 0;
         uint16_t stackSize = 0;
+        uint16_t durability = 0;
+        uint16_t maxDurability = 0;
+        uint16_t breakLevel = 0;
         std::string name;
         std::string key;
         std::string slotTexture;
@@ -20,6 +24,8 @@ namespace dolbuto::ui
         std::string droppedTexture;
         std::string heldRender;
         std::string heldTexture;
+        std::vector<std::string> useActions;
+        std::vector<std::string> breakActions;
     };
 
     struct TooltipLayout

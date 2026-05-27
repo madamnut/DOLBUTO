@@ -22,6 +22,8 @@ namespace dolbuto::data
         float alphaBlend = 1.0f;
         float mipDistanceScale = 1.0f;
         float hardness = -1.0f;
+        uint16_t breakLevel = 0;
+        std::string breakAction = "none";
         uint8_t lightAttenuation = 15;
         uint8_t lightEmission = 0;
         bool randomOffset = false;
@@ -53,7 +55,10 @@ namespace dolbuto::data
         std::string heldTexture = "none";
         std::string droppedRender = "extruded_sprite";
         std::string heldRender = "extruded_sprite";
-        std::vector<std::string> actions;
+        std::vector<std::string> useActions;
+        std::vector<std::string> breakActions;
+        uint16_t breakLevel = 0;
+        uint16_t maxDurability = 0;
     };
 
     struct ParsedInteractionDefinition
@@ -61,6 +66,8 @@ namespace dolbuto::data
         std::string action;
         std::string target;
         std::vector<std::string> candidates;
+        uint16_t resultCountMin = 1;
+        uint16_t resultCountMax = 1;
     };
 
     std::vector<ParsedItemDefinition> parseItemDefinitions(const std::string& text);

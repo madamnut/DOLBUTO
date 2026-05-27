@@ -23,6 +23,10 @@ namespace dolbuto::ui
         constexpr int CountBoxWidth = 48;
         constexpr int CountRightInset = 2;
         constexpr int CountTopOffset = 40;
+        constexpr int DurabilityBarLeftInset = 6;
+        constexpr int DurabilityBarTopOffset = 56;
+        constexpr int DurabilityBarWidth = 52;
+        constexpr int DurabilityBarHeight = 4;
 
         struct SlotPixelPosition
         {
@@ -68,6 +72,95 @@ namespace dolbuto::ui
                 item.count != 0 &&
                 !item.slotTexture.empty() &&
                 item.slotTexture != "none";
+        }
+
+        std::string hexColor(uint8_t r, uint8_t g, uint8_t b)
+        {
+            constexpr char Digits[] = "0123456789abcdef";
+            std::string value = "#000000";
+            value[1] = Digits[(r >> 4u) & 0x0Fu];
+            value[2] = Digits[r & 0x0Fu];
+            value[3] = Digits[(g >> 4u) & 0x0Fu];
+            value[4] = Digits[g & 0x0Fu];
+            value[5] = Digits[(b >> 4u) & 0x0Fu];
+            value[6] = Digits[b & 0x0Fu];
+            return value;
+        }
+
+        std::string durabilityColor(float ratio)
+        {
+            ratio = std::clamp(ratio, 0.0f, 1.0f);
+            const auto lerpByte = [](float from, float to, float t)
+            {
+                return static_cast<uint8_t>(std::round(from + (to - from) * t));
+            };
+
+            if (ratio < 0.5f)
+            {
+                const float t = ratio / 0.5f;
+                return hexColor(lerpByte(220.0f, 235.0f, t), lerpByte(45.0f, 220.0f, t), lerpByte(40.0f, 45.0f, t));
+            }
+
+            const float t = (ratio - 0.5f) / 0.5f;
+            return hexColor(lerpByte(235.0f, 95.0f, t), lerpByte(220.0f, 220.0f, t), lerpByte(45.0f, 65.0f, t));
+        }
+
+        bool showDurabilityBar(const InventoryItemView& item)
+        {
+            return item.maxDurability > 0 &&
+                item.durability > 0 &&
+                item.durability < item.maxDurability;
+        }
+
+        std::string joinedValues(const std::vector<std::string>& values)
+        {
+            if (values.empty())
+            {
+                return "none";
+            }
+
+            std::string text;
+            for (std::size_t i = 0; i < values.size(); ++i)
+            {
+                if (i > 0)
+                {
+                    text += ", ";
+                }
+                text += values[i];
+            }
+            return text;
+        }
+
+        struct TooltipLine
+        {
+            std::string key;
+            std::string value;
+        };
+
+        std::vector<TooltipLine> itemTooltipLines(const InventoryItemView& item)
+        {
+            std::vector<TooltipLine> lines;
+            lines.push_back({"ID", std::to_string(item.itemId)});
+            lines.push_back({"KEY", item.key});
+            lines.push_back({"COUNT", std::to_string(item.count) + " / " + std::to_string(item.stackSize)});
+            lines.push_back({"USE_ACTIONS", joinedValues(item.useActions)});
+            lines.push_back({"BREAK_ACTIONS", joinedValues(item.breakActions)});
+            lines.push_back({"BREAK_LEVEL", std::to_string(item.breakLevel)});
+            lines.push_back({"DURABILITY", item.maxDurability > 0
+                ? std::to_string(item.durability) + " / " + std::to_string(item.maxDurability)
+                : "none"});
+            lines.push_back({"STACK_SIZE", std::to_string(item.stackSize)});
+            lines.push_back({"SLOT_TEXTURE", item.slotTexture});
+            lines.push_back({"DROPPED_RENDER", item.droppedRender});
+            lines.push_back({"DROPPED_TEXTURE", item.droppedTexture});
+            lines.push_back({"HELD_RENDER", item.heldRender});
+            lines.push_back({"HELD_TEXTURE", item.heldTexture});
+            return lines;
+        }
+
+        std::string tooltipLineText(const TooltipLine& line)
+        {
+            return line.key + ": " + line.value;
         }
     }
 
@@ -130,6 +223,18 @@ namespace dolbuto::ui
             rml += std::to_string(item.count);
             rml += "</div>";
         }
+        if (showDurabilityBar(item))
+        {
+            const float ratio = item.maxDurability <= 1
+                ? 0.0f
+                : static_cast<float>(item.durability - 1u) / static_cast<float>(item.maxDurability - 1u);
+            const int barLeft = itemLeft + DurabilityBarLeftInset;
+            const int barTop = itemTop + DurabilityBarTopOffset;
+            const int fillWidth = static_cast<int>(std::round(static_cast<float>(DurabilityBarWidth) * ratio));
+            rml += "<div class=\"slot-durability-bg\" style=\"left: " + std::to_string(barLeft) + "px; top: " + std::to_string(barTop) + "px;\">";
+            rml += "<div class=\"slot-durability-fill\" style=\"width: " + std::to_string(fillWidth) + "px; height: " + std::to_string(DurabilityBarHeight) + "px; background-color: " + durabilityColor(ratio) + ";\"></div>";
+            rml += "</div>";
+        }
         return rml;
     }
 
@@ -142,19 +247,10 @@ namespace dolbuto::ui
 
         std::string rml;
         rml += "<div class=\"item-tooltip-title\">" + escapeRml(item.name) + "</div>";
-        const auto line = [&](std::string_view key, const std::string& value)
+        for (const TooltipLine& line : itemTooltipLines(item))
         {
-            rml += "<div class=\"item-tooltip-line\">" + std::string(key) + ": " + escapeRml(value) + "</div>";
-        };
-        line("ID", std::to_string(item.itemId));
-        line("KEY", item.key);
-        line("COUNT", std::to_string(item.count) + " / " + std::to_string(item.stackSize));
-        line("STACK_SIZE", std::to_string(item.stackSize));
-        line("SLOT_TEXTURE", item.slotTexture);
-        line("DROPPED_RENDER", item.droppedRender);
-        line("DROPPED_TEXTURE", item.droppedTexture);
-        line("HELD_RENDER", item.heldRender);
-        line("HELD_TEXTURE", item.heldTexture);
+            rml += "<div class=\"item-tooltip-line\">" + escapeRml(tooltipLineText(line)) + "</div>";
+        }
         return rml;
     }
 
@@ -190,32 +286,23 @@ namespace dolbuto::ui
         }
 
         constexpr int Padding = 10;
-        constexpr int TitleHeight = 22;
+        constexpr int TitleHeight = 28;
         constexpr int TitleMargin = 4;
-        constexpr int LineHeight = 18;
-        constexpr int LineCount = 9;
+        constexpr int LineHeight = 24;
         constexpr int MinWidth = 180;
-        constexpr int MaxWidth = 520;
-        constexpr int TitleCharWidth = 12;
-        constexpr int LineCharWidth = 8;
-        constexpr int Height = Padding * 2 + TitleHeight + TitleMargin + LineHeight * LineCount;
+        constexpr int MaxWidth = 1000;
+        constexpr int TitleCharWidth = 15;
+        constexpr int LineCharWidth = 16;
         constexpr int MouseOffset = 16;
 
-        const auto lineText = [](std::string_view key, const std::string& value)
-        {
-            return std::string(key) + ": " + value;
-        };
+        const std::vector<TooltipLine> lines = itemTooltipLines(item);
+        const int height = Padding * 2 + TitleHeight + TitleMargin + LineHeight * static_cast<int>(lines.size());
 
         int contentWidth = static_cast<int>(item.name.size()) * TitleCharWidth;
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("ID", std::to_string(item.itemId)).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("KEY", item.key).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("COUNT", std::to_string(item.count) + " / " + std::to_string(item.stackSize)).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("STACK_SIZE", std::to_string(item.stackSize)).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("SLOT_TEXTURE", item.slotTexture).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("DROPPED_RENDER", item.droppedRender).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("DROPPED_TEXTURE", item.droppedTexture).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("HELD_RENDER", item.heldRender).size()) * LineCharWidth);
-        contentWidth = std::max(contentWidth, static_cast<int>(lineText("HELD_TEXTURE", item.heldTexture).size()) * LineCharWidth);
+        for (const TooltipLine& line : lines)
+        {
+            contentWidth = std::max(contentWidth, static_cast<int>(tooltipLineText(line).size()) * LineCharWidth);
+        }
         const int width = std::clamp(contentWidth + Padding * 2, MinWidth, MaxWidth);
 
         int left = static_cast<int>(std::round(mouseX)) + MouseOffset;
@@ -226,13 +313,13 @@ namespace dolbuto::ui
         {
             left = static_cast<int>(std::round(mouseX)) - width - MouseOffset;
         }
-        if (top + Height > screenH)
+        if (top + height > screenH)
         {
-            top = static_cast<int>(std::round(mouseY)) - Height - MouseOffset;
+            top = static_cast<int>(std::round(mouseY)) - height - MouseOffset;
         }
         left = std::clamp(left, 0, std::max(0, screenW - width));
-        top = std::clamp(top, 0, std::max(0, screenH - Height));
+        top = std::clamp(top, 0, std::max(0, screenH - height));
 
-        return TooltipLayout{left, top, width, Height};
+        return TooltipLayout{left, top, width, height};
     }
 }

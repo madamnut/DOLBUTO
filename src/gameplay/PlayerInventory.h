@@ -32,6 +32,7 @@ namespace dolbuto::gameplay
         uint16_t add(ItemStack stack, const std::vector<ItemDefinition>& itemDefinitions);
         uint16_t addToRange(ItemStack& stack, size_t begin, size_t end, const std::vector<ItemDefinition>& itemDefinitions);
         bool removeFromSlot(size_t slotIndex, uint16_t count);
+        bool damageSlot(size_t slotIndex, uint16_t damage, const std::vector<ItemDefinition>& itemDefinitions);
         bool stackCanMerge(const ItemStack& slot, const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions) const;
 
         bool handleSlotClick(size_t slotIndex, InventoryClickButton button, bool shift, const std::vector<ItemDefinition>& itemDefinitions);
@@ -40,6 +41,7 @@ namespace dolbuto::gameplay
 
     private:
         static bool validStack(const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions);
+        static ItemStack normalizedStack(ItemStack stack, const std::vector<ItemDefinition>& itemDefinitions);
 
         std::array<ItemStack, SlotCount> slots_{};
         ItemStack cursorStack_{};

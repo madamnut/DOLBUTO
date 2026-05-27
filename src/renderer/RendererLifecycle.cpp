@@ -30,7 +30,8 @@ namespace dolbuto
         textRenderPath_(&vulkan_.device, &gpuResources_),
         playerMeshRenderPath_(&vulkan_.device, &vulkan_.descriptorPool, &vulkan_.terrainVertexDescriptorSetLayout, &gpuResources_),
         particleRenderPath_(&vulkan_.device, &gpuResources_),
-        droppedItemRenderPath_(&vulkan_.device, &gpuResources_)
+        droppedItemRenderPath_(&vulkan_.device, &gpuResources_),
+        radialMenuRenderPath_(&vulkan_.device, &gpuResources_)
     {
         createInstance();
         createSurface();
@@ -161,6 +162,7 @@ namespace dolbuto
         }
         particleRenderPath_.destroy();
         droppedItemRenderPath_.destroy();
+        radialMenuRenderPath_.destroy();
         if (vulkan_.selectionLineVertexBuffer != VK_NULL_HANDLE)
         {
             vkDestroyBuffer(vulkan_.device, vulkan_.selectionLineVertexBuffer, nullptr);

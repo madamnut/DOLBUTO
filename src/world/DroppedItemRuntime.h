@@ -50,7 +50,13 @@ namespace dolbuto::world
         bool pickupInView(DVec3 origin, Vec3 direction, const MarkDirtyFn& markDirty);
         bool raycast(DVec3 origin, Vec3 direction, WorldEntityHandle& itemHandle) const;
         bool targetInView(DVec3 origin, Vec3 direction, Target& target) const;
-        bool replaceOneTargetItem(const WorldEntityHandle& itemHandle, uint64_t entityId, uint16_t resultItemId, const MarkDirtyFn& markDirty);
+        bool replaceTargetItems(
+            const WorldEntityHandle& itemHandle,
+            uint64_t entityId,
+            uint16_t resultItemId,
+            uint16_t resultCountMin,
+            uint16_t resultCountMax,
+            const MarkDirtyFn& markDirty);
 
         void update(
             Vec3 playerPosition,

@@ -46,6 +46,18 @@ namespace dolbuto::world
             return static_cast<float>(hash) / static_cast<float>(std::numeric_limits<uint32_t>::max());
         }
 
+        ItemStack makeDroppedStack(uint16_t itemId, const std::vector<ItemDefinition>& itemDefinitions)
+        {
+            ItemStack stack{};
+            stack.itemId = itemId;
+            stack.count = 1;
+            if (static_cast<size_t>(itemId) < itemDefinitions.size())
+            {
+                stack.durability = itemDefinitions[itemId].maxDurability;
+            }
+            return stack;
+        }
+
         float horizontalSpeedSquared(const WorldEntity& item)
         {
             return item.velocity.x * item.velocity.x + item.velocity.z * item.velocity.z;
@@ -422,8 +434,7 @@ namespace dolbuto::world
                     randomRange(2.0f, 3.5f),
                     randomRange(-1.5f, 1.5f)
                 };
-                item.droppedItem.stack.itemId = drop.itemId;
-                item.droppedItem.stack.count = 1;
+                item.droppedItem.stack = makeDroppedStack(drop.itemId, itemDefinitions);
                 item.renderRotationX = randomRange(0.0f, 6.2831853f);
                 item.renderRotation = randomRange(0.0f, 6.2831853f);
                 item.renderRotationZ = randomRange(0.0f, 6.2831853f);
@@ -475,7 +486,7 @@ namespace dolbuto::world
             dropDirection.y * DroppedItemManualDropForwardVelocity + DroppedItemManualDropUpVelocity,
             dropDirection.z * DroppedItemManualDropForwardVelocity
         };
-        item.droppedItem.stack = ItemStack{stack.itemId, 1};
+        item.droppedItem.stack = ItemStack{stack.itemId, 1, stack.durability};
 
         static thread_local std::mt19937 manualDropRandom{std::random_device{}()};
         std::uniform_real_distribution<float> angleDistribution(0.0f, 6.2831853f);

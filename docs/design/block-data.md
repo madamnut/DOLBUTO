@@ -17,17 +17,31 @@ assets/data/blocks.json
 드랍 항목은 아이템 키로 작성하고, 로드 시점에 아이템 ID로 해석한다.
 아이템과 드랍 테이블 초안은 [[item-data]]에 기록한다.
 
-## 경도
+## 블록 파괴
 
-블록 정의는 블록 파괴용 `hardness` 값을 포함한다.
-유체 정의는 `hardness`를 사용하지 않는다.
+블록 정의는 블록 파괴용 `hardness`, `breakLevel`, `breakAction` 값을 포함한다.
+유체 정의는 블록 파괴 값을 사용하지 않는다.
 
 - `hardness < 0`: 파괴 불가
 - `hardness = 0`: 즉시 파괴
 - `hardness > 0`: 진행도 기반 파괴
-- 현재 손의 `breakPower`는 `1.0`이다.
-- 진행도는 `progress += deltaSeconds * breakPower / hardness`로 계산한다.
-- 따라서 `hardness`는 손으로 블록을 파괴하는 데 필요한 대략적인 초 단위 시간이다.
+- `breakLevel`: 필요한 최소 도구 레벨
+- `breakAction`: 권장 좌클릭 파괴 동작. `none`이면 동작 보정을 적용하지 않는다.
+
+손은 내부적으로 `breakLevel = 0`, 파괴 동작 없음으로 취급한다.
+손이나 든 아이템의 레벨이 블록의 `breakLevel`보다 낮으면 파괴 진행도와 오버레이가 생기지 않는다.
+레벨이 충분하면 파괴 파워는 다음 규칙으로 계산한다.
+
+```text
+levelMultiplier = 1.5 ^ (toolLevel - block.breakLevel)
+actionMultiplier = block.breakAction == "none" 또는 도구의 breakActions에 포함되면 1.0, 아니면 0.5
+breakPower = 1.0 * levelMultiplier * actionMultiplier
+progress += deltaSeconds * breakPower / hardness
+```
+
+내구도가 있는 아이템으로 블록을 실제로 파괴하면 내구도를 소비한다.
+권장 `breakAction`이 맞거나 블록 동작이 `none`이면 1, 레벨은 충분하지만 동작이 다르면 3을 소비한다.
+손이나 내구도 없는 아이템은 내구도를 소비하지 않는다.
 
 현재 초기값:
 
@@ -48,6 +62,17 @@ ice       2.0
 sandstone 4.0
 trunk     4.0
 rock      5.0
+```
+
+현재 초기 파괴 동작:
+
+```text
+rock, sandstone, glowing_rock  breakLevel 1 / smash
+grass, dirt, sand, mud, clay, gravel  breakLevel 0 / dig
+trunk, branch                  breakLevel 0 / chop
+leaves, plant                  breakLevel 0 / cut
+ice, stone prop                breakLevel 0 / smash
+air, bedrock                   breakLevel 0 / none
 ```
 
 블록 파괴 오버레이 텍스처는 블록 렌더링 에셋으로 저장한다.

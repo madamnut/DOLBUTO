@@ -6,6 +6,40 @@
 
 namespace dolbuto::gameplay
 {
+    namespace
+    {
+        constexpr float LevelMultiplierBase = 1.5f;
+
+        bool actionMatches(const BlockDefinition& definition, const BlockBreakTool& tool)
+        {
+            return definition.breakAction.empty() ||
+                definition.breakAction == "none" ||
+                std::find(tool.actions.begin(), tool.actions.end(), definition.breakAction) != tool.actions.end();
+        }
+
+        uint16_t durabilityCostFor(const BlockDefinition& definition, const BlockBreakTool& tool)
+        {
+            if (!tool.durable)
+            {
+                return 0;
+            }
+            return actionMatches(definition, tool) ? 1u : 3u;
+        }
+
+        float breakPowerFor(const BlockDefinition& definition, const BlockBreakTool& tool)
+        {
+            if (tool.level < definition.breakLevel)
+            {
+                return 0.0f;
+            }
+
+            const int levelDelta = static_cast<int>(tool.level) - static_cast<int>(definition.breakLevel);
+            const float levelMultiplier = std::pow(LevelMultiplierBase, static_cast<float>(levelDelta));
+            const float actionMultiplier = actionMatches(definition, tool) ? 1.0f : 0.5f;
+            return BlockInteractionSystem::BlockBreakPower * levelMultiplier * actionMultiplier;
+        }
+    }
+
     int BlockInteractionSystem::blockCoordinateXz(double worldCoordinate)
     {
         return static_cast<int>(std::floor(worldCoordinate + 0.5));
@@ -215,6 +249,7 @@ namespace dolbuto::gameplay
         Vec3 direction,
         bool breaking,
         float deltaSeconds,
+        const BlockBreakTool& tool,
         const BlockSampler& blockAtWorld,
         const BlockDefinitionProvider& blockDefinition)
     {
@@ -242,6 +277,13 @@ namespace dolbuto::gameplay
 
         update.hit = hit;
         update.block = block;
+        const float breakPower = breakPowerFor(definition, tool);
+        if (breakPower <= 0.0f)
+        {
+            resetBreaking(state);
+            return update;
+        }
+        update.durabilityCost = durabilityCostFor(definition, tool);
         if (definition.hardness <= 0.0f)
         {
             update.breakBlock = true;
@@ -263,7 +305,7 @@ namespace dolbuto::gameplay
             state.block = block;
         }
 
-        state.progress = std::min(1.0f, state.progress + deltaSeconds * BlockBreakPower / definition.hardness);
+        state.progress = std::min(1.0f, state.progress + deltaSeconds * breakPower / definition.hardness);
         state.particleTimer += deltaSeconds;
         if (state.particleTimer >= BlockMiningParticleInterval)
         {

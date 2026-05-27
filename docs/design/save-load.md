@@ -144,10 +144,13 @@ repeat entityCount:
   if type == DroppedItem:
     uint16 itemId
     uint16 count
+    uint16 durability
 uint64 revision
 ```
 
 엔티티 위치는 청크 로컬 X/Z와 월드 Y로 저장한다.
+드랍 아이템 `durability`는 내구도 있는 아이템의 현재 내구도다.
+기존 `itemId/count`만 있는 청크 엔티티 payload도 읽을 수 있으며, 로드 후 내구도 있는 드랍 아이템의 `durability = 0`은 최대 내구도로 정규화한다.
 드랍 아이템의 회전, 스핀, 나이, 획득 진행 상태는 런타임 전용이며 저장하지 않는다.
 엔티티만 바뀐 경우에는 terrain revision을 올리지 않고 런타임 dirty serial을 사용한다. terrain revision은 mesh validity에도 사용되기 때문이다.
 
@@ -160,6 +163,8 @@ saves/<world-name>/player.dat
 ```
 
 파일은 버전 필드가 없는 고정 바이너리 레이아웃이다.
+현재 레이아웃은 인벤토리 슬롯마다 `itemId`, `count`, `durability`를 저장한다.
+기존 `itemId/count`만 저장한 플레이어 파일도 읽을 수 있으며, 로드 시 내구도 있는 아이템의 `durability = 0`은 최대 내구도로 정규화한다.
 
 ```text
 double x

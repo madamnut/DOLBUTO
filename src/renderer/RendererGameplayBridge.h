@@ -58,7 +58,7 @@ namespace dolbuto
         using BlockRaycastHit = gameplay::BlockRaycastHit;
 
         bool applyBlockEditResult(const gameplay::BlockEditResult& result);
-        bool breakBlockAtHit(const BlockRaycastHit& hit);
+        bool breakBlockAtHit(const BlockRaycastHit& hit, uint16_t durabilityCost);
         uint32_t blockFaceTextureLayerForHit(uint16_t block, const BlockRaycastHit& hit) const;
         void spawnBlockBreakParticles(int x, int y, int z, uint16_t block);
         void spawnBlockMiningParticle(const BlockRaycastHit& hit, uint16_t block);

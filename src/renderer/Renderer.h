@@ -14,6 +14,7 @@
 #include "renderer/RendererTypes.h"
 #include "renderer/RendererVulkanState.h"
 #include "renderer/PlayerMeshRenderPath.h"
+#include "renderer/RadialMenuRenderPath.h"
 #include "renderer/ScreenPresentation.h"
 #include "renderer/SkyRenderPath.h"
 #include "renderer/SpriteRenderPath.h"
@@ -82,6 +83,7 @@ namespace dolbuto
         PlayerMeshRenderPath playerMeshRenderPath_;
         ParticleRenderPath particleRenderPath_;
         DroppedItemRenderPath droppedItemRenderPath_;
+        RadialMenuRenderPath radialMenuRenderPath_;
         VkDeviceSize localMemoryHeapSize_ = 0;
         uint32_t localMemoryHeapIndex_ = UINT32_MAX;
         bool memoryBudgetSupported_ = false;

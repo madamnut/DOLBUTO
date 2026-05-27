@@ -477,9 +477,25 @@ namespace dolbuto::data
                     definition.heldTexture = *texture;
                 }
             }
-            if (const std::optional<std::string> actions = jsonArrayField(object, "actions"); actions.has_value())
+            if (const std::optional<std::string> useActions = jsonArrayField(object, "useActions"); useActions.has_value())
             {
-                definition.actions = jsonStringArrayValues(*actions);
+                definition.useActions = jsonStringArrayValues(*useActions);
+            }
+            else if (const std::optional<std::string> actions = jsonArrayField(object, "actions"); actions.has_value())
+            {
+                definition.useActions = jsonStringArrayValues(*actions);
+            }
+            if (const std::optional<std::string> breakActions = jsonArrayField(object, "breakActions"); breakActions.has_value())
+            {
+                definition.breakActions = jsonStringArrayValues(*breakActions);
+            }
+            if (const std::optional<int> breakLevel = jsonIntField(object, "breakLevel"); breakLevel.has_value())
+            {
+                definition.breakLevel = static_cast<uint16_t>(std::clamp(*breakLevel, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
+            }
+            if (const std::optional<int> maxDurability = jsonIntField(object, "maxDurability"); maxDurability.has_value())
+            {
+                definition.maxDurability = static_cast<uint16_t>(std::clamp(*maxDurability, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
             }
 
             definitions.push_back(std::move(definition));
@@ -550,6 +566,14 @@ namespace dolbuto::data
             if (const std::optional<float> hardness = jsonFloatField(object, "hardness"); hardness.has_value())
             {
                 definition.hardness = *hardness;
+            }
+            if (const std::optional<int> breakLevel = jsonIntField(object, "breakLevel"); breakLevel.has_value())
+            {
+                definition.breakLevel = static_cast<uint16_t>(std::clamp(*breakLevel, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
+            }
+            if (const std::optional<std::string> breakAction = jsonStringField(object, "breakAction"); breakAction.has_value())
+            {
+                definition.breakAction = breakAction->empty() ? "none" : *breakAction;
             }
             if (const std::optional<int> lightAttenuation = jsonIntField(object, "lightAttenuation"); lightAttenuation.has_value())
             {
@@ -654,6 +678,14 @@ namespace dolbuto::data
             if (const std::optional<std::string> candidates = jsonArrayField(object, "candidates"); candidates.has_value())
             {
                 definition.candidates = jsonStringArrayValues(*candidates);
+            }
+            const int minCount = jsonIntField(object, "min").value_or(1);
+            const int maxCount = jsonIntField(object, "max").value_or(minCount);
+            definition.resultCountMin = static_cast<uint16_t>(std::clamp(minCount, 1, 65535));
+            definition.resultCountMax = static_cast<uint16_t>(std::clamp(maxCount, 1, 65535));
+            if (definition.resultCountMax < definition.resultCountMin)
+            {
+                definition.resultCountMax = definition.resultCountMin;
             }
             if (!definition.action.empty() && !definition.target.empty() && !definition.candidates.empty())
             {

@@ -557,7 +557,7 @@ namespace dolbuto::ui
         cursor->SetInnerRML(std::string(rml));
     }
 
-    void UiSystem::setRadialMenu(std::string_view actionsRml, std::string_view candidatesRml, bool visible)
+    void UiSystem::setRadialMenu(std::string_view centerRml, std::string_view actionsRml, std::string_view candidatesRml, bool visible)
     {
         if (hudDocument_ == nullptr)
         {
@@ -567,6 +567,10 @@ namespace dolbuto::ui
         if (Rml::Element* radial = hudDocument_->GetElementById("radial-menu"))
         {
             radial->SetAttribute("class", visible ? "radial-menu" : "radial-menu ui-hidden");
+        }
+        if (Rml::Element* radialCenter = hudDocument_->GetElementById("radial-center-label"))
+        {
+            radialCenter->SetInnerRML(std::string(centerRml));
         }
         if (Rml::Element* radialActions = hudDocument_->GetElementById("radial-actions"))
         {
@@ -595,7 +599,7 @@ namespace dolbuto::ui
         tooltip->SetInnerRML("");
     }
 
-    void UiSystem::showItemTooltip(std::string_view rml, int left, int top, int width, int height)
+    void UiSystem::showItemTooltip(std::string_view rml, int left, int top)
     {
         if (inventoryDocument_ == nullptr)
         {
@@ -613,8 +617,7 @@ namespace dolbuto::ui
             "style",
             "left: " + std::to_string(left) +
             "px; top: " + std::to_string(top) +
-            "px; width: " + std::to_string(width) +
-            "px; height: " + std::to_string(height) + "px;");
+            "px;");
         tooltip->SetInnerRML(std::string(rml));
     }
 

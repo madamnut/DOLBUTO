@@ -63,7 +63,7 @@ namespace dolbuto
         }
         if (update.breakBlock)
         {
-            breakBlockAtHit(update.hit);
+            breakBlockAtHit(update.hit, update.durabilityCost);
         }
     }
 
@@ -115,7 +115,7 @@ namespace dolbuto
 
     bool RendererGameplayBridge::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex)
     {
-        return client_.gameplayRuntime.executePendingItemInteraction(
+        const bool executed = client_.gameplayRuntime.executePendingItemInteraction(
             actionIndex,
             candidateIndex,
             [this](RuntimeChunk& chunk)
@@ -125,6 +125,12 @@ namespace dolbuto
                     hooks_.markRuntimeChunkDataDirty(chunk);
                 }
             });
+        if (executed && hooks_.updateInventoryUi)
+        {
+            hooks_.updateInventoryUi();
+            client_.uiBridge.updateItemTooltipUi(vulkan_.swapchainExtent.width, vulkan_.swapchainExtent.height);
+        }
+        return executed;
     }
 
     void RendererGameplayBridge::cancelPendingItemInteraction()
@@ -177,6 +183,11 @@ namespace dolbuto
             {
                 hooks_.rebuildEditedChunkMeshes(result.hit.blockX, result.hit.blockY, result.hit.blockZ);
             }
+            if (result.inventoryChanged && hooks_.updateInventoryUi)
+            {
+                hooks_.updateInventoryUi();
+                client_.uiBridge.updateItemTooltipUi(vulkan_.swapchainExtent.width, vulkan_.swapchainExtent.height);
+            }
             return true;
         }
 
@@ -196,11 +207,12 @@ namespace dolbuto
         return false;
     }
 
-    bool RendererGameplayBridge::breakBlockAtHit(const BlockRaycastHit& hit)
+    bool RendererGameplayBridge::breakBlockAtHit(const BlockRaycastHit& hit, uint16_t durabilityCost)
     {
         return applyBlockEditResult(
             client_.gameplayRuntime.breakBlockAtHit(
                 hit,
+                durabilityCost,
                 [this](int x, int y, int z) { return blockAtWorld(x, y, z); },
                 [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); },
                 [this](int x, int y, int z, uint16_t block)
