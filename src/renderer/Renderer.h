@@ -5,6 +5,7 @@
 #include "game/ClientUiTypes.h"
 #include "gameplay/PlayerInventory.h"
 #include "items/ItemData.h"
+#include "renderer/CloudRenderPath.h"
 #include "renderer/DroppedItemRenderPath.h"
 #include "renderer/DebugOverlayText.h"
 #include "renderer/ParticleRenderPath.h"
@@ -78,6 +79,7 @@ namespace dolbuto
         TerrainRenderPath terrainRenderPath_;
         TextRenderPath textRenderPath_;
         SkyRenderPath skyRenderPath_;
+        CloudRenderPath cloudRenderPath_;
         SpriteRenderPath spriteRenderPath_;
         ScreenPresentation screenPresentation_;
         PlayerMeshRenderPath playerMeshRenderPath_;

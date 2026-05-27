@@ -238,6 +238,7 @@ namespace dolbuto
             cameraPositionFloat,
             frame.fovRadians,
             frame.skyBrightness,
+            frame.cloudCoverage,
             playerPositionFloat,
             playerPackedLight,
             frame.fpsText,
@@ -367,7 +368,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, Vec3 playerPosition, uint8_t playerPackedLight, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, float cloudCoverage, Vec3 playerPosition, uint8_t playerPackedLight, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -435,6 +436,16 @@ namespace dolbuto
                 spriteRenderPath_,
                 vulkan_.pipelineLayout,
                 textRenderPath_.vertexBuffer());
+            cloudRenderPath_.draw(
+                commandBuffer,
+                vulkan_.cloudPipeline,
+                vulkan_.cloudPipelineLayout,
+                camera,
+                cameraPosition,
+                fovRadians,
+                vulkan_.swapchainExtent,
+                worldTicks,
+                cloudCoverage);
 
             drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, terrainWireframe, true, false, imageIndex);
             drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, terrainWireframe, false, true, imageIndex);

@@ -12,6 +12,7 @@ void createSceneTargets();
 void createDescriptorSetLayout();
 void createTerrainVertexDescriptorSetLayout();
 void createSkyPipeline();
+void createCloudPipeline();
 void createPipeline();
 void createUiPipeline();
 void createTerrainPipeline();

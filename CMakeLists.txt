@@ -122,6 +122,8 @@ set(DOLBUTO_RUNTIME_DLLS
 set(SHADER_SOURCES
     shaders/sky.vert
     shaders/sky.frag
+    shaders/cloud.vert
+    shaders/cloud.frag
     shaders/sprite.vert
     shaders/sprite.frag
     shaders/rmlui.vert
@@ -226,6 +228,8 @@ add_executable(DOLBUTO
     src/renderer/RendererSwapchain.cpp
     src/renderer/RendererTerrainRuntimeBridge.cpp
     src/renderer/RendererVulkanContext.cpp
+    src/renderer/CloudRenderPath.cpp
+    src/renderer/CloudRenderPath.h
     src/renderer/DroppedItemRenderCollector.cpp
     src/renderer/DroppedItemRenderCollector.h
     src/renderer/DroppedItemRenderPath.cpp

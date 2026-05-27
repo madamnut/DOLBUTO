@@ -722,6 +722,18 @@ namespace dolbuto
                         : (tickOfDay + TicksPerDay - wrappedStep) % TicksPerDay;
                     worldTicks_ = dayStart + nextTickOfDay;
                 }
+
+                const bool increaseClouds = glfwGetKey(window_, GLFW_KEY_KP_ADD) == GLFW_PRESS;
+                const bool decreaseClouds = glfwGetKey(window_, GLFW_KEY_KP_SUBTRACT) == GLFW_PRESS;
+                if (increaseClouds != decreaseClouds)
+                {
+                    constexpr double CloudCoverageDebugSpeed = 0.5;
+                    const float deltaCoverage = static_cast<float>(delta.count() * CloudCoverageDebugSpeed);
+                    cloudCoverage_ = std::clamp(
+                        cloudCoverage_ + (increaseClouds ? deltaCoverage : -deltaCoverage),
+                        0.0f,
+                        1.0f);
+                }
             }
 
             physicsAccumulator_ += std::min(delta.count(), MaxPhysicsFrameTime);
@@ -871,6 +883,7 @@ namespace dolbuto
                 renderCameraPosition,
                 static_cast<float>(worldFovDegrees * Pi / 180.0),
                 skyBrightnessForTicks(worldTicks_),
+                cloudCoverage_,
                 debugText_.data(),
                 "",
                 renderDebugText,

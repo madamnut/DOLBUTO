@@ -72,6 +72,7 @@
 `src/renderer/RendererDroppedItems.cpp`는 `DroppedItemRuntime` update 호출, 렌더 후보 수집 입력 조립, push constant 준비, `DroppedItemRenderPath` draw 호출만 담는다.
 `src/renderer/RendererFrameLoop.cpp`는 frame acquire/submit/present, command buffer 기록, screenshot readback/BMP 저장, command buffer/sync object 생성을 담는다.
 `src/renderer/SkyRenderPath.h/.cpp`는 scene render pass의 첫 draw로 fullscreen sky shader를 호출한다. sky shader는 clear color 고정값 대신 `worldTicks`에서 계산한 실제 sun direction, 낮/밤 판정용 day direction, camera basis, FOV를 받아 view direction과 direction dot 값으로 하늘 위쪽/지평선/아래쪽 그라데이션, 일출/일몰 horizon glow, 태양 방향 glare를 계산한다.
+`src/renderer/CloudRenderPath.h/.cpp`는 하늘 스프라이트 뒤, 지형 앞에서 별도 fullscreen alpha pass로 월드 공간 `Y=500..700` 범위의 렌더 전용 volumetric cloud slab을 그린다. 구름은 카메라 기준 화면 노이즈가 아니라 `cameraPosition + viewDirection * t` 월드 좌표에서 3D noise 밀도장을 raymarch해 샘플링하므로 플레이어 이동에 따라 월드 상공에 고정된 것처럼 보이며, 태양과 달 스프라이트를 가릴 수 있다. 키패드 `+`는 `cloudCoverage`를 높여 구름을 많게 하고, 키패드 `-`는 낮춰 구름을 적게 한다. 구름 coverage 디버그 값은 화면 텍스트로 표시하지 않는다.
 밤하늘은 낮보다 낮은 RGB ramp를 사용하고, 어두운 계조에서 줄무늬가 보이지 않도록 screen-space hash noise 기반의 약한 dither를 적용한다.
 하늘색 디버그를 위해 게임 화면에서 `[`를 누르고 있으면 하루 안의 시간이 해가 뜨는 방향으로 되감기고, `]`를 누르고 있으면 해가 지는 방향으로 빨리 진행된다. 이 입력은 `worldTicks`만 조정하므로 sky shader와 sun/moon sprite 위치가 같은 기준으로 움직인다.
 `src/renderer/RendererGameplayBridge.h/.cpp`는 block selection/edit/breaking, pickup/drop, inventory snapshot, block lookup/collision helper, gameplay 결과의 mesh/particle/audio 반영을 담당하는 `RendererGameplayBridge`를 담는다.
@@ -84,6 +85,7 @@
 `src/game/ClientFrame.h`는 `GameClient`가 한 프레임 렌더링에 넘기는 카메라, 플레이어, overlay, debug, screenshot, world tick 입력을 `ClientFrame` DTO로 묶는다.
 `ClientFrame`/`RendererFrame`은 현재 FOV를 `fovRadians`로 함께 전달한다.
 `ClientFrame`/`RendererFrame`은 아이템 상호작용 원형 UI의 표시 여부, 액션 수, 후보 수, 선택 인덱스를 `RadialMenuRenderFrame`으로 함께 전달한다.
+`ClientFrame`/`RendererFrame`은 cloud render path용 `cloudCoverage`도 전달한다.
 스카이라이트 전역 밝기는 `worldTicks`에서 시간 기반으로 계산한 `0.0~1.0` 범위의 `skyBrightness`로 렌더 프레임에 전달한다.
 `05:00~07:00`에는 최소 밝기 `0.08`에서 최대 밝기 `1.0`으로 부드럽게 밝아지고, `07:00~17:00`에는 최대 밝기를 유지하며, `17:00~21:00`에는 다시 최소 밝기로 어두워진다. `21:00~05:00`에는 최소 밝기를 유지한다.
 terrain/player/particle/selection/dropped item projection과 terrain/dropped item frustum culling, sky sprite projection은 이 값을 같은 프레임 기준으로 사용한다.
