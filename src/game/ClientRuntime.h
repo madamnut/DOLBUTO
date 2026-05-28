@@ -62,13 +62,16 @@ namespace dolbuto::game
             bool playerColliderIntersectsTerrain(DVec3 playerPosition, double heightScale) const;
             bool playerColliderHasSupportBelow(DVec3 playerPosition) const;
             void updateBlockSelection(DVec3 origin, Vec3 direction);
-            void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds);
+            void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds, bool sandboxMode);
             bool editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale);
+            bool placeSelectedItemBlockInView(DVec3 origin, Vec3 direction, DVec3 playerPosition, double playerHeightScale);
             bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
             bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction);
             gameplay::ItemInteractionMenu beginItemInteractionInView(DVec3 origin, Vec3 direction);
             bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex);
             void cancelPendingItemInteraction();
+            void tickBlockUpdates();
+            void tickFluidSimulation();
             std::array<ItemStack, gameplay::PlayerInventory::SlotCount> inventorySnapshot() const;
             void setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots);
 

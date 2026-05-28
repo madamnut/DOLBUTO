@@ -39,14 +39,16 @@ namespace dolbuto
             ParticleRenderPath& particleRenderPath,
             Hooks hooks);
 
-        void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, float deltaSeconds);
+        void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, float deltaSeconds, bool sandboxMode);
         bool editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale);
+        bool placeSelectedItemBlockInView(DVec3 origin, Vec3 direction, DVec3 playerPosition, double playerHeightScale);
         bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
         bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction);
         gameplay::ItemInteractionMenu beginItemInteractionInView(DVec3 origin, Vec3 direction);
         bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex);
         void cancelPendingItemInteraction();
         void setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots);
+        void tickBlockUpdates();
 
         const BlockDefinition& blockDefinition(uint16_t block) const;
         uint16_t blockAtWorld(int x, int y, int z) const;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "assets/PropModelLoader.h"
 #include "items/ItemData.h"
 #include "world/BlockData.h"
 
@@ -37,6 +38,8 @@ namespace dolbuto::game
         const std::vector<std::string>& blockTextureNames() const;
         const std::vector<std::string>& itemTextureNames() const;
         const std::vector<PropModelBinding>& propModelBindings() const;
+        const std::unordered_map<uint16_t, assets::PropMesh>& propMeshesByBlock() const;
+        const assets::PropMesh* propMeshForBlock(uint16_t block) const;
 
     private:
         std::vector<BlockDefinition> blockDefinitions_;
@@ -50,5 +53,6 @@ namespace dolbuto::game
         std::vector<std::string> blockTextureNames_;
         std::vector<std::string> itemTextureNames_;
         std::vector<PropModelBinding> propModelBindings_;
+        std::unordered_map<uint16_t, assets::PropMesh> propMeshesByBlock_;
     };
 }

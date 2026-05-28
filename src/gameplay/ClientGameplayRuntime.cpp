@@ -15,6 +15,7 @@ namespace dolbuto::gameplay
 
     ClientGameplayRuntime::ClientGameplayRuntime(world::WorldRuntime* worldRuntime, const std::vector<ItemDefinition>* itemDefinitions)
         : itemDefinitions_(itemDefinitions),
+        worldRuntime_(worldRuntime),
         droppedItemRuntime_(worldRuntime, itemDefinitions)
     {
     }
@@ -22,6 +23,7 @@ namespace dolbuto::gameplay
     void ClientGameplayRuntime::setContext(world::WorldRuntime* worldRuntime, const std::vector<ItemDefinition>* itemDefinitions)
     {
         itemDefinitions_ = itemDefinitions;
+        worldRuntime_ = worldRuntime;
         droppedItemRuntime_.setContext(worldRuntime, itemDefinitions);
     }
 
@@ -58,11 +60,12 @@ namespace dolbuto::gameplay
         double playerHeightScale,
         const BlockSampler& blockAtWorld,
         const BlockDefinitionProvider& blockDefinition,
+        const BlockInteractionSystem::PropMeshProvider& propMesh,
         const SetBlockFn& setBlockAtWorld,
         const MarkDirtyFn& markDirty)
     {
         BlockRaycastHit hit{};
-        if (!BlockInteractionSystem::raycastBlock(origin, direction, blockAtWorld, blockDefinition, hit))
+        if (!BlockInteractionSystem::raycastBlock(origin, direction, blockAtWorld, blockDefinition, hit, propMesh))
         {
             return {};
         }
@@ -136,8 +139,10 @@ namespace dolbuto::gameplay
         Vec3 direction,
         bool breaking,
         float deltaSeconds,
+        bool sandboxMode,
         const BlockSampler& blockAtWorld,
-        const BlockDefinitionProvider& blockDefinition)
+        const BlockDefinitionProvider& blockDefinition,
+        const BlockInteractionSystem::PropMeshProvider& propMesh)
     {
         return BlockInteractionSystem::updateBreaking(
             blockBreaking_,
@@ -145,9 +150,66 @@ namespace dolbuto::gameplay
             direction,
             breaking,
             deltaSeconds,
+            sandboxMode,
             currentBlockBreakTool(),
             blockAtWorld,
-            blockDefinition);
+            blockDefinition,
+            propMesh);
+    }
+
+    BlockTickResult ClientGameplayRuntime::tickBlockUpdates(
+        uint32_t maxCells,
+        const BlockDefinitionProvider& blockDefinition,
+        const SetBlockFn& setBlockAtWorld,
+        const MarkDirtyFn& markDirty)
+    {
+        BlockTickResult result{};
+        if (worldRuntime_ == nullptr || !setBlockAtWorld)
+        {
+            return result;
+        }
+
+        const std::vector<world::WorldRuntime::BlockTickCell> cells = worldRuntime_->takeScheduledBlockTicks(maxCells);
+        for (const world::WorldRuntime::BlockTickCell& cell : cells)
+        {
+            const uint16_t block = worldRuntime_->blockAtWorld(cell.x, cell.y, cell.z);
+            if (block == BlockAir)
+            {
+                continue;
+            }
+
+            const BlockDefinition& definition = blockDefinition(block);
+            if (definition.attachmentFace == BlockAttachmentFace::None)
+            {
+                continue;
+            }
+
+            bool attached = true;
+            if (definition.attachmentFace == BlockAttachmentFace::Bottom)
+            {
+                const uint16_t support = worldRuntime_->blockAtWorld(cell.x, cell.y - 1, cell.z);
+                attached = support != BlockAir && blockDefinition(support).collision;
+            }
+            if (attached)
+            {
+                continue;
+            }
+
+            if (!setBlockAtWorld(cell.x, cell.y, cell.z, BlockAir))
+            {
+                continue;
+            }
+
+            droppedItemRuntime_.spawnBlockDrops(cell.x, cell.y, cell.z, definition, markDirty);
+            result.brokenBlocks.push_back(BlockBreakEvent{
+                cell.x,
+                cell.y,
+                cell.z,
+                block
+            });
+        }
+
+        return result;
     }
 
     void ClientGameplayRuntime::resetBlockBreaking()
@@ -195,13 +257,18 @@ namespace dolbuto::gameplay
         return playerInventory_.removeFromSlot(slotIndex, dropCount);
     }
 
-    ItemInteractionMenu ClientGameplayRuntime::beginItemInteractionInView(
+    BlockEditResult ClientGameplayRuntime::placeSelectedItemBlockInView(
         DVec3 origin,
         Vec3 direction,
-        const std::vector<ItemInteractionRecipe>& recipes)
+        DVec3 playerPosition,
+        double playerHeightScale,
+        const BlockSampler& blockAtWorld,
+        const BlockDefinitionProvider& blockDefinition,
+        const BlockInteractionSystem::PropMeshProvider& propMesh,
+        const SetBlockFn& setBlockAtWorld,
+        const TerrainCollisionPredicate& terrainCellBlocksItem,
+        const MarkDirtyFn& markDirty)
     {
-        pendingItemInteraction_ = {};
-
         const std::size_t slotIndex = static_cast<std::size_t>(std::clamp(hotbarSelectedSlot_, 0, 9));
         const ItemStack& heldStack = playerInventory_.slot(slotIndex);
         const std::vector<ItemDefinition>& definitions = itemDefinitions();
@@ -213,11 +280,62 @@ namespace dolbuto::gameplay
         }
 
         const ItemDefinition& heldDefinition = definitions[heldStack.itemId];
-        if (heldDefinition.useActions.empty())
+        if (heldDefinition.placeBlockId == BlockAir ||
+            std::find(heldDefinition.placeActions.begin(), heldDefinition.placeActions.end(), "place") == heldDefinition.placeActions.end())
         {
             return {};
         }
 
+        BlockRaycastHit hit{};
+        if (!BlockInteractionSystem::raycastBlock(origin, direction, blockAtWorld, blockDefinition, hit, propMesh))
+        {
+            return {};
+        }
+        if (blockAtWorld && blockAtWorld(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ) != BlockAir)
+        {
+            return {};
+        }
+        if (BlockInteractionSystem::blockIntersectsPlayerCollider(
+                hit.previousBlockX,
+                hit.previousBlockY,
+                hit.previousBlockZ,
+                blockDefinition(heldDefinition.placeBlockId),
+                playerPosition,
+                playerHeightScale))
+        {
+            return {};
+        }
+        if (!setBlockAtWorld || !setBlockAtWorld(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ, heldDefinition.placeBlockId))
+        {
+            return {};
+        }
+
+        droppedItemRuntime_.pushItemsOutOfBlock(
+            hit.previousBlockX,
+            hit.previousBlockY,
+            hit.previousBlockZ,
+            terrainCellBlocksItem,
+            markDirty);
+
+        BlockEditResult result{};
+        result.changed = true;
+        result.type = BlockEditType::Place;
+        result.hit = hit;
+        result.block = heldDefinition.placeBlockId;
+        result.inventoryChanged = playerInventory_.removeFromSlot(slotIndex, 1);
+        return result;
+    }
+
+    ItemInteractionMenu ClientGameplayRuntime::beginItemInteractionInView(
+        DVec3 origin,
+        Vec3 direction,
+        const std::vector<ItemInteractionRecipe>& recipes)
+    {
+        pendingItemInteraction_ = {};
+
+        const std::size_t slotIndex = static_cast<std::size_t>(std::clamp(hotbarSelectedSlot_, 0, 9));
+        const ItemStack& heldStack = playerInventory_.slot(slotIndex);
+        const std::vector<ItemDefinition>& definitions = itemDefinitions();
         world::DroppedItemRuntime::Target target{};
         if (!droppedItemRuntime_.targetInView(origin, direction, target) ||
             target.stack.itemId == 0 ||
@@ -228,22 +346,46 @@ namespace dolbuto::gameplay
 
         ItemInteractionMenu menu{};
         menu.targetItemId = target.stack.itemId;
+        for (const ItemInteractionRecipe& recipe : recipes)
+        {
+            if (recipe.targetItemId == target.stack.itemId)
+            {
+                menu.hasUseTarget = true;
+                break;
+            }
+        }
+        if (!menu.hasUseTarget)
+        {
+            return {};
+        }
+
+        if (heldStack.itemId == 0 ||
+            heldStack.count == 0 ||
+            static_cast<std::size_t>(heldStack.itemId) >= definitions.size())
+        {
+            return menu;
+        }
+
+        const ItemDefinition& heldDefinition = definitions[heldStack.itemId];
+        if (heldDefinition.useActions.empty())
+        {
+            return menu;
+        }
+
         for (const std::string& action : heldDefinition.useActions)
         {
             for (const ItemInteractionRecipe& recipe : recipes)
             {
                 if (recipe.action != action ||
                     recipe.targetItemId != target.stack.itemId ||
-                    recipe.candidateItemIds.empty())
+                    recipe.candidates.empty())
                 {
                     continue;
                 }
 
                 menu.actions.push_back(ItemInteractionActionMenu{
                     action,
-                    recipe.candidateItemIds,
-                    recipe.resultCountMin,
-                    recipe.resultCountMax
+                    recipe.candidates
                 });
                 break;
             }
@@ -251,7 +393,7 @@ namespace dolbuto::gameplay
 
         if (menu.actions.empty())
         {
-            return {};
+            return menu;
         }
 
         menu.available = true;
@@ -267,25 +409,47 @@ namespace dolbuto::gameplay
     {
         if (!pendingItemInteraction_.active ||
             actionIndex >= pendingItemInteraction_.actions.size() ||
-            candidateIndex >= pendingItemInteraction_.actions[actionIndex].candidateItemIds.size())
+            candidateIndex >= pendingItemInteraction_.actions[actionIndex].candidates.size())
         {
             pendingItemInteraction_ = {};
             return false;
         }
 
-        const uint16_t resultItemId = pendingItemInteraction_.actions[actionIndex].candidateItemIds[candidateIndex];
-        const uint16_t resultCountMin = pendingItemInteraction_.actions[actionIndex].resultCountMin;
-        const uint16_t resultCountMax = pendingItemInteraction_.actions[actionIndex].resultCountMax;
+        const ItemInteractionCandidate candidate = pendingItemInteraction_.actions[actionIndex].candidates[candidateIndex];
         const std::size_t heldSlotIndex = pendingItemInteraction_.heldSlotIndex;
         const WorldEntityHandle targetHandle = pendingItemInteraction_.targetHandle;
         const uint64_t targetEntityId = pendingItemInteraction_.targetEntityId;
+        const ItemStack heldStack = playerInventory_.slot(heldSlotIndex);
+        const std::vector<ItemDefinition>& definitions = itemDefinitions();
+        uint16_t maxApplications = 1;
+        bool consumesDurability = false;
+        if (heldStack.itemId != 0 && static_cast<std::size_t>(heldStack.itemId) < definitions.size())
+        {
+            const uint16_t maxDurability = definitions[heldStack.itemId].maxDurability;
+            if (maxDurability > 0)
+            {
+                consumesDurability = true;
+                maxApplications = heldStack.durability == 0
+                    ? maxDurability
+                    : std::min(heldStack.durability, maxDurability);
+            }
+        }
         pendingItemInteraction_ = {};
-        if (!droppedItemRuntime_.replaceTargetItems(targetHandle, targetEntityId, resultItemId, resultCountMin, resultCountMax, markDirty))
+        const uint16_t applicationCount = droppedItemRuntime_.replaceTargetItems(
+            targetHandle,
+            targetEntityId,
+            candidate.outputs,
+            maxApplications,
+            markDirty);
+        if (applicationCount == 0)
         {
             return false;
         }
 
-        playerInventory_.damageSlot(heldSlotIndex, 1, itemDefinitions());
+        if (consumesDurability)
+        {
+            playerInventory_.damageSlot(heldSlotIndex, applicationCount, itemDefinitions());
+        }
         return true;
     }
 
@@ -458,6 +622,11 @@ namespace dolbuto::gameplay
         }
 
         const ItemDefinition& definition = definitions[heldStack.itemId];
+        if (definition.breakActions.empty() && definition.breakLevel == 0)
+        {
+            return tool;
+        }
+
         tool.level = definition.breakLevel;
         tool.actions = definition.breakActions;
         tool.durable = definition.maxDurability > 0;

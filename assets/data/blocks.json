@@ -41,7 +41,7 @@
       }
     ],
     "lightAttenuation": 15,
-    "breakLevel": 1,
+    "breakLevel": 2,
     "breakAction": "smash"
   },
   {
@@ -82,7 +82,7 @@
       }
     ],
     "lightAttenuation": 15,
-    "breakLevel": 0,
+    "breakLevel": 1,
     "breakAction": "dig"
   },
   {
@@ -109,7 +109,7 @@
       }
     ],
     "lightAttenuation": 15,
-    "breakLevel": 0,
+    "breakLevel": 1,
     "breakAction": "dig"
   },
   {
@@ -136,7 +136,7 @@
       }
     ],
     "lightAttenuation": 15,
-    "breakLevel": 0,
+    "breakLevel": 1,
     "breakAction": "dig"
   },
   {
@@ -157,7 +157,7 @@
     },
     "drops": [],
     "lightAttenuation": 15,
-    "breakLevel": 1,
+    "breakLevel": 2,
     "breakAction": "smash"
   },
   {
@@ -177,7 +177,7 @@
     },
     "drops": [],
     "lightAttenuation": 15,
-    "breakLevel": 0,
+    "breakLevel": 1,
     "breakAction": "dig"
   },
   {
@@ -197,12 +197,12 @@
     },
     "drops": [],
     "lightAttenuation": 15,
-    "breakLevel": 0,
+    "breakLevel": 1,
     "breakAction": "dig"
   },
   {
     "id": 8,
-    "name": "trunk",
+    "name": "log",
     "renderType": "cube",
     "hardness": 4,
     "directional": false,
@@ -213,12 +213,19 @@
     "sameBlockFaceCulling": true,
     "alphaMode": "opaque",
     "textures": {
-      "topBottom": "trunk_topbottom",
-      "side": "trunk_side"
+      "topBottom": "log_topbottom",
+      "side": "log_side"
     },
-    "drops": [],
+    "drops": [
+      {
+        "item": "log",
+        "min": 1,
+        "max": 1,
+        "chance": 1
+      }
+    ],
     "lightAttenuation": 15,
-    "breakLevel": 0,
+    "breakLevel": 2,
     "breakAction": "chop"
   },
   {
@@ -266,7 +273,7 @@
     },
     "drops": [],
     "lightAttenuation": 15,
-    "breakLevel": 0,
+    "breakLevel": 1,
     "breakAction": "dig"
   },
   {
@@ -287,14 +294,14 @@
     },
     "drops": [],
     "lightAttenuation": 2,
-    "breakLevel": 0,
+    "breakLevel": 2,
     "breakAction": "smash"
   },
   {
     "id": 12,
-    "name": "glowing_rock",
+    "name": "stripped_log",
     "renderType": "cube",
-    "hardness": 5,
+    "hardness": 4,
     "directional": false,
     "mipDistanceScale": 1,
     "collision": true,
@@ -303,20 +310,20 @@
     "sameBlockFaceCulling": true,
     "alphaMode": "opaque",
     "textures": {
-      "all": "rock"
+      "topBottom": "stripped_log_topbottom",
+      "side": "stripped_log_side"
     },
     "drops": [
       {
-        "item": "rock_chunk",
+        "item": "stripped_log",
         "min": 1,
-        "max": 2,
+        "max": 1,
         "chance": 1
       }
     ],
     "lightAttenuation": 15,
-    "lightEmission": 15,
-    "breakLevel": 1,
-    "breakAction": "smash"
+    "breakLevel": 2,
+    "breakAction": "chop"
   },
   {
     "id": 10000,
@@ -334,6 +341,9 @@
     "alphaCutoff": 0.5,
     "textures": {
       "all": "plant"
+    },
+    "attachment": {
+      "face": "bottom"
     },
     "drops": [
       {
@@ -364,6 +374,9 @@
       "model": "stone",
       "texture": "rock"
     },
+    "attachment": {
+      "face": "bottom"
+    },
     "drops": [
       {
         "item": "stone_shard",
@@ -391,7 +404,10 @@
     "alphaMode": "opaque",
     "prop": {
       "model": "branch",
-      "texture": "trunk_side"
+      "texture": "log_side"
+    },
+    "attachment": {
+      "face": "bottom"
     },
     "drops": [
       {

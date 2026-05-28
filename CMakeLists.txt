@@ -194,6 +194,8 @@ add_executable(DOLBUTO
     src/gameplay/ClientGameplayRuntime.h
     src/gameplay/PlayerInventory.cpp
     src/gameplay/PlayerInventory.h
+    src/assets/BlockItemIconBuilder.cpp
+    src/assets/BlockItemIconBuilder.h
     src/assets/PropModelLoader.cpp
     src/assets/PropModelLoader.h
     src/audio/AudioSystem.cpp
@@ -298,6 +300,7 @@ add_executable(DOLBUTO
     src/ui/UiSystem.cpp
     src/ui/UiSystem.h
     src/world/BlockData.h
+    src/world/BlockVisualShape.h
     src/world/Biome.cpp
     src/world/Biome.h
     src/world/ChunkLoadSystem.cpp

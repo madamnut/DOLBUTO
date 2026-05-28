@@ -1,7 +1,11 @@
 #include "gameplay/BlockInteractionSystem.h"
 
+#include "world/BlockVisualShape.h"
+
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstddef>
 #include <limits>
 
 namespace dolbuto::gameplay
@@ -19,7 +23,7 @@ namespace dolbuto::gameplay
 
         uint16_t durabilityCostFor(const BlockDefinition& definition, const BlockBreakTool& tool)
         {
-            if (!tool.durable)
+            if (!tool.durable || definition.breakLevel == 0)
             {
                 return 0;
             }
@@ -37,6 +41,174 @@ namespace dolbuto::gameplay
             const float levelMultiplier = std::pow(LevelMultiplierBase, static_cast<float>(levelDelta));
             const float actionMultiplier = actionMatches(definition, tool) ? 1.0f : 0.5f;
             return BlockInteractionSystem::BlockBreakPower * levelMultiplier * actionMultiplier;
+        }
+
+        Vec3 subtract(Vec3 left, Vec3 right)
+        {
+            return {left.x - right.x, left.y - right.y, left.z - right.z};
+        }
+
+        Vec3 rayPoint(DVec3 origin, Vec3 direction, double distance)
+        {
+            return {
+                static_cast<float>(origin.x + static_cast<double>(direction.x) * distance),
+                static_cast<float>(origin.y + static_cast<double>(direction.y) * distance),
+                static_cast<float>(origin.z + static_cast<double>(direction.z) * distance)
+            };
+        }
+
+        bool rayIntersectsTriangle(DVec3 origin, Vec3 direction, Vec3 a, Vec3 b, Vec3 c, double& distance)
+        {
+            constexpr double Epsilon = 0.0000001;
+            const Vec3 edge1 = subtract(b, a);
+            const Vec3 edge2 = subtract(c, a);
+            const Vec3 p = cross(direction, edge2);
+            const double determinant = static_cast<double>(dot(edge1, p));
+            if (std::abs(determinant) < Epsilon)
+            {
+                return false;
+            }
+
+            const double invDeterminant = 1.0 / determinant;
+            const Vec3 t{
+                static_cast<float>(origin.x - static_cast<double>(a.x)),
+                static_cast<float>(origin.y - static_cast<double>(a.y)),
+                static_cast<float>(origin.z - static_cast<double>(a.z))
+            };
+            const double u = static_cast<double>(dot(t, p)) * invDeterminant;
+            if (u < -Epsilon || u > 1.0 + Epsilon)
+            {
+                return false;
+            }
+
+            const Vec3 q = cross(t, edge1);
+            const double v = static_cast<double>(dot(direction, q)) * invDeterminant;
+            if (v < -Epsilon || u + v > 1.0 + Epsilon)
+            {
+                return false;
+            }
+
+            const double hitDistance = static_cast<double>(dot(edge2, q)) * invDeterminant;
+            if (hitDistance < -Epsilon || hitDistance > BlockInteractionSystem::MaxInteractionDistance + Epsilon)
+            {
+                return false;
+            }
+
+            distance = hitDistance;
+            return true;
+        }
+
+        bool rayIntersectsQuad(DVec3 origin, Vec3 direction, Vec3 a, Vec3 b, Vec3 c, Vec3 d, double& distance)
+        {
+            double bestDistance = std::numeric_limits<double>::infinity();
+            double triangleDistance = 0.0;
+            bool hit = false;
+            if (rayIntersectsTriangle(origin, direction, a, b, c, triangleDistance))
+            {
+                bestDistance = std::min(bestDistance, triangleDistance);
+                hit = true;
+            }
+            if (rayIntersectsTriangle(origin, direction, a, c, d, triangleDistance))
+            {
+                bestDistance = std::min(bestDistance, triangleDistance);
+                hit = true;
+            }
+            distance = bestDistance;
+            return hit;
+        }
+
+        bool pointInBlockCell(Vec3 point, int x, int y, int z)
+        {
+            constexpr float Epsilon = 0.0001f;
+            return point.x >= static_cast<float>(x) - 0.5f - Epsilon &&
+                point.x <= static_cast<float>(x) + 0.5f + Epsilon &&
+                point.y >= static_cast<float>(y) - Epsilon &&
+                point.y <= static_cast<float>(y + 1) + Epsilon &&
+                point.z >= static_cast<float>(z) - 0.5f - Epsilon &&
+                point.z <= static_cast<float>(z) + 0.5f + Epsilon;
+        }
+
+        bool rayIntersectsCrossBlock(DVec3 origin, Vec3 direction, int x, int y, int z, const BlockDefinition& definition)
+        {
+            bool hit = false;
+            world::block_visual::forEachCrossQuad(
+                definition,
+                x,
+                y,
+                z,
+                [&](Vec3 a, Vec3 b, Vec3 c, Vec3 d)
+                {
+                    double distance = 0.0;
+                    if (rayIntersectsQuad(origin, direction, a, b, c, d, distance) &&
+                        pointInBlockCell(rayPoint(origin, direction, distance), x, y, z))
+                    {
+                        hit = true;
+                    }
+                });
+            return hit;
+        }
+
+        bool rayIntersectsPropBlock(
+            DVec3 origin,
+            Vec3 direction,
+            int x,
+            int y,
+            int z,
+            const BlockDefinition& definition,
+            const assets::PropMesh& mesh)
+        {
+            for (size_t offset = 0; offset + assets::PropQuadRenderFloatCount <= mesh.quads.size(); offset += assets::PropQuadRenderFloatCount)
+            {
+                size_t cursor = offset;
+                std::array<Vec3, 4> quad{};
+                for (Vec3& vertex : quad)
+                {
+                    const float localX = mesh.quads[cursor++];
+                    const float localY = mesh.quads[cursor++];
+                    const float localZ = mesh.quads[cursor++];
+                    vertex = world::block_visual::transformLocalPoint(definition, x, y, z, localX, localY, localZ);
+                }
+
+                double distance = 0.0;
+                if (rayIntersectsQuad(origin, direction, quad[0], quad[1], quad[2], quad[3], distance) &&
+                    pointInBlockCell(rayPoint(origin, direction, distance), x, y, z))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool rayIntersectsBlockShape(
+            DVec3 origin,
+            Vec3 direction,
+            int x,
+            int y,
+            int z,
+            uint16_t block,
+            const BlockDefinition& definition,
+            const BlockInteractionSystem::PropMeshProvider& propMesh)
+        {
+            if (definition.renderType == BlockRenderType::Cube)
+            {
+                return true;
+            }
+            if (definition.renderType == BlockRenderType::Cross)
+            {
+                return rayIntersectsCrossBlock(origin, direction, x, y, z, definition);
+            }
+            if (definition.renderType == BlockRenderType::Prop)
+            {
+                if (!propMesh)
+                {
+                    return true;
+                }
+                const assets::PropMesh* mesh = propMesh(block);
+                return mesh == nullptr || mesh->quads.empty()
+                    ? true
+                    : rayIntersectsPropBlock(origin, direction, x, y, z, definition, *mesh);
+            }
+            return false;
         }
     }
 
@@ -162,7 +334,8 @@ namespace dolbuto::gameplay
         Vec3 direction,
         const BlockSampler& blockAtWorld,
         const BlockDefinitionProvider& blockDefinition,
-        BlockRaycastHit& hit)
+        BlockRaycastHit& hit,
+        const PropMeshProvider& propMesh)
     {
         constexpr double Epsilon = 0.000001;
 
@@ -206,15 +379,20 @@ namespace dolbuto::gameplay
         while (traveled <= MaxInteractionDistance + Epsilon)
         {
             const uint16_t block = blockAtWorld ? blockAtWorld(blockX, blockY, blockZ) : 0;
-            if (block != 0 && blockDefinition && blockDefinition(block).renderType != BlockRenderType::None)
+            if (block != 0 && blockDefinition)
             {
-                hit.blockX = blockX;
-                hit.blockY = blockY;
-                hit.blockZ = blockZ;
-                hit.previousBlockX = previousBlockX;
-                hit.previousBlockY = previousBlockY;
-                hit.previousBlockZ = previousBlockZ;
-                return true;
+                const BlockDefinition& definition = blockDefinition(block);
+                if (definition.renderType != BlockRenderType::None &&
+                    rayIntersectsBlockShape(origin, normalizedDirection, blockX, blockY, blockZ, block, definition, propMesh))
+                {
+                    hit.blockX = blockX;
+                    hit.blockY = blockY;
+                    hit.blockZ = blockZ;
+                    hit.previousBlockX = previousBlockX;
+                    hit.previousBlockY = previousBlockY;
+                    hit.previousBlockZ = previousBlockZ;
+                    return true;
+                }
             }
 
             previousBlockX = blockX;
@@ -249,9 +427,11 @@ namespace dolbuto::gameplay
         Vec3 direction,
         bool breaking,
         float deltaSeconds,
+        bool sandboxMode,
         const BlockBreakTool& tool,
         const BlockSampler& blockAtWorld,
-        const BlockDefinitionProvider& blockDefinition)
+        const BlockDefinitionProvider& blockDefinition,
+        const PropMeshProvider& propMesh)
     {
         BlockBreakingUpdate update{};
         if (!breaking || deltaSeconds <= 0.0f)
@@ -261,7 +441,7 @@ namespace dolbuto::gameplay
         }
 
         BlockRaycastHit hit{};
-        if (!raycastBlock(origin, direction, blockAtWorld, blockDefinition, hit))
+        if (!raycastBlock(origin, direction, blockAtWorld, blockDefinition, hit, propMesh))
         {
             resetBreaking(state);
             return update;
@@ -277,13 +457,13 @@ namespace dolbuto::gameplay
 
         update.hit = hit;
         update.block = block;
-        const float breakPower = breakPowerFor(definition, tool);
-        if (breakPower <= 0.0f)
+        const float breakPower = sandboxMode ? 1.0f : breakPowerFor(definition, tool);
+        if (!sandboxMode && breakPower <= 0.0f)
         {
             resetBreaking(state);
             return update;
         }
-        update.durabilityCost = durabilityCostFor(definition, tool);
+        update.durabilityCost = sandboxMode ? 0 : durabilityCostFor(definition, tool);
         if (definition.hardness <= 0.0f)
         {
             update.breakBlock = true;
@@ -305,7 +485,8 @@ namespace dolbuto::gameplay
             state.block = block;
         }
 
-        state.progress = std::min(1.0f, state.progress + deltaSeconds * breakPower / definition.hardness);
+        const float effectiveHardness = sandboxMode ? std::min(definition.hardness, 0.5f) : definition.hardness;
+        state.progress = std::min(1.0f, state.progress + deltaSeconds * breakPower / effectiveHardness);
         state.particleTimer += deltaSeconds;
         if (state.particleTimer >= BlockMiningParticleInterval)
         {

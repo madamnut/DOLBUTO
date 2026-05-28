@@ -24,14 +24,21 @@ namespace dolbuto::world
         using ChunkTrackingCallback = std::function<void(uint64_t)>;
         using PickupSoundCallback = std::function<void()>;
 
+        struct Bounds
+        {
+            float halfWidth = 0.34f;
+            float height = 0.05f;
+        };
+
         static constexpr size_t MaxDroppedItems = 1024;
         static constexpr float DroppedItemSize = 0.68f;
         static constexpr float DroppedItemThickness = 0.05f;
+        static constexpr float BlockModelDroppedItemSize = 0.2f;
         static constexpr float DroppedItemTickSeconds = 1.0f / 20.0f;
         static constexpr float DroppedItemMaxFrameSeconds = 0.25f;
         static constexpr float DroppedItemRenderDistance = 48.0f;
         static constexpr float DroppedItemRenderDistanceSquared = DroppedItemRenderDistance * DroppedItemRenderDistance;
-        static constexpr size_t MaxDroppedItemRenderInstances = MaxDroppedItems;
+        static constexpr size_t MaxDroppedItemRenderInstances = MaxDroppedItems * 4u;
 
         static int blockCoordinateXz(double worldCoordinate);
         static int blockCoordinateY(double worldCoordinate);
@@ -39,9 +46,10 @@ namespace dolbuto::world
         static uint64_t entityChunkKey(const WorldEntity& entity);
 
         static size_t countDroppedItemsInChunk(const RuntimeChunk& chunk);
+        static Bounds boundsForStack(const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions);
         static bool grounded(const WorldEntity& entity);
         static void setGrounded(WorldEntity& entity, bool grounded);
-        static bool touchesPlayerCollider(const WorldEntity& item, Vec3 playerPosition);
+        static bool touchesPlayerCollider(const WorldEntity& item, Vec3 playerPosition, const std::vector<ItemDefinition>& itemDefinitions);
 
         static std::vector<WorldEntity> createBlockDropEntities(
             int x,

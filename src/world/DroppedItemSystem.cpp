@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <limits>
 #include <random>
+#include <unordered_set>
 #include <utility>
 
 namespace dolbuto::world
@@ -15,7 +16,6 @@ namespace dolbuto::world
         constexpr int ChunkSizeZ = 16;
         constexpr float DroppedItemGravity = 32.0f;
         constexpr float DroppedItemDrag = 0.94f;
-        constexpr float DroppedItemCollisionRadius = DroppedItemSystem::DroppedItemSize * 0.5f;
         constexpr float DroppedItemWallBounce = 0.25f;
         constexpr float DroppedItemWallFriction = 0.65f;
         constexpr float DroppedItemPickupBaseSpeed = 7.0f;
@@ -125,11 +125,13 @@ namespace dolbuto::world
             }
         }
 
-        bool tryLandDroppedItemOnItem(WorldEntity& upper, const WorldEntity& lower)
+        bool tryLandDroppedItemOnItem(
+            WorldEntity& upper,
+            const WorldEntity& lower,
+            const std::vector<ItemDefinition>& itemDefinitions)
         {
-            constexpr float ItemHeight = DroppedItemSystem::DroppedItemThickness;
             constexpr float LandingEpsilon = 0.001f;
-            const float lowerTop = lower.position.y + ItemHeight;
+            const float lowerTop = lower.position.y + DroppedItemSystem::boundsForStack(lower.droppedItem.stack, itemDefinitions).height;
             if (upper.previousPosition.y + LandingEpsilon < lowerTop ||
                 upper.position.y > lowerTop + LandingEpsilon ||
                 upper.position.y > upper.previousPosition.y + LandingEpsilon)
@@ -146,6 +148,7 @@ namespace dolbuto::world
 
         void resolveDroppedItemCollisions(
             DroppedItemSystem::RuntimeChunkMap& runtimeChunks,
+            const std::vector<ItemDefinition>& itemDefinitions,
             const DroppedItemSystem::DirtyChunkCallback& markDirty)
         {
             struct ItemRef
@@ -176,9 +179,6 @@ namespace dolbuto::world
                 }
             }
 
-            constexpr float ItemSize = DroppedItemSystem::DroppedItemSize;
-            constexpr float ItemHeight = DroppedItemSystem::DroppedItemThickness;
-            constexpr float HalfHeight = ItemHeight * 0.5f;
             constexpr float SeparationEpsilon = 0.001f;
             for (std::size_t i = 0; i < items.size(); ++i)
             {
@@ -186,12 +186,14 @@ namespace dolbuto::world
                 {
                     WorldEntity& a = items[i].chunk->data->entities[items[i].index];
                     WorldEntity& b = items[j].chunk->data->entities[items[j].index];
+                    const DroppedItemSystem::Bounds aBounds = DroppedItemSystem::boundsForStack(a.droppedItem.stack, itemDefinitions);
+                    const DroppedItemSystem::Bounds bBounds = DroppedItemSystem::boundsForStack(b.droppedItem.stack, itemDefinitions);
                     const float dx = b.position.x - a.position.x;
-                    const float dy = (b.position.y + HalfHeight) - (a.position.y + HalfHeight);
+                    const float dy = (b.position.y + bBounds.height * 0.5f) - (a.position.y + aBounds.height * 0.5f);
                     const float dz = b.position.z - a.position.z;
-                    const float overlapX = ItemSize - std::abs(dx);
-                    const float overlapY = ItemHeight - std::abs(dy);
-                    const float overlapZ = ItemSize - std::abs(dz);
+                    const float overlapX = aBounds.halfWidth + bBounds.halfWidth - std::abs(dx);
+                    const float overlapY = (aBounds.height + bBounds.height) * 0.5f - std::abs(dy);
+                    const float overlapZ = aBounds.halfWidth + bBounds.halfWidth - std::abs(dz);
                     if (overlapX <= 0.0f || overlapZ <= 0.0f)
                     {
                         continue;
@@ -199,11 +201,11 @@ namespace dolbuto::world
 
                     bool changedA = false;
                     bool changedB = false;
-                    if (tryLandDroppedItemOnItem(a, b))
+                    if (tryLandDroppedItemOnItem(a, b, itemDefinitions))
                     {
                         changedA = true;
                     }
-                    else if (tryLandDroppedItemOnItem(b, a))
+                    else if (tryLandDroppedItemOnItem(b, a, itemDefinitions))
                     {
                         changedB = true;
                     }
@@ -227,7 +229,7 @@ namespace dolbuto::world
 
                     const bool resolveVertical = overlapY < overlapX &&
                         overlapY < overlapZ &&
-                        std::abs(dy) > ItemHeight * 0.35f;
+                        std::abs(dy) > std::min(aBounds.height, bBounds.height) * 0.35f;
                     if (resolveVertical)
                     {
                         const float correction = overlapY + SeparationEpsilon;
@@ -294,6 +296,153 @@ namespace dolbuto::world
                 }
             }
         }
+
+        bool canMergeDroppedItem(
+            const WorldEntity& item,
+            const std::vector<ItemDefinition>& itemDefinitions,
+            uint16_t& maxStack)
+        {
+            if (item.type != WorldEntityType::DroppedItem ||
+                item.collecting ||
+                item.droppedItem.stack.itemId == 0 ||
+                item.droppedItem.stack.count == 0 ||
+                static_cast<size_t>(item.droppedItem.stack.itemId) >= itemDefinitions.size())
+            {
+                return false;
+            }
+
+            maxStack = itemDefinitions[item.droppedItem.stack.itemId].stackSize;
+            return maxStack > 1;
+        }
+
+        bool closeEnoughToMerge(const WorldEntity& a, const WorldEntity& b)
+        {
+            constexpr float MergeAxisDistance = 0.75f;
+            return std::abs(a.position.x - b.position.x) <= MergeAxisDistance &&
+                std::abs(a.position.y - b.position.y) <= MergeAxisDistance &&
+                std::abs(a.position.z - b.position.z) <= MergeAxisDistance;
+        }
+
+        bool moveStackCount(WorldEntity& receiver, WorldEntity& source, uint16_t maxStack)
+        {
+            if (receiver.droppedItem.stack.count >= maxStack || source.droppedItem.stack.count == 0)
+            {
+                return false;
+            }
+
+            const uint16_t capacity = static_cast<uint16_t>(maxStack - receiver.droppedItem.stack.count);
+            const uint16_t moved = std::min(capacity, source.droppedItem.stack.count);
+            if (moved == 0)
+            {
+                return false;
+            }
+
+            constexpr float MergeBounceVelocity = 2.0f;
+            receiver.droppedItem.stack.count = static_cast<uint16_t>(receiver.droppedItem.stack.count + moved);
+            source.droppedItem.stack.count = static_cast<uint16_t>(source.droppedItem.stack.count - moved);
+            receiver.velocity.y = std::max(receiver.velocity.y, MergeBounceVelocity);
+            DroppedItemSystem::setGrounded(receiver, false);
+            return true;
+        }
+
+        void mergeDroppedItemStacks(
+            DroppedItemSystem::RuntimeChunkMap& runtimeChunks,
+            const std::vector<ItemDefinition>& itemDefinitions,
+            const DroppedItemSystem::DirtyChunkCallback& markDirty,
+            const DroppedItemSystem::ChunkTrackingCallback& refreshTracking)
+        {
+            struct ItemRef
+            {
+                uint64_t chunkKey = 0;
+                RuntimeChunk* chunk = nullptr;
+                std::size_t index = 0;
+            };
+
+            std::vector<ItemRef> items;
+            for (auto& entry : runtimeChunks)
+            {
+                RuntimeChunk& chunk = entry.second;
+                if (!chunk.data)
+                {
+                    continue;
+                }
+
+                for (std::size_t i = 0; i < chunk.data->entities.size(); ++i)
+                {
+                    uint16_t maxStack = 0;
+                    if (canMergeDroppedItem(chunk.data->entities[i], itemDefinitions, maxStack))
+                    {
+                        items.push_back(ItemRef{entry.first, &chunk, i});
+                    }
+                }
+            }
+
+            std::unordered_set<uint64_t> dirtyChunkKeys;
+            for (std::size_t i = 0; i < items.size(); ++i)
+            {
+                WorldEntity& a = items[i].chunk->data->entities[items[i].index];
+                uint16_t maxStack = 0;
+                if (!canMergeDroppedItem(a, itemDefinitions, maxStack))
+                {
+                    continue;
+                }
+
+                for (std::size_t j = i + 1; j < items.size(); ++j)
+                {
+                    WorldEntity& b = items[j].chunk->data->entities[items[j].index];
+                    uint16_t otherMaxStack = 0;
+                    if (!canMergeDroppedItem(b, itemDefinitions, otherMaxStack) ||
+                        a.droppedItem.stack.itemId != b.droppedItem.stack.itemId ||
+                        maxStack != otherMaxStack ||
+                        !closeEnoughToMerge(a, b))
+                    {
+                        continue;
+                    }
+
+                    const bool changed = a.droppedItem.stack.count <= b.droppedItem.stack.count
+                        ? moveStackCount(b, a, maxStack)
+                        : moveStackCount(a, b, maxStack);
+                    if (changed)
+                    {
+                        dirtyChunkKeys.insert(items[i].chunkKey);
+                        dirtyChunkKeys.insert(items[j].chunkKey);
+                    }
+                    if (a.droppedItem.stack.count == 0)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            for (auto& entry : runtimeChunks)
+            {
+                RuntimeChunk& chunk = entry.second;
+                if (!chunk.data || dirtyChunkKeys.find(entry.first) == dirtyChunkKeys.end())
+                {
+                    continue;
+                }
+
+                chunk.data->entities.erase(
+                    std::remove_if(
+                        chunk.data->entities.begin(),
+                        chunk.data->entities.end(),
+                        [](const WorldEntity& entity)
+                        {
+                            return entity.type == WorldEntityType::DroppedItem &&
+                                (entity.droppedItem.stack.itemId == 0 || entity.droppedItem.stack.count == 0);
+                        }),
+                    chunk.data->entities.end());
+
+                if (refreshTracking)
+                {
+                    refreshTracking(entry.first);
+                }
+                if (markDirty)
+                {
+                    markDirty(chunk);
+                }
+            }
+        }
     }
 
     int DroppedItemSystem::floorDiv(int value, int divisor)
@@ -350,6 +499,23 @@ namespace dolbuto::world
         return count;
     }
 
+    DroppedItemSystem::Bounds DroppedItemSystem::boundsForStack(const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions)
+    {
+        if (stack.itemId != 0 &&
+            static_cast<size_t>(stack.itemId) < itemDefinitions.size() &&
+            itemDefinitions[stack.itemId].droppedRender == ItemRenderType::BlockModel)
+        {
+            return DroppedItemSystem::Bounds{
+                BlockModelDroppedItemSize * 0.5f,
+                BlockModelDroppedItemSize
+            };
+        }
+        return DroppedItemSystem::Bounds{
+            DroppedItemSize * 0.5f,
+            DroppedItemThickness
+        };
+    }
+
     bool DroppedItemSystem::grounded(const WorldEntity& entity)
     {
         return (entity.flags & WorldEntityFlagGrounded) != 0;
@@ -367,18 +533,18 @@ namespace dolbuto::world
         }
     }
 
-    bool DroppedItemSystem::touchesPlayerCollider(const WorldEntity& item, Vec3 playerPosition)
+    bool DroppedItemSystem::touchesPlayerCollider(const WorldEntity& item, Vec3 playerPosition, const std::vector<ItemDefinition>& itemDefinitions)
     {
         constexpr float PlayerHalfWidth = 0.3f;
         constexpr float PlayerHeight = 1.75f;
-        const float itemHalfWidth = DroppedItemSize * 0.5f;
+        const DroppedItemSystem::Bounds bounds = boundsForStack(item.droppedItem.stack, itemDefinitions);
 
-        return item.position.x + itemHalfWidth >= playerPosition.x - PlayerHalfWidth &&
-            item.position.x - itemHalfWidth <= playerPosition.x + PlayerHalfWidth &&
-            item.position.y + DroppedItemThickness >= playerPosition.y &&
+        return item.position.x + bounds.halfWidth >= playerPosition.x - PlayerHalfWidth &&
+            item.position.x - bounds.halfWidth <= playerPosition.x + PlayerHalfWidth &&
+            item.position.y + bounds.height >= playerPosition.y &&
             item.position.y <= playerPosition.y + PlayerHeight &&
-            item.position.z + itemHalfWidth >= playerPosition.z - PlayerHalfWidth &&
-            item.position.z - itemHalfWidth <= playerPosition.z + PlayerHalfWidth;
+            item.position.z + bounds.halfWidth >= playerPosition.z - PlayerHalfWidth &&
+            item.position.z - bounds.halfWidth <= playerPosition.z + PlayerHalfWidth;
     }
 
     std::vector<WorldEntity> DroppedItemSystem::createBlockDropEntities(
@@ -534,6 +700,7 @@ namespace dolbuto::world
         {
             constexpr float ItemSupportEpsilon = 0.02f;
             constexpr float ItemSupportMinOverlap = 0.04f;
+            const DroppedItemSystem::Bounds itemBounds = boundsForStack(item.droppedItem.stack, itemDefinitions);
             for (const auto& entry : runtimeChunks)
             {
                 const RuntimeChunk& chunk = entry.second;
@@ -553,9 +720,10 @@ namespace dolbuto::world
                         continue;
                     }
 
-                    const float supportTop = support.position.y + DroppedItemThickness;
-                    const float overlapX = DroppedItemSize - std::abs(item.position.x - support.position.x);
-                    const float overlapZ = DroppedItemSize - std::abs(item.position.z - support.position.z);
+                    const DroppedItemSystem::Bounds supportBounds = boundsForStack(support.droppedItem.stack, itemDefinitions);
+                    const float supportTop = support.position.y + supportBounds.height;
+                    const float overlapX = itemBounds.halfWidth + supportBounds.halfWidth - std::abs(item.position.x - support.position.x);
+                    const float overlapZ = itemBounds.halfWidth + supportBounds.halfWidth - std::abs(item.position.z - support.position.z);
                     if (std::abs(item.position.y - supportTop) <= ItemSupportEpsilon &&
                         overlapX > ItemSupportMinOverlap &&
                         overlapZ > ItemSupportMinOverlap)
@@ -595,6 +763,7 @@ namespace dolbuto::world
                     continue;
                 }
 
+                const DroppedItemSystem::Bounds itemBounds = boundsForStack(item.droppedItem.stack, itemDefinitions);
                 const uint64_t originalOwnerKey = entry.first;
                 item.previousPosition = item.position;
                 item.age += dt;
@@ -616,7 +785,7 @@ namespace dolbuto::world
                         DroppedItemPickupMaxSpeed,
                         DroppedItemPickupBaseSpeed + item.collectAge * DroppedItemPickupAcceleration);
                     const float travel = speed * dt;
-                    if (distance <= travel || touchesPlayerCollider(item, playerPosition))
+                    if (distance <= travel || touchesPlayerCollider(item, playerPosition, itemDefinitions))
                     {
                         const uint16_t countBeforePickup = item.droppedItem.stack.count;
                         const uint16_t remaining = addToPlayerInventory ? addToPlayerInventory(item.droppedItem.stack) : item.droppedItem.stack.count;
@@ -702,7 +871,7 @@ namespace dolbuto::world
                         if (item.velocity.x != 0.0f)
                         {
                             const float nextX = item.position.x + item.velocity.x * dt;
-                            const float probeX = nextX + (item.velocity.x > 0.0f ? DroppedItemCollisionRadius : -DroppedItemCollisionRadius);
+                            const float probeX = nextX + (item.velocity.x > 0.0f ? itemBounds.halfWidth : -itemBounds.halfWidth);
                             if (sideBlocked(probeX, item.position.y, item.position.z))
                             {
                                 item.velocity.x = -item.velocity.x * DroppedItemWallBounce;
@@ -717,7 +886,7 @@ namespace dolbuto::world
                         if (item.velocity.z != 0.0f)
                         {
                             const float nextZ = item.position.z + item.velocity.z * dt;
-                            const float probeZ = nextZ + (item.velocity.z > 0.0f ? DroppedItemCollisionRadius : -DroppedItemCollisionRadius);
+                            const float probeZ = nextZ + (item.velocity.z > 0.0f ? itemBounds.halfWidth : -itemBounds.halfWidth);
                             if (sideBlocked(item.position.x, item.position.y, probeZ))
                             {
                                 item.velocity.z = -item.velocity.z * DroppedItemWallBounce;
@@ -814,6 +983,7 @@ namespace dolbuto::world
             }
         }
 
-        resolveDroppedItemCollisions(runtimeChunks, markDirty);
+        mergeDroppedItemStacks(runtimeChunks, itemDefinitions, markDirty, refreshTracking);
+        resolveDroppedItemCollisions(runtimeChunks, itemDefinitions, markDirty);
     }
 }

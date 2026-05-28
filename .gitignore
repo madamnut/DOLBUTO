@@ -29,6 +29,7 @@ compile_commands.json
 # Runtime world saves
 saves/
 logs/
+assets/textures/item/generated/
 
 # Local references
 ref/

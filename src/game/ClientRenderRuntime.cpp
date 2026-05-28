@@ -4,6 +4,7 @@
 #include "renderer/RendererFrame.h"
 #include "renderer/RendererGameplayBridge.h"
 #include "renderer/RendererSceneLifecycleBridge.h"
+#include "renderer/RendererTerrainRuntimeBridge.h"
 #include "renderer/RendererUiRuntimeBridge.h"
 
 namespace dolbuto::game
@@ -62,14 +63,19 @@ namespace dolbuto::game
         renderer_->sceneLifecycleBridge_->unloadGameScene();
     }
 
-    void ClientRenderRuntime::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3, float deltaSeconds)
+    void ClientRenderRuntime::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3, float deltaSeconds, bool sandboxMode)
     {
-        renderer_->gameplayBridge_->updateBlockBreaking(origin, direction, breaking, deltaSeconds);
+        renderer_->gameplayBridge_->updateBlockBreaking(origin, direction, breaking, deltaSeconds, sandboxMode);
     }
 
     bool ClientRenderRuntime::editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale)
     {
         return renderer_->gameplayBridge_->editBlockInView(origin, direction, placeBlock, placeBlockId, playerPosition, playerHeightScale);
+    }
+
+    bool ClientRenderRuntime::placeSelectedItemBlockInView(DVec3 origin, Vec3 direction, DVec3 playerPosition, double playerHeightScale)
+    {
+        return renderer_->gameplayBridge_->placeSelectedItemBlockInView(origin, direction, playerPosition, playerHeightScale);
     }
 
     bool ClientRenderRuntime::pickupDroppedItemInView(DVec3 origin, Vec3 direction)
@@ -95,6 +101,16 @@ namespace dolbuto::game
     void ClientRenderRuntime::cancelPendingItemInteraction()
     {
         renderer_->gameplayBridge_->cancelPendingItemInteraction();
+    }
+
+    void ClientRenderRuntime::tickBlockUpdates()
+    {
+        renderer_->gameplayBridge_->tickBlockUpdates();
+    }
+
+    void ClientRenderRuntime::tickFluidSimulation()
+    {
+        renderer_->terrainRuntimeBridge_->tickFluidSimulation();
     }
 
     void ClientRenderRuntime::setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots)

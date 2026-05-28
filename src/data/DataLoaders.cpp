@@ -398,6 +398,207 @@ namespace dolbuto::data
             }
             return values;
         }
+
+        std::string trimJsonValue(const std::string& value)
+        {
+            const size_t begin = value.find_first_not_of(" \t\r\n");
+            if (begin == std::string::npos)
+            {
+                return "";
+            }
+            const size_t end = value.find_last_not_of(" \t\r\n");
+            return value.substr(begin, end - begin + 1);
+        }
+
+        std::vector<std::string> jsonTopLevelArrayValues(const std::string& array)
+        {
+            std::vector<std::string> values;
+            const size_t openPos = array.find('[');
+            const size_t closePos = array.find_last_of(']');
+            if (openPos == std::string::npos || closePos == std::string::npos || closePos <= openPos)
+            {
+                return values;
+            }
+
+            int objectDepth = 0;
+            int arrayDepth = 0;
+            bool inString = false;
+            bool escaped = false;
+            size_t valueStart = openPos + 1;
+            for (size_t i = openPos + 1; i < closePos; ++i)
+            {
+                const char c = array[i];
+                if (inString)
+                {
+                    if (escaped)
+                    {
+                        escaped = false;
+                    }
+                    else if (c == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (c == '"')
+                    {
+                        inString = false;
+                    }
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inString = true;
+                }
+                else if (c == '{')
+                {
+                    ++objectDepth;
+                }
+                else if (c == '}')
+                {
+                    --objectDepth;
+                }
+                else if (c == '[')
+                {
+                    ++arrayDepth;
+                }
+                else if (c == ']')
+                {
+                    --arrayDepth;
+                }
+                else if (c == ',' && objectDepth == 0 && arrayDepth == 0)
+                {
+                    std::string value = trimJsonValue(array.substr(valueStart, i - valueStart));
+                    if (!value.empty())
+                    {
+                        values.push_back(std::move(value));
+                    }
+                    valueStart = i + 1;
+                }
+            }
+
+            std::string value = trimJsonValue(array.substr(valueStart, closePos - valueStart));
+            if (!value.empty())
+            {
+                values.push_back(std::move(value));
+            }
+            return values;
+        }
+
+        std::optional<std::string> jsonStringLiteralValue(const std::string& value)
+        {
+            const std::string trimmed = trimJsonValue(value);
+            if (trimmed.size() < 2 || trimmed.front() != '"' || trimmed.back() != '"')
+            {
+                return std::nullopt;
+            }
+
+            std::string result;
+            bool escaped = false;
+            for (size_t i = 1; i + 1 < trimmed.size(); ++i)
+            {
+                const char c = trimmed[i];
+                if (escaped)
+                {
+                    result.push_back(c);
+                    escaped = false;
+                    continue;
+                }
+                if (c == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                result.push_back(c);
+            }
+            return result;
+        }
+
+        uint16_t clampedInteractionCount(int count)
+        {
+            return static_cast<uint16_t>(std::clamp(count, 1, 65535));
+        }
+
+        std::optional<ParsedInteractionOutput> parseInteractionOutput(
+            const std::string& value,
+            uint16_t defaultMin,
+            uint16_t defaultMax)
+        {
+            if (const std::optional<std::string> item = jsonStringLiteralValue(value); item.has_value())
+            {
+                if (item->empty())
+                {
+                    return std::nullopt;
+                }
+                return ParsedInteractionOutput{*item, defaultMin, defaultMax};
+            }
+
+            const std::string trimmed = trimJsonValue(value);
+            if (trimmed.empty() || trimmed.front() != '{')
+            {
+                return std::nullopt;
+            }
+
+            const std::optional<std::string> item = jsonStringField(trimmed, "item");
+            if (!item.has_value() || item->empty())
+            {
+                return std::nullopt;
+            }
+
+            ParsedInteractionOutput output{};
+            output.item = *item;
+            output.min = clampedInteractionCount(jsonIntField(trimmed, "min").value_or(defaultMin));
+            output.max = clampedInteractionCount(jsonIntField(trimmed, "max").value_or(output.min));
+            if (output.max < output.min)
+            {
+                output.max = output.min;
+            }
+            return output;
+        }
+
+        ParsedInteractionCandidate parseInteractionCandidate(
+            const std::string& value,
+            uint16_t defaultMin,
+            uint16_t defaultMax)
+        {
+            ParsedInteractionCandidate candidate{};
+            if (const std::optional<std::string> item = jsonStringLiteralValue(value); item.has_value())
+            {
+                if (!item->empty())
+                {
+                    candidate.outputs.push_back(ParsedInteractionOutput{*item, defaultMin, defaultMax});
+                }
+                return candidate;
+            }
+
+            const std::string trimmed = trimJsonValue(value);
+            if (trimmed.empty() || trimmed.front() != '{')
+            {
+                return candidate;
+            }
+
+            std::optional<std::string> items = jsonArrayField(trimmed, "items");
+            if (!items.has_value())
+            {
+                items = jsonArrayField(trimmed, "outputs");
+            }
+            if (items.has_value())
+            {
+                for (const std::string& itemValue : jsonTopLevelArrayValues(*items))
+                {
+                    if (const std::optional<ParsedInteractionOutput> output = parseInteractionOutput(itemValue, defaultMin, defaultMax); output.has_value())
+                    {
+                        candidate.outputs.push_back(*output);
+                    }
+                }
+                return candidate;
+            }
+
+            if (const std::optional<ParsedInteractionOutput> output = parseInteractionOutput(trimmed, defaultMin, defaultMax); output.has_value())
+            {
+                candidate.outputs.push_back(*output);
+            }
+            return candidate;
+        }
     }
 
     std::vector<ParsedItemDefinition> parseItemDefinitions(const std::string& text)
@@ -433,6 +634,17 @@ namespace dolbuto::data
             if (const std::optional<std::string> slotTexture = jsonStringField(object, "slotTexture"); slotTexture.has_value())
             {
                 definition.slotTexture = *slotTexture;
+            }
+            if (const std::optional<std::string> slotRender = jsonObjectField(object, "slotRender"); slotRender.has_value())
+            {
+                if (const std::optional<std::string> type = jsonStringField(*slotRender, "type"); type.has_value())
+                {
+                    definition.slotRender = *type;
+                }
+                if (const std::optional<std::string> texture = jsonStringField(*slotRender, "texture"); texture.has_value())
+                {
+                    definition.slotRenderTexture = *texture;
+                }
             }
             if (const std::optional<std::string> render = jsonObjectField(object, "render"); render.has_value())
             {
@@ -489,6 +701,10 @@ namespace dolbuto::data
             {
                 definition.breakActions = jsonStringArrayValues(*breakActions);
             }
+            if (const std::optional<std::string> placeActions = jsonArrayField(object, "placeActions"); placeActions.has_value())
+            {
+                definition.placeActions = jsonStringArrayValues(*placeActions);
+            }
             if (const std::optional<int> breakLevel = jsonIntField(object, "breakLevel"); breakLevel.has_value())
             {
                 definition.breakLevel = static_cast<uint16_t>(std::clamp(*breakLevel, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
@@ -496,6 +712,10 @@ namespace dolbuto::data
             if (const std::optional<int> maxDurability = jsonIntField(object, "maxDurability"); maxDurability.has_value())
             {
                 definition.maxDurability = static_cast<uint16_t>(std::clamp(*maxDurability, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
+            }
+            if (const std::optional<std::string> placeBlock = jsonStringField(object, "placeBlock"); placeBlock.has_value())
+            {
+                definition.placeBlock = *placeBlock;
             }
 
             definitions.push_back(std::move(definition));
@@ -587,6 +807,13 @@ namespace dolbuto::data
             {
                 definition.randomOffset = *randomOffset;
             }
+            if (const std::optional<std::string> attachment = jsonObjectField(object, "attachment"); attachment.has_value())
+            {
+                if (const std::optional<std::string> face = jsonStringField(*attachment, "face"); face.has_value())
+                {
+                    definition.attachmentFace = face->empty() ? "none" : *face;
+                }
+            }
             if (const std::optional<std::string> textures = jsonObjectField(object, "textures"); textures.has_value())
             {
                 for (const char* key : TextureKeys)
@@ -675,17 +902,27 @@ namespace dolbuto::data
             {
                 definition.target = *target;
             }
-            if (const std::optional<std::string> candidates = jsonArrayField(object, "candidates"); candidates.has_value())
-            {
-                definition.candidates = jsonStringArrayValues(*candidates);
-            }
             const int minCount = jsonIntField(object, "min").value_or(1);
             const int maxCount = jsonIntField(object, "max").value_or(minCount);
-            definition.resultCountMin = static_cast<uint16_t>(std::clamp(minCount, 1, 65535));
-            definition.resultCountMax = static_cast<uint16_t>(std::clamp(maxCount, 1, 65535));
+            definition.resultCountMin = clampedInteractionCount(minCount);
+            definition.resultCountMax = clampedInteractionCount(maxCount);
             if (definition.resultCountMax < definition.resultCountMin)
             {
                 definition.resultCountMax = definition.resultCountMin;
+            }
+            if (const std::optional<std::string> candidates = jsonArrayField(object, "candidates"); candidates.has_value())
+            {
+                for (const std::string& candidateValue : jsonTopLevelArrayValues(*candidates))
+                {
+                    ParsedInteractionCandidate candidate = parseInteractionCandidate(
+                        candidateValue,
+                        definition.resultCountMin,
+                        definition.resultCountMax);
+                    if (!candidate.outputs.empty())
+                    {
+                        definition.candidates.push_back(std::move(candidate));
+                    }
+                }
             }
             if (!definition.action.empty() && !definition.target.empty() && !definition.candidates.empty())
             {

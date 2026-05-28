@@ -15,7 +15,14 @@ namespace dolbuto
 
     enum class ItemRenderType : uint8_t
     {
-        ExtrudedSprite
+        ExtrudedSprite,
+        BlockModel
+    };
+
+    enum class ItemSlotRenderType : uint8_t
+    {
+        Sprite,
+        BlockModel
     };
 
     struct ItemDefinition
@@ -27,21 +34,34 @@ namespace dolbuto
         std::string heldTexture = "none";
         std::vector<std::string> useActions;
         std::vector<std::string> breakActions;
+        std::vector<std::string> placeActions;
         uint16_t stackSize = 0;
         uint16_t breakLevel = 0;
         uint16_t maxDurability = 0;
+        uint16_t placeBlockId = 0;
         uint32_t droppedTextureLayer = 0;
         uint32_t heldTextureLayer = 0;
+        ItemSlotRenderType slotRender = ItemSlotRenderType::Sprite;
         ItemRenderType droppedRender = ItemRenderType::ExtrudedSprite;
         ItemRenderType heldRender = ItemRenderType::ExtrudedSprite;
+    };
+
+    struct ItemInteractionOutput
+    {
+        uint16_t itemId = 0;
+        uint16_t min = 1;
+        uint16_t max = 1;
+    };
+
+    struct ItemInteractionCandidate
+    {
+        std::vector<ItemInteractionOutput> outputs;
     };
 
     struct ItemInteractionRecipe
     {
         std::string action;
         uint16_t targetItemId = 0;
-        std::vector<uint16_t> candidateItemIds;
-        uint16_t resultCountMin = 1;
-        uint16_t resultCountMax = 1;
+        std::vector<ItemInteractionCandidate> candidates;
     };
 }

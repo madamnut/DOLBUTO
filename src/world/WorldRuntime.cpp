@@ -14,6 +14,8 @@ namespace dolbuto::world
         constexpr int FluidAmountBits = 7;
         constexpr uint16_t FluidAmountMask = (1u << FluidAmountBits) - 1u;
         constexpr uint16_t FluidNone = 0;
+        constexpr uint16_t FluidWater = 1;
+        constexpr uint16_t FluidFullAmount = 100;
         constexpr uint16_t BlockRock = 1;
         constexpr uint16_t BlockGrass = 2;
         constexpr uint16_t BlockDirt = 3;
@@ -32,6 +34,20 @@ namespace dolbuto::world
         uint16_t fluidAmount(uint16_t fluid)
         {
             return static_cast<uint16_t>(fluid & FluidAmountMask);
+        }
+
+        uint16_t packFluid(uint16_t id, uint16_t amount)
+        {
+            if (id == FluidNone || amount == 0)
+            {
+                return FluidNone;
+            }
+            return static_cast<uint16_t>((id << FluidAmountBits) | std::min<uint16_t>(amount, FluidFullAmount));
+        }
+
+        bool fluidCellPresent(uint16_t fluid)
+        {
+            return fluidId(fluid) != FluidNone && fluidAmount(fluid) != 0;
         }
 
         bool terrainSurfaceBlock(uint16_t block)
@@ -65,6 +81,34 @@ namespace dolbuto::world
         constexpr int blockY(size_t index)
         {
             return static_cast<int>(index >> 8u);
+        }
+
+        void adjustFluidSubchunkCount(const std::shared_ptr<ChunkData>& chunk, int y, uint16_t previousFluid, uint16_t nextFluid)
+        {
+            if (!chunk || y < 0 || y >= WorldRuntime::ChunkSizeY)
+            {
+                return;
+            }
+
+            const bool hadFluid = fluidCellPresent(previousFluid);
+            const bool hasFluid = fluidCellPresent(nextFluid);
+            if (hadFluid == hasFluid)
+            {
+                return;
+            }
+
+            uint16_t& count = chunk->fluidSubchunkCounts[static_cast<size_t>(y / WorldRuntime::SubchunkSize)];
+            if (hasFluid)
+            {
+                if (count != UINT16_MAX)
+                {
+                    ++count;
+                }
+            }
+            else if (count > 0)
+            {
+                --count;
+            }
         }
 
         uint8_t fallbackBlockLightAttenuation(uint16_t block)
@@ -175,6 +219,22 @@ namespace dolbuto::world
     {
         return (static_cast<uint64_t>(static_cast<uint32_t>(chunkX)) << 32u) |
             static_cast<uint64_t>(static_cast<uint32_t>(chunkZ));
+    }
+
+    std::size_t WorldRuntime::FluidTickCellHash::operator()(const FluidTickCell& cell) const
+    {
+        std::size_t seed = static_cast<std::size_t>(static_cast<uint32_t>(cell.x));
+        seed ^= static_cast<std::size_t>(static_cast<uint32_t>(cell.y)) + 0x9e3779b9u + (seed << 6u) + (seed >> 2u);
+        seed ^= static_cast<std::size_t>(static_cast<uint32_t>(cell.z)) + 0x9e3779b9u + (seed << 6u) + (seed >> 2u);
+        return seed;
+    }
+
+    std::size_t WorldRuntime::BlockTickCellHash::operator()(const BlockTickCell& cell) const
+    {
+        std::size_t seed = static_cast<std::size_t>(static_cast<uint32_t>(cell.x));
+        seed ^= static_cast<std::size_t>(static_cast<uint32_t>(cell.y)) + 0x9e3779b9u + (seed << 6u) + (seed >> 2u);
+        seed ^= static_cast<std::size_t>(static_cast<uint32_t>(cell.z)) + 0x9e3779b9u + (seed << 6u) + (seed >> 2u);
+        return seed;
     }
 
     void WorldRuntime::markDataDirty(RuntimeChunk& chunk)
@@ -317,6 +377,8 @@ namespace dolbuto::world
     void WorldRuntime::clear()
     {
         chunks_.clear();
+        nextBlockTicks_.clear();
+        nextFluidTicks_.clear();
     }
 
     RuntimeChunk* WorldRuntime::find(uint64_t key)
@@ -591,6 +653,16 @@ namespace dolbuto::world
         }
 
         runtimeChunk->data->blocks[index] = block;
+        if (runtimeChunk->data->fluids.size() != ChunkBlockCount)
+        {
+            runtimeChunk->data->fluids.assign(ChunkBlockCount, FluidNone);
+        }
+        if (block != BlockAir && index < runtimeChunk->data->fluids.size())
+        {
+            const uint16_t previousFluid = runtimeChunk->data->fluids[index];
+            runtimeChunk->data->fluids[index] = FluidNone;
+            adjustFluidSubchunkCount(runtimeChunk->data, y, previousFluid, FluidNone);
+        }
         runtimeChunk->data->localLight = computeLocalSkyLight(*runtimeChunk->data, lightAttenuationTables_.get());
         if (runtimeChunk->data->light.size() != ChunkBlockCount)
         {
@@ -599,7 +671,376 @@ namespace dolbuto::world
         ++runtimeChunk->data->revision;
         markDataDirty(*runtimeChunk);
         updateChunkEmptySubchunk(runtimeChunk->data, y / SubchunkSize);
+        scheduleBlockTickNeighborhood(x, y, z);
+        scheduleFluidTickNeighborhood(x, y, z);
         return true;
+    }
+
+    void WorldRuntime::scheduleBlockTickAtWorld(int x, int y, int z)
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return;
+        }
+
+        nextBlockTicks_.insert(BlockTickCell{x, y, z});
+    }
+
+    void WorldRuntime::scheduleBlockTickNeighborhood(int x, int y, int z)
+    {
+        scheduleBlockTickAtWorld(x, y, z);
+        scheduleBlockTickAtWorld(x + 1, y, z);
+        scheduleBlockTickAtWorld(x - 1, y, z);
+        scheduleBlockTickAtWorld(x, y + 1, z);
+        scheduleBlockTickAtWorld(x, y - 1, z);
+        scheduleBlockTickAtWorld(x, y, z + 1);
+        scheduleBlockTickAtWorld(x, y, z - 1);
+    }
+
+    std::vector<WorldRuntime::BlockTickCell> WorldRuntime::takeScheduledBlockTicks(uint32_t maxCells)
+    {
+        std::vector<BlockTickCell> cells;
+        if (maxCells == 0 || nextBlockTicks_.empty())
+        {
+            return cells;
+        }
+
+        std::unordered_set<BlockTickCell, BlockTickCellHash> processing;
+        processing.swap(nextBlockTicks_);
+        const std::size_t cellLimit = static_cast<std::size_t>(maxCells);
+        cells.reserve(std::min(processing.size(), cellLimit));
+        for (const BlockTickCell& cell : processing)
+        {
+            if (cells.size() >= cellLimit)
+            {
+                nextBlockTicks_.insert(cell);
+                continue;
+            }
+            cells.push_back(cell);
+        }
+        return cells;
+    }
+
+    void WorldRuntime::scheduleFluidTickAtWorld(int x, int y, int z)
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return;
+        }
+
+        nextFluidTicks_.insert(FluidTickCell{x, y, z});
+    }
+
+    void WorldRuntime::scheduleFluidTickNeighborhood(int x, int y, int z)
+    {
+        scheduleFluidTickAtWorld(x, y, z);
+        scheduleFluidTickAtWorld(x + 1, y, z);
+        scheduleFluidTickAtWorld(x - 1, y, z);
+        scheduleFluidTickAtWorld(x, y + 1, z);
+        scheduleFluidTickAtWorld(x, y - 1, z);
+        scheduleFluidTickAtWorld(x, y, z + 1);
+        scheduleFluidTickAtWorld(x, y, z - 1);
+    }
+
+    uint16_t WorldRuntime::fluidAtWorld(int x, int y, int z) const
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return FluidNone;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        const RuntimeChunk* chunk = findChunk(chunkX, chunkZ);
+        if (chunk == nullptr || !chunk->data ||
+            (chunk->genState != ChunkGenState::LocalLightReady &&
+                chunk->genState != ChunkGenState::LightResolved &&
+                chunk->genState != ChunkGenState::Meshed))
+        {
+            return FluidNone;
+        }
+
+        const int localX = positiveModulo(x, ChunkSizeX);
+        const int localZ = positiveModulo(z, ChunkSizeZ);
+        const size_t index = blockIndex(localX, y, localZ);
+        if (index >= chunk->data->fluids.size())
+        {
+            return FluidNone;
+        }
+
+        return chunk->data->fluids[index];
+    }
+
+    bool WorldRuntime::cellCanContainFluid(int x, int y, int z) const
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return false;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        const RuntimeChunk* chunk = findChunk(chunkX, chunkZ);
+        if (chunk == nullptr || !chunk->data ||
+            (chunk->genState != ChunkGenState::LocalLightReady &&
+                chunk->genState != ChunkGenState::LightResolved &&
+                chunk->genState != ChunkGenState::Meshed))
+        {
+            return false;
+        }
+
+        const int localX = positiveModulo(x, ChunkSizeX);
+        const int localZ = positiveModulo(z, ChunkSizeZ);
+        const size_t index = blockIndex(localX, y, localZ);
+        return index < chunk->data->blocks.size() && chunk->data->blocks[index] == BlockAir;
+    }
+
+    void WorldRuntime::addChangedFluidCell(int x, int y, int z, FluidTickResult& result) const
+    {
+        const FluidTickCell cell{x, y, z};
+        if (std::find(result.changedCells.begin(), result.changedCells.end(), cell) == result.changedCells.end())
+        {
+            result.changedCells.push_back(cell);
+        }
+
+        auto addSubchunk = [&](int chunkX, int chunkZ, int subchunkY)
+        {
+            if (subchunkY < 0 || subchunkY >= SubchunksPerChunk)
+            {
+                return;
+            }
+            const EditedSubchunk edited{chunkX, chunkZ, subchunkY};
+            const auto existing = std::find_if(result.changedSubchunks.begin(), result.changedSubchunks.end(), [&](const EditedSubchunk& other)
+            {
+                return other.chunkX == edited.chunkX && other.chunkZ == edited.chunkZ && other.subchunkY == edited.subchunkY;
+            });
+            if (existing == result.changedSubchunks.end())
+            {
+                result.changedSubchunks.push_back(edited);
+            }
+        };
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        const int subchunkY = y / SubchunkSize;
+        addSubchunk(chunkX, chunkZ, subchunkY);
+        if (positiveModulo(x, ChunkSizeX) == 0)
+        {
+            addSubchunk(chunkX - 1, chunkZ, subchunkY);
+        }
+        if (positiveModulo(x, ChunkSizeX) == ChunkSizeX - 1)
+        {
+            addSubchunk(chunkX + 1, chunkZ, subchunkY);
+        }
+        if (positiveModulo(z, ChunkSizeZ) == 0)
+        {
+            addSubchunk(chunkX, chunkZ - 1, subchunkY);
+        }
+        if (positiveModulo(z, ChunkSizeZ) == ChunkSizeZ - 1)
+        {
+            addSubchunk(chunkX, chunkZ + 1, subchunkY);
+        }
+        if (positiveModulo(y, SubchunkSize) == 0)
+        {
+            addSubchunk(chunkX, chunkZ, subchunkY - 1);
+        }
+        if (positiveModulo(y, SubchunkSize) == SubchunkSize - 1)
+        {
+            addSubchunk(chunkX, chunkZ, subchunkY + 1);
+        }
+    }
+
+    void WorldRuntime::addLightChangedFluidCell(int x, int y, int z, FluidTickResult& result) const
+    {
+        const FluidTickCell cell{x, y, z};
+        if (std::find(result.lightChangedCells.begin(), result.lightChangedCells.end(), cell) == result.lightChangedCells.end())
+        {
+            result.lightChangedCells.push_back(cell);
+        }
+    }
+
+    bool WorldRuntime::setFluidAtWorld(int x, int y, int z, uint16_t fluid, FluidTickResult& result)
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return false;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        RuntimeChunk* runtimeChunk = findChunk(chunkX, chunkZ);
+        if (runtimeChunk == nullptr || !runtimeChunk->data ||
+            (runtimeChunk->genState != ChunkGenState::LocalLightReady &&
+                runtimeChunk->genState != ChunkGenState::LightResolved &&
+                runtimeChunk->genState != ChunkGenState::Meshed))
+        {
+            return false;
+        }
+
+        const int localX = positiveModulo(x, ChunkSizeX);
+        const int localZ = positiveModulo(z, ChunkSizeZ);
+        const size_t index = blockIndex(localX, y, localZ);
+        if (index >= runtimeChunk->data->blocks.size() || runtimeChunk->data->blocks[index] != BlockAir)
+        {
+            return false;
+        }
+        if (runtimeChunk->data->fluids.size() != ChunkBlockCount)
+        {
+            runtimeChunk->data->fluids.assign(ChunkBlockCount, FluidNone);
+        }
+        if (index >= runtimeChunk->data->fluids.size())
+        {
+            return false;
+        }
+
+        const uint16_t previousFluid = runtimeChunk->data->fluids[index];
+        const uint16_t normalizedFluid = packFluid(fluidId(fluid), fluidAmount(fluid));
+        if (previousFluid == normalizedFluid)
+        {
+            return false;
+        }
+
+        runtimeChunk->data->fluids[index] = normalizedFluid;
+        adjustFluidSubchunkCount(runtimeChunk->data, y, previousFluid, normalizedFluid);
+        ++runtimeChunk->data->revision;
+        markDataDirty(*runtimeChunk);
+        addChangedFluidCell(x, y, z, result);
+        const uint16_t previousLightFluid = fluidAmount(previousFluid) == 0 ? FluidNone : fluidId(previousFluid);
+        const uint16_t nextLightFluid = fluidAmount(normalizedFluid) == 0 ? FluidNone : fluidId(normalizedFluid);
+        if (previousLightFluid != nextLightFluid)
+        {
+            addLightChangedFluidCell(x, y, z, result);
+        }
+        scheduleFluidTickNeighborhood(x, y, z);
+        return true;
+    }
+
+    WorldRuntime::FluidTickResult WorldRuntime::tickFluidSimulation(uint32_t maxCells)
+    {
+        FluidTickResult result{};
+        if (maxCells == 0 || nextFluidTicks_.empty())
+        {
+            return result;
+        }
+
+        std::unordered_set<FluidTickCell, FluidTickCellHash> processing;
+        processing.swap(nextFluidTicks_);
+        for (const FluidTickCell& cell : processing)
+        {
+            if (result.processedCells >= maxCells)
+            {
+                nextFluidTicks_.insert(cell);
+                continue;
+            }
+            ++result.processedCells;
+
+            const uint16_t currentFluid = fluidAtWorld(cell.x, cell.y, cell.z);
+            if (fluidId(currentFluid) != FluidWater || fluidAmount(currentFluid) == 0 || !cellCanContainFluid(cell.x, cell.y, cell.z))
+            {
+                continue;
+            }
+
+            uint16_t currentAmount = fluidAmount(currentFluid);
+            const uint16_t belowFluid = fluidAtWorld(cell.x, cell.y - 1, cell.z);
+            if (cellCanContainFluid(cell.x, cell.y - 1, cell.z) &&
+                (fluidId(belowFluid) == FluidNone || fluidId(belowFluid) == FluidWater))
+            {
+                const uint16_t belowAmount = fluidId(belowFluid) == FluidWater ? fluidAmount(belowFluid) : 0;
+                if (belowAmount < FluidFullAmount)
+                {
+                    const uint16_t moveAmount = std::min<uint16_t>(currentAmount, FluidFullAmount - belowAmount);
+                    setFluidAtWorld(cell.x, cell.y - 1, cell.z, packFluid(FluidWater, belowAmount + moveAmount), result);
+                    currentAmount = static_cast<uint16_t>(currentAmount - moveAmount);
+                    setFluidAtWorld(cell.x, cell.y, cell.z, packFluid(FluidWater, currentAmount), result);
+                    if (currentAmount == 0)
+                    {
+                        continue;
+                    }
+                }
+            }
+
+            struct HorizontalCell
+            {
+                int x = 0;
+                int z = 0;
+                uint16_t amount = 0;
+            };
+            std::array<HorizontalCell, 5> horizontal{{
+                {cell.x, cell.z, currentAmount},
+                {cell.x + 1, cell.z, 0},
+                {cell.x - 1, cell.z, 0},
+                {cell.x, cell.z + 1, 0},
+                {cell.x, cell.z - 1, 0}
+            }};
+
+            uint16_t cellCount = 1;
+            uint32_t totalAmount = currentAmount;
+            uint16_t minAmount = currentAmount;
+            uint16_t maxAmount = currentAmount;
+            for (size_t i = 1; i < horizontal.size(); ++i)
+            {
+                if (!cellCanContainFluid(horizontal[i].x, cell.y, horizontal[i].z))
+                {
+                    continue;
+                }
+
+                const uint16_t neighborFluid = fluidAtWorld(horizontal[i].x, cell.y, horizontal[i].z);
+                if (fluidId(neighborFluid) != FluidNone && fluidId(neighborFluid) != FluidWater)
+                {
+                    continue;
+                }
+
+                horizontal[cellCount].x = horizontal[i].x;
+                horizontal[cellCount].z = horizontal[i].z;
+                horizontal[cellCount].amount = fluidId(neighborFluid) == FluidWater ? fluidAmount(neighborFluid) : 0;
+                totalAmount += horizontal[cellCount].amount;
+                minAmount = std::min<uint16_t>(minAmount, horizontal[cellCount].amount);
+                maxAmount = std::max<uint16_t>(maxAmount, horizontal[cellCount].amount);
+                ++cellCount;
+            }
+            if (cellCount <= 1 || maxAmount <= static_cast<uint16_t>(minAmount + 1u))
+            {
+                continue;
+            }
+
+            const uint16_t baseAmount = static_cast<uint16_t>(totalAmount / cellCount);
+            uint16_t remainder = static_cast<uint16_t>(totalAmount % cellCount);
+            for (uint16_t i = 0; i < cellCount; ++i)
+            {
+                const uint16_t targetAmount = static_cast<uint16_t>(baseAmount + (remainder > 0 ? 1u : 0u));
+                if (remainder > 0)
+                {
+                    --remainder;
+                }
+                setFluidAtWorld(horizontal[i].x, cell.y, horizontal[i].z, packFluid(FluidWater, targetAmount), result);
+            }
+        }
+
+        std::vector<uint64_t> updatedLightChunks;
+        for (const FluidTickCell& cell : result.lightChangedCells)
+        {
+            const int chunkX = floorDiv(cell.x, ChunkSizeX);
+            const int chunkZ = floorDiv(cell.z, ChunkSizeZ);
+            const uint64_t key = chunkKey(chunkX, chunkZ);
+            if (std::find(updatedLightChunks.begin(), updatedLightChunks.end(), key) != updatedLightChunks.end())
+            {
+                continue;
+            }
+
+            RuntimeChunk* chunk = find(key);
+            if (chunk == nullptr || !chunk->data)
+            {
+                continue;
+            }
+            chunk->data->localLight = computeLocalSkyLight(*chunk->data, lightAttenuationTables_.get());
+            if (chunk->data->light.size() != ChunkBlockCount)
+            {
+                chunk->data->light = chunk->data->localLight;
+            }
+            updatedLightChunks.push_back(key);
+        }
+
+        return result;
     }
 
     std::vector<WorldRuntime::EditedSubchunk> WorldRuntime::resolveEditedSkyLightAtWorld(int x, int y, int z)

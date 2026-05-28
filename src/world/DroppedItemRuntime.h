@@ -50,12 +50,17 @@ namespace dolbuto::world
         bool pickupInView(DVec3 origin, Vec3 direction, const MarkDirtyFn& markDirty);
         bool raycast(DVec3 origin, Vec3 direction, WorldEntityHandle& itemHandle) const;
         bool targetInView(DVec3 origin, Vec3 direction, Target& target) const;
-        bool replaceTargetItems(
+        uint16_t replaceTargetItems(
             const WorldEntityHandle& itemHandle,
             uint64_t entityId,
-            uint16_t resultItemId,
-            uint16_t resultCountMin,
-            uint16_t resultCountMax,
+            const std::vector<ItemInteractionOutput>& outputs,
+            uint16_t maxApplications,
+            const MarkDirtyFn& markDirty);
+        void pushItemsOutOfBlock(
+            int blockX,
+            int blockY,
+            int blockZ,
+            const TerrainCollisionFn& terrainCellBlocksItem,
             const MarkDirtyFn& markDirty);
 
         void update(

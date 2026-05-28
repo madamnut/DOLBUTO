@@ -33,16 +33,28 @@ namespace dolbuto::gameplay
         bool inventoryChanged = false;
     };
 
+    struct BlockBreakEvent
+    {
+        int x = 0;
+        int y = 0;
+        int z = 0;
+        uint16_t block = 0;
+    };
+
+    struct BlockTickResult
+    {
+        std::vector<BlockBreakEvent> brokenBlocks;
+    };
+
     struct ItemInteractionActionMenu
     {
         std::string action;
-        std::vector<uint16_t> candidateItemIds;
-        uint16_t resultCountMin = 1;
-        uint16_t resultCountMax = 1;
+        std::vector<ItemInteractionCandidate> candidates;
     };
 
     struct ItemInteractionMenu
     {
+        bool hasUseTarget = false;
         bool available = false;
         uint16_t targetItemId = 0;
         std::vector<ItemInteractionActionMenu> actions;
@@ -74,6 +86,7 @@ namespace dolbuto::gameplay
             double playerHeightScale,
             const BlockSampler& blockAtWorld,
             const BlockDefinitionProvider& blockDefinition,
+            const BlockInteractionSystem::PropMeshProvider& propMesh,
             const SetBlockFn& setBlockAtWorld,
             const MarkDirtyFn& markDirty);
         BlockEditResult breakBlockAtHit(
@@ -88,13 +101,31 @@ namespace dolbuto::gameplay
             Vec3 direction,
             bool breaking,
             float deltaSeconds,
+            bool sandboxMode,
             const BlockSampler& blockAtWorld,
-            const BlockDefinitionProvider& blockDefinition);
+            const BlockDefinitionProvider& blockDefinition,
+            const BlockInteractionSystem::PropMeshProvider& propMesh = {});
+        BlockTickResult tickBlockUpdates(
+            uint32_t maxCells,
+            const BlockDefinitionProvider& blockDefinition,
+            const SetBlockFn& setBlockAtWorld,
+            const MarkDirtyFn& markDirty);
         void resetBlockBreaking();
         const BlockBreakingState& blockBreakingState() const;
 
         bool pickupDroppedItemInView(DVec3 origin, Vec3 direction, const MarkDirtyFn& markDirty);
         bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction, const MarkDirtyFn& markDirty);
+        BlockEditResult placeSelectedItemBlockInView(
+            DVec3 origin,
+            Vec3 direction,
+            DVec3 playerPosition,
+            double playerHeightScale,
+            const BlockSampler& blockAtWorld,
+            const BlockDefinitionProvider& blockDefinition,
+            const BlockInteractionSystem::PropMeshProvider& propMesh,
+            const SetBlockFn& setBlockAtWorld,
+            const TerrainCollisionPredicate& terrainCellBlocksItem,
+            const MarkDirtyFn& markDirty);
         ItemInteractionMenu beginItemInteractionInView(DVec3 origin, Vec3 direction, const std::vector<ItemInteractionRecipe>& recipes);
         bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, const MarkDirtyFn& markDirty);
         void cancelPendingItemInteraction();
@@ -144,6 +175,7 @@ namespace dolbuto::gameplay
         };
 
         const std::vector<ItemDefinition>* itemDefinitions_ = nullptr;
+        world::WorldRuntime* worldRuntime_ = nullptr;
         int hotbarSelectedSlot_ = 0;
         BlockBreakingState blockBreaking_;
         PlayerInventory playerInventory_;

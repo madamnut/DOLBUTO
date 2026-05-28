@@ -76,9 +76,7 @@ namespace dolbuto
         constexpr double SkyDebugTicksPerSecond = static_cast<double>(TicksPerHour);
         constexpr float MinSkyBrightness = 0.08f;
         constexpr float MaxSkyBrightness = 1.0f;
-        constexpr uint16_t BlockRock = 1;
         constexpr uint16_t BlockGrass = 2;
-        constexpr uint16_t BlockGlowingRock = 12;
         constexpr int InitialSpawnZ = 16384;
         constexpr int InitialSpawnMaxAttempts = 1024;
         constexpr float MenuButtonWidth = 240.0f;
@@ -750,12 +748,18 @@ namespace dolbuto
                 updatePlayer(FixedPhysicsTimestep, screen_ == AppScreen::Game && !chatOpen_ && !radialActive_);
                 if (runtime_ != nullptr)
                 {
+                    runtime_->gameplay().tickBlockUpdates();
                     runtime_->gameplay().updateBlockBreaking(
                         {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
                         renderViewDirection(camera_),
                         screen_ == AppScreen::Game && mouseCaptured_ && breakHeld_,
                         playerPosition_,
-                        static_cast<float>(FixedPhysicsTimestep));
+                        static_cast<float>(FixedPhysicsTimestep),
+                        gameMode_ == game::GameMode::Sandbox);
+                    if (worldTicks_ % 5u == 0u)
+                    {
+                        runtime_->gameplay().tickFluidSimulation();
+                    }
                 }
                 ++worldTicks_;
                 physicsAccumulator_ -= FixedPhysicsTimestep;
@@ -769,7 +773,8 @@ namespace dolbuto
                         renderViewDirection(camera_),
                         false,
                         playerPosition_,
-                        static_cast<float>(FixedPhysicsTimestep));
+                        static_cast<float>(FixedPhysicsTimestep),
+                        gameMode_ == game::GameMode::Sandbox);
                 }
                 physicsAccumulator_ = 0.0;
                 previousPlayerPosition_ = playerPosition_;
@@ -871,7 +876,7 @@ namespace dolbuto
             if (radialSelectedActionIndex_.has_value() && *radialSelectedActionIndex_ < radialActions_.size())
             {
                 radialMenuRenderFrame.selectedActionIndex = static_cast<uint32_t>(*radialSelectedActionIndex_);
-                radialMenuRenderFrame.candidateCount = static_cast<uint32_t>(radialActions_[*radialSelectedActionIndex_].candidateItemIds.size());
+                radialMenuRenderFrame.candidateCount = static_cast<uint32_t>(radialActions_[*radialSelectedActionIndex_].candidates.size());
             }
             if (radialSelectedCandidateIndex_.has_value())
             {
@@ -1116,11 +1121,6 @@ namespace dolbuto
             {
                 app->climateOverlayMode_ = (app->climateOverlayMode_ + 1) % ClimateOverlayModeCount;
             }
-            else if (key == GLFW_KEY_M && action == GLFW_PRESS && app != nullptr && app->screen_ == GameClient::AppScreen::Game && !app->chatOpen_)
-            {
-                app->placeBlockId_ = app->placeBlockId_ == BlockRock ? BlockGlowingRock : BlockRock;
-                app->appendChatSystemMessage(app->placeBlockId_ == BlockGlowingRock ? "Place mode: glowing_rock" : "Place mode: rock");
-            }
             else if (key == GLFW_KEY_E && action == GLFW_PRESS && app != nullptr)
             {
                 if (app->screen_ == GameClient::AppScreen::Game)
@@ -1224,7 +1224,8 @@ namespace dolbuto
                         renderViewDirection(app->camera_),
                         false,
                         app->playerPosition_,
-                        static_cast<float>(FixedPhysicsTimestep));
+                        static_cast<float>(FixedPhysicsTimestep),
+                        app->gameMode_ == game::GameMode::Sandbox);
                 }
                 return;
             }
@@ -1254,11 +1255,9 @@ namespace dolbuto
                     {
                         return;
                     }
-                    app->runtime_->gameplay().editBlockInView(
+                    app->runtime_->gameplay().placeSelectedItemBlockInView(
                         {app->playerPosition_.x, app->playerPosition_.y + app->currentEyeHeight(), app->playerPosition_.z},
                         renderViewDirection(app->camera_),
-                        true,
-                        app->placeBlockId_,
                         app->playerPosition_,
                         app->currentPlayerHeightScale());
                 }
@@ -1375,7 +1374,7 @@ namespace dolbuto
             renderViewDirection(camera_));
         if (!menu.available || menu.actions.empty())
         {
-            return false;
+            return menu.hasUseTarget;
         }
 
         int width = 0;
@@ -1458,7 +1457,7 @@ namespace dolbuto
                 }
                 if (selectedAction.has_value() && *selectedAction < radialActions_.size())
                 {
-                    const std::size_t candidateCount = radialActions_[*selectedAction].candidateItemIds.size();
+                    const std::size_t candidateCount = radialActions_[*selectedAction].candidates.size();
                     if (candidateCount > 0)
                     {
                         const double actionStep = TwoPi / static_cast<double>(radialActions_.size());
@@ -1806,7 +1805,8 @@ namespace dolbuto
                 renderViewDirection(camera_),
                 false,
                 playerPosition_,
-                static_cast<float>(FixedPhysicsTimestep));
+                static_cast<float>(FixedPhysicsTimestep),
+                gameMode_ == game::GameMode::Sandbox);
         }
         if (screen_ == AppScreen::Game)
         {

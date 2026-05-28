@@ -28,7 +28,8 @@ assets/data/blocks.json
 - `breakLevel`: 필요한 최소 도구 레벨
 - `breakAction`: 권장 좌클릭 파괴 동작. `none`이면 동작 보정을 적용하지 않는다.
 
-손은 내부적으로 `breakLevel = 0`, 파괴 동작 없음으로 취급한다.
+손은 내부적으로 `breakLevel = 1`, 파괴 동작 없음으로 취급한다.
+든 아이템에 `breakActions`와 `breakLevel`이 모두 없으면 좌클릭 파괴에서는 손과 동일하게 취급한다.
 손이나 든 아이템의 레벨이 블록의 `breakLevel`보다 낮으면 파괴 진행도와 오버레이가 생기지 않는다.
 레벨이 충분하면 파괴 파워는 다음 규칙으로 계산한다.
 
@@ -39,9 +40,13 @@ breakPower = 1.0 * levelMultiplier * actionMultiplier
 progress += deltaSeconds * breakPower / hardness
 ```
 
-내구도가 있는 아이템으로 블록을 실제로 파괴하면 내구도를 소비한다.
+Sandbox 모드에서는 파괴 가능한 블록이 도구와 무관하게 최대 `0.5`초 안에 파괴된다.
+`hardness < 0`인 파괴 불가 블록은 Sandbox 모드에서도 파괴되지 않는다.
+Sandbox 모드의 블록 파괴는 도구 내구도를 소비하지 않는다.
+
+내구도가 있는 아이템으로 `breakLevel >= 1` 블록을 실제로 파괴하면 내구도를 소비한다.
 권장 `breakAction`이 맞거나 블록 동작이 `none`이면 1, 레벨은 충분하지만 동작이 다르면 3을 소비한다.
-손이나 내구도 없는 아이템은 내구도를 소비하지 않는다.
+`breakLevel = 0` 블록, 손, 내구도 없는 아이템은 내구도를 소비하지 않는다.
 
 현재 초기값:
 
@@ -60,20 +65,26 @@ gravel    1.4
 grass     1.5
 ice       2.0
 sandstone 4.0
-trunk     4.0
+log       4.0
+stripped_log 4.0
 rock      5.0
 ```
 
 현재 초기 파괴 동작:
 
 ```text
-rock, sandstone, glowing_rock  breakLevel 1 / smash
-grass, dirt, sand, mud, clay, gravel  breakLevel 0 / dig
-trunk, branch                  breakLevel 0 / chop
-leaves, plant                  breakLevel 0 / cut
-ice, stone prop                breakLevel 0 / smash
-air, bedrock                   breakLevel 0 / none
+rock, sandstone                 breakLevel 2 / smash
+grass, dirt, sand, mud, clay, gravel  breakLevel 1 / dig
+log, stripped_log               breakLevel 2 / chop
+branch prop                     breakLevel 0 / chop
+leaves, plant                   breakLevel 0 / cut
+ice                             breakLevel 2 / smash
+stone prop                      breakLevel 0 / smash
+air, bedrock                    breakLevel 0 / none
 ```
+
+현재 `log`는 파괴되면 `log` 아이템 1개를 드랍한다.
+`log`, `stripped_log`는 `block_model` 아이템으로, 각 아이템의 `placeBlock` 대상 블록 텍스처를 작은 블록 모델로 렌더링한다.
 
 블록 파괴 오버레이 텍스처는 블록 렌더링 에셋으로 저장한다.
 
@@ -97,6 +108,8 @@ assets/textures/block/breaking/destroy_stage_9.png
 
 청크 skylight 계산은 블록 ID를 직접 분기하지 않고 `BlockDefinition`/`FluidDefinition`에서 만든 attenuation table을 조회한다.
 셀에 유체가 있으면 `max(block.lightAttenuation, fluid.lightAttenuation)`을 사용한다.
+유체량은 조명 감쇠량에 영향을 주지 않는다.
+따라서 유체 흐름 중 물량만 바뀌는 경우에는 조명을 다시 계산하지 않고, 유체가 없던 셀에 생기거나 있던 유체가 사라지는 경우처럼 유체 존재/종류가 바뀔 때만 조명 dirty로 본다.
 
 현재 초기값:
 
@@ -117,7 +130,7 @@ methane, hydrogen                    1
 `lightEmission`은 skyLight가 아니라 blockLight 채널에 들어가는 값이다.
 blockLight는 시간대별 하늘 밝기의 영향을 받지 않고, 렌더링에서는 `max(skyLight * skyBrightness, blockLight)`로 skyLight와 합성한다.
 
-테스트용 `glowing_rock`은 `rock` 텍스처를 재사용하고 `lightEmission = 15`를 가진다.
+현재 블록 데이터에는 발광 블록이 없다.
 
 ## 랜덤 오프셋
 
@@ -126,6 +139,29 @@ blockLight는 시간대별 하늘 밝기의 영향을 받지 않고, 렌더링�
 오프셋은 래핑된 월드 좌표와 기존 배치 salt에서 결정적으로 계산한다.
 저장된 블록 데이터, 충돌, 생성, 블록 정체성은 바뀌지 않는다.
 현재 사용 블록은 `plant`, `stone`, `branch`다.
+
+## 부착 블록
+
+블록 정의는 선택적으로 `attachment` 객체를 가질 수 있다.
+
+```json
+{
+  "attachment": {
+    "face": "bottom"
+  }
+}
+```
+
+현재 지원하는 값은 `face = "bottom"`뿐이다.
+이 값은 해당 블록의 아래쪽 면이 유효한 지지 블록에 붙어 있어야 한다는 뜻이다.
+현재 유효한 지지 블록은 `collision = true`인 블록이다.
+
+블록이 설치/파괴되거나 유체 제거를 동반한 블록 변경이 발생하면 변경 좌표와 6방향 이웃을 다음 블록 tick 대상으로 등록한다.
+블록 tick에서 부착 블록의 지지가 사라진 것이 확인되면 해당 블록은 일반 블록 파괴와 같은 방식으로 제거된다.
+이때 드랍, 파티클, 사운드, 편집 메쉬 갱신을 모두 수행한다.
+연쇄 파괴는 즉시 재귀 처리하지 않고, 제거된 좌표와 그 6방향 이웃이 다음 블록 tick에 다시 등록되는 방식으로 이어진다.
+
+현재 `plant`, `stone` prop, `branch` prop은 `bottom` 부착 블록이다.
 
 ## 방향성 랜덤 회전
 
@@ -136,6 +172,27 @@ blockLight는 시간대별 하늘 밝기의 영향을 받지 않고, 렌더링�
 `directional`이 `true`이면 이러한 랜덤 회전은 비활성화된다.
 
 등록된 블록 엔트리만 texture array에 포함된다.
+
+## 선택 레이캐스트
+
+블록 선택과 좌클릭 파괴는 DDA로 지나가는 블록 셀을 찾은 뒤, 렌더 타입별 hit shape를 검사한다.
+
+```text
+cube  : 기존 1 x 1 x 1 블록 셀
+cross : 렌더링에 쓰는 X자 quad 2장
+prop  : `.dpm` prop quad mesh
+```
+
+`cross`와 `prop`은 렌더링과 동일한 `randomOffset` 및 4방향 랜덤 회전을 적용해서 hit 판정을 한다.
+알파 픽셀 단위 테스트는 하지 않는다.
+
+선택 아웃라인도 렌더 타입별로 다르게 그린다.
+
+```text
+cube  : 기존 블록 박스
+cross : X자 quad 2장의 edge
+prop  : prop mesh의 local AABB에 렌더 변환을 적용한 bounds 박스
+```
 
 ## 현재 블록 ID
 
@@ -148,10 +205,11 @@ blockLight는 시간대별 하늘 밝기의 영향을 받지 않고, 렌더링�
 5     sandstone
 6     mud
 7     clay
-8     trunk
+8     log
 9     leaves
 10    gravel
 11    ice
+12    stripped_log
 10000 plant
 65535 bedrock
 ```
@@ -265,6 +323,27 @@ fluids: uint16_t packed fluid 배열
 
 초기 월드 생성은 해수면 `Y = 256` 이하의 빈 공간에 `water`를 `amount = 100`으로 채운다.
 
+## 유체 틱
+
+유체 시뮬레이션은 월드 전체를 매 tick 순회하지 않고, 셀 상태가 바뀐 좌표 주변만 다음 유체 tick 대상으로 등록한다.
+셀 상태 변경은 블록 설치/파괴와 유체량 변경을 포함한다.
+변경이 일어난 좌표와 동서남북/상하 6방향 이웃을 다음 유체 tick set에 넣으며, 같은 좌표는 set으로 중복 제거한다.
+
+블록 설치로 대상 칸이 `air`가 아니게 되면 해당 칸의 유체는 제거된다.
+이 경우에도 별도 유체 제거 이벤트가 아니라, 블록 설치로 셀 상태가 바뀐 결과로 주변 유체 tick이 등록된다.
+
+현재 시뮬레이션 대상 유체는 `water`뿐이다.
+물은 액체로 취급하며 아래 방향을 먼저 시도하고, 그 다음 수평 방향을 처리한다.
+
+- 아래 칸이 빈 블록이고 비어 있거나 물이면, 현재 칸에서 아래 칸으로 최대 `100`까지 이동한다.
+- 아래로 이동한 뒤 남은 물이 있으면 현재 칸과 동서남북 4칸 중 물을 담을 수 있는 칸을 대상으로 수평 평형화를 시도한다.
+- 수평 평형화는 대상 칸들의 총 물량을 동일하게 나누며, 칸별 물량 차이가 `1` 이하이면 이미 평형으로 본다.
+- 수평 대상은 `air` 블록인 칸만 포함한다. 로드되지 않았거나 고체 블록인 칸은 유체를 받을 수 없다.
+- 유체량이 바뀐 칸은 다시 다음 tick 대상으로 주변 6방향과 함께 등록된다.
+
+유체 시뮬레이션은 5 world tick마다 한 번 실행한다.
+현재 렌더 브리지에서는 실행 1회당 최대 `256`개 좌표를 처리하고, 남은 좌표는 다음 유체 tick으로 넘긴다.
+
 관련 문서: [[rendering]], [[world-generation]], [[save-load]]
 
 ## 유체 렌더링 참고
@@ -351,7 +430,7 @@ GLB 삼각형 쌍은 변환 중 다시 쿼드로 병합한다.
   "alphaMode": "opaque",
   "prop": {
     "model": "branch",
-    "texture": "trunk"
+    "texture": "log_side"
   }
 }
 ```

@@ -34,6 +34,7 @@ namespace dolbuto
         void markRuntimeChunkDataDirty(RuntimeChunk& chunk);
         world::TerrainBuilderConfig terrainBuilderConfig() const;
         bool setBlockAtWorld(int x, int y, int z, uint16_t block);
+        void tickFluidSimulation();
         void rebuildSubchunkMeshNow(int chunkX, int chunkZ, int subchunkY);
         void rebuildEditedChunkMeshes(int blockX, int blockY, int blockZ);
         bool chunkMeshReady(uint64_t key) const;

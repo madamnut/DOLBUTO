@@ -19,17 +19,24 @@ namespace dolbuto
     }
 
     TerrainSubchunkBuildData RendererTerrainMeshBridge::buildEditedSubchunkMesh(
-        const std::shared_ptr<ChunkData>& chunk,
+        const std::array<std::shared_ptr<ChunkData>, 9>& chunks,
         int subchunkY,
         const world::TerrainMesher::WorldBlockSampler& blockAtWorld,
         const world::TerrainMesher::WorldLightSampler& lightAtWorld) const
     {
+        const std::shared_ptr<ChunkData>& chunk = chunks[4];
+        if (!chunk)
+        {
+            return {};
+        }
+
         const TerrainGeometryBuilder geometryBuilder(
             content_.blockDefinitions(),
             content_.blockTextureLayers(),
             assets_.propMeshesByBlock);
 
-        return world::TerrainMesher().buildEditedSubchunkMesh(
+        world::TerrainMesher mesher;
+        TerrainSubchunkBuildData result = mesher.buildEditedSubchunkMesh(
             chunk,
             subchunkY,
             blockAtWorld,
@@ -38,6 +45,26 @@ namespace dolbuto
             {
                 return geometryBuilder.buildSubchunkMesh(sourceChunk, sourceSubchunkY, blockAt, lightAt);
             });
+
+        if (subchunkY >= 0 &&
+            subchunkY < static_cast<int>(chunk->fluidSubchunkCounts.size()) &&
+            chunk->fluidSubchunkCounts[static_cast<std::size_t>(subchunkY)] > 0)
+        {
+            const int worldXStart = chunk->chunkX * 16;
+            const int worldZStart = chunk->chunkZ * 16;
+            result.fluid = mesher.buildFluidSubchunkMesh(
+                chunks,
+                subchunkY,
+                [&](int localX, int y, int localZ)
+                {
+                    return lightAtWorld(worldXStart + localX, y, worldZStart + localZ);
+                },
+                [this](uint16_t block)
+                {
+                    return blockOccludesFluid(block);
+                });
+        }
+        return result;
     }
 
     CompletedChunkMesh RendererTerrainMeshBridge::buildChunkMesh(

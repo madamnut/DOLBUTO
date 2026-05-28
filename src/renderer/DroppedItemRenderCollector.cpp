@@ -4,6 +4,7 @@
 #include "world/SkyLightSystem.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace dolbuto
@@ -17,6 +18,7 @@ namespace dolbuto
         constexpr float TerrainFarPlane = 4000.0f;
         constexpr std::size_t MaxDroppedItems = world::DroppedItemSystem::MaxDroppedItems;
         constexpr float DroppedItemThickness = world::DroppedItemSystem::DroppedItemThickness;
+        constexpr float BlockModelDroppedItemSize = world::DroppedItemSystem::BlockModelDroppedItemSize;
         constexpr float DroppedItemRenderDistanceSquared = world::DroppedItemSystem::DroppedItemRenderDistanceSquared;
         constexpr std::size_t MaxDroppedItemRenderInstances = world::DroppedItemSystem::MaxDroppedItemRenderInstances;
 
@@ -108,6 +110,23 @@ namespace dolbuto
         {
             return static_cast<int>(std::floor(worldCoordinate));
         }
+
+        std::size_t visualCopyCount(uint16_t count)
+        {
+            if (count >= 49)
+            {
+                return 4;
+            }
+            if (count >= 17)
+            {
+                return 3;
+            }
+            if (count >= 2)
+            {
+                return 2;
+            }
+            return 1;
+        }
     }
 
     std::vector<DroppedItemRenderPath::RenderInstance> DroppedItemRenderCollector::collect(const Input& input)
@@ -119,10 +138,16 @@ namespace dolbuto
         }
 
         const std::size_t itemCount = std::min(input.loadedItemCount, MaxDroppedItems);
-        renderInstances.reserve(std::min<std::size_t>(itemCount, MaxDroppedItemRenderInstances));
+        renderInstances.reserve(std::min<std::size_t>(itemCount * 4u, MaxDroppedItemRenderInstances));
 
         const Vec3 cameraPosition = input.cameraPosition;
         const Frustum frustum = makeFrustum(input.camera, {}, input.aspect, input.fovRadians);
+        const std::array<Vec3, 4> visualOffsets{{
+            {0.0f, 0.0f, 0.0f},
+            {-0.08f, 0.0f, -0.04f},
+            {0.08f, 0.0f, 0.04f},
+            {-0.02f, 0.0f, 0.10f}
+        }};
 
         std::size_t renderedItems = 0;
         for (const auto& trackedChunk : input.droppedItemCountsByChunk)
@@ -161,7 +186,7 @@ namespace dolbuto
                 }
 
                 const ItemDefinition& definition = input.itemDefinitions[item.droppedItem.stack.itemId];
-                if (definition.droppedRender != ItemRenderType::ExtrudedSprite)
+                if (definition.droppedRender != input.renderType)
                 {
                     continue;
                 }
@@ -188,28 +213,42 @@ namespace dolbuto
                     continue;
                 }
 
+                const float itemHeight = definition.droppedRender == ItemRenderType::BlockModel
+                    ? BlockModelDroppedItemSize
+                    : DroppedItemThickness;
+                const float itemWidth = definition.droppedRender == ItemRenderType::BlockModel
+                    ? BlockModelDroppedItemSize
+                    : world::DroppedItemSystem::DroppedItemSize;
                 const float layer = static_cast<float>(definition.droppedTextureLayer);
                 const uint8_t packedLight = input.lightAtWorld
                     ? input.lightAtWorld(
                         blockCoordinateXz(interpolatedPosition.x),
-                        blockCoordinateY(interpolatedPosition.y + DroppedItemThickness),
+                        blockCoordinateY(interpolatedPosition.y + itemHeight),
                         blockCoordinateXz(interpolatedPosition.z))
                     : world::packLight(world::MaxSkyLight, 0);
                 const float skyLight = static_cast<float>(world::skyLightFromPacked(packedLight)) / static_cast<float>(world::MaxSkyLight);
                 const float blockLight = static_cast<float>(world::blockLightFromPacked(packedLight)) / static_cast<float>(world::MaxSkyLight);
-                DroppedItemRenderPath::RenderInstance renderInstance{};
-                renderInstance.itemId = item.droppedItem.stack.itemId;
-                renderInstance.instance.centerX = interpolatedPosition.x;
-                renderInstance.instance.centerY = interpolatedPosition.y + DroppedItemThickness * 0.5f;
-                renderInstance.instance.centerZ = interpolatedPosition.z;
-                renderInstance.instance.rotationX = item.renderRotationX;
-                renderInstance.instance.rotationY = item.renderRotation;
-                renderInstance.instance.rotationZ = item.renderRotationZ;
-                renderInstance.instance.textureLayer = layer;
-                renderInstance.instance.mipDistanceScale = 1.0f;
-                renderInstance.instance.skyLight = skyLight;
-                renderInstance.instance.blockLight = blockLight;
-                renderInstances.push_back(renderInstance);
+                const std::size_t copies = visualCopyCount(item.droppedItem.stack.count);
+                for (std::size_t copy = 0; copy < copies && renderInstances.size() < MaxDroppedItemRenderInstances; ++copy)
+                {
+                    const Vec3& offset = visualOffsets[copy];
+                    DroppedItemRenderPath::RenderInstance renderInstance{};
+                    renderInstance.itemId = item.droppedItem.stack.itemId;
+                    renderInstance.instance.centerX = interpolatedPosition.x + offset.x;
+                    renderInstance.instance.centerY = interpolatedPosition.y + itemHeight * 0.5f + static_cast<float>(copy) * itemHeight;
+                    renderInstance.instance.centerZ = interpolatedPosition.z + offset.z;
+                    renderInstance.instance.rotationX = item.renderRotationX;
+                    renderInstance.instance.rotationY = item.renderRotation + static_cast<float>(copy) * 1.5707963268f;
+                    renderInstance.instance.rotationZ = item.renderRotationZ;
+                    renderInstance.instance.textureLayer = layer;
+                    renderInstance.instance.mipDistanceScale = 1.0f;
+                    renderInstance.instance.scaleX = itemWidth;
+                    renderInstance.instance.scaleY = itemHeight;
+                    renderInstance.instance.scaleZ = itemWidth;
+                    renderInstance.instance.skyLight = skyLight;
+                    renderInstance.instance.blockLight = blockLight;
+                    renderInstances.push_back(renderInstance);
+                }
                 ++renderedItems;
             }
         }

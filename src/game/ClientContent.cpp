@@ -1,5 +1,7 @@
 #include "game/ClientContent.h"
 
+#include "assets/BlockItemIconBuilder.h"
+#include "assets/PropModelLoader.h"
 #include "data/DataLoaders.h"
 #include "platform/Log.h"
 
@@ -32,11 +34,28 @@ namespace dolbuto::game
 
         ItemRenderType parseItemRenderType(const std::string& value)
         {
+            if (value == "block_model")
+            {
+                return ItemRenderType::BlockModel;
+            }
             if (value == "extruded_sprite" || value == "sprite")
             {
                 return ItemRenderType::ExtrudedSprite;
             }
             throw std::runtime_error("Unknown item render type: " + value);
+        }
+
+        ItemSlotRenderType parseItemSlotRenderType(const std::string& value)
+        {
+            if (value == "block_model")
+            {
+                return ItemSlotRenderType::BlockModel;
+            }
+            if (value == "sprite" || value == "texture")
+            {
+                return ItemSlotRenderType::Sprite;
+            }
+            throw std::runtime_error("Unknown item slot render type: " + value);
         }
 
         BlockRenderType parseRenderType(const std::string& value)
@@ -81,6 +100,15 @@ namespace dolbuto::game
             }
             return BlockAlphaMode::Opaque;
         }
+
+        BlockAttachmentFace parseAttachmentFace(const std::string& value)
+        {
+            if (value == "bottom")
+            {
+                return BlockAttachmentFace::Bottom;
+            }
+            return BlockAttachmentFace::None;
+        }
     }
 
     ClientContent ClientContent::load(const std::filesystem::path& assetDirectory)
@@ -111,7 +139,9 @@ namespace dolbuto::game
         {
             const std::string droppedTexture = definition.droppedTexture != "none" ? definition.droppedTexture : definition.texture;
             const std::string heldTexture = definition.heldTexture != "none" ? definition.heldTexture : droppedTexture;
-            const std::string slotTexture = definition.slotTexture != "none" ? definition.slotTexture : droppedTexture;
+            const std::string slotTexture = definition.slotRenderTexture != "none"
+                ? definition.slotRenderTexture
+                : (definition.slotTexture != "none" ? definition.slotTexture : droppedTexture);
 
             ItemDefinition itemDefinition{};
             itemDefinition.key = definition.key;
@@ -121,9 +151,11 @@ namespace dolbuto::game
             itemDefinition.heldTexture = heldTexture;
             itemDefinition.useActions = definition.useActions;
             itemDefinition.breakActions = definition.breakActions;
+            itemDefinition.placeActions = definition.placeActions;
             itemDefinition.stackSize = definition.stackSize;
             itemDefinition.breakLevel = definition.breakLevel;
             itemDefinition.maxDurability = definition.maxDurability;
+            itemDefinition.slotRender = parseItemSlotRenderType(definition.slotRender);
             itemDefinition.droppedRender = parseItemRenderType(definition.droppedRender);
             itemDefinition.heldRender = parseItemRenderType(definition.heldRender);
             if (droppedTexture != "none")
@@ -159,19 +191,30 @@ namespace dolbuto::game
                 ItemInteractionRecipe recipe{};
                 recipe.action = definition.action;
                 recipe.targetItemId = targetIt->second;
-                recipe.resultCountMin = definition.resultCountMin;
-                recipe.resultCountMax = definition.resultCountMax;
-                for (const std::string& candidate : definition.candidates)
+                for (const data::ParsedInteractionCandidate& parsedCandidate : definition.candidates)
                 {
-                    const auto candidateIt = content.itemIdByKey_.find(candidate);
-                    if (candidateIt == content.itemIdByKey_.end())
+                    ItemInteractionCandidate candidate{};
+                    for (const data::ParsedInteractionOutput& parsedOutput : parsedCandidate.outputs)
                     {
-                        log::warn("Interaction references unknown candidate item key: " + definition.action + " -> " + candidate);
-                        continue;
+                        const auto outputIt = content.itemIdByKey_.find(parsedOutput.item);
+                        if (outputIt == content.itemIdByKey_.end())
+                        {
+                            log::warn("Interaction references unknown candidate item key: " + definition.action + " -> " + parsedOutput.item);
+                            continue;
+                        }
+
+                        ItemInteractionOutput output{};
+                        output.itemId = outputIt->second;
+                        output.min = parsedOutput.min;
+                        output.max = parsedOutput.max;
+                        candidate.outputs.push_back(output);
                     }
-                    recipe.candidateItemIds.push_back(candidateIt->second);
+                    if (!candidate.outputs.empty())
+                    {
+                        recipe.candidates.push_back(std::move(candidate));
+                    }
                 }
-                if (!recipe.action.empty() && recipe.targetItemId != 0 && !recipe.candidateItemIds.empty())
+                if (!recipe.action.empty() && recipe.targetItemId != 0 && !recipe.candidates.empty())
                 {
                     content.itemInteractionRecipes_.push_back(std::move(recipe));
                 }
@@ -199,6 +242,7 @@ namespace dolbuto::game
 
         content.blockDefinitions_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
         content.blockTextureLayers_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
+        std::unordered_map<std::string, uint16_t> blockIdByName;
         for (const data::ParsedBlockDefinition& definition : parsedBlocks)
         {
             BlockDefinition blockDefinition{};
@@ -219,6 +263,7 @@ namespace dolbuto::game
             blockDefinition.lightAttenuation = definition.lightAttenuation;
             blockDefinition.lightEmission = definition.lightEmission;
             blockDefinition.randomOffset = definition.randomOffset;
+            blockDefinition.attachmentFace = parseAttachmentFace(definition.attachmentFace);
             for (size_t dropIndex = 0; dropIndex < definition.dropItemKeys.size(); ++dropIndex)
             {
                 const auto itemIt = content.itemIdByKey_.find(definition.dropItemKeys[dropIndex]);
@@ -243,6 +288,7 @@ namespace dolbuto::game
                 }
             }
             content.blockDefinitions_[definition.id] = blockDefinition;
+            blockIdByName[definition.name] = definition.id;
 
             BlockTextureLayers layers{};
             if (const auto it = definition.textures.find("all"); it != definition.textures.end())
@@ -280,6 +326,79 @@ namespace dolbuto::game
             if (definition.renderType == "prop" && !definition.propModel.empty())
             {
                 content.propModelBindings_.push_back(PropModelBinding{definition.id, definition.propModel});
+            }
+        }
+
+        const std::filesystem::path propModelDirectory = assetDirectory / "textures" / "block" / "model";
+        std::unordered_set<std::string> checkedPropModels;
+        for (const PropModelBinding& binding : content.propModelBindings_)
+        {
+            if (checkedPropModels.insert(binding.modelName).second)
+            {
+                assets::ensurePropModelBinary(propModelDirectory, binding.modelName);
+            }
+        }
+        for (const PropModelBinding& binding : content.propModelBindings_)
+        {
+            const std::filesystem::path dpmPath = propModelDirectory / (binding.modelName + ".dpm");
+            assets::PropMesh mesh = assets::loadDpmRenderMesh(dpmPath);
+            if (mesh.quads.empty())
+            {
+                log::warn("Prop model dpm could not be loaded: " + dpmPath.string());
+                continue;
+            }
+            content.propMeshesByBlock_[binding.blockId] = std::move(mesh);
+        }
+
+        for (const data::ParsedItemDefinition& definition : parsedItems)
+        {
+            if (definition.placeBlock.empty())
+            {
+                continue;
+            }
+
+            const auto blockIt = blockIdByName.find(definition.placeBlock);
+            if (blockIt == blockIdByName.end())
+            {
+                log::warn("Item placeBlock references unknown block name: " + definition.key + " -> " + definition.placeBlock);
+                continue;
+            }
+            content.itemDefinitions_[definition.id].placeBlockId = blockIt->second;
+        }
+
+        const std::filesystem::path blockTextureDir = assetDirectory / "textures" / "block";
+        for (const data::ParsedItemDefinition& definition : parsedItems)
+        {
+            if (definition.id >= content.itemDefinitions_.size())
+            {
+                continue;
+            }
+
+            ItemDefinition& item = content.itemDefinitions_[definition.id];
+            if (item.slotRender != ItemSlotRenderType::BlockModel)
+            {
+                continue;
+            }
+            if (item.placeBlockId == 0 ||
+                static_cast<size_t>(item.placeBlockId) >= content.blockTextureLayers_.size())
+            {
+                log::warn("Block model slot item has no valid placeBlock: " + item.key);
+                continue;
+            }
+
+            const std::string generatedTexture = "generated/" + item.key + "_slot";
+            const std::filesystem::path outputPath = assetDirectory / "textures" / "item" / (generatedTexture + ".png");
+            if (assets::writeBlockItemIcon(
+                blockTextureDir,
+                content.blockTextureNames_,
+                content.blockTextureLayers_[item.placeBlockId],
+                outputPath))
+            {
+                item.slotTexture = generatedTexture;
+            }
+            else
+            {
+                log::warn("Block model slot icon generation failed: " + item.key);
             }
         }
 
@@ -376,5 +495,16 @@ namespace dolbuto::game
     const std::vector<PropModelBinding>& ClientContent::propModelBindings() const
     {
         return propModelBindings_;
+    }
+
+    const std::unordered_map<uint16_t, assets::PropMesh>& ClientContent::propMeshesByBlock() const
+    {
+        return propMeshesByBlock_;
+    }
+
+    const assets::PropMesh* ClientContent::propMeshForBlock(uint16_t block) const
+    {
+        const auto it = propMeshesByBlock_.find(block);
+        return it != propMeshesByBlock_.end() ? &it->second : nullptr;
     }
 }

@@ -28,5 +28,6 @@ namespace dolbuto::config
     {
         ViewmodelHandConfig hand;
         ViewmodelHeldItemConfig heldItem;
+        ViewmodelHeldItemConfig heldBlockModelItem;
     };
 }

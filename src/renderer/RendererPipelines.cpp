@@ -857,7 +857,7 @@ namespace dolbuto
         itemBindings[1].stride = sizeof(DroppedItemRenderPath::Instance);
         itemBindings[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
-        std::array<VkVertexInputAttributeDescription, 6> itemAttributes{};
+        std::array<VkVertexInputAttributeDescription, 8> itemAttributes{};
         itemAttributes[0].binding = 0;
         itemAttributes[0].location = 0;
         itemAttributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -870,18 +870,26 @@ namespace dolbuto
         itemAttributes[2].location = 2;
         itemAttributes[2].format = VK_FORMAT_R32_SFLOAT;
         itemAttributes[2].offset = offsetof(DroppedItemRenderPath::ItemLocalVertex, ao);
-        itemAttributes[3].binding = 1;
+        itemAttributes[3].binding = 0;
         itemAttributes[3].location = 3;
-        itemAttributes[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        itemAttributes[3].offset = offsetof(DroppedItemRenderPath::Instance, centerX);
+        itemAttributes[3].format = VK_FORMAT_R32_SFLOAT;
+        itemAttributes[3].offset = offsetof(DroppedItemRenderPath::ItemLocalVertex, textureLayer);
         itemAttributes[4].binding = 1;
         itemAttributes[4].location = 4;
         itemAttributes[4].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        itemAttributes[4].offset = offsetof(DroppedItemRenderPath::Instance, rotationY);
+        itemAttributes[4].offset = offsetof(DroppedItemRenderPath::Instance, centerX);
         itemAttributes[5].binding = 1;
         itemAttributes[5].location = 5;
-        itemAttributes[5].format = VK_FORMAT_R32G32_SFLOAT;
-        itemAttributes[5].offset = offsetof(DroppedItemRenderPath::Instance, skyLight);
+        itemAttributes[5].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        itemAttributes[5].offset = offsetof(DroppedItemRenderPath::Instance, rotationY);
+        itemAttributes[6].binding = 1;
+        itemAttributes[6].location = 6;
+        itemAttributes[6].format = VK_FORMAT_R32G32B32_SFLOAT;
+        itemAttributes[6].offset = offsetof(DroppedItemRenderPath::Instance, scaleX);
+        itemAttributes[7].binding = 1;
+        itemAttributes[7].location = 7;
+        itemAttributes[7].format = VK_FORMAT_R32G32_SFLOAT;
+        itemAttributes[7].offset = offsetof(DroppedItemRenderPath::Instance, skyLight);
 
         VkPipelineVertexInputStateCreateInfo itemVertexInput{};
         itemVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;

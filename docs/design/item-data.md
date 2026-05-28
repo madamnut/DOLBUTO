@@ -41,7 +41,7 @@ assets/textures/item/*.png
   "id": 1,
   "key": "rock_chunk",
   "name": "Rock Chunk",
-  "stackSize": 1,
+  "stackSize": 99,
   "slotTexture": "rock_chunk",
   "droppedRender": {
     "type": "extruded_sprite",
@@ -61,24 +61,32 @@ assets/textures/item/*.png
 - `id`: 부호 없는 숫자 아이템 ID
 - `key`: 안정적인 `snake_case` 아이템 키
 - `name`: 플레이어에게 표시되는 이름
-- `stackSize`: 최대 스택 개수. 현재 실제 아이템은 모두 `1`을 사용한다.
-- `slotTexture`: 확장자를 제외한 인벤토리/핫바 슬롯 텍스처 이름
-- `droppedRender.type`: 아이템이 월드에 떨어졌을 때 사용하는 렌더 타입
-- `droppedRender.texture`: 월드 드랍 아이템 렌더 상태에서 사용하는 텍스처 이름
-- `heldRender.type`: 플레이어가 아이템을 들었을 때 사용하는 렌더 타입
-- `heldRender.texture`: 플레이어가 든 아이템 렌더 상태에서 사용하는 텍스처 이름
+- `stackSize`: 최대 스택 개수. 현재 내구도 없는 실제 아이템은 `99`, 내구도 있는 아이템은 `1`을 사용한다.
+- `slotTexture`: 확장자를 제외한 인벤토리/핫바 슬롯 텍스처 이름. `slotRender`를 생략하거나 `sprite`로 둘 때 사용한다.
+- `slotRender.type`: 인벤토리/핫바 슬롯 아이콘 렌더 타입. 현재 `sprite`, `block_model`을 사용한다.
+- `slotRender.texture`: `sprite` 슬롯 아이콘에서 `slotTexture`를 대체할 텍스처 이름
+- `droppedRender.type`: 아이템이 월드에 떨어졌을 때 사용하는 렌더 타입. 현재 `extruded_sprite`, `block_model`을 사용한다.
+- `droppedRender.texture`: `extruded_sprite` 드랍 아이템 렌더 상태에서 사용하는 텍스처 이름
+- `heldRender.type`: 플레이어가 아이템을 들었을 때 사용하는 렌더 타입. 현재 `extruded_sprite`, `block_model`을 사용한다.
+- `heldRender.texture`: `extruded_sprite` 든 아이템 렌더 상태에서 사용하는 텍스처 이름
 - `tags`: 이후 시스템을 위한 아이템 분류 태그
 - `useActions`: 손에 들었을 때 수행 가능한 월드 상호작용 액션 키 목록
+- `placeActions`: 손에 들었을 때 수행 가능한 블록/오브젝트 설치 액션 키 목록
+- `placeBlock`: `place` 액션으로 설치할 블록 이름
 
 `id = 0`은 `none`용으로 예약한다.
 실제 아이템은 `id = 1`부터 시작하며, 구체적으로 빈 구간을 남길 이유가 없으면 순차적으로 배정한다.
-현재 모든 아이템의 초기 렌더 타입은 `extruded_sprite`다.
+`block_model` 렌더 타입은 아이템의 `placeBlock`으로 지정된 블록의 텍스처 레이어를 사용한다.
+아이템 데이터에는 별도 `block`이나 `viewModel` 필드를 두지 않는다.
+`slotRender.type = "block_model"`도 `placeBlock`의 블록 텍스처를 사용한다.
+콘텐츠 로딩 시 해당 블록의 위/옆면 텍스처를 합성해 `assets/textures/item/generated/{item_key}_slot.png` 아이콘을 만들고, UI는 기존 슬롯 이미지 경로처럼 이 생성 텍스처를 참조한다.
 
 ## 드랍 아이템 물리와 렌더링
 
 드랍된 `extruded_sprite` 아이템은 전용 아이템 파이프라인을 통해 얇은 수평 월드 공간 3D 스프라이트 파생 메쉬로 렌더링한다.
 현재 메쉬는 윗면/아랫면 스프라이트 면과 스프라이트 알파 경계에서 생성한 옆면을 사용한다.
 현재 드랍 스프라이트와 드랍 물리 AABB는 같은 `0.68 x 0.05 x 0.68` 블록 크기를 사용한다.
+드랍된 `block_model` 아이템은 `placeBlock` 블록의 6면 텍스처를 사용하는 작은 큐브 mesh로 렌더링하며, 렌더 크기와 물리 AABB는 모두 `0.2 x 0.2 x 0.2`다.
 드랍 아이템 런타임 위치는 아이템의 중앙 하단 접점이다.
 
 드랍 생성은 파괴된 블록 중심 주변에서 시작한다.
@@ -89,14 +97,19 @@ assets/textures/item/*.png
 착지 후 드랍 아이템은 이동을 멈추고, 평평하게 놓이도록 X/Z 회전을 초기화하며, 랜덤 Y 회전은 유지한다.
 나중에 지지하던 블록이 제거되면, 땅에 있던 아이템은 다음 아이템 물리 틱에서 다시 공중 상태가 되어 낙하한다.
 
-드랍 아이템은 서로 병합되지 않는다.
-월드 드랍 아이템 한 엔티티는 아이템 1개를 의미하며, 저장 payload의 `count`는 호환용으로 남기되 런타임에서는 `1`로 정규화한다.
+드랍 아이템은 같은 `itemId`이고 획득 중이 아니며 대상 스택에 여유가 있을 때 주변 스택으로 병합될 수 있다.
+병합 판정은 X/Y/Z 각 축 차이가 모두 0.75블록 이하인 경우로 처리한다.
+병합은 물리 tick 끝에서 수행하며, 병합을 받은 대상 스택은 접지 상태를 해제하고 위쪽 속도를 최소 `2.0`으로 만들어 살짝 튀어오르게 한다.
+월드 드랍 아이템 한 엔티티는 하나의 아이템 스택을 의미하며, 저장 payload의 `count`는 로드 시 아이템의 `stackSize` 이하로 정규화한다.
 드랍 아이템끼리 겹치면 이전 tick의 바닥 위치와 현재 바닥 위치를 비교해 위에서 아래 아이템의 top plane을 통과한 경우 먼저 아래 아이템 위에 착지시킨다.
 아이템 위에 얹힌 아이템은 아래 아이템과 수평으로 충분히 겹쳐 있는 동안 지지된 것으로 보고, 아래 아이템이 사라지거나 위치가 어긋나면 다시 낙하한다.
 그 외 명확한 위아래 겹침은 위쪽 아이템을 Y축으로 보정한다.
 같은 높이의 수평 겹침은 두 아이템을 서로 밀어내지 않고, 움직이는 쪽이나 더 최근 생성된 쪽만 보정하고 수평 속도를 감쇠한다.
 드랍 아이템끼리는 수평 속도를 서로 전달하지 않는다.
 드랍 아이템 렌더링은 아이템별 정적 extruded mesh와 드랍 엔티티별 instance data를 사용한다.
+병합된 스택은 데이터상 하나의 엔티티지만, 렌더링에서는 count에 따라 1~4개의 겹친 아이템으로 표시한다.
+시각 복제본 수는 count `1`, `2~16`, `17~48`, `49~99` 구간에 따라 각각 1, 2, 3, 4개다.
+`block_model` 드랍 아이템도 같은 복제본 구간과 오프셋 규칙을 사용한다.
 옆면은 불투명 스프라이트 픽셀이 투명 이웃이나 텍스처 경계에 닿는 위치에만 생성한다.
 같은 방향의 인접 옆면 경계는 렌더링 전에 span으로 병합하므로, 드랍 아이템은 스프라이트 실루엣을 유지하면서도 경계 픽셀마다 옆면 쿼드를 만들지 않는다.
 옆면 UV는 정확한 알파 경계가 아니라 불투명 픽셀 중심을 샘플링해 투명 가장자리 필터링 아티팩트를 피한다.
@@ -119,13 +132,17 @@ branch.png
 dirt_pile.png
 grass_scrap.png
 leaf.png
+long_wooden_stick.png
 plant_fiber.png
 plant_twine.png
 plant.png
 rock_chunk.png
 sand_pile.png
 seed.png
+short_wooden_stick.png
 stone_shard.png
+wooden_plank.png
+wooden_stick.png
 ```
 
 ## 초기 아이템 초안
@@ -134,25 +151,31 @@ stone_shard.png
 [
   { "id": 0, "key": "none", "name": "None", "stackSize": 0, "slotTexture": "none", "droppedRender": { "type": "extruded_sprite", "texture": "none" }, "heldRender": { "type": "extruded_sprite", "texture": "none" }, "tags": [], "useActions": [] },
 
-  { "id": 1, "key": "rock_chunk", "name": "Rock Chunk", "stackSize": 1, "slotTexture": "rock_chunk", "droppedRender": { "type": "extruded_sprite", "texture": "rock_chunk" }, "heldRender": { "type": "extruded_sprite", "texture": "rock_chunk" }, "tags": [], "useActions": [] },
-  { "id": 2, "key": "dirt_pile", "name": "Dirt Pile", "stackSize": 1, "slotTexture": "dirt_pile", "droppedRender": { "type": "extruded_sprite", "texture": "dirt_pile" }, "heldRender": { "type": "extruded_sprite", "texture": "dirt_pile" }, "tags": [], "useActions": [] },
-  { "id": 3, "key": "sand_pile", "name": "Sand Pile", "stackSize": 1, "slotTexture": "sand_pile", "droppedRender": { "type": "extruded_sprite", "texture": "sand_pile" }, "heldRender": { "type": "extruded_sprite", "texture": "sand_pile" }, "tags": [], "useActions": [] },
+  { "id": 1, "key": "rock_chunk", "name": "Rock Chunk", "stackSize": 99, "slotTexture": "rock_chunk", "droppedRender": { "type": "extruded_sprite", "texture": "rock_chunk" }, "heldRender": { "type": "extruded_sprite", "texture": "rock_chunk" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "rock" },
+  { "id": 2, "key": "dirt_pile", "name": "Dirt Pile", "stackSize": 99, "slotTexture": "dirt_pile", "droppedRender": { "type": "extruded_sprite", "texture": "dirt_pile" }, "heldRender": { "type": "extruded_sprite", "texture": "dirt_pile" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "dirt" },
+  { "id": 3, "key": "sand_pile", "name": "Sand Pile", "stackSize": 99, "slotTexture": "sand_pile", "droppedRender": { "type": "extruded_sprite", "texture": "sand_pile" }, "heldRender": { "type": "extruded_sprite", "texture": "sand_pile" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "sand" },
 
-  { "id": 4, "key": "plant", "name": "Plant", "stackSize": 1, "slotTexture": "plant", "droppedRender": { "type": "extruded_sprite", "texture": "plant" }, "heldRender": { "type": "extruded_sprite", "texture": "plant" }, "tags": [], "useActions": [] },
-  { "id": 5, "key": "plant_fiber", "name": "Plant Fiber", "stackSize": 1, "slotTexture": "plant_fiber", "droppedRender": { "type": "extruded_sprite", "texture": "plant_fiber" }, "heldRender": { "type": "extruded_sprite", "texture": "plant_fiber" }, "tags": [], "useActions": [] },
-  { "id": 6, "key": "plant_twine", "name": "Plant Twine", "stackSize": 1, "slotTexture": "plant_twine", "droppedRender": { "type": "extruded_sprite", "texture": "plant_twine" }, "heldRender": { "type": "extruded_sprite", "texture": "plant_twine" }, "tags": [], "useActions": [] },
-  { "id": 7, "key": "seed", "name": "Seed", "stackSize": 1, "slotTexture": "seed", "droppedRender": { "type": "extruded_sprite", "texture": "seed" }, "heldRender": { "type": "extruded_sprite", "texture": "seed" }, "tags": [], "useActions": [] },
-  { "id": 8, "key": "grass_scrap", "name": "Grass Scrap", "stackSize": 1, "slotTexture": "grass_scrap", "droppedRender": { "type": "extruded_sprite", "texture": "grass_scrap" }, "heldRender": { "type": "extruded_sprite", "texture": "grass_scrap" }, "tags": [], "useActions": [] },
+  { "id": 4, "key": "plant", "name": "Plant", "stackSize": 99, "slotTexture": "plant", "droppedRender": { "type": "extruded_sprite", "texture": "plant" }, "heldRender": { "type": "extruded_sprite", "texture": "plant" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "plant" },
+  { "id": 5, "key": "plant_fiber", "name": "Plant Fiber", "stackSize": 99, "slotTexture": "plant_fiber", "droppedRender": { "type": "extruded_sprite", "texture": "plant_fiber" }, "heldRender": { "type": "extruded_sprite", "texture": "plant_fiber" }, "tags": [], "useActions": [] },
+  { "id": 6, "key": "plant_twine", "name": "Plant Twine", "stackSize": 99, "slotTexture": "plant_twine", "droppedRender": { "type": "extruded_sprite", "texture": "plant_twine" }, "heldRender": { "type": "extruded_sprite", "texture": "plant_twine" }, "tags": [], "useActions": [] },
+  { "id": 7, "key": "seed", "name": "Seed", "stackSize": 99, "slotTexture": "seed", "droppedRender": { "type": "extruded_sprite", "texture": "seed" }, "heldRender": { "type": "extruded_sprite", "texture": "seed" }, "tags": [], "useActions": [] },
+  { "id": 8, "key": "grass_scrap", "name": "Grass Scrap", "stackSize": 99, "slotTexture": "grass_scrap", "droppedRender": { "type": "extruded_sprite", "texture": "grass_scrap" }, "heldRender": { "type": "extruded_sprite", "texture": "grass_scrap" }, "tags": [], "useActions": [] },
 
-  { "id": 9, "key": "branch", "name": "Branch", "stackSize": 1, "slotTexture": "branch", "droppedRender": { "type": "extruded_sprite", "texture": "branch" }, "heldRender": { "type": "extruded_sprite", "texture": "branch" }, "tags": [], "useActions": [] },
-  { "id": 10, "key": "bough", "name": "Bough", "stackSize": 1, "slotTexture": "bough", "droppedRender": { "type": "extruded_sprite", "texture": "bough" }, "heldRender": { "type": "extruded_sprite", "texture": "bough" }, "tags": [], "useActions": [] },
-  { "id": 11, "key": "bark_strip", "name": "Bark Strip", "stackSize": 1, "slotTexture": "bark_strip", "droppedRender": { "type": "extruded_sprite", "texture": "bark_strip" }, "heldRender": { "type": "extruded_sprite", "texture": "bark_strip" }, "tags": [], "useActions": [] },
-  { "id": 12, "key": "leaf", "name": "Leaf", "stackSize": 1, "slotTexture": "leaf", "droppedRender": { "type": "extruded_sprite", "texture": "leaf" }, "heldRender": { "type": "extruded_sprite", "texture": "leaf" }, "tags": [], "useActions": [] },
-  { "id": 13, "key": "stone_shard", "name": "Stone Shard", "stackSize": 1, "slotTexture": "stone_shard", "droppedRender": { "type": "extruded_sprite", "texture": "stone_shard" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_shard" }, "tags": [], "useActions": ["chip", "smash"] },
-  { "id": 14, "key": "stone_flake", "name": "Stone Flake", "stackSize": 1, "slotTexture": "stone_flake", "droppedRender": { "type": "extruded_sprite", "texture": "stone_flake" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_flake" }, "tags": [], "useActions": ["chip"] },
-  { "id": 15, "key": "stone_chopper", "name": "Stone Chopper", "stackSize": 1, "slotTexture": "stone_chopper", "droppedRender": { "type": "extruded_sprite", "texture": "stone_chopper" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_chopper" }, "tags": [], "useActions": ["smash"] },
-  { "id": 16, "key": "stone_blade", "name": "Stone Blade", "stackSize": 1, "slotTexture": "stone_blade", "droppedRender": { "type": "extruded_sprite", "texture": "stone_blade" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_blade" }, "tags": [], "useActions": ["cut"] },
-  { "id": 17, "key": "stone_scraper", "name": "Stone Scraper", "stackSize": 1, "slotTexture": "stone_scraper", "droppedRender": { "type": "extruded_sprite", "texture": "stone_scraper" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_scraper" }, "tags": [], "useActions": ["scrape", "pierce"] }
+  { "id": 9, "key": "branch", "name": "Branch", "stackSize": 99, "slotTexture": "branch", "droppedRender": { "type": "extruded_sprite", "texture": "branch" }, "heldRender": { "type": "extruded_sprite", "texture": "branch" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "branch" },
+  { "id": 10, "key": "bough", "name": "Bough", "stackSize": 99, "slotTexture": "bough", "droppedRender": { "type": "extruded_sprite", "texture": "bough" }, "heldRender": { "type": "extruded_sprite", "texture": "bough" }, "tags": [], "useActions": [] },
+  { "id": 11, "key": "bark_strip", "name": "Bark Strip", "stackSize": 99, "slotTexture": "bark_strip", "droppedRender": { "type": "extruded_sprite", "texture": "bark_strip" }, "heldRender": { "type": "extruded_sprite", "texture": "bark_strip" }, "tags": [], "useActions": [] },
+  { "id": 12, "key": "leaf", "name": "Leaf", "stackSize": 99, "slotTexture": "leaf", "droppedRender": { "type": "extruded_sprite", "texture": "leaf" }, "heldRender": { "type": "extruded_sprite", "texture": "leaf" }, "tags": [], "useActions": [] },
+  { "id": 13, "key": "stone_shard", "name": "Stone Shard", "stackSize": 1, "slotTexture": "stone_shard", "droppedRender": { "type": "extruded_sprite", "texture": "stone_shard" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_shard" }, "tags": [], "useActions": ["chip", "smash"], "breakActions": ["smash"], "breakLevel": 2, "maxDurability": 64 },
+  { "id": 14, "key": "stone_flake", "name": "Stone Flake", "stackSize": 1, "slotTexture": "stone_flake", "droppedRender": { "type": "extruded_sprite", "texture": "stone_flake" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_flake" }, "tags": [], "useActions": ["chip"], "maxDurability": 64 },
+  { "id": 15, "key": "stone_chopper", "name": "Stone Chopper", "stackSize": 1, "slotTexture": "stone_chopper", "droppedRender": { "type": "extruded_sprite", "texture": "stone_chopper" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_chopper" }, "tags": [], "useActions": ["smash", "split"], "breakActions": ["chop", "dig"], "breakLevel": 2, "maxDurability": 64 },
+  { "id": 16, "key": "stone_blade", "name": "Stone Blade", "stackSize": 1, "slotTexture": "stone_blade", "droppedRender": { "type": "extruded_sprite", "texture": "stone_blade" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_blade" }, "tags": [], "useActions": ["cut", "carve"], "breakActions": ["cut"], "breakLevel": 2, "maxDurability": 64 },
+  { "id": 17, "key": "stone_scraper", "name": "Stone Scraper", "stackSize": 1, "slotTexture": "stone_scraper", "droppedRender": { "type": "extruded_sprite", "texture": "stone_scraper" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_scraper" }, "tags": [], "useActions": ["scrape", "pierce"], "maxDurability": 64 },
+  { "id": 18, "key": "log", "name": "Log", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "log" },
+  { "id": 19, "key": "stripped_log", "name": "Stripped Log", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "stripped_log" },
+  { "id": 20, "key": "wooden_plank", "name": "Wooden Plank", "stackSize": 99, "slotTexture": "wooden_plank", "droppedRender": { "type": "extruded_sprite", "texture": "wooden_plank" }, "heldRender": { "type": "extruded_sprite", "texture": "wooden_plank" }, "tags": [], "useActions": [] },
+  { "id": 21, "key": "wooden_stick", "name": "Wooden Stick", "stackSize": 99, "slotTexture": "wooden_stick", "droppedRender": { "type": "extruded_sprite", "texture": "wooden_stick" }, "heldRender": { "type": "extruded_sprite", "texture": "wooden_stick" }, "tags": [], "useActions": [] },
+  { "id": 22, "key": "short_wooden_stick", "name": "Short Wooden Stick", "stackSize": 99, "slotTexture": "short_wooden_stick", "droppedRender": { "type": "extruded_sprite", "texture": "short_wooden_stick" }, "heldRender": { "type": "extruded_sprite", "texture": "short_wooden_stick" }, "tags": [], "useActions": [] },
+  { "id": 23, "key": "long_wooden_stick", "name": "Long Wooden Stick", "stackSize": 99, "slotTexture": "long_wooden_stick", "droppedRender": { "type": "extruded_sprite", "texture": "long_wooden_stick" }, "heldRender": { "type": "extruded_sprite", "texture": "long_wooden_stick" }, "tags": [], "useActions": [] }
 ]
 ```
 
@@ -167,6 +190,7 @@ assets/data/interactions.json
 이 파일은 손에 든 아이템의 `useActions`와 땅에 떨어진 대상 아이템을 기준으로 후보 아이템 목록을 제공한다.
 현재 초안에서는 `held item` 조건을 별도로 쓰지 않는다.
 손 아이템이 해당 `action`을 가지고 있고, 땅에 떨어진 아이템 key가 `target`과 일치하면 `candidates` 목록을 UI 후보로 표시한다.
+`candidates`의 항목은 단일 아이템 key 문자열이거나, 여러 출력 아이템을 묶은 객체일 수 있다.
 
 ```json
 [
@@ -191,6 +215,53 @@ assets/data/interactions.json
     "action": "scrape",
     "target": "plant",
     "candidates": ["plant_fiber"]
+  },
+  {
+    "action": "scrape",
+    "target": "log",
+    "candidates": [
+      {
+        "items": ["stripped_log", "bark_strip"]
+      }
+    ]
+  },
+  {
+    "action": "split",
+    "target": "stripped_log",
+    "min": 8,
+    "max": 8,
+    "candidates": ["wooden_plank"]
+  },
+  {
+    "action": "carve",
+    "target": "bough",
+    "candidates": ["long_wooden_stick"]
+  },
+  {
+    "action": "carve",
+    "target": "branch",
+    "candidates": ["wooden_stick"]
+  },
+  {
+    "action": "split",
+    "target": "wooden_plank",
+    "min": 4,
+    "max": 4,
+    "candidates": ["long_wooden_stick"]
+  },
+  {
+    "action": "cut",
+    "target": "long_wooden_stick",
+    "min": 2,
+    "max": 2,
+    "candidates": ["wooden_stick"]
+  },
+  {
+    "action": "cut",
+    "target": "wooden_stick",
+    "min": 2,
+    "max": 2,
+    "candidates": ["short_wooden_stick"]
   }
 ]
 ```
@@ -200,10 +271,18 @@ assets/data/interactions.json
 마우스 위치의 중심 기준 거리와 각도에 따라 액션 또는 후보 아이템을 선택하고, 우클릭을 떼면 선택한 액션/후보 조합을 대상 드랍 아이템에 적용한다.
 액션 영역은 화면 위쪽을 시작각으로 삼아 시계방향으로 나뉘고, 후보 아이템 영역은 선택된 액션 구역 안에서 그 액션의 시작각부터 시계방향으로 나뉜다.
 후보 아이템은 아이콘만 표시하고, 선택 중인 액션 또는 후보 이름은 중앙 라벨로 표시한다.
-기존 드랍 엔티티를 첫 번째 후보 아이템으로 직접 바꾼다.
-레시피의 `min`/`max`가 2 이상을 허용하면 나머지 결과물은 대상 위치 근처에 별도 드랍 아이템으로 생성한다.
+후보가 여러 출력 아이템을 가지면 후보 영역 안에 출력 아이콘들을 함께 표시한다.
+대상 스택은 가능한 만큼 일괄 처리한다.
+손에 든 아이템이 내구도를 가지면 대상 스택 개수와 손 아이템의 남은 내구도 중 작은 값만큼 처리한다.
+손에 든 아이템이 내구도를 가지지 않으면 기존처럼 1회 처리한다.
+대상 스택이 전부 처리되면 기존 드랍 엔티티를 선택 후보의 첫 번째 출력 아이템 스택으로 직접 바꾼다.
+대상 스택이 일부 남으면 기존 드랍 엔티티는 남은 원본 count를 유지하고, 결과물은 대상 위치 근처에 별도 드랍 아이템으로 생성한다.
+대상 드랍 아이템과 결과 아이템이 모두 내구도를 가지면 대상의 현재 내구도 비율을 결과 아이템에 적용하고, 결과 내구도는 올림 처리한다.
+레시피 또는 후보 출력의 `min`/`max`가 2 이상을 허용하면 나머지 결과물은 대상 위치 근처에 별도 드랍 아이템으로 생성한다.
+출력 개수가 결과 아이템의 `stackSize`를 넘으면 여러 드랍 스택으로 나눠 생성한다.
+후보의 두 번째 이후 출력 아이템도 대상 위치 근처에 별도 드랍 아이템으로 생성한다.
 변환된 후보 아이템은 접지 상태를 해제하고 위쪽 속도와 회전을 줘서 한 번 튀어오르게 한다.
-손에 든 아이템은 소모하지 않는다.
+손에 든 아이템은 소모하지 않지만, 내구도를 가지면 실제 처리 횟수만큼 내구도를 소비한다.
 
 ## 런타임 조회
 
@@ -219,10 +298,14 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 - 중복 `id`는 오류다.
 - 중복 `key`는 오류다.
 - `id = 0`, `key = "none"`이 없으면 오류다.
-- 비어 있는 `key`, `name`, `slotTexture`, `droppedRender.texture`, `heldRender.texture`는 오류다.
-- `key`, `slotTexture`, `droppedRender.texture`, `heldRender.texture`는 소문자 `snake_case`를 사용해야 한다.
-- 실제 아이템의 `stackSize`는 `1`이어야 한다.
+- 비어 있는 `key`, `name`은 오류다.
+- `sprite` 슬롯 렌더는 비어 있지 않은 `slotTexture` 또는 `slotRender.texture`를 사용한다.
+- `extruded_sprite` 렌더 타입은 비어 있지 않은 `droppedRender.texture`, `heldRender.texture`를 사용한다.
+- `key`, `slotTexture`, `slotRender.texture`, `droppedRender.texture`, `heldRender.texture`는 소문자 `snake_case`를 사용해야 한다. 생성 슬롯 텍스처는 `generated/{item_key}_slot` 경로를 사용한다.
+- 내구도 없는 실제 아이템의 `stackSize`는 `99`, 내구도 있는 아이템의 `stackSize`는 `1`이어야 한다.
 - `droppedRender.type`, `heldRender.type`은 유효한 아이템 렌더 타입이어야 한다.
+- `block_model` 렌더 타입은 `placeBlock`으로 렌더 대상 블록을 찾는다.
+- `slotRender.type = "block_model"`은 `placeBlock`으로 슬롯 아이콘 대상 블록을 찾는다.
 
 ## 블록 드랍
 
@@ -253,7 +336,7 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 
 현재 획득 삽입 방식:
 
-- 인벤토리 한 슬롯은 아이템 1개만 담는다.
+- 인벤토리 한 슬롯은 내구도 없는 아이템을 최대 99개까지 담고, 내구도 있는 아이템은 1개만 담는다.
 - 슬롯 인덱스 `0`부터 `49` 순서로 빈 슬롯을 채운다.
 - 50개 런타임 슬롯은 `saves/<world-name>/player.dat`에 저장한다.
 - `Q`를 누르면 `ClientGameplayRuntime`이 현재 선택된 핫바 슬롯에서 아이템 1개를 드랍 아이템 엔티티로 버린다.
@@ -285,7 +368,12 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
   "sandstone": [],
   "mud": [],
   "clay": [],
-  "trunk": [],
+  "log": [
+    { "item": "log", "min": 1, "max": 1, "chance": 1.0 }
+  ],
+  "stripped_log": [
+    { "item": "stripped_log", "min": 1, "max": 1, "chance": 1.0 }
+  ],
   "grass": [
     { "item": "dirt_pile", "min": 1, "max": 1, "chance": 1.0 },
     { "item": "grass_scrap", "min": 1, "max": 1, "chance": 0.25 },
@@ -310,17 +398,34 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 
 아이템의 우클릭 드랍 아이템 상호작용 액션은 `useActions`에 저장한다.
 좌클릭 블록 파괴 액션은 `breakActions`에 저장한다.
+우클릭 블록/오브젝트 설치 액션은 `placeActions`에 저장하고, 실제 설치할 블록은 `placeBlock`으로 지정한다.
+우클릭 시 바라보는 드랍 아이템이 `assets/data/interactions.json`의 `target`으로 등장하면 `useActions`가 `placeActions`보다 우선한다.
+이때 손 아이템으로 실행 가능한 후보가 없어도 설치는 시도하지 않는다.
 `breakLevel`은 아이템 자체의 파괴 레벨이며, 블록의 `breakLevel`보다 낮으면 해당 블록을 파괴하지 못한다.
+`breakActions`와 `breakLevel`이 모두 비어 있는 아이템은 좌클릭 파괴에서 손과 동일하게 취급한다.
 `maxDurability`가 0보다 크면 인스턴스별 `ItemStack.durability`를 사용하며, 새로 생성되는 아이템은 최대 내구도로 초기화한다.
+드랍 아이템 상호작용으로 내구도 있는 대상 아이템이 결과 아이템으로 변환되면, 대상 아이템의 현재 내구도 비율을 결과 아이템의 최대 내구도에 적용하고 소수점은 올림한다.
+
+현재 설치 아이템 기준:
+
+```text
+rock_chunk: placeActions place, placeBlock rock
+dirt_pile: placeActions place, placeBlock dirt
+sand_pile: placeActions place, placeBlock sand
+plant: placeActions place, placeBlock plant
+branch: placeActions place, placeBlock branch
+log: placeActions place, placeBlock log
+stripped_log: placeActions place, placeBlock stripped_log
+```
 
 현재 석기 아이템 기준:
 
 ```text
-stone_shard: useActions chip/smash, breakActions smash, breakLevel 1, maxDurability 64
-stone_flake: useActions chip
-stone_chopper: useActions smash, breakActions chop/dig, breakLevel 1, maxDurability 64
-stone_blade: useActions cut, breakActions cut, breakLevel 1, maxDurability 64
-stone_scraper: useActions scrape/pierce
+stone_shard: useActions chip/smash, breakActions smash, breakLevel 2, maxDurability 64
+stone_flake: useActions chip, maxDurability 64
+stone_chopper: useActions smash/split, breakActions chop/dig, breakLevel 2, maxDurability 64
+stone_blade: useActions cut/carve, breakActions cut, breakLevel 2, maxDurability 64
+stone_scraper: useActions scrape/pierce, maxDurability 64
 ```
 
 관련 문서: [[block-data]], [[save-load]], [[ui]]

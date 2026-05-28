@@ -249,7 +249,11 @@ namespace dolbuto::game
             {
                 return blockDefinition(*owner_.state_, block);
             },
-            hit);
+            hit,
+            [this](uint16_t block)
+            {
+                return owner_.state_->content.propMeshForBlock(block);
+            });
         if (!owner_.state_->selection.hasSelectedBlock)
         {
             return;
@@ -261,14 +265,19 @@ namespace dolbuto::game
         owner_.state_->selection.selectedBlockId = blockAtWorld(*owner_.state_, hit.blockX, hit.blockY, hit.blockZ);
     }
 
-    void ClientRuntime::GameplayAccess::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds)
+    void ClientRuntime::GameplayAccess::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds, bool sandboxMode)
     {
-        owner_.renderRuntime_->updateBlockBreaking(origin, direction, breaking, playerPosition, deltaSeconds);
+        owner_.renderRuntime_->updateBlockBreaking(origin, direction, breaking, playerPosition, deltaSeconds, sandboxMode);
     }
 
     bool ClientRuntime::GameplayAccess::editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale)
     {
         return owner_.renderRuntime_->editBlockInView(origin, direction, placeBlock, placeBlockId, playerPosition, playerHeightScale);
+    }
+
+    bool ClientRuntime::GameplayAccess::placeSelectedItemBlockInView(DVec3 origin, Vec3 direction, DVec3 playerPosition, double playerHeightScale)
+    {
+        return owner_.renderRuntime_->placeSelectedItemBlockInView(origin, direction, playerPosition, playerHeightScale);
     }
 
     bool ClientRuntime::GameplayAccess::pickupDroppedItemInView(DVec3 origin, Vec3 direction)
@@ -294,6 +303,16 @@ namespace dolbuto::game
     void ClientRuntime::GameplayAccess::cancelPendingItemInteraction()
     {
         owner_.renderRuntime_->cancelPendingItemInteraction();
+    }
+
+    void ClientRuntime::GameplayAccess::tickBlockUpdates()
+    {
+        owner_.renderRuntime_->tickBlockUpdates();
+    }
+
+    void ClientRuntime::GameplayAccess::tickFluidSimulation()
+    {
+        owner_.renderRuntime_->tickFluidSimulation();
     }
 
     std::array<ItemStack, gameplay::PlayerInventory::SlotCount> ClientRuntime::GameplayAccess::inventorySnapshot() const

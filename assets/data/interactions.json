@@ -29,5 +29,67 @@
         "candidates": [
             "plant_fiber"
         ]
+    },
+    {
+        "action": "scrape",
+        "target": "log",
+        "candidates": [
+            {
+                "items": [
+                    "stripped_log",
+                    "bark_strip"
+                ]
+            }
+        ]
+    },
+    {
+        "action": "split",
+        "target": "stripped_log",
+        "min": 8,
+        "max": 8,
+        "candidates": [
+            "wooden_plank"
+        ]
+    },
+    {
+        "action": "carve",
+        "target": "bough",
+        "candidates": [
+            "long_wooden_stick"
+        ]
+    },
+    {
+        "action": "carve",
+        "target": "branch",
+        "candidates": [
+            "wooden_stick"
+        ]
+    },
+    {
+        "action": "split",
+        "target": "wooden_plank",
+        "min": 4,
+        "max": 4,
+        "candidates": [
+            "long_wooden_stick"
+        ]
+    },
+    {
+        "action": "cut",
+        "target": "long_wooden_stick",
+        "min": 2,
+        "max": 2,
+        "candidates": [
+            "wooden_stick"
+        ]
+    },
+    {
+        "action": "cut",
+        "target": "wooden_stick",
+        "min": 2,
+        "max": 2,
+        "candidates": [
+            "short_wooden_stick"
+        ]
     }
 ]

@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -40,6 +41,66 @@ namespace dolbuto::ui
                 upperNext = false;
             }
             return text;
+        }
+
+        std::string candidateDisplayName(
+            const ItemInteractionCandidate& candidate,
+            const std::vector<ItemDefinition>& definitions)
+        {
+            std::string label;
+            for (const ItemInteractionOutput& output : candidate.outputs)
+            {
+                if (output.itemId == 0 || static_cast<std::size_t>(output.itemId) >= definitions.size())
+                {
+                    continue;
+                }
+
+                if (!label.empty())
+                {
+                    label += " + ";
+                }
+                label += definitions[output.itemId].name;
+            }
+            return label;
+        }
+
+        struct CandidateIconPlacement
+        {
+            int left = 4;
+            int top = 4;
+            int size = 64;
+        };
+
+        CandidateIconPlacement candidateIconPlacement(std::size_t outputIndex, std::size_t outputCount)
+        {
+            if (outputCount <= 1)
+            {
+                return {4, 4, 64};
+            }
+            if (outputCount == 2)
+            {
+                return outputIndex == 0 ? CandidateIconPlacement{6, 19, 34} : CandidateIconPlacement{32, 19, 34};
+            }
+            if (outputCount == 3)
+            {
+                if (outputIndex == 0)
+                {
+                    return {21, 5, 30};
+                }
+                return outputIndex == 1 ? CandidateIconPlacement{8, 36, 28} : CandidateIconPlacement{36, 36, 28};
+            }
+
+            switch (outputIndex)
+            {
+            case 0:
+                return {8, 8, 28};
+            case 1:
+                return {36, 8, 28};
+            case 2:
+                return {8, 36, 28};
+            default:
+                return {36, 36, 28};
+            }
         }
     }
 
@@ -212,14 +273,14 @@ namespace dolbuto::ui
         if (selectedActionIndex.has_value() && *selectedActionIndex < actions.size())
         {
             centerLabel = displayActionName(actions[*selectedActionIndex].action);
-            const std::vector<uint16_t>& candidateItemIds = actions[*selectedActionIndex].candidateItemIds;
-            if (selectedCandidateIndex.has_value() && *selectedCandidateIndex < candidateItemIds.size())
+            const std::vector<ItemInteractionCandidate>& candidates = actions[*selectedActionIndex].candidates;
+            if (selectedCandidateIndex.has_value() && *selectedCandidateIndex < candidates.size())
             {
-                const uint16_t itemId = candidateItemIds[*selectedCandidateIndex];
                 const std::vector<ItemDefinition>& definitions = itemDefinitions();
-                if (itemId != 0 && static_cast<std::size_t>(itemId) < definitions.size())
+                const std::string candidateLabel = candidateDisplayName(candidates[*selectedCandidateIndex], definitions);
+                if (!candidateLabel.empty())
                 {
-                    centerLabel = definitions[itemId].name;
+                    centerLabel = candidateLabel;
                 }
             }
         }
@@ -251,19 +312,18 @@ namespace dolbuto::ui
             constexpr int CandidateRadius = 172;
             constexpr int CandidateWidth = 72;
             constexpr int CandidateHeight = 72;
-            const std::vector<uint16_t>& candidateItemIds = actions[*selectedActionIndex].candidateItemIds;
+            const std::vector<ItemInteractionCandidate>& candidates = actions[*selectedActionIndex].candidates;
             const double selectedActionStart = startAngle + actionStep * static_cast<double>(*selectedActionIndex);
-            const double candidateStep = candidateItemIds.empty() ? 0.0 : actionStep / static_cast<double>(candidateItemIds.size());
+            const double candidateStep = candidates.empty() ? 0.0 : actionStep / static_cast<double>(candidates.size());
             const std::vector<ItemDefinition>& definitions = itemDefinitions();
-            for (std::size_t i = 0; i < candidateItemIds.size(); ++i)
+            for (std::size_t i = 0; i < candidates.size(); ++i)
             {
-                const uint16_t itemId = candidateItemIds[i];
-                if (itemId == 0 || static_cast<std::size_t>(itemId) >= definitions.size())
+                const ItemInteractionCandidate& candidate = candidates[i];
+                if (candidate.outputs.empty())
                 {
                     continue;
                 }
 
-                const ItemDefinition& definition = definitions[itemId];
                 const double angle = selectedActionStart + (static_cast<double>(i) + 0.5) * candidateStep;
                 const int left = static_cast<int>(std::round(static_cast<double>(Center) + std::cos(angle) * CandidateRadius - static_cast<double>(CandidateWidth) * 0.5));
                 const int top = static_cast<int>(std::round(static_cast<double>(Center) + std::sin(angle) * CandidateRadius - static_cast<double>(CandidateHeight) * 0.5));
@@ -275,7 +335,24 @@ namespace dolbuto::ui
                     candidatesRml += " selected";
                 }
                 candidatesRml += "\" style=\"left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px;\">";
-                candidatesRml += "<img class=\"radial-candidate-icon\" src=\"../textures/item/" + escapeRml(definition.slotTexture) + ".png\"/>";
+                const std::size_t outputCount = std::min<std::size_t>(candidate.outputs.size(), 4);
+                for (std::size_t outputIndex = 0; outputIndex < outputCount; ++outputIndex)
+                {
+                    const uint16_t itemId = candidate.outputs[outputIndex].itemId;
+                    if (itemId == 0 || static_cast<std::size_t>(itemId) >= definitions.size())
+                    {
+                        continue;
+                    }
+
+                    const ItemDefinition& definition = definitions[itemId];
+                    const CandidateIconPlacement placement = candidateIconPlacement(outputIndex, outputCount);
+                    candidatesRml += "<img class=\"radial-candidate-icon\" style=\"left: " +
+                        std::to_string(placement.left) + "px; top: " +
+                        std::to_string(placement.top) + "px; width: " +
+                        std::to_string(placement.size) + "px; height: " +
+                        std::to_string(placement.size) + "px;\" src=\"../textures/item/" +
+                        escapeRml(definition.slotTexture) + ".png\"/>";
+                }
                 candidatesRml += "</div>";
             }
         }
@@ -379,8 +456,21 @@ namespace dolbuto::ui
         {
             switch (type)
             {
+            case ItemRenderType::BlockModel:
+                return "block_model";
             case ItemRenderType::ExtrudedSprite:
                 return "extruded_sprite";
+            }
+            return "unknown";
+        };
+        const auto slotRenderTypeText = [](ItemSlotRenderType type)
+        {
+            switch (type)
+            {
+            case ItemSlotRenderType::BlockModel:
+                return "block_model";
+            case ItemSlotRenderType::Sprite:
+                return "sprite";
             }
             return "unknown";
         };
@@ -392,12 +482,15 @@ namespace dolbuto::ui
         item.name = definition.name;
         item.key = definition.key;
         item.slotTexture = definition.slotTexture;
+        item.slotRender = slotRenderTypeText(definition.slotRender);
         item.droppedRender = renderTypeText(definition.droppedRender);
         item.droppedTexture = definition.droppedTexture;
         item.heldRender = renderTypeText(definition.heldRender);
         item.heldTexture = definition.heldTexture;
         item.useActions = definition.useActions;
         item.breakActions = definition.breakActions;
+        item.placeActions = definition.placeActions;
+        item.placeBlockId = definition.placeBlockId;
         return item;
     }
 

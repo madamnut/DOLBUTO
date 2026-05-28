@@ -20,12 +20,15 @@ namespace dolbuto::ui
         std::string name;
         std::string key;
         std::string slotTexture;
+        std::string slotRender;
         std::string droppedRender;
         std::string droppedTexture;
         std::string heldRender;
         std::string heldTexture;
         std::vector<std::string> useActions;
         std::vector<std::string> breakActions;
+        std::vector<std::string> placeActions;
+        uint16_t placeBlockId = 0;
     };
 
     struct TooltipLayout

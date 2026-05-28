@@ -24,6 +24,7 @@ namespace dolbuto
             const std::unordered_map<uint64_t, std::size_t>& droppedItemCountsByChunk;
             const std::vector<ItemDefinition>& itemDefinitions;
             const std::vector<DroppedItemRenderPath::ItemSpriteMesh>& itemSpriteMeshes;
+            ItemRenderType renderType = ItemRenderType::ExtrudedSprite;
             float aspect = 1.0f;
             float fovRadians = 1.0471975512f;
             float renderAlpha = 0.0f;

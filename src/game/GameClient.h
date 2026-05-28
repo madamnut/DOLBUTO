@@ -166,7 +166,6 @@ namespace dolbuto
         double bgmVolume_ = 1.0;
         double sfxVolume_ = 1.0;
         double fovDegrees_ = 60.0;
-        uint16_t placeBlockId_ = 1;
         bool viewBobbing_ = true;
         double verticalVelocity_ = 0.0;
         bool grounded_ = false;

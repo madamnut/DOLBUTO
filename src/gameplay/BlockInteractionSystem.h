@@ -1,5 +1,6 @@
 #pragma once
 
+#include "assets/PropModelLoader.h"
 #include "camera/Camera.h"
 #include "world/BlockData.h"
 
@@ -42,7 +43,7 @@ namespace dolbuto::gameplay
 
     struct BlockBreakTool
     {
-        uint16_t level = 0;
+        uint16_t level = 1;
         std::vector<std::string> actions;
         bool durable = false;
     };
@@ -52,6 +53,7 @@ namespace dolbuto::gameplay
     public:
         using BlockSampler = std::function<uint16_t(int, int, int)>;
         using BlockDefinitionProvider = std::function<const BlockDefinition&(uint16_t)>;
+        using PropMeshProvider = std::function<const assets::PropMesh*(uint16_t)>;
         using TerrainCollisionPredicate = std::function<bool(int, int, int)>;
 
         static constexpr double MaxInteractionDistance = 8.0;
@@ -83,7 +85,8 @@ namespace dolbuto::gameplay
             Vec3 direction,
             const BlockSampler& blockAtWorld,
             const BlockDefinitionProvider& blockDefinition,
-            BlockRaycastHit& hit);
+            BlockRaycastHit& hit,
+            const PropMeshProvider& propMesh = {});
 
         static BlockBreakingUpdate updateBreaking(
             BlockBreakingState& state,
@@ -91,9 +94,11 @@ namespace dolbuto::gameplay
             Vec3 direction,
             bool breaking,
             float deltaSeconds,
+            bool sandboxMode,
             const BlockBreakTool& tool,
             const BlockSampler& blockAtWorld,
-            const BlockDefinitionProvider& blockDefinition);
+            const BlockDefinitionProvider& blockDefinition,
+            const PropMeshProvider& propMesh = {});
 
         static void resetBreaking(BlockBreakingState& state);
     };

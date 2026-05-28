@@ -115,8 +115,11 @@ viewmodel pipeline은 depth test/write를 사용해 viewmodel mesh 내부의 앞
 CPU는 매 프레임 vertex buffer를 덮어쓰지 않고, 현재 in-flight frame의 transform buffer만 갱신한다.
 아이템을 들고 있을 때는 손 mesh를 숨기고 아이템 viewmodel만 표시한다.
 든 아이템은 `item_viewmodel.vert`에서 카메라 회전을 적용하지 않는 view-space 좌표로 렌더링해 화면상 같은 면이 유지된다.
+`block_model` 든 아이템은 `placeBlock` 블록의 텍스처 layer를 사용하는 작은 큐브 mesh로 렌더링한다.
 `config/viewmodel.json`은 손/아이템 viewmodel의 view-space 위치, 스케일, 회전값을 제공하고, `RendererConfigBridge`가 `ClientRuntimeState::viewmodelConfig`로 로드한다.
+`heldItem`은 `extruded_sprite` 든 아이템에 사용하고, `heldBlockModelItem`은 `block_model` 든 아이템에 사용한다.
 fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
+edited subchunk rebuild도 solid/blend mesh와 함께 해당 subchunk의 fluid mesh를 다시 만들고 GPU buffer를 교체한다.
 프레임 루프와 Vulkan command recording은 `RendererFrameLoop.cpp`의 책임이며, gameplay/terrain/scene/debug bridge는 별도 translation unit으로 분리한다. 이전 `Renderer.cpp`는 제거되었고, lifecycle/local resource/scene draw 책임은 이름 있는 translation unit에 둔다.
 초기 청크 지형 생성과 feature 반영은 `src/world/TerrainBuilder.h/.cpp`로 분리되어 있다.
 
@@ -195,6 +198,8 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 - prop quad는 원본 모델 winding에 의존하지 않도록 양면으로 방출한다.
 - `randomOffset` prop 블록은 렌더링되는 X/Z 메시 위치만 중심에서 최대 `0.2`블록까지 오프셋한다.
 - 작은 회전 prop geometry와 모델 UV island가 보존되도록 packed terrain 위치와 UV는 1/256 정밀도를 사용한다.
+- prop `.dpm` 로딩 결과는 렌더링뿐 아니라 블록 선택 레이캐스트에도 사용한다.
+- prop 선택 아웃라인은 quad wire가 아니라 `.dpm` local bounds에 동일한 offset/rotation을 적용한 작은 박스로 그린다.
 
 ## 컬링
 
@@ -262,8 +267,9 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 ## 드랍 아이템 렌더링
 
 드랍 아이템은 전용 item pipeline으로 렌더링한다.
-아이템 스프라이트에서 만든 로컬 extruded mesh는 시작 시 정적 vertex/index buffer에 한 번 업로드한다.
-로컬 extruded mesh 생성은 `ItemSpriteMeshBuilder`가 담당하고, 결과 타입은 `DroppedItemRenderPath::ItemSpriteMesh`이다.
+아이템 스프라이트에서 만든 로컬 extruded mesh와 `block_model`용 작은 큐브 mesh는 시작 시 정적 vertex/index buffer에 한 번 업로드한다.
+로컬 extruded mesh 생성은 `ItemSpriteMeshBuilder`가 담당하고, `block_model` mesh는 `placeBlock` 블록의 6면 텍스처 layer를 사용해 구성한다.
+결과 타입은 모두 `DroppedItemRenderPath::ItemSpriteMesh`이다.
 프레임마다 CPU가 아이템 쿼드 정점을 다시 펼치지 않고, 드랍 아이템 위치/회전/텍스처 layer만 담은 instance buffer를 갱신한다.
 instance buffer는 persistent mapping 상태로 유지해 매 프레임 `vkMapMemory`/`vkUnmapMemory`를 반복하지 않는다.
 item instance buffer는 frame-in-flight별 영역을 나누고, 각 프레임 영역 안에서 월드 드랍 아이템 영역과 1인칭 viewmodel 아이템 영역을 분리한다.
@@ -277,12 +283,21 @@ item instance buffer는 frame-in-flight별 영역을 나누고, 각 프레임 �
 - 청크 AABB가 카메라 프러스텀 밖이면 해당 청크의 드랍 아이템은 모두 건너뛴다.
 - 청크가 프러스텀 안에 있어도, 개별 드랍 아이템 위치가 카메라에서 48블록보다 멀면 렌더링하지 않는다.
 - 거리 판정은 보간된 드랍 아이템 위치와 카메라 위치 사이의 3D 거리 제곱으로 처리한다.
-- 드랍 아이템 엔티티 하나는 렌더 instance 하나로 렌더링한다.
-- 현재 드랍 아이템은 스택으로 병합하지 않으므로 `count` 기반 시각 복제본은 만들지 않는다.
+- 드랍 아이템 엔티티 하나는 `count`에 따라 1~4개의 렌더 instance로 표시할 수 있다.
+- 시각 복제본 수는 count `1`, `2~16`, `17~48`, `49~99` 구간에 따라 각각 1, 2, 3, 4개다.
+- `extruded_sprite`와 `block_model` 드랍 아이템 모두 같은 복제본 배치 규칙을 사용한다.
 - 같은 아이템 mesh를 사용하는 instance는 item id 기준으로 정렬한 뒤 batch draw한다.
-- instance buffer에는 위치/회전/텍스처 layer와 함께 정규화된 sky/block light가 들어간다. 드랍 아이템은 보간된 월드 위치의 light를 사용하고, 손에 든 viewmodel 아이템은 플레이어 위치의 light를 사용한다.
+- `extruded_sprite`는 item texture array를, `block_model`은 terrain texture array를 바인딩해 같은 item pipeline으로 나누어 그린다.
+- instance buffer에는 위치/회전/텍스처 layer, 렌더 크기와 함께 정규화된 sky/block light가 들어간다. 드랍 아이템은 보간된 월드 위치의 light를 사용하고, 손에 든 viewmodel 아이템은 플레이어 위치의 light를 사용한다.
 
 이 컬링은 렌더링 후보만 줄이며, 드랍 아이템 물리, 저장, 획득 판정에는 영향을 주지 않는다.
+
+## 슬롯 아이콘 렌더링
+
+인벤토리/핫바 슬롯 아이콘은 RmlUi `<img>`로 표시한다.
+`sprite` 슬롯 아이콘은 `assets/textures/item/{slotTexture}.png`를 직접 사용한다.
+`block_model` 슬롯 아이콘은 콘텐츠 로딩 중 `assets::writeBlockItemIcon`이 `placeBlock` 블록 텍스처를 합성해 `assets/textures/item/generated/{item_key}_slot.png` 파일로 만든다.
+UI는 생성된 텍스처도 일반 슬롯 이미지와 같은 경로로 읽는다.
 
 ## 진단 오버레이
 

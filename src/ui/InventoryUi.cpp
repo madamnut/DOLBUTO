@@ -145,11 +145,14 @@ namespace dolbuto::ui
             lines.push_back({"COUNT", std::to_string(item.count) + " / " + std::to_string(item.stackSize)});
             lines.push_back({"USE_ACTIONS", joinedValues(item.useActions)});
             lines.push_back({"BREAK_ACTIONS", joinedValues(item.breakActions)});
+            lines.push_back({"PLACE_ACTIONS", joinedValues(item.placeActions)});
+            lines.push_back({"PLACE_BLOCK", item.placeBlockId == 0 ? "none" : std::to_string(item.placeBlockId)});
             lines.push_back({"BREAK_LEVEL", std::to_string(item.breakLevel)});
             lines.push_back({"DURABILITY", item.maxDurability > 0
                 ? std::to_string(item.durability) + " / " + std::to_string(item.maxDurability)
                 : "none"});
             lines.push_back({"STACK_SIZE", std::to_string(item.stackSize)});
+            lines.push_back({"SLOT_RENDER", item.slotRender});
             lines.push_back({"SLOT_TEXTURE", item.slotTexture});
             lines.push_back({"DROPPED_RENDER", item.droppedRender});
             lines.push_back({"DROPPED_TEXTURE", item.droppedTexture});

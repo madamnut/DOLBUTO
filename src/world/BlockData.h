@@ -43,6 +43,12 @@ namespace dolbuto
         Blend
     };
 
+    enum class BlockAttachmentFace : uint8_t
+    {
+        None,
+        Bottom
+    };
+
     struct BlockDefinition
     {
         std::string name = "unknown";
@@ -62,6 +68,7 @@ namespace dolbuto
         uint8_t lightAttenuation = 15;
         uint8_t lightEmission = 0;
         bool randomOffset = false;
+        BlockAttachmentFace attachmentFace = BlockAttachmentFace::None;
         std::vector<BlockDrop> drops;
     };
 

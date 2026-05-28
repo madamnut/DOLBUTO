@@ -2,11 +2,13 @@
 
 #include "camera/Camera.h"
 #include "renderer/RendererGameplayBridge.h"
+#include "world/BlockVisualShape.h"
 
 #include <array>
 #include <cmath>
 #include <cstring>
 #include <cstdint>
+#include <vector>
 
 namespace dolbuto
 {
@@ -84,6 +86,30 @@ namespace dolbuto
             matrix.m[10] = terrainForward.z;
             matrix.m[14] = -dot(terrainForward, position);
             return matrix;
+        }
+
+        void appendLine(std::vector<LineVertex>& vertices, Vec3 a, Vec3 b)
+        {
+            vertices.push_back(LineVertex{a.x, a.y, a.z});
+            vertices.push_back(LineVertex{b.x, b.y, b.z});
+        }
+
+        void appendBoxLines(std::vector<LineVertex>& vertices, const std::array<Vec3, 8>& corners)
+        {
+            appendLine(vertices, corners[0], corners[1]);
+            appendLine(vertices, corners[1], corners[3]);
+            appendLine(vertices, corners[3], corners[2]);
+            appendLine(vertices, corners[2], corners[0]);
+
+            appendLine(vertices, corners[4], corners[5]);
+            appendLine(vertices, corners[5], corners[7]);
+            appendLine(vertices, corners[7], corners[6]);
+            appendLine(vertices, corners[6], corners[4]);
+
+            appendLine(vertices, corners[0], corners[4]);
+            appendLine(vertices, corners[1], corners[5]);
+            appendLine(vertices, corners[2], corners[6]);
+            appendLine(vertices, corners[3], corners[7]);
         }
     }
 
@@ -300,30 +326,69 @@ namespace dolbuto
             return;
         }
 
-        constexpr float Expand = 0.003f;
-        const float minX = static_cast<float>(client_.selection.selectedBlockX) - 0.5f - Expand;
-        const float maxX = static_cast<float>(client_.selection.selectedBlockX) + 0.5f + Expand;
-        const float minY = static_cast<float>(client_.selection.selectedBlockY) - Expand;
-        const float maxY = static_cast<float>(client_.selection.selectedBlockY + 1) + Expand;
-        const float minZ = static_cast<float>(client_.selection.selectedBlockZ) - 0.5f - Expand;
-        const float maxZ = static_cast<float>(client_.selection.selectedBlockZ) + 0.5f + Expand;
+        const int selectedX = client_.selection.selectedBlockX;
+        const int selectedY = client_.selection.selectedBlockY;
+        const int selectedZ = client_.selection.selectedBlockZ;
+        const uint16_t selectedBlock = client_.selection.selectedBlockId;
+        const BlockDefinition& selectedDefinition = gameplayBridge_->blockDefinition(selectedBlock);
 
-        const std::array<LineVertex, 24> vertices = {
-            LineVertex{minX, minY, minZ}, LineVertex{maxX, minY, minZ},
-            LineVertex{maxX, minY, minZ}, LineVertex{maxX, minY, maxZ},
-            LineVertex{maxX, minY, maxZ}, LineVertex{minX, minY, maxZ},
-            LineVertex{minX, minY, maxZ}, LineVertex{minX, minY, minZ},
-
-            LineVertex{minX, maxY, minZ}, LineVertex{maxX, maxY, minZ},
-            LineVertex{maxX, maxY, minZ}, LineVertex{maxX, maxY, maxZ},
-            LineVertex{maxX, maxY, maxZ}, LineVertex{minX, maxY, maxZ},
-            LineVertex{minX, maxY, maxZ}, LineVertex{minX, maxY, minZ},
-
-            LineVertex{minX, minY, minZ}, LineVertex{minX, maxY, minZ},
-            LineVertex{maxX, minY, minZ}, LineVertex{maxX, maxY, minZ},
-            LineVertex{maxX, minY, maxZ}, LineVertex{maxX, maxY, maxZ},
-            LineVertex{minX, minY, maxZ}, LineVertex{minX, maxY, maxZ}
-        };
+        std::vector<LineVertex> vertices;
+        vertices.reserve(24);
+        if (selectedDefinition.renderType == BlockRenderType::Cross)
+        {
+            world::block_visual::forEachCrossQuad(
+                selectedDefinition,
+                selectedX,
+                selectedY,
+                selectedZ,
+                [&](Vec3 a, Vec3 b, Vec3 c, Vec3 d)
+                {
+                    appendLine(vertices, a, b);
+                    appendLine(vertices, b, c);
+                    appendLine(vertices, c, d);
+                    appendLine(vertices, d, a);
+                });
+        }
+        else if (selectedDefinition.renderType == BlockRenderType::Prop)
+        {
+            const assets::PropMesh* mesh = client_.content.propMeshForBlock(selectedBlock);
+            if (mesh != nullptr && mesh->hasBounds)
+            {
+                const Vec3 min = mesh->boundsMin;
+                const Vec3 max = mesh->boundsMax;
+                std::array<Vec3, 8> corners{{
+                    world::block_visual::transformLocalPoint(selectedDefinition, selectedX, selectedY, selectedZ, min.x, min.y, min.z),
+                    world::block_visual::transformLocalPoint(selectedDefinition, selectedX, selectedY, selectedZ, max.x, min.y, min.z),
+                    world::block_visual::transformLocalPoint(selectedDefinition, selectedX, selectedY, selectedZ, min.x, min.y, max.z),
+                    world::block_visual::transformLocalPoint(selectedDefinition, selectedX, selectedY, selectedZ, max.x, min.y, max.z),
+                    world::block_visual::transformLocalPoint(selectedDefinition, selectedX, selectedY, selectedZ, min.x, max.y, min.z),
+                    world::block_visual::transformLocalPoint(selectedDefinition, selectedX, selectedY, selectedZ, max.x, max.y, min.z),
+                    world::block_visual::transformLocalPoint(selectedDefinition, selectedX, selectedY, selectedZ, min.x, max.y, max.z),
+                    world::block_visual::transformLocalPoint(selectedDefinition, selectedX, selectedY, selectedZ, max.x, max.y, max.z)
+                }};
+                appendBoxLines(vertices, corners);
+            }
+        }
+        if (vertices.empty())
+        {
+            constexpr float Expand = 0.003f;
+            const float minX = static_cast<float>(selectedX) - 0.5f - Expand;
+            const float maxX = static_cast<float>(selectedX) + 0.5f + Expand;
+            const float minY = static_cast<float>(selectedY) - Expand;
+            const float maxY = static_cast<float>(selectedY + 1) + Expand;
+            const float minZ = static_cast<float>(selectedZ) - 0.5f - Expand;
+            const float maxZ = static_cast<float>(selectedZ) + 0.5f + Expand;
+            appendBoxLines(vertices, {{
+                Vec3{minX, minY, minZ},
+                Vec3{maxX, minY, minZ},
+                Vec3{minX, minY, maxZ},
+                Vec3{maxX, minY, maxZ},
+                Vec3{minX, maxY, minZ},
+                Vec3{maxX, maxY, minZ},
+                Vec3{minX, maxY, maxZ},
+                Vec3{maxX, maxY, maxZ}
+            }});
+        }
 
         void* data = nullptr;
         vkMapMemory(vulkan_.device, vulkan_.selectionLineVertexMemory, 0, sizeof(LineVertex) * vertices.size(), 0, &data);

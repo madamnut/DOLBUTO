@@ -8,6 +8,7 @@
 #include "world/DroppedItemSystem.h"
 #include "world/SkyLightSystem.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -21,6 +22,11 @@ namespace dolbuto
         constexpr float TerrainFarPlane = 4000.0f;
         constexpr float ViewmodelFieldOfViewRadians = 1.0471975512f;
         constexpr std::size_t ItemInstanceFrameStride = world::DroppedItemSystem::MaxDroppedItemRenderInstances + 1u;
+        constexpr float ExtrudedSpriteDroppedItemSize = world::DroppedItemSystem::DroppedItemSize;
+        constexpr float ExtrudedSpriteDroppedItemThickness = world::DroppedItemSystem::DroppedItemThickness;
+        constexpr float BlockModelDroppedItemSize = world::DroppedItemSystem::BlockModelDroppedItemSize;
+        constexpr float HeldExtrudedSpriteBaseWidth = 0.34f;
+        constexpr float HeldExtrudedSpriteBaseThickness = 0.035f;
 
         struct Mat4
         {
@@ -99,14 +105,23 @@ namespace dolbuto
             static_cast<std::size_t>(heldItemId) >= client_.content.itemDefinitions().size() ||
             vulkan_.itemViewmodelPipeline == VK_NULL_HANDLE ||
             !droppedItemRenderPath_.ready() ||
-            !droppedItemRenderPath_.meshReady(heldItemId) ||
-            rendererAssets_.itemTextureArray.descriptorSet == VK_NULL_HANDLE)
+            !droppedItemRenderPath_.meshReady(heldItemId))
         {
             return;
         }
 
         const ItemDefinition& definition = client_.content.itemDefinitions()[heldItemId];
-        if (definition.heldRender != ItemRenderType::ExtrudedSprite)
+        if (definition.heldRender != ItemRenderType::ExtrudedSprite &&
+            definition.heldRender != ItemRenderType::BlockModel)
+        {
+            return;
+        }
+        const bool blockModel = definition.heldRender == ItemRenderType::BlockModel;
+        if (!blockModel && rendererAssets_.itemTextureArray.descriptorSet == VK_NULL_HANDLE)
+        {
+            return;
+        }
+        if (blockModel && rendererAssets_.terrainTextureArray.descriptorSet == VK_NULL_HANDLE)
         {
             return;
         }
@@ -114,16 +129,32 @@ namespace dolbuto
         (void)camera;
         (void)cameraPosition;
 
+        const auto& heldConfig = blockModel
+            ? client_.viewmodelConfig.heldBlockModelItem
+            : client_.viewmodelConfig.heldItem;
         DroppedItemRenderPath::RenderInstance heldItem{};
         heldItem.itemId = heldItemId;
-        heldItem.instance.centerX = client_.viewmodelConfig.heldItem.x;
-        heldItem.instance.centerY = client_.viewmodelConfig.heldItem.y;
-        heldItem.instance.centerZ = client_.viewmodelConfig.heldItem.z;
-        heldItem.instance.rotationX = client_.viewmodelConfig.heldItem.rotationX;
-        heldItem.instance.rotationY = client_.viewmodelConfig.heldItem.rotationY;
-        heldItem.instance.rotationZ = client_.viewmodelConfig.heldItem.rotationZ;
+        heldItem.instance.centerX = heldConfig.x;
+        heldItem.instance.centerY = heldConfig.y;
+        heldItem.instance.centerZ = heldConfig.z;
+        heldItem.instance.rotationX = heldConfig.rotationX;
+        heldItem.instance.rotationY = heldConfig.rotationY;
+        heldItem.instance.rotationZ = heldConfig.rotationZ;
         heldItem.instance.textureLayer = static_cast<float>(definition.heldTextureLayer);
-        heldItem.instance.mipDistanceScale = client_.viewmodelConfig.heldItem.scale;
+        heldItem.instance.mipDistanceScale = heldConfig.scale;
+        const float heldScale = std::max(heldConfig.scale, 0.001f);
+        if (blockModel)
+        {
+            heldItem.instance.scaleX = BlockModelDroppedItemSize * heldScale;
+            heldItem.instance.scaleY = BlockModelDroppedItemSize * heldScale;
+            heldItem.instance.scaleZ = BlockModelDroppedItemSize * heldScale;
+        }
+        else
+        {
+            heldItem.instance.scaleX = HeldExtrudedSpriteBaseWidth * heldScale;
+            heldItem.instance.scaleY = HeldExtrudedSpriteBaseThickness * heldScale;
+            heldItem.instance.scaleZ = HeldExtrudedSpriteBaseWidth * heldScale;
+        }
         heldItem.instance.skyLight = static_cast<float>(world::skyLightFromPacked(playerPackedLight)) / static_cast<float>(world::MaxSkyLight);
         heldItem.instance.blockLight = static_cast<float>(world::blockLightFromPacked(playerPackedLight)) / static_cast<float>(world::MaxSkyLight);
 
@@ -145,7 +176,7 @@ namespace dolbuto
             vulkan_.swapchainExtent,
             vulkan_.itemViewmodelPipeline,
             vulkan_.particlePipelineLayout,
-            rendererAssets_.itemTextureArray,
+            blockModel ? rendererAssets_.terrainTextureArray : rendererAssets_.itemTextureArray,
             push,
             renderInstances,
             frameInstanceOffset + world::DroppedItemSystem::MaxDroppedItemRenderInstances);
@@ -175,14 +206,15 @@ namespace dolbuto
 
         if (client_.gameplayRuntime.loadedDroppedItemCount() == 0 ||
             vulkan_.itemPipeline == VK_NULL_HANDLE ||
-            !droppedItemRenderPath_.ready() ||
-            rendererAssets_.itemTextureArray.descriptorSet == VK_NULL_HANDLE)
+            !droppedItemRenderPath_.ready())
         {
             return;
         }
 
         const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
-        std::vector<DroppedItemRenderPath::RenderInstance> renderInstances = DroppedItemRenderCollector::collect(
+        auto collectDroppedItems = [&](ItemRenderType renderType)
+        {
+            return DroppedItemRenderCollector::collect(
             DroppedItemRenderCollector::Input{
                 camera,
                 cameraPosition,
@@ -190,6 +222,7 @@ namespace dolbuto
                 client_.gameplayRuntime.droppedItemTrackedChunkCounts(),
                 client_.content.itemDefinitions(),
                 rendererAssets_.itemSpriteMeshes,
+                renderType,
                 aspect,
                 fovRadians,
                 client_.gameplayRuntime.droppedItemRenderAlpha(),
@@ -206,11 +239,10 @@ namespace dolbuto
                     return client_.worldRuntime.lightAtWorld(x, y, z);
                 }
             });
+        };
 
-        if (renderInstances.empty())
-        {
-            return;
-        }
+        std::vector<DroppedItemRenderPath::RenderInstance> spriteInstances = collectDroppedItems(ItemRenderType::ExtrudedSprite);
+        std::vector<DroppedItemRenderPath::RenderInstance> blockInstances = collectDroppedItems(ItemRenderType::BlockModel);
 
         const Mat4 projection = perspective(fovRadians, aspect, TerrainNearPlane, TerrainFarPlane);
         const Mat4 view = viewMatrix(camera, {});
@@ -224,14 +256,30 @@ namespace dolbuto
         push.cameraPosition[3] = static_cast<float>(glfwGetTime());
         push.fluidWaterParams[1] = skyBrightness;
 
-        droppedItemRenderPath_.draw(
-            commandBuffer,
-            vulkan_.swapchainExtent,
-            vulkan_.itemPipeline,
-            vulkan_.particlePipelineLayout,
-            rendererAssets_.itemTextureArray,
-            push,
-            renderInstances,
-            static_cast<std::size_t>(vulkan_.currentFrame) * ItemInstanceFrameStride);
+        const std::size_t frameInstanceOffset = static_cast<std::size_t>(vulkan_.currentFrame) * ItemInstanceFrameStride;
+        if (!spriteInstances.empty() && rendererAssets_.itemTextureArray.descriptorSet != VK_NULL_HANDLE)
+        {
+            droppedItemRenderPath_.draw(
+                commandBuffer,
+                vulkan_.swapchainExtent,
+                vulkan_.itemPipeline,
+                vulkan_.particlePipelineLayout,
+                rendererAssets_.itemTextureArray,
+                push,
+                spriteInstances,
+                frameInstanceOffset);
+        }
+        if (!blockInstances.empty() && rendererAssets_.terrainTextureArray.descriptorSet != VK_NULL_HANDLE)
+        {
+            droppedItemRenderPath_.draw(
+                commandBuffer,
+                vulkan_.swapchainExtent,
+                vulkan_.itemPipeline,
+                vulkan_.particlePipelineLayout,
+                rendererAssets_.terrainTextureArray,
+                push,
+                blockInstances,
+                frameInstanceOffset + spriteInstances.size());
+        }
     }
 }

@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "camera/Camera.h"
+
 namespace dolbuto::assets
 {
     inline constexpr size_t PropQuadRenderFloatCount = 4u * 3u + 4u * 2u;
@@ -12,6 +14,9 @@ namespace dolbuto::assets
     struct PropMesh
     {
         std::vector<float> quads;
+        Vec3 boundsMin{};
+        Vec3 boundsMax{};
+        bool hasBounds = false;
     };
 
     void ensurePropModelBinary(const std::filesystem::path& modelDirectory, const std::string& modelName);

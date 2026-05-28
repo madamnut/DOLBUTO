@@ -20,6 +20,7 @@ namespace dolbuto
             std::array<Vec3, 4> positions{};
             std::array<std::array<float, 2>, 4> uvs{};
             float ao = 1.0f;
+            float textureLayer = -1.0f;
         };
 
         struct ItemSpriteMesh
@@ -35,6 +36,7 @@ namespace dolbuto
             float u = 0.0f;
             float v = 0.0f;
             float ao = 1.0f;
+            float textureLayer = -1.0f;
         };
 
         struct Instance
@@ -47,6 +49,9 @@ namespace dolbuto
             float rotationZ = 0.0f;
             float textureLayer = 0.0f;
             float mipDistanceScale = 1.0f;
+            float scaleX = 1.0f;
+            float scaleY = 1.0f;
+            float scaleZ = 1.0f;
             float skyLight = 1.0f;
             float blockLight = 0.0f;
         };

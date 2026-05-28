@@ -1148,6 +1148,16 @@ namespace dolbuto::assets
 
         PropMesh mesh{};
         mesh.quads.reserve(static_cast<size_t>(quadCount) * PropQuadRenderFloatCount);
+        mesh.boundsMin = {
+            std::numeric_limits<float>::max(),
+            std::numeric_limits<float>::max(),
+            std::numeric_limits<float>::max()
+        };
+        mesh.boundsMax = {
+            std::numeric_limits<float>::lowest(),
+            std::numeric_limits<float>::lowest(),
+            std::numeric_limits<float>::lowest()
+        };
         size_t offset = DpmHeaderSize;
         for (uint32_t quad = 0; quad < quadCount; ++quad)
         {
@@ -1164,6 +1174,12 @@ namespace dolbuto::assets
 
             for (const PropVertex& vertex : vertices)
             {
+                mesh.boundsMin.x = std::min(mesh.boundsMin.x, vertex.position[0]);
+                mesh.boundsMin.y = std::min(mesh.boundsMin.y, vertex.position[1]);
+                mesh.boundsMin.z = std::min(mesh.boundsMin.z, vertex.position[2]);
+                mesh.boundsMax.x = std::max(mesh.boundsMax.x, vertex.position[0]);
+                mesh.boundsMax.y = std::max(mesh.boundsMax.y, vertex.position[1]);
+                mesh.boundsMax.z = std::max(mesh.boundsMax.z, vertex.position[2]);
                 mesh.quads.push_back(vertex.position[0]);
                 mesh.quads.push_back(vertex.position[1]);
                 mesh.quads.push_back(vertex.position[2]);
@@ -1174,6 +1190,7 @@ namespace dolbuto::assets
                 mesh.quads.push_back(vertex.uv[1]);
             }
         }
+        mesh.hasBounds = !mesh.quads.empty();
         return mesh;
     }
 }

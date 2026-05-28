@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <unordered_set>
 #include <unordered_map>
 #include <vector>
 
@@ -24,6 +25,48 @@ namespace dolbuto::world
             int chunkX = 0;
             int chunkZ = 0;
             int subchunkY = 0;
+        };
+
+        struct FluidTickCell
+        {
+            int x = 0;
+            int y = 0;
+            int z = 0;
+
+            bool operator==(const FluidTickCell& other) const
+            {
+                return x == other.x && y == other.y && z == other.z;
+            }
+        };
+
+        struct FluidTickCellHash
+        {
+            std::size_t operator()(const FluidTickCell& cell) const;
+        };
+
+        struct BlockTickCell
+        {
+            int x = 0;
+            int y = 0;
+            int z = 0;
+
+            bool operator==(const BlockTickCell& other) const
+            {
+                return x == other.x && y == other.y && z == other.z;
+            }
+        };
+
+        struct BlockTickCellHash
+        {
+            std::size_t operator()(const BlockTickCell& cell) const;
+        };
+
+        struct FluidTickResult
+        {
+            std::vector<FluidTickCell> changedCells;
+            std::vector<FluidTickCell> lightChangedCells;
+            std::vector<EditedSubchunk> changedSubchunks;
+            uint32_t processedCells = 0;
         };
 
         struct RuntimeChunkLoadState
@@ -84,10 +127,24 @@ namespace dolbuto::world
         uint8_t lightAtWorld(int x, int y, int z) const;
         bool terrainCellBlocksPlayer(int x, int y, int z, const BlockDefinitionProvider& blockDefinition) const;
         bool setBlockAtWorld(int x, int y, int z, uint16_t block);
+        void scheduleBlockTickAtWorld(int x, int y, int z);
+        void scheduleBlockTickNeighborhood(int x, int y, int z);
+        std::vector<BlockTickCell> takeScheduledBlockTicks(uint32_t maxCells);
+        void scheduleFluidTickAtWorld(int x, int y, int z);
+        void scheduleFluidTickNeighborhood(int x, int y, int z);
+        FluidTickResult tickFluidSimulation(uint32_t maxCells);
         std::vector<EditedSubchunk> resolveEditedSkyLightAtWorld(int x, int y, int z);
 
     private:
+        uint16_t fluidAtWorld(int x, int y, int z) const;
+        bool cellCanContainFluid(int x, int y, int z) const;
+        bool setFluidAtWorld(int x, int y, int z, uint16_t fluid, FluidTickResult& result);
+        void addChangedFluidCell(int x, int y, int z, FluidTickResult& result) const;
+        void addLightChangedFluidCell(int x, int y, int z, FluidTickResult& result) const;
+
         RuntimeChunkMap chunks_;
         LightAttenuationTablesPtr lightAttenuationTables_;
+        std::unordered_set<BlockTickCell, BlockTickCellHash> nextBlockTicks_;
+        std::unordered_set<FluidTickCell, FluidTickCellHash> nextFluidTicks_;
     };
 }

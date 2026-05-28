@@ -34,6 +34,7 @@ namespace dolbuto
                 playerHeightScale,
                 [this](int x, int y, int z) { return blockAtWorld(x, y, z); },
                 [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); },
+                [this](uint16_t block) { return client_.content.propMeshForBlock(block); },
                 [this](int x, int y, int z, uint16_t block)
                 {
                     return hooks_.setBlockAtWorld && hooks_.setBlockAtWorld(x, y, z, block);
@@ -47,15 +48,45 @@ namespace dolbuto
                 }));
     }
 
-    void RendererGameplayBridge::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, float deltaSeconds)
+    bool RendererGameplayBridge::placeSelectedItemBlockInView(DVec3 origin, Vec3 direction, DVec3 playerPosition, double playerHeightScale)
+    {
+        return applyBlockEditResult(
+            client_.gameplayRuntime.placeSelectedItemBlockInView(
+                origin,
+                direction,
+                playerPosition,
+                playerHeightScale,
+                [this](int x, int y, int z) { return blockAtWorld(x, y, z); },
+                [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); },
+                [this](uint16_t block) { return client_.content.propMeshForBlock(block); },
+                [this](int x, int y, int z, uint16_t block)
+                {
+                    return hooks_.setBlockAtWorld && hooks_.setBlockAtWorld(x, y, z, block);
+                },
+                [this](int x, int y, int z)
+                {
+                    return terrainCellBlocksPlayer(x, y, z);
+                },
+                [this](RuntimeChunk& chunk)
+                {
+                    if (hooks_.markRuntimeChunkDataDirty)
+                    {
+                        hooks_.markRuntimeChunkDataDirty(chunk);
+                    }
+                }));
+    }
+
+    void RendererGameplayBridge::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, float deltaSeconds, bool sandboxMode)
     {
         const gameplay::BlockBreakingUpdate update = client_.gameplayRuntime.updateBlockBreaking(
             origin,
             direction,
             breaking,
             deltaSeconds,
+            sandboxMode,
             [this](int x, int y, int z) { return blockAtWorld(x, y, z); },
-            [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); });
+            [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); },
+            [this](uint16_t block) { return client_.content.propMeshForBlock(block); });
 
         if (update.spawnMiningParticle)
         {
@@ -138,6 +169,38 @@ namespace dolbuto
         client_.gameplayRuntime.cancelPendingItemInteraction();
     }
 
+    void RendererGameplayBridge::tickBlockUpdates()
+    {
+        constexpr uint32_t MaxBlockTickCells = 256;
+        const gameplay::BlockTickResult result = client_.gameplayRuntime.tickBlockUpdates(
+            MaxBlockTickCells,
+            [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); },
+            [this](int x, int y, int z, uint16_t block)
+            {
+                return hooks_.setBlockAtWorld && hooks_.setBlockAtWorld(x, y, z, block);
+            },
+            [this](RuntimeChunk& chunk)
+            {
+                if (hooks_.markRuntimeChunkDataDirty)
+                {
+                    hooks_.markRuntimeChunkDataDirty(chunk);
+                }
+            });
+
+        for (const gameplay::BlockBreakEvent& broken : result.brokenBlocks)
+        {
+            spawnBlockBreakParticles(broken.x, broken.y, broken.z, broken.block);
+            if (hooks_.playBlockBreakSound)
+            {
+                hooks_.playBlockBreakSound(broken.x, broken.y, broken.z);
+            }
+            if (hooks_.rebuildEditedChunkMeshes)
+            {
+                hooks_.rebuildEditedChunkMeshes(broken.x, broken.y, broken.z);
+            }
+        }
+    }
+
     void RendererGameplayBridge::setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots)
     {
         client_.gameplayRuntime.setInventorySnapshot(slots);
@@ -200,6 +263,11 @@ namespace dolbuto
             if (hooks_.playBlockPlaceSound)
             {
                 hooks_.playBlockPlaceSound(result.hit.previousBlockX, result.hit.previousBlockY, result.hit.previousBlockZ);
+            }
+            if (result.inventoryChanged && hooks_.updateInventoryUi)
+            {
+                hooks_.updateInventoryUi();
+                client_.uiBridge.updateItemTooltipUi(vulkan_.swapchainExtent.width, vulkan_.swapchainExtent.height);
             }
             return true;
         }

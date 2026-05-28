@@ -20,7 +20,7 @@
         "id": 1,
         "key": "rock_chunk",
         "name": "Rock Chunk",
-        "stackSize": 1,
+        "stackSize": 99,
         "slotTexture": "rock_chunk",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -31,13 +31,17 @@
             "texture": "rock_chunk"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "rock"
     },
     {
         "id": 2,
         "key": "dirt_pile",
         "name": "Dirt Pile",
-        "stackSize": 1,
+        "stackSize": 99,
         "slotTexture": "dirt_pile",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -48,13 +52,17 @@
             "texture": "dirt_pile"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "dirt"
     },
     {
         "id": 3,
         "key": "sand_pile",
         "name": "Sand Pile",
-        "stackSize": 1,
+        "stackSize": 99,
         "slotTexture": "sand_pile",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -65,13 +73,17 @@
             "texture": "sand_pile"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "sand"
     },
     {
         "id": 4,
         "key": "plant",
         "name": "Plant",
-        "stackSize": 1,
+        "stackSize": 99,
         "slotTexture": "plant",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -82,13 +94,17 @@
             "texture": "plant"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "plant"
     },
     {
         "id": 5,
         "key": "plant_fiber",
         "name": "Plant Fiber",
-        "stackSize": 1,
+        "stackSize": 99,
         "slotTexture": "plant_fiber",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -105,7 +121,7 @@
         "id": 6,
         "key": "plant_twine",
         "name": "Plant Twine",
-        "stackSize": 1,
+        "stackSize": 99,
         "slotTexture": "plant_twine",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -122,7 +138,7 @@
         "id": 7,
         "key": "seed",
         "name": "Seed",
-        "stackSize": 1,
+        "stackSize": 99,
         "slotTexture": "seed",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -139,7 +155,7 @@
         "id": 8,
         "key": "grass_scrap",
         "name": "Grass Scrap",
-        "stackSize": 1,
+        "stackSize": 99,
         "slotTexture": "grass_scrap",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -156,7 +172,7 @@
         "id": 9,
         "key": "branch",
         "name": "Branch",
-        "stackSize": 1,
+        "stackSize": 99,
         "slotTexture": "branch",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -167,13 +183,17 @@
             "texture": "branch"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "branch"
     },
     {
         "id": 10,
         "key": "bough",
         "name": "Bough",
-        "stackSize": 1,
+        "stackSize": 99,
         "slotTexture": "bough",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -190,7 +210,7 @@
         "id": 11,
         "key": "bark_strip",
         "name": "Bark Strip",
-        "stackSize": 1,
+        "stackSize": 99,
         "slotTexture": "bark_strip",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -207,7 +227,7 @@
         "id": 12,
         "key": "leaf",
         "name": "Leaf",
-        "stackSize": 1,
+        "stackSize": 99,
         "slotTexture": "leaf",
         "droppedRender": {
             "type": "extruded_sprite",
@@ -242,7 +262,7 @@
         "breakActions": [
             "smash"
         ],
-        "breakLevel": 1,
+        "breakLevel": 2,
         "maxDurability": 64
     },
     {
@@ -262,7 +282,8 @@
         "tags": [],
         "useActions": [
             "chip"
-        ]
+        ],
+        "maxDurability": 64
     },
     {
         "id": 15,
@@ -280,13 +301,14 @@
         },
         "tags": [],
         "useActions": [
-            "smash"
+            "smash",
+            "split"
         ],
         "breakActions": [
             "chop",
             "dig"
         ],
-        "breakLevel": 1,
+        "breakLevel": 2,
         "maxDurability": 64
     },
     {
@@ -305,12 +327,13 @@
         },
         "tags": [],
         "useActions": [
-            "cut"
+            "cut",
+            "carve"
         ],
         "breakActions": [
             "cut"
         ],
-        "breakLevel": 1,
+        "breakLevel": 2,
         "maxDurability": 64
     },
     {
@@ -331,6 +354,117 @@
         "useActions": [
             "scrape",
             "pierce"
-        ]
+        ],
+        "maxDurability": 64
+    },
+    {
+        "id": 18,
+        "key": "log",
+        "name": "Log",
+        "stackSize": 99,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "tags": [],
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "log"
+    },
+    {
+        "id": 19,
+        "key": "stripped_log",
+        "name": "Stripped Log",
+        "stackSize": 99,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "tags": [],
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "stripped_log"
+    },
+    {
+        "id": 20,
+        "key": "wooden_plank",
+        "name": "Wooden Plank",
+        "stackSize": 99,
+        "slotTexture": "wooden_plank",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "wooden_plank"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "wooden_plank"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 21,
+        "key": "wooden_stick",
+        "name": "Wooden Stick",
+        "stackSize": 99,
+        "slotTexture": "wooden_stick",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "wooden_stick"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "wooden_stick"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 22,
+        "key": "short_wooden_stick",
+        "name": "Short Wooden Stick",
+        "stackSize": 99,
+        "slotTexture": "short_wooden_stick",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "short_wooden_stick"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "short_wooden_stick"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 23,
+        "key": "long_wooden_stick",
+        "name": "Long Wooden Stick",
+        "stackSize": 99,
+        "slotTexture": "long_wooden_stick",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "long_wooden_stick"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "long_wooden_stick"
+        },
+        "tags": [],
+        "useActions": []
     }
 ]

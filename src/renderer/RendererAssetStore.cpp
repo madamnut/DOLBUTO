@@ -1,17 +1,39 @@
 #include "renderer/RendererAssetStore.h"
 
-#include "platform/Log.h"
 #include "renderer/ItemSpriteMeshBuilder.h"
 
 #include <array>
 #include <limits>
-#include <stdexcept>
 #include <string>
-#include <unordered_set>
 #include <utility>
 
 namespace dolbuto
 {
+    namespace
+    {
+        DroppedItemRenderPath::ItemSpriteMesh buildBlockModelItemMesh(const BlockTextureLayers& layers)
+        {
+            DroppedItemRenderPath::ItemSpriteMesh mesh{};
+            auto addQuad = [&](std::array<Vec3, 4> positions, uint32_t textureLayer, float ao)
+            {
+                DroppedItemRenderPath::ItemSpriteQuad quad{};
+                quad.positions = positions;
+                quad.uvs = {{{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}}};
+                quad.ao = ao;
+                quad.textureLayer = static_cast<float>(textureLayer);
+                mesh.quads.push_back(quad);
+            };
+
+            addQuad({{{-0.5f, 0.5f, -0.5f}, {-0.5f, 0.5f, 0.5f}, {0.5f, 0.5f, 0.5f}, {0.5f, 0.5f, -0.5f}}}, layers.faces[0], 1.0f);
+            addQuad({{{-0.5f, -0.5f, 0.5f}, {-0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, 0.5f}}}, layers.faces[1], 0.82f);
+            addQuad({{{0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}, {0.5f, -0.5f, 0.5f}}}, layers.faces[2], 0.86f);
+            addQuad({{{-0.5f, -0.5f, 0.5f}, {-0.5f, 0.5f, 0.5f}, {-0.5f, 0.5f, -0.5f}, {-0.5f, -0.5f, -0.5f}}}, layers.faces[3], 0.78f);
+            addQuad({{{0.5f, -0.5f, 0.5f}, {0.5f, 0.5f, 0.5f}, {-0.5f, 0.5f, 0.5f}, {-0.5f, -0.5f, 0.5f}}}, layers.faces[4], 0.88f);
+            addQuad({{{-0.5f, -0.5f, -0.5f}, {-0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, -0.5f}, {0.5f, -0.5f, -0.5f}}}, layers.faces[5], 0.74f);
+            return mesh;
+        }
+    }
+
     RendererAssetStore RendererAssetStore::load(
         const std::filesystem::path& assetDirectory,
         const game::ClientContent& content,
@@ -57,6 +79,16 @@ namespace dolbuto
         for (size_t itemId = 0; itemId < itemDefinitions.size(); ++itemId)
         {
             const ItemDefinition& definition = itemDefinitions[itemId];
+            if (definition.droppedRender == ItemRenderType::BlockModel ||
+                definition.heldRender == ItemRenderType::BlockModel)
+            {
+                if (definition.placeBlockId != 0 &&
+                    static_cast<size_t>(definition.placeBlockId) < content.blockTextureLayers().size())
+                {
+                    store.itemSpriteMeshes[itemId] = buildBlockModelItemMesh(content.blockTextureLayers()[definition.placeBlockId]);
+                }
+                continue;
+            }
             if (definition.droppedTexture == "none")
             {
                 continue;
@@ -64,27 +96,7 @@ namespace dolbuto
             store.itemSpriteMeshes[itemId] = ItemSpriteMeshBuilder::build(itemTextureDir / (definition.droppedTexture + ".png"));
         }
 
-        const std::filesystem::path propModelDirectory = assetDirectory / "textures" / "block" / "model";
-        std::unordered_set<std::string> checkedPropModels;
-        for (const game::PropModelBinding& binding : content.propModelBindings())
-        {
-            if (checkedPropModels.insert(binding.modelName).second)
-            {
-                assets::ensurePropModelBinary(propModelDirectory, binding.modelName);
-            }
-        }
-
-        for (const game::PropModelBinding& binding : content.propModelBindings())
-        {
-            const std::filesystem::path dpmPath = propModelDirectory / (binding.modelName + ".dpm");
-            assets::PropMesh mesh = assets::loadDpmRenderMesh(dpmPath);
-            if (mesh.quads.empty())
-            {
-                log::warn("Prop model dpm could not be loaded: " + dpmPath.string());
-                continue;
-            }
-            store.propMeshesByBlock[binding.blockId] = std::move(mesh);
-        }
+        store.propMeshesByBlock = content.propMeshesByBlock();
 
         return store;
     }

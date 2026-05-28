@@ -185,7 +185,7 @@ chunk-load worker와 save worker가 region payload/header 데이터를 동시에
 엔티티는 소유 청크와 함께 이동한다.
 두 청크가 모두 로드된 상태에서 엔티티가 청크 경계를 넘으면 소유권을 대상 청크로 이전한다.
 드롭 아이템 엔티티의 생성, 드롭 아이템끼리의 물리 충돌, 물리 tick, pickup 판정, 청크 소유권 helper는 `DroppedItemSystem`이 담당한다.
-월드 드롭 아이템 엔티티 하나는 아이템 1개를 의미하며, 저장 payload의 `count`는 호환용으로 남기되 런타임에서는 `1`로 정규화한다.
+월드 드롭 아이템 엔티티 하나는 아이템 스택 하나를 의미하며, 저장 payload의 `count`는 로드 시 해당 아이템의 `stackSize` 이하로 정규화한다.
 드롭 아이템 entity id, 청크별 추적, spawn/drop/pickup/raycast/update 조율은 `DroppedItemRuntime`이 담당하며, `WorldRuntime`의 조회/순회 API를 통해 런타임 청크를 읽는다.
 렌더러의 드롭 아이템 draw 경로는 `DroppedItemRuntime`이 제공하는 추적 상태를 렌더 후보 수집에 전달하고 GPU draw만 조율한다.
 

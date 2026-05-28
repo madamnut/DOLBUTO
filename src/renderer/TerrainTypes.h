@@ -57,5 +57,6 @@ namespace dolbuto
     {
         TerrainBuildData solid;
         TerrainBuildData blend;
+        TerrainBuildData fluid;
     };
 }

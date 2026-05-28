@@ -270,7 +270,7 @@ bedrock 높이는 전역 난수를 사용해 1~4 범위로 만든다.
 - tree: `168 ~ 170`
 
 grass 위에는 같은 0~255 식생 난수 구간에 따라 plant, stone prop, branch prop, tree 중 하나가 배타적으로 생성된다.
-tree는 grass 위에 trunk와 leaves를 배치한다.
+tree는 grass 위에 log와 leaves를 배치한다.
 
 ## 나무와 feature resolve
 
@@ -279,9 +279,9 @@ tree는 grass 위에 trunk와 leaves를 배치한다.
 - `ResolveFeatures` job은 center 주변 3x3 `TerrainSourceReady` 청크를 입력으로 받는다.
 - fresh source 청크는 `TerrainSourceReady`에서 캐시한 deterministic tree 후보를 사용한다.
 - 후보 cache가 없는 로드 청크는 복원된 `terrainHeight`를 사용해 deterministic tree 후보를 fallback 평가한다.
-- trunk/leaves가 center 청크 좌표에 닿는 경우에만 center 결과 청크에 쓴다.
+- log/leaves가 center 청크 좌표에 닿는 경우에만 center 결과 청크에 쓴다.
 - leaves는 air 또는 plant만 덮어쓴다.
-- trunk는 leaves/plant보다 우선한다.
+- log는 leaves/plant보다 우선한다.
 - worker는 주변 청크를 수정하지 않고 center 청크 복사본만 반환한다.
 
 ## 생성 파이프라인

@@ -27,6 +27,7 @@ namespace dolbuto::data
         uint8_t lightAttenuation = 15;
         uint8_t lightEmission = 0;
         bool randomOffset = false;
+        std::string attachmentFace = "none";
         std::unordered_map<std::string, std::string> textures;
         std::string propModel;
         std::string propTexture;
@@ -51,21 +52,37 @@ namespace dolbuto::data
         uint16_t stackSize = 0;
         std::string texture = "none";
         std::string slotTexture = "none";
+        std::string slotRender = "sprite";
+        std::string slotRenderTexture = "none";
         std::string droppedTexture = "none";
         std::string heldTexture = "none";
         std::string droppedRender = "extruded_sprite";
         std::string heldRender = "extruded_sprite";
         std::vector<std::string> useActions;
         std::vector<std::string> breakActions;
+        std::vector<std::string> placeActions;
         uint16_t breakLevel = 0;
         uint16_t maxDurability = 0;
+        std::string placeBlock;
+    };
+
+    struct ParsedInteractionOutput
+    {
+        std::string item;
+        uint16_t min = 1;
+        uint16_t max = 1;
+    };
+
+    struct ParsedInteractionCandidate
+    {
+        std::vector<ParsedInteractionOutput> outputs;
     };
 
     struct ParsedInteractionDefinition
     {
         std::string action;
         std::string target;
-        std::vector<std::string> candidates;
+        std::vector<ParsedInteractionCandidate> candidates;
         uint16_t resultCountMin = 1;
         uint16_t resultCountMax = 1;
     };

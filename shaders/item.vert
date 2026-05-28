@@ -10,9 +10,11 @@ layout(push_constant) uniform TerrainPush
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec2 inUv;
 layout(location = 2) in float inAo;
-layout(location = 3) in vec4 inCenterRotX;
-layout(location = 4) in vec4 inRotYRotZLayerMip;
-layout(location = 5) in vec2 inLight;
+layout(location = 3) in float inLocalTextureLayer;
+layout(location = 4) in vec4 inCenterRotX;
+layout(location = 5) in vec4 inRotYRotZLayerMip;
+layout(location = 6) in vec3 inScale;
+layout(location = 7) in vec2 inLight;
 
 layout(location = 0) out vec2 fragUv;
 layout(location = 1) out float fragAo;
@@ -23,11 +25,9 @@ layout(location = 6) flat out float fragAlphaBlend;
 layout(location = 7) flat out float fragSkyLight;
 layout(location = 8) flat out float fragBlockLight;
 
-const vec3 DroppedItemScale = vec3(0.68, 0.05, 0.68);
-
 void main()
 {
-    vec3 value = inPosition * DroppedItemScale;
+    vec3 value = inPosition * inScale;
 
     float cosX = cos(inCenterRotX.w);
     float sinX = sin(inCenterRotX.w);
@@ -56,7 +56,7 @@ void main()
     fragUv = inUv;
     fragAo = inAo;
     fragWorldPosition = relativePosition;
-    fragTextureLayer = inRotYRotZLayerMip.z;
+    fragTextureLayer = inLocalTextureLayer >= 0.0 ? inLocalTextureLayer : inRotYRotZLayerMip.z;
     fragMipDistanceScale = inRotYRotZLayerMip.w;
     fragAlphaBlend = 1.0;
     fragSkyLight = inLight.x;

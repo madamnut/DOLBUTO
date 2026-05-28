@@ -7,9 +7,11 @@
 #include "renderer/TerrainRenderPath.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -336,6 +338,61 @@ namespace dolbuto
         return client_.worldRuntime.setBlockAtWorld(x, y, z, block);
     }
 
+    void RendererTerrainRuntimeBridge::tickFluidSimulation()
+    {
+        constexpr uint32_t MaxFluidTickCells = 256;
+        const world::WorldRuntime::FluidTickResult result = client_.worldRuntime.tickFluidSimulation(MaxFluidTickCells);
+        if (result.changedSubchunks.empty() && result.changedCells.empty())
+        {
+            return;
+        }
+
+        struct AffectedSubchunk
+        {
+            int chunkX = 0;
+            int chunkZ = 0;
+            int subchunkY = 0;
+        };
+        std::vector<AffectedSubchunk> affectedSubchunks;
+        auto addAffectedSubchunk = [&](int affectedChunkX, int affectedChunkZ, int affectedSubchunkY)
+        {
+            if (affectedSubchunkY < 0 || affectedSubchunkY >= SubchunksPerChunk)
+            {
+                return;
+            }
+            for (const AffectedSubchunk& existing : affectedSubchunks)
+            {
+                if (existing.chunkX == affectedChunkX && existing.chunkZ == affectedChunkZ && existing.subchunkY == affectedSubchunkY)
+                {
+                    return;
+                }
+            }
+            affectedSubchunks.push_back({affectedChunkX, affectedChunkZ, affectedSubchunkY});
+        };
+
+        for (const world::WorldRuntime::EditedSubchunk& changed : result.changedSubchunks)
+        {
+            addAffectedSubchunk(changed.chunkX, changed.chunkZ, changed.subchunkY);
+        }
+        for (const world::WorldRuntime::FluidTickCell& cell : result.lightChangedCells)
+        {
+            const std::vector<world::WorldRuntime::EditedSubchunk> lightChangedSubchunks =
+                client_.worldRuntime.resolveEditedSkyLightAtWorld(cell.x, cell.y, cell.z);
+            for (const world::WorldRuntime::EditedSubchunk& changed : lightChangedSubchunks)
+            {
+                addAffectedSubchunk(changed.chunkX, changed.chunkZ, changed.subchunkY);
+            }
+        }
+
+        for (const AffectedSubchunk& affected : affectedSubchunks)
+        {
+            rebuildSubchunkMeshNow(affected.chunkX, affected.chunkZ, affected.subchunkY);
+        }
+
+        updateTerrainStats();
+        debugOverlayText_.markDirty();
+    }
+
     void RendererTerrainRuntimeBridge::rebuildSubchunkMeshNow(int chunkX, int chunkZ, int subchunkY)
     {
         if (subchunkY < 0 || subchunkY >= SubchunksPerChunk)
@@ -353,8 +410,24 @@ namespace dolbuto
         const uint64_t generation = client_.terrainSceneRuntime.terrainGeneration();
         chunk->data->generation = generation;
         const uint64_t revision = chunk->data->revision;
+
+        std::array<std::shared_ptr<ChunkData>, 9> chunks{};
+        for (int dz = -1; dz <= 1; ++dz)
+        {
+            for (int dx = -1; dx <= 1; ++dx)
+            {
+                const uint64_t sampleKey = chunkKey(chunkX + dx, chunkZ + dz);
+                RuntimeChunk* sampleChunk = client_.worldRuntime.find(sampleKey);
+                if (sampleChunk != nullptr && sampleChunk->data)
+                {
+                    chunks[static_cast<std::size_t>((dz + 1) * 3 + (dx + 1))] = sampleChunk->data;
+                }
+            }
+        }
+        chunks[4] = chunk->data;
+
         TerrainSubchunkBuildData mesh = RendererTerrainMeshBridge(client_.content, rendererAssets_).buildEditedSubchunkMesh(
-            chunk->data,
+            chunks,
             subchunkY,
             [this](int x, int y, int z)
             {

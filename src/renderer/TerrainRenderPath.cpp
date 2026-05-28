@@ -184,18 +184,23 @@ namespace dolbuto
 
         TerrainMesh& targetSolidMesh = renderData.solidSubchunks[static_cast<std::size_t>(subchunkY)];
         TerrainMesh& targetBlendMesh = renderData.blendSubchunks[static_cast<std::size_t>(subchunkY)];
+        TerrainMesh& targetFluidMesh = renderData.fluidSubchunks[static_cast<std::size_t>(subchunkY)];
         if (targetSolidMesh.vertexBuffer != VK_NULL_HANDLE || targetSolidMesh.indexBuffer != VK_NULL_HANDLE ||
-            targetBlendMesh.vertexBuffer != VK_NULL_HANDLE || targetBlendMesh.indexBuffer != VK_NULL_HANDLE)
+            targetBlendMesh.vertexBuffer != VK_NULL_HANDLE || targetBlendMesh.indexBuffer != VK_NULL_HANDLE ||
+            targetFluidMesh.vertexBuffer != VK_NULL_HANDLE || targetFluidMesh.indexBuffer != VK_NULL_HANDLE)
         {
             ChunkRenderData retired{};
             retired.solidSubchunks[static_cast<std::size_t>(subchunkY)] = std::move(targetSolidMesh);
             retired.blendSubchunks[static_cast<std::size_t>(subchunkY)] = std::move(targetBlendMesh);
+            retired.fluidSubchunks[static_cast<std::size_t>(subchunkY)] = std::move(targetFluidMesh);
             targetSolidMesh = {};
             targetBlendMesh = {};
+            targetFluidMesh = {};
             retireChunk(std::move(retired), framesLeft);
         }
         createTerrainBuffer(buildData.solid, targetSolidMesh);
         createTerrainBuffer(buildData.blend, targetBlendMesh);
+        createTerrainBuffer(buildData.fluid, targetFluidMesh);
         renderData.revision = revision;
     }
 

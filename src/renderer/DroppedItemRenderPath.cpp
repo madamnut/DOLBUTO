@@ -78,7 +78,8 @@ namespace dolbuto
                         position.z,
                         quad.uvs[vertexIndex][0],
                         quad.uvs[vertexIndex][1],
-                        quad.ao
+                        quad.ao,
+                        quad.textureLayer
                     });
                 }
 
