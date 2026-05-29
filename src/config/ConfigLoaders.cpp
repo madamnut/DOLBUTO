@@ -420,10 +420,27 @@ namespace dolbuto::config
 
         const std::string fluid = jsonObjectField(*text, "fluid").value_or("{}");
         const std::string water = jsonObjectField(fluid, "water").value_or("{}");
+        const std::string screenBlur = jsonObjectField(water, "screenBlur").value_or("{}");
 
         if (const std::optional<float> value = jsonFloatField(water, "alpha"); value.has_value())
         {
             config.fluidWaterAlpha = std::clamp(*value, 0.0f, 1.0f);
+        }
+        if (const std::optional<bool> value = jsonBoolField(screenBlur, "enabled"); value.has_value())
+        {
+            config.fluidWaterScreenBlurEnabled = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(screenBlur, "spread"); value.has_value())
+        {
+            config.fluidWaterScreenBlurSpread = std::clamp(*value, 0.0f, 8.0f);
+        }
+        if (const std::optional<float> value = jsonFloatField(screenBlur, "intensity"); value.has_value())
+        {
+            config.fluidWaterScreenBlurIntensity = std::clamp(*value, 0.0f, 1.0f);
+        }
+        if (const std::optional<float> value = jsonFloatField(screenBlur, "tint"); value.has_value())
+        {
+            config.fluidWaterScreenBlurTint = std::clamp(*value, 0.0f, 1.0f);
         }
 
         return config;

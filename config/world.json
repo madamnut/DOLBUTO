@@ -14,6 +14,7 @@
     "sprintSpeedScale": 1.3,
     "sneakSpeedScale": 0.3,
     "sneakHeightScale": 0.833333,
+    "swimSpeedScale": 0.55,
     "movementDoubleTapWindow": 0.35
   },
   "terrain": {

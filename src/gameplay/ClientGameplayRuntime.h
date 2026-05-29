@@ -49,6 +49,7 @@ namespace dolbuto::gameplay
     struct ItemInteractionActionMenu
     {
         std::string action;
+        uint16_t targetCount = 1;
         std::vector<ItemInteractionCandidate> candidates;
     };
 
@@ -64,6 +65,7 @@ namespace dolbuto::gameplay
     {
     public:
         using BlockSampler = BlockInteractionSystem::BlockSampler;
+        using FluidSampler = BlockInteractionSystem::FluidSampler;
         using BlockDefinitionProvider = BlockInteractionSystem::BlockDefinitionProvider;
         using TerrainCollisionPredicate = BlockInteractionSystem::TerrainCollisionPredicate;
         using SetBlockFn = std::function<bool(int, int, int, uint16_t)>;
@@ -77,6 +79,7 @@ namespace dolbuto::gameplay
 
         bool playerColliderIntersectsTerrain(DVec3 playerPosition, double heightScale, const TerrainCollisionPredicate& terrainCellBlocksPlayer) const;
         bool playerColliderHasSupportBelow(DVec3 playerPosition, const TerrainCollisionPredicate& terrainCellBlocksPlayer) const;
+        bool playerColliderIntersectsWater(DVec3 playerPosition, double heightScale, const FluidSampler& fluidAtWorld) const;
         BlockEditResult editBlockInView(
             DVec3 origin,
             Vec3 direction,
@@ -127,7 +130,7 @@ namespace dolbuto::gameplay
             const TerrainCollisionPredicate& terrainCellBlocksItem,
             const MarkDirtyFn& markDirty);
         ItemInteractionMenu beginItemInteractionInView(DVec3 origin, Vec3 direction, const std::vector<ItemInteractionRecipe>& recipes);
-        bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, const MarkDirtyFn& markDirty);
+        bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, bool repeat, const MarkDirtyFn& markDirty);
         void cancelPendingItemInteraction();
         bool updateDroppedItems(
             Vec3 playerPosition,

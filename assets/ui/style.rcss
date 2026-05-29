@@ -513,9 +513,9 @@ body {
     left: 50%;
     top: 50%;
     width: 520px;
-    height: 620px;
+    height: 700px;
     margin-left: -260px;
-    margin-top: -310px;
+    margin-top: -350px;
 }
 
 .option-row {

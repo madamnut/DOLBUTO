@@ -392,12 +392,13 @@ namespace dolbuto::world
         return true;
     }
 
-    uint16_t DroppedItemRuntime::replaceTargetItems(
-        const WorldEntityHandle& itemHandle,
-        uint64_t entityId,
-        const std::vector<ItemInteractionOutput>& outputs,
-        uint16_t maxApplications,
-        const MarkDirtyFn& markDirty)
+        uint16_t DroppedItemRuntime::replaceTargetItems(
+            const WorldEntityHandle& itemHandle,
+            uint64_t entityId,
+            const std::vector<ItemInteractionOutput>& outputs,
+            uint16_t targetCount,
+            uint16_t maxApplications,
+            const MarkDirtyFn& markDirty)
     {
         if (outputs.empty() || maxApplications == 0)
         {
@@ -454,7 +455,9 @@ namespace dolbuto::world
         }
 
         const ItemDefinition& sourceDefinition = itemDefinitions()[target.droppedItem.stack.itemId];
-        const uint16_t applicationCount = std::min(target.droppedItem.stack.count, maxApplications);
+        targetCount = std::max<uint16_t>(targetCount, 1);
+        const uint16_t availableApplications = static_cast<uint16_t>(target.droppedItem.stack.count / targetCount);
+        const uint16_t applicationCount = std::min(availableApplications, maxApplications);
         if (applicationCount == 0)
         {
             return 0;
@@ -564,7 +567,8 @@ namespace dolbuto::world
             return 0;
         }
 
-        const bool consumedTarget = applicationCount >= target.droppedItem.stack.count;
+        const uint16_t consumedTargetCount = static_cast<uint16_t>(applicationCount * targetCount);
+        const bool consumedTarget = consumedTargetCount >= target.droppedItem.stack.count;
         std::size_t firstExtraOutput = 0;
         if (consumedTarget)
         {
@@ -581,7 +585,7 @@ namespace dolbuto::world
         }
         else
         {
-            target.droppedItem.stack.count = static_cast<uint16_t>(target.droppedItem.stack.count - applicationCount);
+            target.droppedItem.stack.count = static_cast<uint16_t>(target.droppedItem.stack.count - consumedTargetCount);
         }
         refreshChunkTracking(chunkKey);
         if (markDirty)

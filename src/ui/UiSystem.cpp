@@ -428,7 +428,7 @@ namespace dolbuto::ui
         }
     }
 
-    void UiSystem::setOptionsControls(bool toggleSprint, bool toggleSneak)
+    void UiSystem::setOptionsControls(bool toggleSprint, bool toggleSneak, bool toggleProne)
     {
         if (optionsDocument_ == nullptr)
         {
@@ -442,6 +442,10 @@ namespace dolbuto::ui
         if (Rml::Element* value = optionsDocument_->GetElementById("toggle-sneak-value"))
         {
             value->SetInnerRML(toggleSneak ? "TOGGLE" : "HOLD");
+        }
+        if (Rml::Element* value = optionsDocument_->GetElementById("toggle-prone-value"))
+        {
+            value->SetInnerRML(toggleProne ? "TOGGLE" : "HOLD");
         }
     }
 
@@ -768,7 +772,7 @@ namespace dolbuto::ui
             return;
         }
 
-        constexpr std::array<const char*, 14> ButtonIds = {
+        constexpr std::array<const char*, 15> ButtonIds = {
             "start",
             "exit",
             "new-world",
@@ -782,7 +786,8 @@ namespace dolbuto::ui
             "options-back",
             "toggle-view-bobbing",
             "toggle-sprint",
-            "toggle-sneak"
+            "toggle-sneak",
+            "toggle-prone"
         };
         for (const char* id : ButtonIds)
         {

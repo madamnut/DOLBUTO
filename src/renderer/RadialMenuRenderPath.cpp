@@ -126,9 +126,14 @@ namespace dolbuto
                 const double sectorEnd = candidateStart + candidateStep * static_cast<double>(candidate + 1u) - SectorGapRadians;
                 appendRingSector(vertices, extent, centerX, centerY, ActionOuterRadius + 2.0f, CandidateOuterRadius, sectorStart, sectorEnd);
                 const bool selected = frame.selectedCandidateIndex == candidate;
-                const SpriteRenderPath::Color color = selected
-                    ? SpriteRenderPath::Color{0.26f, 0.56f, 0.50f, 0.82f}
-                    : SpriteRenderPath::Color{0.04f, 0.075f, 0.07f, 0.58f};
+                const bool enabled = candidate >= frame.candidateEnabled.size() || frame.candidateEnabled[candidate] != 0;
+                const SpriteRenderPath::Color color = enabled
+                    ? (selected
+                        ? SpriteRenderPath::Color{0.26f, 0.56f, 0.50f, 0.82f}
+                        : SpriteRenderPath::Color{0.04f, 0.075f, 0.07f, 0.58f})
+                    : (selected
+                        ? SpriteRenderPath::Color{0.54f, 0.16f, 0.13f, 0.82f}
+                        : SpriteRenderPath::Color{0.22f, 0.035f, 0.035f, 0.62f});
                 appendDraw(color);
             }
         }

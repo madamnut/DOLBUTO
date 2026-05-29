@@ -242,6 +242,60 @@ namespace dolbuto
 
 
 
+    void Renderer::createWaterBlurRenderPass()
+    {
+        VkAttachmentDescription colorAttachment{};
+        colorAttachment.format = vulkan_.swapchainImageFormat;
+        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkAttachmentReference colorRef{};
+        colorRef.attachment = 0;
+        colorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = 1;
+        subpass.pColorAttachments = &colorRef;
+
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        VkSubpassDependency readDependency{};
+        readDependency.srcSubpass = 0;
+        readDependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+        readDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        readDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        readDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        readDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        std::array<VkSubpassDependency, 2> dependencies = {dependency, readDependency};
+
+        VkRenderPassCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        createInfo.attachmentCount = 1;
+        createInfo.pAttachments = &colorAttachment;
+        createInfo.subpassCount = 1;
+        createInfo.pSubpasses = &subpass;
+        createInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+        createInfo.pDependencies = dependencies.data();
+
+        if (vkCreateRenderPass(vulkan_.device, &createInfo, nullptr, &vulkan_.waterBlurRenderPass) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create water blur render pass.");
+        }
+    }
+
+
+
     void Renderer::createDepthResources()
     {
         VkImageCreateInfo imageInfo{};
@@ -298,8 +352,16 @@ namespace dolbuto
     {
         sceneColorTargets_.clear();
         sceneDepthTargets_.clear();
+        waterBlurTargetsA_.clear();
+        waterBlurTargetsB_.clear();
         sceneColorTargets_.reserve(vulkan_.swapchainImageViews.size());
         sceneDepthTargets_.reserve(vulkan_.swapchainImageViews.size());
+        waterBlurTargetsA_.reserve(vulkan_.swapchainImageViews.size());
+        waterBlurTargetsB_.reserve(vulkan_.swapchainImageViews.size());
+        const VkExtent2D waterBlurExtent{
+            std::max(1u, vulkan_.swapchainExtent.width / 4u),
+            std::max(1u, vulkan_.swapchainExtent.height / 4u)
+        };
         for (size_t i = 0; i < vulkan_.swapchainImageViews.size(); ++i)
         {
             sceneColorTargets_.push_back(gpuResources_.createRenderTargetTexture(
@@ -307,13 +369,28 @@ namespace dolbuto
                 vulkan_.swapchainImageFormat,
                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                vulkan_.linearSampler));
             sceneDepthTargets_.push_back(gpuResources_.createRenderTargetTexture(
                 vulkan_.swapchainExtent,
                 DepthFormat,
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_IMAGE_ASPECT_DEPTH_BIT,
                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL));
+            waterBlurTargetsA_.push_back(gpuResources_.createRenderTargetTexture(
+                waterBlurExtent,
+                vulkan_.swapchainImageFormat,
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                vulkan_.linearSampler));
+            waterBlurTargetsB_.push_back(gpuResources_.createRenderTargetTexture(
+                waterBlurExtent,
+                vulkan_.swapchainImageFormat,
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                vulkan_.linearSampler));
         }
     }
 
@@ -339,6 +416,30 @@ namespace dolbuto
             {
                 throw std::runtime_error("Failed to create scene framebuffer.");
             }
+        }
+
+        vulkan_.waterBlurFramebuffersA.resize(waterBlurTargetsA_.size());
+        vulkan_.waterBlurFramebuffersB.resize(waterBlurTargetsB_.size());
+        auto createWaterBlurFramebuffer = [this](const Texture& target, VkFramebuffer& framebuffer)
+        {
+            VkFramebufferCreateInfo createInfo{};
+            createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            createInfo.renderPass = vulkan_.waterBlurRenderPass;
+            createInfo.attachmentCount = 1;
+            createInfo.pAttachments = &target.view;
+            createInfo.width = static_cast<uint32_t>(target.width);
+            createInfo.height = static_cast<uint32_t>(target.height);
+            createInfo.layers = 1;
+
+            if (vkCreateFramebuffer(vulkan_.device, &createInfo, nullptr, &framebuffer) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create water blur framebuffer.");
+            }
+        };
+        for (size_t i = 0; i < waterBlurTargetsA_.size(); ++i)
+        {
+            createWaterBlurFramebuffer(waterBlurTargetsA_[i], vulkan_.waterBlurFramebuffersA[i]);
+            createWaterBlurFramebuffer(waterBlurTargetsB_[i], vulkan_.waterBlurFramebuffersB[i]);
         }
 
         vulkan_.framebuffers.resize(vulkan_.swapchainImageViews.size());
@@ -372,6 +473,17 @@ namespace dolbuto
         }
         vulkan_.sceneFramebuffers.clear();
 
+        for (VkFramebuffer framebuffer : vulkan_.waterBlurFramebuffersA)
+        {
+            vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
+        }
+        vulkan_.waterBlurFramebuffersA.clear();
+        for (VkFramebuffer framebuffer : vulkan_.waterBlurFramebuffersB)
+        {
+            vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
+        }
+        vulkan_.waterBlurFramebuffersB.clear();
+
         for (VkFramebuffer framebuffer : vulkan_.framebuffers)
         {
             vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
@@ -388,6 +500,16 @@ namespace dolbuto
             gpuResources_.destroyTexture(texture);
         }
         sceneDepthTargets_.clear();
+        for (Texture& texture : waterBlurTargetsA_)
+        {
+            gpuResources_.destroyTexture(texture);
+        }
+        waterBlurTargetsA_.clear();
+        for (Texture& texture : waterBlurTargetsB_)
+        {
+            gpuResources_.destroyTexture(texture);
+        }
+        waterBlurTargetsB_.clear();
 
         if (vulkan_.depthImageView != VK_NULL_HANDLE)
         {

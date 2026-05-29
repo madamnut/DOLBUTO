@@ -31,6 +31,48 @@
         ]
     },
     {
+        "action": "handcraft",
+        "target": "plant_fiber",
+        "targetCount": 2,
+        "candidates": [
+            "plant_twine"
+        ]
+    },
+    {
+        "action": "handcraft",
+        "target": "plant_twine",
+        "targetCount": 2,
+        "candidates": [
+            "long_plant_twine"
+        ]
+    },
+    {
+        "action": "handcraft",
+        "target": "short_plant_twine",
+        "targetCount": 2,
+        "candidates": [
+            "plant_twine"
+        ]
+    },
+    {
+        "action": "cut",
+        "target": "plant_twine",
+        "min": 2,
+        "max": 2,
+        "candidates": [
+            "short_plant_twine"
+        ]
+    },
+    {
+        "action": "cut",
+        "target": "long_plant_twine",
+        "min": 2,
+        "max": 2,
+        "candidates": [
+            "plant_twine"
+        ]
+    },
+    {
         "action": "scrape",
         "target": "log",
         "candidates": [

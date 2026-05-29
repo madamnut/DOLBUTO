@@ -57,15 +57,41 @@ namespace dolbuto
         VkExtent2D extent,
         const RendererAssetStore& assets,
         const SpriteRenderPath& sprites,
-        VkPipelineLayout pipelineLayout,
+        VkPipeline spritePipeline,
+        VkPipelineLayout spritePipelineLayout,
         VkBuffer spriteVertexBuffer,
+        WaterOverlay waterOverlay,
+        const Texture& waterBlurTexture,
         int climateOverlayMode) const
     {
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, spritePipeline);
         SpriteRenderPath::Rect sceneRect{};
         sceneRect.halfWidth = 1.0f;
         sceneRect.halfHeight = 1.0f;
-        sprites.draw(commandBuffer, pipelineLayout, spriteVertexBuffer, sceneTexture, sceneRect, {0.0f, 1.0f, 1.0f, -1.0f});
-        drawClimateOverlay(commandBuffer, climateOverlayMode, assets, sprites, extent, pipelineLayout, spriteVertexBuffer);
+        sprites.draw(commandBuffer, spritePipelineLayout, spriteVertexBuffer, sceneTexture, sceneRect, {0.0f, 1.0f, 1.0f, -1.0f});
+
+        const float line = std::clamp(waterOverlay.waterLineY, -1.0f, 1.0f);
+        if (waterOverlay.active && line < 1.0f && waterBlurTexture.descriptorSet != VK_NULL_HANDLE)
+        {
+            SpriteRenderPath::Rect waterArea{};
+            waterArea.centerY = (line + 1.0f) * 0.5f;
+            waterArea.halfWidth = 1.0f;
+            waterArea.halfHeight = (1.0f - line) * 0.5f;
+
+            const float uvTop = (line + 1.0f) * 0.5f;
+            const float uvBottom = 1.0f;
+            sprites.draw(
+                commandBuffer,
+                spritePipelineLayout,
+                spriteVertexBuffer,
+                waterBlurTexture,
+                waterArea,
+                {0.0f, uvBottom, 1.0f, uvTop - uvBottom},
+                {1.0f, 1.0f, 1.0f, std::clamp(waterOverlay.blurIntensity, 0.0f, 1.0f)});
+            sprites.draw(commandBuffer, spritePipelineLayout, spriteVertexBuffer, assets.white, waterArea, {}, {0.18f, 0.55f, 0.70f, std::clamp(waterOverlay.tint, 0.0f, 1.0f)});
+        }
+
+        drawClimateOverlay(commandBuffer, climateOverlayMode, assets, sprites, extent, spritePipelineLayout, spriteVertexBuffer);
     }
 
     void ScreenPresentation::drawCrosshair(

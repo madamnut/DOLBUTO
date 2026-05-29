@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 namespace dolbuto::game
 {
@@ -13,5 +14,6 @@ namespace dolbuto::game
         uint32_t candidateCount = 0;
         uint32_t selectedActionIndex = InvalidRadialMenuIndex;
         uint32_t selectedCandidateIndex = InvalidRadialMenuIndex;
+        std::vector<uint8_t> candidateEnabled;
     };
 }

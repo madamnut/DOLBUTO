@@ -21,6 +21,9 @@ namespace dolbuto::game
         double sprintSpeedScale = 1.3;
         double sneakSpeedScale = 0.3;
         double sneakHeightScale = 1.5 / 1.8;
+        double proneHeight = 0.6;
+        double proneEyeHeight = 0.5;
+        double swimSpeedScale = 0.55;
     };
 
     struct PlayerMovementInput
@@ -32,12 +35,15 @@ namespace dolbuto::game
         bool leftHeld = false;
         bool ctrlHeld = false;
         bool shiftHeld = false;
+        bool proneHeld = false;
         bool jumpHeld = false;
         bool jumpPressed = false;
         bool toggleSprint = false;
         bool toggleSneak = false;
+        bool toggleProne = false;
         bool sprintToggled = false;
         bool sneakToggled = false;
+        bool proneToggled = false;
         bool doubleTapSprintActive = false;
         float yaw = 0.0f;
     };
@@ -53,6 +59,15 @@ namespace dolbuto::game
         float walkAmount = 0.0f;
         float sprintFovAmount = 0.0f;
         float eyeHeightScale = 1.0f;
+        float playerHeightScale = 1.0f;
+        bool proneClimbActive = false;
+        double proneClimbProgress = 0.0;
+        DVec3 proneClimbStart{};
+        DVec3 proneClimbTarget{};
+        bool waterClimbActive = false;
+        double waterClimbProgress = 0.0;
+        DVec3 waterClimbStart{};
+        DVec3 waterClimbTarget{};
     };
 
     struct PlayerMovementResult
@@ -65,6 +80,7 @@ namespace dolbuto::game
     {
         std::function<bool(DVec3, double)> playerColliderIntersectsTerrain;
         std::function<bool(DVec3)> playerColliderHasSupportBelow;
+        std::function<bool(DVec3, double)> playerColliderIntersectsWater;
     };
 
     class PlayerMovementSystem

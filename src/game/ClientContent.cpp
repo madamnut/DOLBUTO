@@ -191,6 +191,7 @@ namespace dolbuto::game
                 ItemInteractionRecipe recipe{};
                 recipe.action = definition.action;
                 recipe.targetItemId = targetIt->second;
+                recipe.targetCount = definition.targetCount;
                 for (const data::ParsedInteractionCandidate& parsedCandidate : definition.candidates)
                 {
                     ItemInteractionCandidate candidate{};

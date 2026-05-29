@@ -47,7 +47,7 @@ namespace dolbuto
             VulkanResourceManager* gpuResources);
 
         void loadFromGlb(const std::filesystem::path& path);
-        void update(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount, uint32_t frameIndex, uint8_t packedLight);
+        void update(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount, bool playerProne, uint32_t frameIndex, uint8_t packedLight);
         void updateFirstPersonHand(const Camera& camera, Vec3 cameraPosition, const config::ViewmodelHandConfig& config, uint32_t frameIndex, uint8_t packedLight);
         void draw(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture, uint32_t frameIndex) const;
         void drawFirstPersonHand(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture, uint32_t frameIndex) const;

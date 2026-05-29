@@ -26,6 +26,7 @@ namespace dolbuto::game
         float playerHeadPitch = 0.0f;
         float playerWalkPhase = 0.0f;
         float playerWalkAmount = 0.0f;
+        bool playerProne = false;
         bool showFirstPersonHand = false;
         uint16_t heldItemId = 0;
         bool terrainWireframe = false;

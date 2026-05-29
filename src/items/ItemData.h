@@ -55,6 +55,7 @@ namespace dolbuto
 
     struct ItemInteractionCandidate
     {
+        bool enabled = true;
         std::vector<ItemInteractionOutput> outputs;
     };
 
@@ -62,6 +63,7 @@ namespace dolbuto
     {
         std::string action;
         uint16_t targetItemId = 0;
+        uint16_t targetCount = 1;
         std::vector<ItemInteractionCandidate> candidates;
     };
 }

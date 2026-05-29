@@ -262,7 +262,8 @@ namespace dolbuto
         VkFormat format,
         VkImageUsageFlags usage,
         VkImageAspectFlags aspectMask,
-        VkImageLayout descriptorLayout) const
+        VkImageLayout descriptorLayout,
+        VkSampler descriptorSampler) const
     {
         Texture texture;
         texture.width = static_cast<int>(extent.width);
@@ -333,7 +334,7 @@ namespace dolbuto
         VkDescriptorImageInfo imageDescriptor{};
         imageDescriptor.imageLayout = descriptorLayout;
         imageDescriptor.imageView = texture.view;
-        imageDescriptor.sampler = sampler();
+        imageDescriptor.sampler = descriptorSampler != VK_NULL_HANDLE ? descriptorSampler : sampler();
 
         VkWriteDescriptorSet write{};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

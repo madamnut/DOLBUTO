@@ -42,7 +42,7 @@
 `src/renderer/RendererAssetStore.h/.cpp`는 `ClientContent`를 입력으로 받아 sky/UI/player/terrain/fluid/item texture, item sprite mesh, prop render mesh를 생성하고 해제한다.
 `src/renderer/SpriteRenderPath.h/.cpp`는 sprite pipeline의 push constant 구성, descriptor bind, 6-vertex draw primitive를 담당한다.
 `src/renderer/RadialMenuRenderPath.h/.cpp`는 같은 sprite pipeline과 1x1 white texture를 재사용해 아이템 상호작용 원형 UI의 중앙 원, 액션 부채꼴 링, 후보 부채꼴 링을 native Vulkan geometry로 그린다.
-`src/renderer/ScreenPresentation.h/.cpp`는 sky sprites, scene color target composite, climate overlay, crosshair, fallback menu, debug text 호출을 조율한다.
+`src/renderer/ScreenPresentation.h/.cpp`는 sky sprites, scene color target composite, water screen blur, climate overlay, crosshair, fallback menu, debug text 호출을 조율한다.
 `src/world/ClimateSystem.h/.cpp`는 climate seed, tileable climate noise sampling, chunk climate population, temperature/precipitation 계산을 담당한다.
 `src/renderer/ClimateOverlayTextureBuilder.h/.cpp`는 temperature/precipitation과 terrain noise overlay texture에 업로드할 RGBA pixel 데이터를 생성한다.
 `src/renderer/DebugOverlayText.h/.cpp`는 debug 표시 문자열, 해상도/FPS cache, text batch dirty 상태를 소유한다.
@@ -177,8 +177,17 @@ assets/textures/block/breaking/destroy_stage_9.png
 ## 화면 프레젠테이션
 
 swapchain render pass 위에 얹는 2D presentation은 `ScreenPresentation`이 조율한다.
-scene color target 합성, sky sprite, crosshair, climate overlay, fallback menu 배경/버튼/text, debug text draw 호출은 이 계층에 둔다.
+scene color target 합성, water screen blur, sky sprite, crosshair, climate overlay, fallback menu 배경/버튼/text, debug text draw 호출은 이 계층에 둔다.
 실제 sprite descriptor bind와 push constant draw는 `SpriteRenderPath`가 담당한다.
+카메라가 물 안에 있으면 swapchain presentation 전에 quarter resolution water blur target 두 벌을 사용해 Kawase blur를 2회 적용한다.
+최종 scene color target 합성은 원본 scene color를 먼저 그린 뒤, 물속 영역에만 Kawase blur 결과를 설정된 비율로 덮어 섞는다.
+카메라가 수면 근처의 물 안에 있으면 카메라 pitch 기준 화면 수면선을 계산한 결과를 받아 수면선 아래쪽 영역에만 고정 강도의 물속 blur를 적용한다.
+카메라가 수면보다 충분히 아래에 있으면 수면선을 화면 위쪽으로 고정해 전체 화면에 물속 효과를 적용한다.
+수면선 자체에는 별도 띠, highlight, feather 효과를 주지 않고 물속 효과가 적용되는 화면 영역만 나눈다.
+물색 tint는 흐림 위에 약하게만 더한다.
+흐림 강도는 `config/render.json`의 `fluid.water.screenBlur` 설정으로 조정한다.
+`enabled`는 효과 사용 여부, `spread`는 Kawase blur가 퍼지는 넓이, `intensity`는 원본 화면과 blur 결과를 섞는 비율, `tint`는 물색 tint 강도를 의미한다.
+이 효과는 거리 기반 raymarch나 픽셀별 물 통과 거리 계산을 하지 않는 가벼운 화면 공간 표현이다.
 
 temperature/precipitation overlay texture pixel은 `ClimateOverlayTextureBuilder`가 `ClimateSystem` 샘플링 결과로 생성한다.
 groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `TerrainBuilder`의 mode별 terrain debug noise 결과로 생성한다.
@@ -225,6 +234,7 @@ cube 블록, `cross` 블록, `prop` 블록 모두 블록 정의의 alpha mode에
 
 - 텍스처: `assets/textures/fluid/water.png`
 - 런타임 설정: `config/render.json` -> `fluid.water.alpha`
+- 물속 화면 흐림 설정: `config/render.json` -> `fluid.water.screenBlur`
 - 수동 유체 mip 텍스처는 아직 사용하지 않는다.
 - `amount = 0` 또는 `id = 0`은 렌더링하지 않는다.
 - 윗면 amount 높이는 10단위 올림으로 `0.08`~`0.8`블록에 매핑한다.

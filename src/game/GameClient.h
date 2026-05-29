@@ -102,6 +102,7 @@ namespace dolbuto
         void toggleViewBobbingOption();
         void toggleSprintOption();
         void toggleSneakOption();
+        void toggleProneOption();
         void loadWorldState();
         void saveWorldState();
         void loadPlayerState();
@@ -152,6 +153,9 @@ namespace dolbuto
         double sprintSpeedScale_ = 1.3;
         double sneakSpeedScale_ = 0.3;
         double sneakHeightScale_ = 1.5 / 1.8;
+        double proneHeight_ = 0.6;
+        double proneEyeHeight_ = 0.5;
+        double swimSpeedScale_ = 0.55;
         double movementDoubleTapWindow_ = 0.35;
         float bodyYaw_ = 0.0f;
         float previousBodyYaw_ = 0.0f;
@@ -163,6 +167,15 @@ namespace dolbuto
         float previousSprintFovAmount_ = 0.0f;
         float eyeHeightScale_ = 1.0f;
         float previousEyeHeightScale_ = 1.0f;
+        float playerHeightScale_ = 1.0f;
+        bool proneClimbActive_ = false;
+        double proneClimbProgress_ = 0.0;
+        DVec3 proneClimbStart_{};
+        DVec3 proneClimbTarget_{};
+        bool waterClimbActive_ = false;
+        double waterClimbProgress_ = 0.0;
+        DVec3 waterClimbStart_{};
+        DVec3 waterClimbTarget_{};
         double bgmVolume_ = 1.0;
         double sfxVolume_ = 1.0;
         double fovDegrees_ = 60.0;
@@ -173,8 +186,10 @@ namespace dolbuto
         bool jumpPressed_ = false;
         bool toggleSprint_ = false;
         bool toggleSneak_ = false;
+        bool toggleProne_ = false;
         bool sprintToggled_ = false;
         bool sneakToggled_ = false;
+        bool proneToggled_ = false;
         bool doubleTapSprintActive_ = false;
         double lastForwardTapTime_ = -1000.0;
         double lastJumpTapTime_ = -1000.0;

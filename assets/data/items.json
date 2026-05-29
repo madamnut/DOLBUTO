@@ -135,6 +135,40 @@
         "useActions": []
     },
     {
+        "id": 24,
+        "key": "short_plant_twine",
+        "name": "Short Plant Twine",
+        "stackSize": 99,
+        "slotTexture": "short_plant_twine",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "short_plant_twine"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "short_plant_twine"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 25,
+        "key": "long_plant_twine",
+        "name": "Long Plant Twine",
+        "stackSize": 99,
+        "slotTexture": "long_plant_twine",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "long_plant_twine"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "long_plant_twine"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
         "id": 7,
         "key": "seed",
         "name": "Seed",

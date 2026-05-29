@@ -62,7 +62,7 @@ namespace dolbuto::ui
         void setOptionsVolumes(int bgmPercent, int sfxPercent);
         void setOptionsFov(int fovDegrees);
         void setOptionsViewBobbing(bool enabled);
-        void setOptionsControls(bool toggleSprint, bool toggleSneak);
+        void setOptionsControls(bool toggleSprint, bool toggleSneak, bool toggleProne);
         void setOptionsLobbyBackground(bool lobbyBackground);
         void setWorldCreateGameMode(bool sandbox);
         void setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst);

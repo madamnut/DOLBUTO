@@ -5,6 +5,8 @@
 #include "renderer/RendererDiagnosticsBridge.h"
 #include "renderer/RendererTerrainRuntimeBridge.h"
 #include "renderer/RendererUiRuntimeBridge.h"
+#include "world/WorldRuntime.h"
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -28,6 +30,14 @@ namespace dolbuto
     namespace
     {
         constexpr int MaxFramesInFlight = 2;
+        constexpr int FluidAmountBits = 7;
+        constexpr uint16_t FluidAmountMask = (1u << FluidAmountBits) - 1u;
+        constexpr uint16_t FluidWater = 1;
+        constexpr uint16_t FluidFullAmount = 100;
+        constexpr uint16_t FluidHeightStepAmount = 10;
+        constexpr uint16_t FluidHeightLevels = 10;
+        constexpr float FluidSurfaceMaxHeight = 0.8f;
+        constexpr float WaterSurfaceSplitMargin = 0.05f;
 
         Vec3 toVec3(DVec3 value)
         {
@@ -36,6 +46,33 @@ namespace dolbuto
                 static_cast<float>(value.y),
                 static_cast<float>(value.z)
             };
+        }
+
+        uint16_t fluidId(uint16_t fluid)
+        {
+            return static_cast<uint16_t>(fluid >> FluidAmountBits);
+        }
+
+        uint16_t fluidAmount(uint16_t fluid)
+        {
+            return static_cast<uint16_t>(fluid & FluidAmountMask);
+        }
+
+        bool isWater(uint16_t fluid)
+        {
+            return fluidId(fluid) == FluidWater && fluidAmount(fluid) != 0;
+        }
+
+        float fluidSurfaceHeight(uint16_t amount)
+        {
+            const uint16_t clampedAmount = amount > FluidFullAmount ? FluidFullAmount : amount;
+            if (clampedAmount == 0)
+            {
+                return 0.0f;
+            }
+
+            const uint16_t level = static_cast<uint16_t>((clampedAmount + FluidHeightStepAmount - 1u) / FluidHeightStepAmount);
+            return (static_cast<float>(level) / static_cast<float>(FluidHeightLevels)) * FluidSurfaceMaxHeight;
         }
 
         std::filesystem::path screenshotPath()
@@ -141,6 +178,59 @@ namespace dolbuto
         {
             return static_cast<int>(std::floor(worldCoordinate));
         }
+
+        ScreenPresentation::WaterOverlay waterOverlayForCamera(
+            const world::WorldRuntime& worldRuntime,
+            const Camera& camera,
+            Vec3 cameraPosition,
+            float fovRadians)
+        {
+            const int x = blockCoordinateXz(cameraPosition.x);
+            const int y = blockCoordinateY(cameraPosition.y);
+            const int z = blockCoordinateXz(cameraPosition.z);
+            const uint16_t cameraFluid = worldRuntime.fluidAtWorld(x, y, z);
+            if (!isWater(cameraFluid))
+            {
+                return {};
+            }
+
+            int surfaceY = y;
+            uint16_t surfaceFluid = cameraFluid;
+            while (surfaceY + 1 < world::WorldRuntime::ChunkSizeY)
+            {
+                const uint16_t aboveFluid = worldRuntime.fluidAtWorld(x, surfaceY + 1, z);
+                if (!isWater(aboveFluid))
+                {
+                    break;
+                }
+                ++surfaceY;
+                surfaceFluid = aboveFluid;
+            }
+
+            const float surfaceHeight = static_cast<float>(surfaceY) + fluidSurfaceHeight(fluidAmount(surfaceFluid));
+            if (cameraPosition.y > surfaceHeight)
+            {
+                return {};
+            }
+
+            ScreenPresentation::WaterOverlay overlay{};
+            overlay.active = true;
+            if (cameraPosition.y < surfaceHeight - WaterSurfaceSplitMargin)
+            {
+                overlay.waterLineY = -1.0f;
+                return overlay;
+            }
+
+            const Vec3 forward = camera.forward();
+            const Vec3 up = camera.up();
+            const float tanHalfFov = std::max(std::tan(fovRadians * 0.5f), 0.001f);
+            const float upY = std::max(up.y, 0.001f);
+            const float horizonLine = -forward.y / (tanHalfFov * upY);
+            const float waterLine = std::clamp(horizonLine, -1.0f, 1.0f);
+
+            overlay.waterLineY = waterLine;
+            return overlay;
+        }
     }
 
     void Renderer::drawFrame(const RendererFrame& frame)
@@ -222,13 +312,23 @@ namespace dolbuto
 
         if (frame.showPlayer)
         {
-            updatePlayerMesh(playerPositionFloat, frame.playerYaw, frame.playerHeadYaw, frame.playerHeadPitch, frame.playerWalkPhase, frame.playerWalkAmount, vulkan_.currentFrame, playerPackedLight);
+            updatePlayerMesh(playerPositionFloat, frame.playerYaw, frame.playerHeadYaw, frame.playerHeadPitch, frame.playerWalkPhase, frame.playerWalkAmount, frame.playerProne, vulkan_.currentFrame, playerPackedLight);
         }
         if (frame.showFirstPersonHand && frame.heldItemId == 0)
         {
             updateFirstPersonHandMesh(frame.camera, cameraPositionFloat, vulkan_.currentFrame, playerPackedLight);
         }
         ensureClimateOverlayTexture(frame.climateOverlayMode);
+        ScreenPresentation::WaterOverlay waterOverlay = frame.gameSceneRenderEnabled
+            ? waterOverlayForCamera(client_.worldRuntime, frame.camera, cameraPositionFloat, frame.fovRadians)
+            : ScreenPresentation::WaterOverlay{};
+        if (waterOverlay.active)
+        {
+            waterOverlay.active = client_.renderConfig.fluidWaterScreenBlurEnabled;
+            waterOverlay.blurSpread = client_.renderConfig.fluidWaterScreenBlurSpread;
+            waterOverlay.blurIntensity = client_.renderConfig.fluidWaterScreenBlurIntensity;
+            waterOverlay.tint = client_.renderConfig.fluidWaterScreenBlurTint;
+        }
 
         sectionStart = std::chrono::steady_clock::now();
         recordCommandBuffer(
@@ -239,6 +339,7 @@ namespace dolbuto
             frame.fovRadians,
             frame.skyBrightness,
             frame.cloudCoverage,
+            waterOverlay,
             playerPositionFloat,
             playerPackedLight,
             frame.fpsText,
@@ -368,7 +469,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, float cloudCoverage, Vec3 playerPosition, uint8_t playerPackedLight, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, float cloudCoverage, ScreenPresentation::WaterOverlay waterOverlay, Vec3 playerPosition, uint8_t playerPackedLight, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -474,6 +575,11 @@ namespace dolbuto
         }
         vkCmdEndRenderPass(commandBuffer);
 
+        if (gameSceneRenderEnabled && waterOverlay.active)
+        {
+            drawWaterBlurTargets(commandBuffer, imageIndex, waterOverlay);
+        }
+
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = vulkan_.renderPass;
@@ -484,7 +590,21 @@ namespace dolbuto
         renderPassInfo.pClearValues = clearValues.data();
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.pipeline);
+
+        VkViewport presentationViewport{};
+        presentationViewport.x = 0.0f;
+        presentationViewport.y = 0.0f;
+        presentationViewport.width = static_cast<float>(vulkan_.swapchainExtent.width);
+        presentationViewport.height = static_cast<float>(vulkan_.swapchainExtent.height);
+        presentationViewport.minDepth = 0.0f;
+        presentationViewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffer, 0, 1, &presentationViewport);
+
+        VkRect2D presentationScissor{};
+        presentationScissor.offset = {0, 0};
+        presentationScissor.extent = vulkan_.swapchainExtent;
+        vkCmdSetScissor(commandBuffer, 0, 1, &presentationScissor);
+
         if (gameSceneRenderEnabled)
         {
             screenPresentation_.drawSceneComposite(
@@ -493,9 +613,16 @@ namespace dolbuto
                 vulkan_.swapchainExtent,
                 rendererAssets_,
                 spriteRenderPath_,
+                vulkan_.pipeline,
                 vulkan_.pipelineLayout,
                 textRenderPath_.vertexBuffer(),
+                waterOverlay,
+                (waterOverlay.active && imageIndex < waterBlurTargetsB_.size()) ? waterBlurTargetsB_[imageIndex] : sceneColorTargets_[imageIndex],
                 climateOverlayMode);
+        }
+        else
+        {
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.pipeline);
         }
 
         if (gameSceneRenderEnabled && menuOverlayMode == 0 && hudVisible)
@@ -557,6 +684,73 @@ namespace dolbuto
         {
             throw std::runtime_error("Failed to record command buffer.");
         }
+    }
+
+    void Renderer::drawWaterBlurTargets(VkCommandBuffer commandBuffer, uint32_t imageIndex, const ScreenPresentation::WaterOverlay& waterOverlay)
+    {
+        if (imageIndex >= waterBlurTargetsA_.size() ||
+            imageIndex >= waterBlurTargetsB_.size() ||
+            imageIndex >= vulkan_.waterBlurFramebuffersA.size() ||
+            imageIndex >= vulkan_.waterBlurFramebuffersB.size())
+        {
+            return;
+        }
+
+        auto drawBlurPass = [this, commandBuffer](const Texture& source, VkFramebuffer framebuffer, const Texture& target, float offsetScale)
+        {
+            VkClearValue clearColor{};
+            clearColor.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+            VkRenderPassBeginInfo passInfo{};
+            passInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            passInfo.renderPass = vulkan_.waterBlurRenderPass;
+            passInfo.framebuffer = framebuffer;
+            passInfo.renderArea.offset = {0, 0};
+            passInfo.renderArea.extent = {static_cast<uint32_t>(target.width), static_cast<uint32_t>(target.height)};
+            passInfo.clearValueCount = 1;
+            passInfo.pClearValues = &clearColor;
+
+            vkCmdBeginRenderPass(commandBuffer, &passInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            VkViewport viewport{};
+            viewport.x = 0.0f;
+            viewport.y = 0.0f;
+            viewport.width = static_cast<float>(target.width);
+            viewport.height = static_cast<float>(target.height);
+            viewport.minDepth = 0.0f;
+            viewport.maxDepth = 1.0f;
+            vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+            VkRect2D scissor{};
+            scissor.offset = {0, 0};
+            scissor.extent = {static_cast<uint32_t>(target.width), static_cast<uint32_t>(target.height)};
+            vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+            SpriteRenderPath::Push push{};
+            push.data[2] = 1.0f;
+            push.data[3] = 1.0f;
+            push.data[4] = 0.0f;
+            push.data[5] = 1.0f;
+            push.data[6] = 1.0f;
+            push.data[7] = -1.0f;
+            push.data[8] = 1.0f / std::max(static_cast<float>(source.width), 1.0f);
+            push.data[9] = 1.0f / std::max(static_cast<float>(source.height), 1.0f);
+            push.data[10] = offsetScale;
+
+            const VkDeviceSize vertexOffset = 0;
+            VkBuffer vertexBuffer = textRenderPath_.vertexBuffer();
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.waterBlurPipeline);
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &vertexOffset);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.waterBlurPipelineLayout, 0, 1, &source.descriptorSet, 0, nullptr);
+            vkCmdPushConstants(commandBuffer, vulkan_.waterBlurPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(SpriteRenderPath::Push), &push);
+            vkCmdDraw(commandBuffer, 6, 1, 0, 0);
+
+            vkCmdEndRenderPass(commandBuffer);
+        };
+
+        const float spread = std::max(waterOverlay.blurSpread, 0.0f);
+        drawBlurPass(sceneColorTargets_[imageIndex], vulkan_.waterBlurFramebuffersA[imageIndex], waterBlurTargetsA_[imageIndex], 1.5f * spread);
+        drawBlurPass(waterBlurTargetsA_[imageIndex], vulkan_.waterBlurFramebuffersB[imageIndex], waterBlurTargetsB_[imageIndex], 2.5f * spread);
     }
 
     void Renderer::copySwapchainImageToBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VkBuffer buffer) const

@@ -61,6 +61,7 @@ namespace dolbuto::game
 
             bool playerColliderIntersectsTerrain(DVec3 playerPosition, double heightScale) const;
             bool playerColliderHasSupportBelow(DVec3 playerPosition) const;
+            bool playerColliderIntersectsWater(DVec3 playerPosition, double heightScale) const;
             void updateBlockSelection(DVec3 origin, Vec3 direction);
             void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds, bool sandboxMode);
             bool editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale);
@@ -68,7 +69,7 @@ namespace dolbuto::game
             bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
             bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction);
             gameplay::ItemInteractionMenu beginItemInteractionInView(DVec3 origin, Vec3 direction);
-            bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex);
+            bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, bool repeat);
             void cancelPendingItemInteraction();
             void tickBlockUpdates();
             void tickFluidSimulation();
@@ -95,7 +96,7 @@ namespace dolbuto::game
             void setOptionsVolumes(int bgmPercent, int sfxPercent);
             void setOptionsFov(int fovDegrees);
             void setOptionsViewBobbing(bool enabled);
-            void setOptionsControls(bool toggleSprint, bool toggleSneak);
+            void setOptionsControls(bool toggleSprint, bool toggleSneak, bool toggleProne);
             void setOptionsLobbyBackground(bool lobbyBackground);
             void setWorldCreateGameMode(bool sandbox);
             void setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst);

@@ -57,7 +57,8 @@ namespace dolbuto
             VkFormat format,
             VkImageUsageFlags usage,
             VkImageAspectFlags aspectMask,
-            VkImageLayout descriptorLayout) const;
+            VkImageLayout descriptorLayout,
+            VkSampler descriptorSampler = VK_NULL_HANDLE) const;
         void destroyTexture(Texture& texture) const;
 
         uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;

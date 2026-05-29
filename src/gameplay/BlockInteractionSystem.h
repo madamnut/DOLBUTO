@@ -52,6 +52,7 @@ namespace dolbuto::gameplay
     {
     public:
         using BlockSampler = std::function<uint16_t(int, int, int)>;
+        using FluidSampler = std::function<uint16_t(int, int, int)>;
         using BlockDefinitionProvider = std::function<const BlockDefinition&(uint16_t)>;
         using PropMeshProvider = std::function<const assets::PropMesh*(uint16_t)>;
         using TerrainCollisionPredicate = std::function<bool(int, int, int)>;
@@ -71,6 +72,11 @@ namespace dolbuto::gameplay
         static bool playerColliderHasSupportBelow(
             DVec3 playerPosition,
             const TerrainCollisionPredicate& terrainCellBlocksPlayer);
+
+        static bool playerColliderIntersectsWater(
+            DVec3 playerPosition,
+            double heightScale,
+            const FluidSampler& fluidAtWorld);
 
         static bool blockIntersectsPlayerCollider(
             int x,

@@ -36,6 +36,11 @@
                 <div class="option-toggle-label">MODE</div>
                 <div id="toggle-sneak-value" class="option-value">HOLD</div>
             </div>
+            <div id="toggle-prone" class="option-row option-toggle-row">
+                <div class="option-label">PRONE</div>
+                <div class="option-toggle-label">MODE</div>
+                <div id="toggle-prone-value" class="option-value">HOLD</div>
+            </div>
             <div id="options-back" class="button secondary">BACK</div>
         </div>
     </div>

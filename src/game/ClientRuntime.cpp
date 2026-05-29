@@ -235,6 +235,17 @@ namespace dolbuto::game
             });
     }
 
+    bool ClientRuntime::GameplayAccess::playerColliderIntersectsWater(DVec3 playerPosition, double heightScale) const
+    {
+        return owner_.state_->gameplayRuntime.playerColliderIntersectsWater(
+            playerPosition,
+            heightScale,
+            [this](int x, int y, int z)
+            {
+                return owner_.state_->worldRuntime.fluidAtWorld(x, y, z);
+            });
+    }
+
     void ClientRuntime::GameplayAccess::updateBlockSelection(DVec3 origin, Vec3 direction)
     {
         gameplay::BlockRaycastHit hit{};
@@ -295,9 +306,9 @@ namespace dolbuto::game
         return owner_.renderRuntime_->beginItemInteractionInView(origin, direction);
     }
 
-    bool ClientRuntime::GameplayAccess::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex)
+    bool ClientRuntime::GameplayAccess::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, bool repeat)
     {
-        return owner_.renderRuntime_->executePendingItemInteraction(actionIndex, candidateIndex);
+        return owner_.renderRuntime_->executePendingItemInteraction(actionIndex, candidateIndex, repeat);
     }
 
     void ClientRuntime::GameplayAccess::cancelPendingItemInteraction()
@@ -385,9 +396,9 @@ namespace dolbuto::game
         owner_.state_->ui.setOptionsViewBobbing(enabled);
     }
 
-    void ClientRuntime::UiAccess::setOptionsControls(bool toggleSprint, bool toggleSneak)
+    void ClientRuntime::UiAccess::setOptionsControls(bool toggleSprint, bool toggleSneak, bool toggleProne)
     {
-        owner_.state_->ui.setOptionsControls(toggleSprint, toggleSneak);
+        owner_.state_->ui.setOptionsControls(toggleSprint, toggleSneak, toggleProne);
     }
 
     void ClientRuntime::UiAccess::setOptionsLobbyBackground(bool lobbyBackground)

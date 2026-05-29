@@ -111,22 +111,6 @@ namespace dolbuto
             return static_cast<int>(std::floor(worldCoordinate));
         }
 
-        std::size_t visualCopyCount(uint16_t count)
-        {
-            if (count >= 49)
-            {
-                return 4;
-            }
-            if (count >= 17)
-            {
-                return 3;
-            }
-            if (count >= 2)
-            {
-                return 2;
-            }
-            return 1;
-        }
     }
 
     std::vector<DroppedItemRenderPath::RenderInstance> DroppedItemRenderCollector::collect(const Input& input)
@@ -228,7 +212,7 @@ namespace dolbuto
                     : world::packLight(world::MaxSkyLight, 0);
                 const float skyLight = static_cast<float>(world::skyLightFromPacked(packedLight)) / static_cast<float>(world::MaxSkyLight);
                 const float blockLight = static_cast<float>(world::blockLightFromPacked(packedLight)) / static_cast<float>(world::MaxSkyLight);
-                const std::size_t copies = visualCopyCount(item.droppedItem.stack.count);
+                const std::size_t copies = world::DroppedItemSystem::visualCopyCount(item.droppedItem.stack.count);
                 for (std::size_t copy = 0; copy < copies && renderInstances.size() < MaxDroppedItemRenderInstances; ++copy)
                 {
                     const Vec3& offset = visualOffsets[copy];

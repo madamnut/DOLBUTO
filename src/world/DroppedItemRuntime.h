@@ -54,6 +54,7 @@ namespace dolbuto::world
             const WorldEntityHandle& itemHandle,
             uint64_t entityId,
             const std::vector<ItemInteractionOutput>& outputs,
+            uint16_t targetCount,
             uint16_t maxApplications,
             const MarkDirtyFn& markDirty);
         void pushItemsOutOfBlock(

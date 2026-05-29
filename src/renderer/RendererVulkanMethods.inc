@@ -7,6 +7,7 @@ void createSwapchain();
 void createImageViews();
 void createRenderPass();
 void createSceneRenderPass();
+void createWaterBlurRenderPass();
 void createDepthResources();
 void createSceneTargets();
 void createDescriptorSetLayout();

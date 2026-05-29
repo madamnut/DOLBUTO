@@ -42,6 +42,7 @@ namespace dolbuto
         createImageViews();
         createRenderPass();
         createSceneRenderPass();
+        createWaterBlurRenderPass();
         createDepthResources();
         createDescriptorSetLayout();
         createTerrainVertexDescriptorSetLayout();
@@ -181,6 +182,10 @@ namespace dolbuto
         {
             vkDestroySampler(vulkan_.device, vulkan_.sampler, nullptr);
         }
+        if (vulkan_.linearSampler != VK_NULL_HANDLE)
+        {
+            vkDestroySampler(vulkan_.device, vulkan_.linearSampler, nullptr);
+        }
 
         for (size_t i = 0; i < vulkan_.imageAvailableSemaphores.size(); ++i)
         {
@@ -269,6 +274,10 @@ namespace dolbuto
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.pipeline, nullptr);
         }
+        if (vulkan_.waterBlurPipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.waterBlurPipeline, nullptr);
+        }
         if (vulkan_.uiPipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.uiPipeline, nullptr);
@@ -276,6 +285,10 @@ namespace dolbuto
         if (vulkan_.pipelineLayout != VK_NULL_HANDLE)
         {
             vkDestroyPipelineLayout(vulkan_.device, vulkan_.pipelineLayout, nullptr);
+        }
+        if (vulkan_.waterBlurPipelineLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(vulkan_.device, vulkan_.waterBlurPipelineLayout, nullptr);
         }
         if (vulkan_.uiPipelineLayout != VK_NULL_HANDLE)
         {
@@ -296,6 +309,10 @@ namespace dolbuto
         if (vulkan_.sceneRenderPass != VK_NULL_HANDLE)
         {
             vkDestroyRenderPass(vulkan_.device, vulkan_.sceneRenderPass, nullptr);
+        }
+        if (vulkan_.waterBlurRenderPass != VK_NULL_HANDLE)
+        {
+            vkDestroyRenderPass(vulkan_.device, vulkan_.waterBlurRenderPass, nullptr);
         }
         if (vulkan_.device != VK_NULL_HANDLE)
         {

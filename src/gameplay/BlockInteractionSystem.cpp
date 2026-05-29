@@ -12,7 +12,41 @@ namespace dolbuto::gameplay
 {
     namespace
     {
+        constexpr int FluidAmountBits = 7;
+        constexpr uint16_t FluidAmountMask = (1u << FluidAmountBits) - 1u;
+        constexpr uint16_t FluidWater = 1;
+        constexpr uint16_t FluidFullAmount = 100;
+        constexpr uint16_t FluidHeightStepAmount = 10;
+        constexpr uint16_t FluidHeightLevels = 10;
+        constexpr double FluidSurfaceMaxHeight = 0.8;
         constexpr float LevelMultiplierBase = 1.5f;
+
+        uint16_t fluidId(uint16_t fluid)
+        {
+            return static_cast<uint16_t>(fluid >> FluidAmountBits);
+        }
+
+        uint16_t fluidAmount(uint16_t fluid)
+        {
+            return static_cast<uint16_t>(fluid & FluidAmountMask);
+        }
+
+        bool isWater(uint16_t fluid)
+        {
+            return fluidId(fluid) == FluidWater && fluidAmount(fluid) != 0;
+        }
+
+        double fluidSurfaceHeight(uint16_t amount)
+        {
+            const uint16_t clampedAmount = std::min<uint16_t>(amount, FluidFullAmount);
+            if (clampedAmount == 0)
+            {
+                return 0.0;
+            }
+
+            const uint16_t level = static_cast<uint16_t>((clampedAmount + FluidHeightStepAmount - 1u) / FluidHeightStepAmount);
+            return (static_cast<double>(level) / static_cast<double>(FluidHeightLevels)) * FluidSurfaceMaxHeight;
+        }
 
         bool actionMatches(const BlockDefinition& definition, const BlockBreakTool& tool)
         {
@@ -289,6 +323,60 @@ namespace dolbuto::gameplay
                 if (terrainCellBlocksPlayer && terrainCellBlocksPlayer(x, y, z))
                 {
                     return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    bool BlockInteractionSystem::playerColliderIntersectsWater(
+        DVec3 playerPosition,
+        double heightScale,
+        const FluidSampler& fluidAtWorld)
+    {
+        if (!fluidAtWorld)
+        {
+            return false;
+        }
+
+        constexpr double HalfWidth = 0.3;
+        constexpr double Height = 1.75;
+        constexpr double Epsilon = 0.000001;
+        const double scaledHeight = std::max(0.1, Height * heightScale);
+
+        const double minX = playerPosition.x - HalfWidth;
+        const double maxX = playerPosition.x + HalfWidth;
+        const double minY = playerPosition.y;
+        const double maxY = playerPosition.y + scaledHeight;
+        const double minZ = playerPosition.z - HalfWidth;
+        const double maxZ = playerPosition.z + HalfWidth;
+
+        const int blockMinX = blockCoordinateXz(minX);
+        const int blockMaxX = blockCoordinateXz(maxX - Epsilon);
+        const int blockMinY = blockCoordinateY(minY);
+        const int blockMaxY = blockCoordinateY(maxY - Epsilon);
+        const int blockMinZ = blockCoordinateXz(minZ);
+        const int blockMaxZ = blockCoordinateXz(maxZ - Epsilon);
+
+        for (int y = blockMinY; y <= blockMaxY; ++y)
+        {
+            for (int z = blockMinZ; z <= blockMaxZ; ++z)
+            {
+                for (int x = blockMinX; x <= blockMaxX; ++x)
+                {
+                    const uint16_t fluid = fluidAtWorld(x, y, z);
+                    if (!isWater(fluid))
+                    {
+                        continue;
+                    }
+
+                    const bool hasWaterAbove = isWater(fluidAtWorld(x, y + 1, z));
+                    const double waterTop = static_cast<double>(y) + (hasWaterAbove ? 1.0 : fluidSurfaceHeight(fluidAmount(fluid)));
+                    if (maxY > static_cast<double>(y) + Epsilon && minY < waterTop - Epsilon)
+                    {
+                        return true;
+                    }
                 }
             }
         }

@@ -51,6 +51,14 @@ namespace dolbuto::gameplay
         return BlockInteractionSystem::playerColliderHasSupportBelow(playerPosition, terrainCellBlocksPlayer);
     }
 
+    bool ClientGameplayRuntime::playerColliderIntersectsWater(
+        DVec3 playerPosition,
+        double heightScale,
+        const FluidSampler& fluidAtWorld) const
+    {
+        return BlockInteractionSystem::playerColliderIntersectsWater(playerPosition, heightScale, fluidAtWorld);
+    }
+
     BlockEditResult ClientGameplayRuntime::editBlockInView(
         DVec3 origin,
         Vec3 direction,
@@ -359,20 +367,20 @@ namespace dolbuto::gameplay
             return {};
         }
 
-        if (heldStack.itemId == 0 ||
-            heldStack.count == 0 ||
-            static_cast<std::size_t>(heldStack.itemId) >= definitions.size())
+        std::vector<std::string> availableActions{"handcraft"};
+        if (heldStack.itemId != 0 &&
+            heldStack.count != 0 &&
+            static_cast<std::size_t>(heldStack.itemId) < definitions.size())
         {
-            return menu;
+            for (const std::string& action : definitions[heldStack.itemId].useActions)
+            {
+                if (std::find(availableActions.begin(), availableActions.end(), action) == availableActions.end())
+                {
+                    availableActions.push_back(action);
+                }
+            }
         }
-
-        const ItemDefinition& heldDefinition = definitions[heldStack.itemId];
-        if (heldDefinition.useActions.empty())
-        {
-            return menu;
-        }
-
-        for (const std::string& action : heldDefinition.useActions)
+        for (const std::string& action : availableActions)
         {
             for (const ItemInteractionRecipe& recipe : recipes)
             {
@@ -383,9 +391,16 @@ namespace dolbuto::gameplay
                     continue;
                 }
 
+                std::vector<ItemInteractionCandidate> candidates = recipe.candidates;
+                const bool hasEnoughTargetItems = target.stack.count >= recipe.targetCount;
+                for (ItemInteractionCandidate& candidate : candidates)
+                {
+                    candidate.enabled = hasEnoughTargetItems;
+                }
                 menu.actions.push_back(ItemInteractionActionMenu{
                     action,
-                    recipe.candidates
+                    recipe.targetCount,
+                    std::move(candidates)
                 });
                 break;
             }
@@ -405,7 +420,7 @@ namespace dolbuto::gameplay
         return menu;
     }
 
-    bool ClientGameplayRuntime::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, const MarkDirtyFn& markDirty)
+    bool ClientGameplayRuntime::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, bool repeat, const MarkDirtyFn& markDirty)
     {
         if (!pendingItemInteraction_.active ||
             actionIndex >= pendingItemInteraction_.actions.size() ||
@@ -416,6 +431,12 @@ namespace dolbuto::gameplay
         }
 
         const ItemInteractionCandidate candidate = pendingItemInteraction_.actions[actionIndex].candidates[candidateIndex];
+        const uint16_t targetCount = pendingItemInteraction_.actions[actionIndex].targetCount;
+        if (candidate.outputs.empty())
+        {
+            pendingItemInteraction_ = {};
+            return false;
+        }
         const std::size_t heldSlotIndex = pendingItemInteraction_.heldSlotIndex;
         const WorldEntityHandle targetHandle = pendingItemInteraction_.targetHandle;
         const uint64_t targetEntityId = pendingItemInteraction_.targetEntityId;
@@ -423,22 +444,31 @@ namespace dolbuto::gameplay
         const std::vector<ItemDefinition>& definitions = itemDefinitions();
         uint16_t maxApplications = 1;
         bool consumesDurability = false;
-        if (heldStack.itemId != 0 && static_cast<std::size_t>(heldStack.itemId) < definitions.size())
+        if (repeat)
         {
-            const uint16_t maxDurability = definitions[heldStack.itemId].maxDurability;
-            if (maxDurability > 0)
+            maxApplications = UINT16_MAX;
+            if (heldStack.itemId != 0 && static_cast<std::size_t>(heldStack.itemId) < definitions.size())
             {
-                consumesDurability = true;
-                maxApplications = heldStack.durability == 0
-                    ? maxDurability
-                    : std::min(heldStack.durability, maxDurability);
+                const uint16_t maxDurability = definitions[heldStack.itemId].maxDurability;
+                if (maxDurability > 0)
+                {
+                    consumesDurability = true;
+                    maxApplications = heldStack.durability == 0
+                        ? maxDurability
+                        : std::min(heldStack.durability, maxDurability);
+                }
             }
+        }
+        else if (heldStack.itemId != 0 && static_cast<std::size_t>(heldStack.itemId) < definitions.size())
+        {
+            consumesDurability = definitions[heldStack.itemId].maxDurability > 0;
         }
         pendingItemInteraction_ = {};
         const uint16_t applicationCount = droppedItemRuntime_.replaceTargetItems(
             targetHandle,
             targetEntityId,
             candidate.outputs,
+            targetCount,
             maxApplications,
             markDirty);
         if (applicationCount == 0)

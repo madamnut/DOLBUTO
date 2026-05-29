@@ -61,6 +61,10 @@ namespace dolbuto
         constexpr float DefaultPrecipitationNoiseGain = 0.5f;
         constexpr float DefaultPrecipitationNoiseSimplexScale = 1.0f;
         constexpr float DefaultFluidWaterAlpha = 0.8f;
+        constexpr bool DefaultFluidWaterScreenBlurEnabled = true;
+        constexpr float DefaultFluidWaterScreenBlurSpread = 1.0f;
+        constexpr float DefaultFluidWaterScreenBlurIntensity = 0.75f;
+        constexpr float DefaultFluidWaterScreenBlurTint = 0.025f;
         constexpr uint32_t SplineLutVersion = 1;
         constexpr uint32_t SplineLutCount = 1024;
         constexpr float SplineLutInputMin = -2.0f;
@@ -185,9 +189,17 @@ namespace dolbuto
     {
         config::RenderConfig defaults{};
         defaults.fluidWaterAlpha = DefaultFluidWaterAlpha;
+        defaults.fluidWaterScreenBlurEnabled = DefaultFluidWaterScreenBlurEnabled;
+        defaults.fluidWaterScreenBlurSpread = DefaultFluidWaterScreenBlurSpread;
+        defaults.fluidWaterScreenBlurIntensity = DefaultFluidWaterScreenBlurIntensity;
+        defaults.fluidWaterScreenBlurTint = DefaultFluidWaterScreenBlurTint;
 
         const config::RenderConfig renderConfig = config::loadRenderConfig(configDirectory / "render.json", defaults);
         client_.renderConfig.fluidWaterAlpha = renderConfig.fluidWaterAlpha;
+        client_.renderConfig.fluidWaterScreenBlurEnabled = renderConfig.fluidWaterScreenBlurEnabled;
+        client_.renderConfig.fluidWaterScreenBlurSpread = renderConfig.fluidWaterScreenBlurSpread;
+        client_.renderConfig.fluidWaterScreenBlurIntensity = renderConfig.fluidWaterScreenBlurIntensity;
+        client_.renderConfig.fluidWaterScreenBlurTint = renderConfig.fluidWaterScreenBlurTint;
     }
 
     void RendererConfigBridge::loadViewmodelConfig(const std::filesystem::path& configDirectory)

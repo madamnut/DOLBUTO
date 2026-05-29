@@ -18,6 +18,8 @@ namespace dolbuto
         constexpr float WalkElbowBendLimit = 0.35f;
         constexpr float WalkLegSwing = 0.65f;
         constexpr float WalkKneeBendLimit = 0.55f;
+        constexpr float PlayerStandingHeight = 1.75f;
+        constexpr float PlayerProneColliderHeight = 0.6f;
         constexpr uint32_t PlayerTransformFrameCount = 2;
 
         struct PlayerAnimationPose
@@ -449,6 +451,7 @@ namespace dolbuto
         float playerHeadPitch,
         float playerWalkPhase,
         float playerWalkAmount,
+        bool playerProne,
         uint32_t frameIndex,
         uint8_t packedLight)
     {
@@ -467,17 +470,26 @@ namespace dolbuto
 
         const Vec3 forward{std::cos(playerYaw), 0.0f, std::sin(playerYaw)};
         const Vec3 right{std::sin(playerYaw), 0.0f, -std::cos(playerYaw)};
+        Vec3 modelOrigin = playerPosition;
+        std::array<float, 16> postureTransform = identityMatrix();
+        if (playerProne)
+        {
+            modelOrigin.x -= forward.x * (PlayerStandingHeight * 0.5f);
+            modelOrigin.y += PlayerProneColliderHeight * 0.5f;
+            modelOrigin.z -= forward.z * (PlayerStandingHeight * 0.5f);
+            postureTransform = rotationX(-1.5707963268f);
+        }
         const std::array<float, 16> worldBasis = basisMatrix(
             {right.x * PlayerModelScale, right.y * PlayerModelScale, right.z * PlayerModelScale},
             {0.0f, PlayerModelScale, 0.0f},
             {-forward.x * PlayerModelScale, -forward.y * PlayerModelScale, -forward.z * PlayerModelScale},
-            playerPosition);
+            modelOrigin);
 
         std::vector<std::array<float, 16>> transforms;
         transforms.reserve(worldTransforms.size());
         for (const std::array<float, 16>& nodeTransform : worldTransforms)
         {
-            transforms.push_back(multiplyMatrix(worldBasis, nodeTransform));
+            transforms.push_back(multiplyMatrix(worldBasis, multiplyMatrix(postureTransform, nodeTransform)));
         }
         updateTransformFrame(transformFrames_, transforms, frameIndex);
     }

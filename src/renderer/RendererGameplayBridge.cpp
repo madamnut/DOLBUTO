@@ -144,11 +144,12 @@ namespace dolbuto
             client_.content.itemInteractionRecipes());
     }
 
-    bool RendererGameplayBridge::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex)
+    bool RendererGameplayBridge::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, bool repeat)
     {
         const bool executed = client_.gameplayRuntime.executePendingItemInteraction(
             actionIndex,
             candidateIndex,
+            repeat,
             [this](RuntimeChunk& chunk)
             {
                 if (hooks_.markRuntimeChunkDataDirty)

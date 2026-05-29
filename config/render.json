@@ -1,7 +1,13 @@
 {
   "fluid": {
     "water": {
-      "alpha": 0.8
+      "alpha": 0.8,
+      "screenBlur": {
+        "enabled": true,
+        "spread": 1.0,
+        "intensity": 0.75,
+        "tint": 0.5
+      }
     }
   }
 }

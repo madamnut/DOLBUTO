@@ -43,7 +43,7 @@ namespace dolbuto
             bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
             bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction);
             gameplay::ItemInteractionMenu beginItemInteractionInView(DVec3 origin, Vec3 direction);
-            bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex);
+            bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, bool repeat);
             void cancelPendingItemInteraction();
             void tickBlockUpdates();
             void tickFluidSimulation();

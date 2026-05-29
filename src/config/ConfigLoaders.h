@@ -56,6 +56,10 @@ namespace dolbuto::config
     struct RenderConfig
     {
         float fluidWaterAlpha = 0.8f;
+        bool fluidWaterScreenBlurEnabled = true;
+        float fluidWaterScreenBlurSpread = 1.0f;
+        float fluidWaterScreenBlurIntensity = 0.75f;
+        float fluidWaterScreenBlurTint = 0.025f;
     };
 
     WorldConfig loadWorldConfig(const std::filesystem::path& path, const WorldConfig& defaults, int maxSeaLevel);

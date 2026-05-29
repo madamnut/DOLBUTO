@@ -14,6 +14,15 @@ namespace dolbuto
     class ScreenPresentation
     {
     public:
+        struct WaterOverlay
+        {
+            bool active = false;
+            float waterLineY = -1.0f;
+            float blurSpread = 1.0f;
+            float blurIntensity = 0.75f;
+            float tint = 0.025f;
+        };
+
         void drawSkySprites(
             VkCommandBuffer commandBuffer,
             const Camera& camera,
@@ -31,8 +40,11 @@ namespace dolbuto
             VkExtent2D extent,
             const RendererAssetStore& assets,
             const SpriteRenderPath& sprites,
-            VkPipelineLayout pipelineLayout,
+            VkPipeline spritePipeline,
+            VkPipelineLayout spritePipelineLayout,
             VkBuffer spriteVertexBuffer,
+            WaterOverlay waterOverlay,
+            const Texture& waterBlurTexture,
             int climateOverlayMode) const;
 
         void drawCrosshair(

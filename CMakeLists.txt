@@ -126,6 +126,7 @@ set(SHADER_SOURCES
     shaders/cloud.frag
     shaders/sprite.vert
     shaders/sprite.frag
+    shaders/kawase_blur.frag
     shaders/rmlui.vert
     shaders/rmlui.frag
     shaders/terrain.vert

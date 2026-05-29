@@ -30,6 +30,7 @@ namespace dolbuto
         VkImageView depthImageView = VK_NULL_HANDLE;
         VkRenderPass renderPass = VK_NULL_HANDLE;
         VkRenderPass sceneRenderPass = VK_NULL_HANDLE;
+        VkRenderPass waterBlurRenderPass = VK_NULL_HANDLE;
 
         VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorSetLayout terrainVertexDescriptorSetLayout = VK_NULL_HANDLE;
@@ -39,6 +40,8 @@ namespace dolbuto
         VkPipeline cloudPipeline = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
         VkPipeline pipeline = VK_NULL_HANDLE;
+        VkPipelineLayout waterBlurPipelineLayout = VK_NULL_HANDLE;
+        VkPipeline waterBlurPipeline = VK_NULL_HANDLE;
         VkPipelineLayout uiPipelineLayout = VK_NULL_HANDLE;
         VkPipeline uiPipeline = VK_NULL_HANDLE;
         VkPipelineLayout terrainPipelineLayout = VK_NULL_HANDLE;
@@ -64,6 +67,7 @@ namespace dolbuto
         double lastGpuFrameMs = 0.0;
 
         VkSampler sampler = VK_NULL_HANDLE;
+        VkSampler linearSampler = VK_NULL_HANDLE;
         VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
         VkBuffer uiVertexBuffer = VK_NULL_HANDLE;
         VkDeviceMemory uiVertexMemory = VK_NULL_HANDLE;
@@ -78,6 +82,8 @@ namespace dolbuto
         size_t rmlUiVertexOffset = 0;
         size_t rmlUiIndexOffset = 0;
         std::vector<VkFramebuffer> sceneFramebuffers;
+        std::vector<VkFramebuffer> waterBlurFramebuffersA;
+        std::vector<VkFramebuffer> waterBlurFramebuffersB;
 
         std::vector<VkSemaphore> imageAvailableSemaphores;
         std::vector<VkSemaphore> renderFinishedSemaphores;

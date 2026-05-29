@@ -53,6 +53,9 @@ namespace dolbuto
         constexpr double DefaultSprintSpeedScale = 1.3;
         constexpr double DefaultSneakSpeedScale = 0.3;
         constexpr double DefaultSneakHeightScale = 1.5 / 1.8;
+        constexpr double DefaultProneHeight = 0.6;
+        constexpr double DefaultProneEyeHeight = 0.5;
+        constexpr double DefaultSwimSpeedScale = 0.55;
         constexpr double DefaultMovementDoubleTapWindow = 0.35;
         constexpr double DefaultFovDegrees = 60.0;
         constexpr double MinFovDegrees = 30.0;
@@ -693,6 +696,10 @@ namespace dolbuto
                     {
                         toggleSneakOption();
                     }
+                    else if (*action == "toggle-prone")
+                    {
+                        toggleProneOption();
+                    }
                     else if (*action == "toggle-view-bobbing")
                     {
                         toggleViewBobbingOption();
@@ -876,12 +883,20 @@ namespace dolbuto
             if (radialSelectedActionIndex_.has_value() && *radialSelectedActionIndex_ < radialActions_.size())
             {
                 radialMenuRenderFrame.selectedActionIndex = static_cast<uint32_t>(*radialSelectedActionIndex_);
-                radialMenuRenderFrame.candidateCount = static_cast<uint32_t>(radialActions_[*radialSelectedActionIndex_].candidates.size());
+                const std::vector<ItemInteractionCandidate>& candidates = radialActions_[*radialSelectedActionIndex_].candidates;
+                radialMenuRenderFrame.candidateCount = static_cast<uint32_t>(candidates.size());
+                radialMenuRenderFrame.candidateEnabled.reserve(candidates.size());
+                for (const ItemInteractionCandidate& candidate : candidates)
+                {
+                    radialMenuRenderFrame.candidateEnabled.push_back(static_cast<uint8_t>(candidate.enabled ? 1u : 0u));
+                }
             }
             if (radialSelectedCandidateIndex_.has_value())
             {
                 radialMenuRenderFrame.selectedCandidateIndex = static_cast<uint32_t>(*radialSelectedCandidateIndex_);
             }
+            const bool playerProne = moveMode_ == MoveMode::Ground &&
+                static_cast<double>(playerHeightScale_) <= proneHeight_ / 1.75 + 0.001;
             sectionPerfStart = std::chrono::steady_clock::now();
             runtime_->render().frame(game::ClientFrame{
                 renderCamera,
@@ -900,6 +915,7 @@ namespace dolbuto
                 playerHeadPitch,
                 renderWalkPhase,
                 renderWalkAmount,
+                playerProne,
                 showFirstPersonHand,
                 heldItemId,
                 terrainWireframe_,
@@ -998,6 +1014,14 @@ namespace dolbuto
                             app->moveMode_ = MoveMode::Fly;
                             app->verticalVelocity_ = 0.0;
                             app->grounded_ = false;
+                            app->sprintToggled_ = false;
+                            app->sneakToggled_ = false;
+                            app->proneToggled_ = false;
+                            app->playerHeightScale_ = 1.0f;
+                            app->proneClimbActive_ = false;
+                            app->proneClimbProgress_ = 0.0;
+                            app->waterClimbActive_ = false;
+                            app->waterClimbProgress_ = 0.0;
                         }
                         else
                         {
@@ -1063,6 +1087,12 @@ namespace dolbuto
                 app->toggleSneak_ && app->moveMode_ == MoveMode::Ground)
             {
                 app->sneakToggled_ = !app->sneakToggled_;
+            }
+            else if (key == GLFW_KEY_Z &&
+                app != nullptr && app->screen_ == GameClient::AppScreen::Game && action == GLFW_PRESS &&
+                app->toggleProne_ && app->moveMode_ == MoveMode::Ground)
+            {
+                app->proneToggled_ = !app->proneToggled_;
             }
 
             if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
@@ -1390,10 +1420,6 @@ namespace dolbuto
         radialActions_ = menu.actions;
         radialSelectedActionIndex_.reset();
         radialSelectedCandidateIndex_.reset();
-        if (radialActions_.size() == 1)
-        {
-            radialSelectedActionIndex_ = 0;
-        }
         radialCenterX_ = static_cast<double>(width) * 0.5;
         radialCenterY_ = static_cast<double>(height) * 0.5;
         breakHeld_ = false;
@@ -1498,7 +1524,10 @@ namespace dolbuto
         {
             if (execute && radialSelectedActionIndex_.has_value() && radialSelectedCandidateIndex_.has_value())
             {
-                runtime_->gameplay().executePendingItemInteraction(*radialSelectedActionIndex_, *radialSelectedCandidateIndex_);
+                const bool repeat = window_ != nullptr &&
+                    (glfwGetKey(window_, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+                        glfwGetKey(window_, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
+                runtime_->gameplay().executePendingItemInteraction(*radialSelectedActionIndex_, *radialSelectedCandidateIndex_, repeat);
             }
             else
             {
@@ -1633,6 +1662,10 @@ namespace dolbuto
                     grounded_ = false;
                     jumpHeld_ = false;
                     jumpPressed_ = false;
+                    proneClimbActive_ = false;
+                    proneClimbProgress_ = 0.0;
+                    waterClimbActive_ = false;
+                    waterClimbProgress_ = 0.0;
                     physicsAccumulator_ = 0.0;
                 }
                 if (commandResult.worldTicks)
@@ -1862,6 +1895,15 @@ namespace dolbuto
         previousSprintFovAmount_ = 0.0f;
         eyeHeightScale_ = 1.0f;
         previousEyeHeightScale_ = 1.0f;
+        playerHeightScale_ = 1.0f;
+        proneClimbActive_ = false;
+        proneClimbProgress_ = 0.0;
+        proneClimbStart_ = {};
+        proneClimbTarget_ = {};
+        waterClimbActive_ = false;
+        waterClimbProgress_ = 0.0;
+        waterClimbStart_ = {};
+        waterClimbTarget_ = {};
         moveMode_ = MoveMode::Ground;
         verticalVelocity_ = 0.0;
         grounded_ = false;
@@ -1869,6 +1911,7 @@ namespace dolbuto
         jumpPressed_ = false;
         sprintToggled_ = false;
         sneakToggled_ = false;
+        proneToggled_ = false;
         doubleTapSprintActive_ = false;
         lastForwardTapTime_ = -1000.0;
         lastJumpTapTime_ = -1000.0;
@@ -2134,6 +2177,9 @@ namespace dolbuto
         sprintSpeedScale_ = DefaultSprintSpeedScale;
         sneakSpeedScale_ = DefaultSneakSpeedScale;
         sneakHeightScale_ = DefaultSneakHeightScale;
+        proneHeight_ = DefaultProneHeight;
+        proneEyeHeight_ = DefaultProneEyeHeight;
+        swimSpeedScale_ = DefaultSwimSpeedScale;
         movementDoubleTapWindow_ = DefaultMovementDoubleTapWindow;
 
         const std::filesystem::path path = configDirectory() / "world.json";
@@ -2176,6 +2222,10 @@ namespace dolbuto
         {
             sneakHeightScale_ = std::clamp(*value, 0.1, 1.0);
         }
+        if (const std::optional<double> value = jsonDoubleField(player, "swimSpeedScale"); value.has_value() && *value > 0.0)
+        {
+            swimSpeedScale_ = std::clamp(*value, 0.1, 2.0);
+        }
         if (const std::optional<double> value = jsonDoubleField(player, "movementDoubleTapWindow"); value.has_value() && *value > 0.0)
         {
             movementDoubleTapWindow_ = *value;
@@ -2190,6 +2240,7 @@ namespace dolbuto
         viewBobbing_ = true;
         toggleSprint_ = false;
         toggleSneak_ = false;
+        toggleProne_ = false;
 
         const std::filesystem::path path = configDirectory() / "settings.json";
         std::ifstream file(path);
@@ -2229,6 +2280,10 @@ namespace dolbuto
         {
             toggleSneak_ = *value;
         }
+        if (const std::optional<bool> value = jsonBoolField(controls, "toggleProne"); value.has_value())
+        {
+            toggleProne_ = *value;
+        }
     }
 
     void GameClient::saveSettings() const
@@ -2254,7 +2309,8 @@ namespace dolbuto
             file << "  },\n";
             file << "  \"controls\": {\n";
             file << "    \"toggleSprint\": " << (toggleSprint_ ? "true" : "false") << ",\n";
-            file << "    \"toggleSneak\": " << (toggleSneak_ ? "true" : "false") << "\n";
+            file << "    \"toggleSneak\": " << (toggleSneak_ ? "true" : "false") << ",\n";
+            file << "    \"toggleProne\": " << (toggleProne_ ? "true" : "false") << "\n";
             file << "  }\n";
             file << "}\n";
         }
@@ -2279,7 +2335,7 @@ namespace dolbuto
             runtime_->ui().setOptionsVolumes(volumePercent(bgmVolume_), volumePercent(sfxVolume_));
             runtime_->ui().setOptionsFov(roundedFovDegrees(fovDegrees_));
             runtime_->ui().setOptionsViewBobbing(viewBobbing_);
-            runtime_->ui().setOptionsControls(toggleSprint_, toggleSneak_);
+            runtime_->ui().setOptionsControls(toggleSprint_, toggleSneak_, toggleProne_);
         }
     }
 
@@ -2326,6 +2382,14 @@ namespace dolbuto
     {
         toggleSneak_ = !toggleSneak_;
         sneakToggled_ = false;
+        updateOptionsUi();
+        saveSettings();
+    }
+
+    void GameClient::toggleProneOption()
+    {
+        toggleProne_ = !toggleProne_;
+        proneToggled_ = false;
         updateOptionsUi();
         saveSettings();
     }
@@ -2498,6 +2562,15 @@ namespace dolbuto
             previousSprintFovAmount_ = 0.0f;
             eyeHeightScale_ = 1.0f;
             previousEyeHeightScale_ = 1.0f;
+            playerHeightScale_ = 1.0f;
+            proneClimbActive_ = false;
+            proneClimbProgress_ = 0.0;
+            proneClimbStart_ = {};
+            proneClimbTarget_ = {};
+            waterClimbActive_ = false;
+            waterClimbProgress_ = 0.0;
+            waterClimbStart_ = {};
+            waterClimbTarget_ = {};
             gameMode_ = gameMode == 0u ? game::GameMode::Survival : game::GameMode::Sandbox;
             moveMode_ = moveMode == 0u ? MoveMode::Fly : MoveMode::Ground;
             if (gameMode_ == game::GameMode::Survival && moveMode_ == MoveMode::Fly)
@@ -2600,10 +2673,7 @@ namespace dolbuto
 
     double GameClient::currentPlayerHeightScale() const
     {
-        const bool shiftHeld = window_ != nullptr &&
-            (glfwGetKey(window_, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
-        const bool holdSneakActive = !toggleSneak_ && screen_ == AppScreen::Game && !chatOpen_ && shiftHeld;
-        return moveMode_ == MoveMode::Ground && (sneakToggled_ || holdSneakActive) ? sneakHeightScale_ : 1.0;
+        return static_cast<double>(playerHeightScale_);
     }
 
     double GameClient::currentEyeHeight() const
@@ -2639,12 +2709,15 @@ namespace dolbuto
                 allowInput && glfwGetKey(window_, GLFW_KEY_A) == GLFW_PRESS,
                 allowInput && (glfwGetKey(window_, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS),
                 allowInput && (glfwGetKey(window_, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window_, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS),
+                allowInput && glfwGetKey(window_, GLFW_KEY_Z) == GLFW_PRESS,
                 jumpHeld_,
                 jumpPressed_,
                 toggleSprint_,
                 toggleSneak_,
+                toggleProne_,
                 sprintToggled_,
                 sneakToggled_,
+                proneToggled_,
                 doubleTapSprintActive_,
                 camera_.yaw()
             },
@@ -2657,7 +2730,16 @@ namespace dolbuto
                 playerWalkPhase_,
                 playerWalkAmount_,
                 sprintFovAmount_,
-                eyeHeightScale_
+                eyeHeightScale_,
+                playerHeightScale_,
+                proneClimbActive_,
+                proneClimbProgress_,
+                proneClimbStart_,
+                proneClimbTarget_,
+                waterClimbActive_,
+                waterClimbProgress_,
+                waterClimbStart_,
+                waterClimbTarget_
             },
             game::PlayerMovementConfig{
                 flyMoveSpeed_,
@@ -2666,7 +2748,10 @@ namespace dolbuto
                 gravity_,
                 sprintSpeedScale_,
                 sneakSpeedScale_,
-                sneakHeightScale_
+                sneakHeightScale_,
+                proneHeight_,
+                proneEyeHeight_,
+                swimSpeedScale_
             },
             game::PlayerMovementCollision{
                 [this](DVec3 position, double heightScale)
@@ -2676,6 +2761,10 @@ namespace dolbuto
                 [this](DVec3 position)
                 {
                     return runtime_ == nullptr || runtime_->gameplay().playerColliderHasSupportBelow(position);
+                },
+                [this](DVec3 position, double heightScale)
+                {
+                    return runtime_ != nullptr && runtime_->gameplay().playerColliderIntersectsWater(position, heightScale);
                 }
             },
             fixedDeltaSeconds);
@@ -2683,6 +2772,8 @@ namespace dolbuto
         jumpHeld_ = result.input.jumpHeld;
         jumpPressed_ = result.input.jumpPressed;
         doubleTapSprintActive_ = result.input.doubleTapSprintActive;
+        proneToggled_ = result.input.proneToggled;
+        sneakToggled_ = result.input.sneakToggled;
         playerPosition_ = result.state.position;
         moveMode_ = result.state.moveMode;
         verticalVelocity_ = result.state.verticalVelocity;
@@ -2692,6 +2783,15 @@ namespace dolbuto
         playerWalkAmount_ = result.state.walkAmount;
         sprintFovAmount_ = result.state.sprintFovAmount;
         eyeHeightScale_ = result.state.eyeHeightScale;
+        playerHeightScale_ = result.state.playerHeightScale;
+        proneClimbActive_ = result.state.proneClimbActive;
+        proneClimbProgress_ = result.state.proneClimbProgress;
+        proneClimbStart_ = result.state.proneClimbStart;
+        proneClimbTarget_ = result.state.proneClimbTarget;
+        waterClimbActive_ = result.state.waterClimbActive;
+        waterClimbProgress_ = result.state.waterClimbProgress;
+        waterClimbStart_ = result.state.waterClimbStart;
+        waterClimbTarget_ = result.state.waterClimbTarget;
 
         if (previousMoveMode == MoveMode::Fly && moveMode_ == MoveMode::Ground)
         {

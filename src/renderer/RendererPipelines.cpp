@@ -305,6 +305,7 @@ namespace dolbuto
         const std::filesystem::path shaderDir = shaderDirectory();
         VkShaderModule vertShader = createShaderModule((shaderDir / "sprite.vert.spv").string());
         VkShaderModule fragShader = createShaderModule((shaderDir / "sprite.frag.spv").string());
+        VkShaderModule waterBlurFragShader = createShaderModule((shaderDir / "kawase_blur.frag.spv").string());
 
         VkPipelineShaderStageCreateInfo vertStage{};
         vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -432,6 +433,21 @@ namespace dolbuto
             throw std::runtime_error("Failed to create graphics pipeline.");
         }
 
+        if (vkCreatePipelineLayout(vulkan_.device, &layoutInfo, nullptr, &vulkan_.waterBlurPipelineLayout) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create water blur pipeline layout.");
+        }
+
+        stages[1].module = waterBlurFragShader;
+        colorBlend.blendEnable = VK_FALSE;
+        pipelineInfo.layout = vulkan_.waterBlurPipelineLayout;
+        pipelineInfo.renderPass = vulkan_.waterBlurRenderPass;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.waterBlurPipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create water blur pipeline.");
+        }
+
+        vkDestroyShaderModule(vulkan_.device, waterBlurFragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, fragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, vertShader, nullptr);
     }
@@ -1148,6 +1164,18 @@ namespace dolbuto
         if (vkCreateSampler(vulkan_.device, &createInfo, nullptr, &vulkan_.sampler) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create texture sampler.");
+        }
+
+        createInfo.magFilter = VK_FILTER_LINEAR;
+        createInfo.minFilter = VK_FILTER_LINEAR;
+        createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        createInfo.maxLod = 0.0f;
+
+        if (vkCreateSampler(vulkan_.device, &createInfo, nullptr, &vulkan_.linearSampler) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create linear texture sampler.");
         }
     }
 

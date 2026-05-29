@@ -113,9 +113,9 @@ namespace dolbuto
         }
     }
 
-    void Renderer::updatePlayerMesh(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount, uint32_t frameIndex, uint8_t packedLight)
+    void Renderer::updatePlayerMesh(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount, bool playerProne, uint32_t frameIndex, uint8_t packedLight)
     {
-        playerMeshRenderPath_.update(playerPosition, playerYaw, playerHeadYaw, playerHeadPitch, playerWalkPhase, playerWalkAmount, frameIndex, packedLight);
+        playerMeshRenderPath_.update(playerPosition, playerYaw, playerHeadYaw, playerHeadPitch, playerWalkPhase, playerWalkAmount, playerProne, frameIndex, packedLight);
     }
 
     void Renderer::updateFirstPersonHandMesh(const Camera& camera, Vec3 cameraPosition, uint32_t frameIndex, uint8_t packedLight)

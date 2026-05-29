@@ -499,20 +499,38 @@ namespace dolbuto::world
         return count;
     }
 
+    size_t DroppedItemSystem::visualCopyCount(uint16_t count)
+    {
+        if (count >= 49)
+        {
+            return 4;
+        }
+        if (count >= 17)
+        {
+            return 3;
+        }
+        if (count >= 2)
+        {
+            return 2;
+        }
+        return 1;
+    }
+
     DroppedItemSystem::Bounds DroppedItemSystem::boundsForStack(const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions)
     {
+        const float stackHeightMultiplier = static_cast<float>(visualCopyCount(stack.count));
         if (stack.itemId != 0 &&
             static_cast<size_t>(stack.itemId) < itemDefinitions.size() &&
             itemDefinitions[stack.itemId].droppedRender == ItemRenderType::BlockModel)
         {
             return DroppedItemSystem::Bounds{
                 BlockModelDroppedItemSize * 0.5f,
-                BlockModelDroppedItemSize
+                BlockModelDroppedItemSize * stackHeightMultiplier
             };
         }
         return DroppedItemSystem::Bounds{
             DroppedItemSize * 0.5f,
-            DroppedItemThickness
+            DroppedItemThickness * stackHeightMultiplier
         };
     }
 

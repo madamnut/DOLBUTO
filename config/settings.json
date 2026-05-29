@@ -9,6 +9,7 @@
   },
   "controls": {
     "toggleSprint": false,
-    "toggleSneak": false
+    "toggleSneak": false,
+    "toggleProne": false
   }
 }

@@ -124,6 +124,7 @@ namespace dolbuto::world
         void markMeshed(uint64_t key);
 
         uint16_t blockAtWorld(int x, int y, int z) const;
+        uint16_t fluidAtWorld(int x, int y, int z) const;
         uint8_t lightAtWorld(int x, int y, int z) const;
         bool terrainCellBlocksPlayer(int x, int y, int z, const BlockDefinitionProvider& blockDefinition) const;
         bool setBlockAtWorld(int x, int y, int z, uint16_t block);
@@ -136,7 +137,6 @@ namespace dolbuto::world
         std::vector<EditedSubchunk> resolveEditedSkyLightAtWorld(int x, int y, int z);
 
     private:
-        uint16_t fluidAtWorld(int x, int y, int z) const;
         bool cellCanContainFluid(int x, int y, int z) const;
         bool setFluidAtWorld(int x, int y, int z, uint16_t fluid, FluidTickResult& result);
         void addChangedFluidCell(int x, int y, int z, FluidTickResult& result) const;

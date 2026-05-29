@@ -77,6 +77,10 @@ namespace dolbuto::game
     struct ClientRenderConfigState
     {
         float fluidWaterAlpha = 0.8f;
+        bool fluidWaterScreenBlurEnabled = true;
+        float fluidWaterScreenBlurSpread = 1.0f;
+        float fluidWaterScreenBlurIntensity = 0.75f;
+        float fluidWaterScreenBlurTint = 0.025f;
     };
 
     enum class ClientPerfCounter

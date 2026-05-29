@@ -35,6 +35,7 @@ namespace dolbuto::game
             frame.playerHeadPitch,
             frame.playerWalkPhase,
             frame.playerWalkAmount,
+            frame.playerProne,
             frame.showFirstPersonHand,
             frame.heldItemId,
             frame.terrainWireframe,
@@ -93,9 +94,9 @@ namespace dolbuto::game
         return renderer_->gameplayBridge_->beginItemInteractionInView(origin, direction);
     }
 
-    bool ClientRenderRuntime::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex)
+    bool ClientRenderRuntime::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, bool repeat)
     {
-        return renderer_->gameplayBridge_->executePendingItemInteraction(actionIndex, candidateIndex);
+        return renderer_->gameplayBridge_->executePendingItemInteraction(actionIndex, candidateIndex, repeat);
     }
 
     void ClientRenderRuntime::cancelPendingItemInteraction()

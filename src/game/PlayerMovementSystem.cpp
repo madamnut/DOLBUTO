@@ -17,6 +17,12 @@ namespace dolbuto::game
         constexpr double SprintFovResponse = 10.0;
         constexpr double EyeHeightResponse = 12.0;
         constexpr double MaxWalkAmount = 1.35;
+        constexpr double PlayerStandingHeight = 1.75;
+        constexpr double PlayerStandingEyeHeight = 1.5625;
+        constexpr double ProneClimbHeight = 1.0;
+        constexpr double ProneClimbStepUpSpeed = 2.0;
+        constexpr double WaterClimbHeight = 1.0;
+        constexpr double SwimIdleSinkSpeedScale = 0.25;
         constexpr float StrafeBodyYawOffset = Pi * 0.25f;
 
         float normalizeAngle(float angle)
@@ -37,6 +43,7 @@ namespace dolbuto::game
             float delta = normalizeAngle(to - from);
             return normalizeAngle(from + delta * static_cast<float>(alpha));
         }
+
     }
 
     PlayerMovementResult PlayerMovementSystem::tick(
@@ -80,27 +87,183 @@ namespace dolbuto::game
             movement.z -= right.z;
             --strafeIntent;
         }
+        const double horizontalIntentLength = std::sqrt(
+            static_cast<double>(movement.x) * static_cast<double>(movement.x) +
+            static_cast<double>(movement.z) * static_cast<double>(movement.z));
 
         const bool flyAccelerating = state.moveMode == PlayerMoveMode::Fly && input.ctrlHeld;
-        const bool groundSneaking = state.moveMode == PlayerMoveMode::Ground &&
+        const double proneHeightScale = std::clamp(config.proneHeight / PlayerStandingHeight, 0.1, 1.0);
+        const bool waterContact = state.moveMode == PlayerMoveMode::Ground &&
+            collision.playerColliderIntersectsWater &&
+            collision.playerColliderIntersectsWater(state.position, state.playerHeightScale);
+        if (waterContact || state.waterClimbActive)
+        {
+            input.doubleTapSprintActive = false;
+            input.sneakToggled = false;
+            input.proneToggled = false;
+        }
+        const bool proneIntent = state.moveMode == PlayerMoveMode::Ground &&
+            !waterContact &&
+            (input.toggleProne ? input.proneToggled : input.proneHeld);
+        const bool sneakIntent = state.moveMode == PlayerMoveMode::Ground &&
+            !waterContact &&
+            !proneIntent &&
             (input.toggleSneak ? input.sneakToggled : input.shiftHeld);
-        if (groundSneaking)
+        const double previousPlayerHeightScale = std::clamp(static_cast<double>(state.playerHeightScale), 0.1, 1.0);
+        double playerHeightScale = proneIntent ? proneHeightScale : (sneakIntent ? config.sneakHeightScale : 1.0);
+        playerHeightScale = std::clamp(playerHeightScale, 0.1, 1.0);
+        if (playerHeightScale > previousPlayerHeightScale &&
+            collision.playerColliderIntersectsTerrain &&
+            collision.playerColliderIntersectsTerrain(state.position, playerHeightScale))
+        {
+            playerHeightScale = previousPlayerHeightScale;
+            if (input.toggleProne && previousPlayerHeightScale <= proneHeightScale + 0.001)
+            {
+                input.proneToggled = true;
+            }
+            if (input.toggleSneak && previousPlayerHeightScale <= config.sneakHeightScale + 0.001)
+            {
+                input.sneakToggled = true;
+            }
+        }
+        if (state.moveMode != PlayerMoveMode::Ground || waterContact || state.waterClimbActive)
+        {
+            playerHeightScale = 1.0;
+        }
+        state.playerHeightScale = static_cast<float>(playerHeightScale);
+
+        const bool groundProne = state.moveMode == PlayerMoveMode::Ground && playerHeightScale <= proneHeightScale + 0.001;
+        const bool groundSneaking = state.moveMode == PlayerMoveMode::Ground &&
+            !groundProne &&
+            playerHeightScale <= config.sneakHeightScale + 0.001;
+        if (groundProne || groundSneaking)
         {
             input.doubleTapSprintActive = false;
         }
         const bool holdSprintActive = !input.toggleSprint && (input.ctrlHeld || input.doubleTapSprintActive);
         const bool toggleSprintActive = input.toggleSprint && input.sprintToggled;
-        const bool groundSprinting = state.moveMode == PlayerMoveMode::Ground && !groundSneaking && (holdSprintActive || toggleSprintActive);
-        const double playerHeightScale = groundSneaking ? config.sneakHeightScale : 1.0;
+        const bool groundSprinting = state.moveMode == PlayerMoveMode::Ground && !groundProne && !groundSneaking && (holdSprintActive || toggleSprintActive);
+        const double targetEyeHeightScale = groundProne
+            ? std::clamp(config.proneEyeHeight / PlayerStandingEyeHeight, 0.1, 1.0)
+            : (groundSneaking ? config.sneakHeightScale : 1.0);
         const double eyeHeightBlend = 1.0 - std::exp(-EyeHeightResponse * fixedDeltaSeconds);
         state.eyeHeightScale = static_cast<float>(std::clamp(
-            static_cast<double>(state.eyeHeightScale) + (playerHeightScale - static_cast<double>(state.eyeHeightScale)) * eyeHeightBlend,
+            static_cast<double>(state.eyeHeightScale) + (targetEyeHeightScale - static_cast<double>(state.eyeHeightScale)) * eyeHeightBlend,
             0.1,
             1.0));
         const bool flyDescending = state.moveMode == PlayerMoveMode::Fly && input.shiftHeld;
+        bool proneClimbHandledThisTick = false;
+        bool waterClimbHandledThisTick = false;
+        const auto colliderBlocked = [&](DVec3 position) -> bool
+        {
+            return collision.playerColliderIntersectsTerrain &&
+                collision.playerColliderIntersectsTerrain(position, playerHeightScale);
+        };
+        if (state.proneClimbActive)
+        {
+            const double maxClimbHeight = state.proneClimbTarget.y > 0.0 ? state.proneClimbTarget.y : ProneClimbHeight;
+            const bool keepClimbing = input.allowInput &&
+                state.moveMode == PlayerMoveMode::Ground &&
+                groundProne &&
+                horizontalIntentLength > 0.001 &&
+                state.proneClimbProgress < maxClimbHeight;
+            if (keepClimbing)
+            {
+                const double lift = std::min(ProneClimbStepUpSpeed * fixedDeltaSeconds, maxClimbHeight - state.proneClimbProgress);
+                DVec3 lifted = state.position;
+                lifted.y += lift;
+                if (!colliderBlocked(lifted))
+                {
+                    state.position = lifted;
+                    state.proneClimbProgress += lift;
+                    state.verticalVelocity = 0.0;
+                    state.grounded = true;
+                    proneClimbHandledThisTick = true;
+                    if (state.proneClimbProgress >= maxClimbHeight)
+                    {
+                        state.proneClimbActive = false;
+                        state.proneClimbProgress = 0.0;
+                    }
+                }
+                else
+                {
+                    state.proneClimbActive = false;
+                    state.proneClimbProgress = 0.0;
+                }
+            }
+            else
+            {
+                state.proneClimbActive = false;
+                state.proneClimbProgress = 0.0;
+            }
+        }
 
+        if (state.waterClimbActive)
+        {
+            const double maxClimbHeight = state.waterClimbTarget.y > 0.0 ? state.waterClimbTarget.y : WaterClimbHeight;
+            const bool keepClimbing = input.allowInput &&
+                state.moveMode == PlayerMoveMode::Ground &&
+                input.jumpHeld &&
+                horizontalIntentLength > 0.001 &&
+                state.waterClimbProgress < maxClimbHeight;
+            if (keepClimbing)
+            {
+                const double horizontalDistance = config.groundMoveSpeed * config.swimSpeedScale * fixedDeltaSeconds;
+                DVec3 horizontalNext = state.position;
+                horizontalNext.x += (static_cast<double>(movement.x) / horizontalIntentLength) * horizontalDistance;
+                horizontalNext.z += (static_cast<double>(movement.z) / horizontalIntentLength) * horizontalDistance;
+                if (!colliderBlocked(horizontalNext))
+                {
+                    state.position = horizontalNext;
+                    state.waterClimbActive = false;
+                    state.waterClimbProgress = 0.0;
+                    state.verticalVelocity = 0.0;
+                    state.grounded = false;
+                    waterClimbHandledThisTick = true;
+                }
+                else
+                {
+                    const double lift = std::min(ProneClimbStepUpSpeed * fixedDeltaSeconds, maxClimbHeight - state.waterClimbProgress);
+                    DVec3 lifted = state.position;
+                    lifted.y += lift;
+                    if (!colliderBlocked(lifted))
+                    {
+                        DVec3 liftedNext = lifted;
+                        liftedNext.x += (static_cast<double>(movement.x) / horizontalIntentLength) * horizontalDistance;
+                        liftedNext.z += (static_cast<double>(movement.z) / horizontalIntentLength) * horizontalDistance;
+                        state.position = colliderBlocked(liftedNext) ? lifted : liftedNext;
+                        state.waterClimbProgress += lift;
+                        state.verticalVelocity = 0.0;
+                        state.grounded = false;
+                        waterClimbHandledThisTick = true;
+                        if (state.waterClimbProgress >= maxClimbHeight)
+                        {
+                            state.waterClimbActive = false;
+                            state.waterClimbProgress = 0.0;
+                        }
+                    }
+                    else
+                    {
+                        state.waterClimbActive = false;
+                        state.waterClimbProgress = 0.0;
+                    }
+                }
+            }
+            else
+            {
+                state.waterClimbActive = false;
+                state.waterClimbProgress = 0.0;
+                state.verticalVelocity = 0.0;
+                state.grounded = false;
+            }
+        }
+
+        const bool swimming = state.moveMode == PlayerMoveMode::Ground && waterContact && !waterClimbHandledThisTick;
+        double swimVerticalSpeedScale = 0.0;
         if (state.moveMode == PlayerMoveMode::Fly)
         {
+            state.waterClimbActive = false;
+            state.waterClimbProgress = 0.0;
             if (input.jumpHeld)
             {
                 movement.y += 1.0f;
@@ -112,7 +275,25 @@ namespace dolbuto::game
             state.verticalVelocity = 0.0;
             state.grounded = false;
         }
-        else
+        else if (swimming)
+        {
+            if (input.jumpHeld)
+            {
+                swimVerticalSpeedScale = 1.0;
+            }
+            else if (input.shiftHeld)
+            {
+                swimVerticalSpeedScale = -1.0;
+            }
+            else
+            {
+                swimVerticalSpeedScale = -SwimIdleSinkSpeedScale;
+            }
+            state.verticalVelocity = 0.0;
+            state.grounded = false;
+            input.jumpPressed = false;
+        }
+        else if (!proneClimbHandledThisTick && !waterClimbHandledThisTick)
         {
             movement.y = 0.0f;
             state.grounded = collision.playerColliderIntersectsTerrain &&
@@ -121,7 +302,7 @@ namespace dolbuto::game
             {
                 state.verticalVelocity = 0.0;
             }
-            if (state.grounded && state.verticalVelocity <= 0.0 && (input.jumpHeld || input.jumpPressed))
+            if (!groundProne && state.grounded && state.verticalVelocity <= 0.0 && (input.jumpHeld || input.jumpPressed))
             {
                 state.verticalVelocity = config.jumpSpeed;
                 state.grounded = false;
@@ -133,13 +314,36 @@ namespace dolbuto::game
             }
         }
 
-        movement = normalize(movement);
+        if (swimming)
+        {
+            const double swimHorizontalLength = std::sqrt(
+                static_cast<double>(movement.x) * static_cast<double>(movement.x) +
+                static_cast<double>(movement.z) * static_cast<double>(movement.z));
+            if (swimHorizontalLength > 0.000001)
+            {
+                movement.x = static_cast<float>(static_cast<double>(movement.x) / swimHorizontalLength);
+                movement.z = static_cast<float>(static_cast<double>(movement.z) / swimHorizontalLength);
+            }
+            movement.y = 0.0f;
+        }
+        else
+        {
+            movement = normalize(movement);
+        }
+        if (waterClimbHandledThisTick)
+        {
+            movement = {};
+        }
         double moveSpeed = state.moveMode == PlayerMoveMode::Fly ? config.flyMoveSpeed : config.groundMoveSpeed;
         if (flyAccelerating)
         {
             moveSpeed *= config.sprintSpeedScale;
         }
-        else if (groundSneaking)
+        else if (swimming || state.waterClimbActive || waterClimbHandledThisTick)
+        {
+            moveSpeed *= config.swimSpeedScale;
+        }
+        else if (groundProne || groundSneaking)
         {
             moveSpeed *= config.sneakSpeedScale;
         }
@@ -150,7 +354,7 @@ namespace dolbuto::game
         const double distance = moveSpeed * fixedDeltaSeconds;
         const DVec3 delta{
             static_cast<double>(movement.x) * distance,
-            state.moveMode == PlayerMoveMode::Fly ? static_cast<double>(movement.y) * distance : state.verticalVelocity * fixedDeltaSeconds,
+            swimming ? swimVerticalSpeedScale * distance : (state.moveMode == PlayerMoveMode::Fly ? static_cast<double>(movement.y) * distance : state.verticalVelocity * fixedDeltaSeconds),
             static_cast<double>(movement.z) * distance
         };
         const double maxDelta = std::max(std::abs(delta.x), std::max(std::abs(delta.y), std::abs(delta.z)));
@@ -187,6 +391,112 @@ namespace dolbuto::game
             {
                 state.position = next;
                 return true;
+            }
+            if (dy == 0.0 &&
+                groundProne &&
+                !state.proneClimbActive &&
+                state.moveMode == PlayerMoveMode::Ground &&
+                state.grounded &&
+                input.allowInput &&
+                horizontalIntentLength > 0.001 &&
+                (dx != 0.0 || dz != 0.0))
+            {
+                DVec3 climbTop = state.position;
+                climbTop.y += ProneClimbHeight;
+                DVec3 climbTopNext = climbTop;
+                climbTopNext.x += dx;
+                climbTopNext.z += dz;
+                if (!moveBlocked(climbTop, 0.0, ProneClimbHeight, 0.0) &&
+                    !moveBlocked(climbTopNext, dx, 0.0, dz))
+                {
+                    state.proneClimbActive = true;
+                    state.proneClimbProgress = 0.0;
+                    state.proneClimbStart = state.position;
+                    state.proneClimbTarget = {0.0, ProneClimbHeight, 0.0};
+                    const double appliedLift = std::min(ProneClimbHeight, ProneClimbStepUpSpeed * fixedDeltaSeconds);
+                    DVec3 applied = state.position;
+                    applied.y += appliedLift;
+                    if (moveBlocked(applied, 0.0, appliedLift, 0.0))
+                    {
+                        state.proneClimbActive = false;
+                        state.proneClimbProgress = 0.0;
+                        return false;
+                    }
+
+                    DVec3 appliedNext = applied;
+                    appliedNext.x += dx;
+                    appliedNext.z += dz;
+                    if (!moveBlocked(appliedNext, dx, 0.0, dz))
+                    {
+                        state.position = appliedNext;
+                    }
+                    else
+                    {
+                        state.position = applied;
+                    }
+                    state.proneClimbProgress = appliedLift;
+                    if (state.proneClimbProgress >= ProneClimbHeight)
+                    {
+                        state.proneClimbActive = false;
+                        state.proneClimbProgress = 0.0;
+                    }
+                    state.verticalVelocity = 0.0;
+                    state.grounded = true;
+                    proneClimbHandledThisTick = true;
+                    return true;
+                }
+            }
+            if (dy == 0.0 &&
+                swimming &&
+                input.jumpHeld &&
+                input.allowInput &&
+                horizontalIntentLength > 0.001 &&
+                (dx != 0.0 || dz != 0.0))
+            {
+                DVec3 climbTop = state.position;
+                climbTop.y += WaterClimbHeight;
+                DVec3 climbTopNext = climbTop;
+                climbTopNext.x += dx;
+                climbTopNext.z += dz;
+                if (!moveBlocked(climbTop, 0.0, WaterClimbHeight, 0.0) &&
+                    !moveBlocked(climbTopNext, dx, 0.0, dz))
+                {
+                    state.waterClimbActive = true;
+                    state.waterClimbProgress = 0.0;
+                    state.waterClimbStart = state.position;
+                    state.waterClimbTarget = {0.0, WaterClimbHeight, 0.0};
+                    const double appliedLift = std::min(WaterClimbHeight, ProneClimbStepUpSpeed * fixedDeltaSeconds);
+                    DVec3 applied = state.position;
+                    applied.y += appliedLift;
+                    if (moveBlocked(applied, 0.0, appliedLift, 0.0))
+                    {
+                        state.waterClimbActive = false;
+                        state.waterClimbProgress = 0.0;
+                        return false;
+                    }
+
+                    DVec3 appliedNext = applied;
+                    appliedNext.x += dx;
+                    appliedNext.z += dz;
+                    if (!moveBlocked(appliedNext, dx, 0.0, dz))
+                    {
+                        state.position = appliedNext;
+                    }
+                    else
+                    {
+                        state.position = applied;
+                    }
+                    state.waterClimbProgress = appliedLift;
+                    if (state.waterClimbProgress >= WaterClimbHeight)
+                    {
+                        state.waterClimbActive = false;
+                        state.waterClimbProgress = 0.0;
+                    }
+                    state.verticalVelocity = 0.0;
+                    state.grounded = false;
+                    waterClimbHandledThisTick = true;
+                    return true;
+                }
             }
             return false;
         };
@@ -231,7 +541,7 @@ namespace dolbuto::game
         for (int i = 0; i < steps; ++i)
         {
             moveAxisWithContact(stepDelta.x, 0.0, 0.0);
-            if (!moveAxisWithContact(0.0, stepDelta.y, 0.0) && state.moveMode == PlayerMoveMode::Ground)
+            if (!moveAxisWithContact(0.0, stepDelta.y, 0.0) && state.moveMode == PlayerMoveMode::Ground && !swimming)
             {
                 blockedVertically = true;
                 if (stepDelta.y < 0.0)
@@ -255,7 +565,14 @@ namespace dolbuto::game
             input.jumpPressed = false;
         }
 
-        if (state.moveMode == PlayerMoveMode::Ground && !blockedVertically && !state.grounded)
+        if (state.moveMode == PlayerMoveMode::Ground &&
+            !state.proneClimbActive &&
+            !proneClimbHandledThisTick &&
+            !state.waterClimbActive &&
+            !waterClimbHandledThisTick &&
+            !swimming &&
+            !blockedVertically &&
+            !state.grounded)
         {
             state.verticalVelocity -= config.gravity * fixedDeltaSeconds;
         }
@@ -266,7 +583,7 @@ namespace dolbuto::game
         const double yawBlend = 1.0 - std::exp(-BodyYawFollowResponse * fixedDeltaSeconds);
         const float targetBodyYaw = input.yaw - static_cast<float>(std::clamp(strafeIntent, -1, 1)) * StrafeBodyYawOffset;
         state.bodyYaw = lerpAngle(state.bodyYaw, targetBodyYaw, yawBlend);
-        const double referenceSpeed = state.moveMode == PlayerMoveMode::Fly ? config.flyMoveSpeed : config.groundMoveSpeed;
+        const double referenceSpeed = state.moveMode == PlayerMoveMode::Fly ? config.flyMoveSpeed : (swimming ? config.groundMoveSpeed * config.swimSpeedScale : config.groundMoveSpeed);
         const double targetWalkAmount = input.allowInput && referenceSpeed > 0.0
             ? std::clamp(horizontalDistance / (referenceSpeed * fixedDeltaSeconds), 0.0, MaxWalkAmount)
             : 0.0;

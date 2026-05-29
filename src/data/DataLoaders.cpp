@@ -902,6 +902,7 @@ namespace dolbuto::data
             {
                 definition.target = *target;
             }
+            definition.targetCount = clampedInteractionCount(jsonIntField(object, "targetCount").value_or(1));
             const int minCount = jsonIntField(object, "min").value_or(1);
             const int maxCount = jsonIntField(object, "max").value_or(minCount);
             definition.resultCountMin = clampedInteractionCount(minCount);

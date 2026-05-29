@@ -83,6 +83,7 @@ namespace dolbuto::data
         std::string action;
         std::string target;
         std::vector<ParsedInteractionCandidate> candidates;
+        uint16_t targetCount = 1;
         uint16_t resultCountMin = 1;
         uint16_t resultCountMax = 1;
     };

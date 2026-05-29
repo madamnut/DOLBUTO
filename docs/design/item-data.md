@@ -85,8 +85,8 @@ assets/textures/item/*.png
 
 드랍된 `extruded_sprite` 아이템은 전용 아이템 파이프라인을 통해 얇은 수평 월드 공간 3D 스프라이트 파생 메쉬로 렌더링한다.
 현재 메쉬는 윗면/아랫면 스프라이트 면과 스프라이트 알파 경계에서 생성한 옆면을 사용한다.
-현재 드랍 스프라이트와 드랍 물리 AABB는 같은 `0.68 x 0.05 x 0.68` 블록 크기를 사용한다.
-드랍된 `block_model` 아이템은 `placeBlock` 블록의 6면 텍스처를 사용하는 작은 큐브 mesh로 렌더링하며, 렌더 크기와 물리 AABB는 모두 `0.2 x 0.2 x 0.2`다.
+현재 드랍 스프라이트와 기본 드랍 물리 AABB는 같은 `0.68 x 0.05 x 0.68` 블록 크기를 사용한다.
+드랍된 `block_model` 아이템은 `placeBlock` 블록의 6면 텍스처를 사용하는 작은 큐브 mesh로 렌더링하며, 기본 렌더 크기와 기본 물리 AABB는 모두 `0.2 x 0.2 x 0.2`다.
 드랍 아이템 런타임 위치는 아이템의 중앙 하단 접점이다.
 
 드랍 생성은 파괴된 블록 중심 주변에서 시작한다.
@@ -109,6 +109,8 @@ assets/textures/item/*.png
 드랍 아이템 렌더링은 아이템별 정적 extruded mesh와 드랍 엔티티별 instance data를 사용한다.
 병합된 스택은 데이터상 하나의 엔티티지만, 렌더링에서는 count에 따라 1~4개의 겹친 아이템으로 표시한다.
 시각 복제본 수는 count `1`, `2~16`, `17~48`, `49~99` 구간에 따라 각각 1, 2, 3, 4개다.
+스택 드랍 아이템의 물리 AABB 높이도 같은 복제본 수를 사용한다.
+즉 렌더링에서 2~4단으로 쌓여 보이는 스택은 충돌 두께도 기본 높이의 2~4배가 된다.
 `block_model` 드랍 아이템도 같은 복제본 구간과 오프셋 규칙을 사용한다.
 옆면은 불투명 스프라이트 픽셀이 투명 이웃이나 텍스처 경계에 닿는 위치에만 생성한다.
 같은 방향의 인접 옆면 경계는 렌더링 전에 span으로 병합하므로, 드랍 아이템은 스프라이트 실루엣을 유지하면서도 경계 픽셀마다 옆면 쿼드를 만들지 않는다.
@@ -133,12 +135,14 @@ dirt_pile.png
 grass_scrap.png
 leaf.png
 long_wooden_stick.png
+long_plant_twine.png
 plant_fiber.png
 plant_twine.png
 plant.png
 rock_chunk.png
 sand_pile.png
 seed.png
+short_plant_twine.png
 short_wooden_stick.png
 stone_shard.png
 wooden_plank.png
@@ -158,6 +162,8 @@ wooden_stick.png
   { "id": 4, "key": "plant", "name": "Plant", "stackSize": 99, "slotTexture": "plant", "droppedRender": { "type": "extruded_sprite", "texture": "plant" }, "heldRender": { "type": "extruded_sprite", "texture": "plant" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "plant" },
   { "id": 5, "key": "plant_fiber", "name": "Plant Fiber", "stackSize": 99, "slotTexture": "plant_fiber", "droppedRender": { "type": "extruded_sprite", "texture": "plant_fiber" }, "heldRender": { "type": "extruded_sprite", "texture": "plant_fiber" }, "tags": [], "useActions": [] },
   { "id": 6, "key": "plant_twine", "name": "Plant Twine", "stackSize": 99, "slotTexture": "plant_twine", "droppedRender": { "type": "extruded_sprite", "texture": "plant_twine" }, "heldRender": { "type": "extruded_sprite", "texture": "plant_twine" }, "tags": [], "useActions": [] },
+  { "id": 24, "key": "short_plant_twine", "name": "Short Plant Twine", "stackSize": 99, "slotTexture": "short_plant_twine", "droppedRender": { "type": "extruded_sprite", "texture": "short_plant_twine" }, "heldRender": { "type": "extruded_sprite", "texture": "short_plant_twine" }, "tags": [], "useActions": [] },
+  { "id": 25, "key": "long_plant_twine", "name": "Long Plant Twine", "stackSize": 99, "slotTexture": "long_plant_twine", "droppedRender": { "type": "extruded_sprite", "texture": "long_plant_twine" }, "heldRender": { "type": "extruded_sprite", "texture": "long_plant_twine" }, "tags": [], "useActions": [] },
   { "id": 7, "key": "seed", "name": "Seed", "stackSize": 99, "slotTexture": "seed", "droppedRender": { "type": "extruded_sprite", "texture": "seed" }, "heldRender": { "type": "extruded_sprite", "texture": "seed" }, "tags": [], "useActions": [] },
   { "id": 8, "key": "grass_scrap", "name": "Grass Scrap", "stackSize": 99, "slotTexture": "grass_scrap", "droppedRender": { "type": "extruded_sprite", "texture": "grass_scrap" }, "heldRender": { "type": "extruded_sprite", "texture": "grass_scrap" }, "tags": [], "useActions": [] },
 
@@ -190,6 +196,8 @@ assets/data/interactions.json
 이 파일은 손에 든 아이템의 `useActions`와 땅에 떨어진 대상 아이템을 기준으로 후보 아이템 목록을 제공한다.
 현재 초안에서는 `held item` 조건을 별도로 쓰지 않는다.
 손 아이템이 해당 `action`을 가지고 있고, 땅에 떨어진 아이템 key가 `target`과 일치하면 `candidates` 목록을 UI 후보로 표시한다.
+`handcraft`는 기본 손 액션으로 취급하며, 어떤 아이템을 들고 있어도 해당 아이템의 `useActions` 앞에 중복 없이 포함된다.
+`targetCount`는 상호작용 1회에 소비할 대상 드랍 아이템 개수이며, 생략하면 `1`이다.
 `candidates`의 항목은 단일 아이템 key 문자열이거나, 여러 출력 아이템을 묶은 객체일 수 있다.
 
 ```json
@@ -215,6 +223,38 @@ assets/data/interactions.json
     "action": "scrape",
     "target": "plant",
     "candidates": ["plant_fiber"]
+  },
+  {
+    "action": "handcraft",
+    "target": "plant_fiber",
+    "targetCount": 2,
+    "candidates": ["plant_twine"]
+  },
+  {
+    "action": "handcraft",
+    "target": "plant_twine",
+    "targetCount": 2,
+    "candidates": ["long_plant_twine"]
+  },
+  {
+    "action": "handcraft",
+    "target": "short_plant_twine",
+    "targetCount": 2,
+    "candidates": ["plant_twine"]
+  },
+  {
+    "action": "cut",
+    "target": "plant_twine",
+    "min": 2,
+    "max": 2,
+    "candidates": ["short_plant_twine"]
+  },
+  {
+    "action": "cut",
+    "target": "long_plant_twine",
+    "min": 2,
+    "max": 2,
+    "candidates": ["plant_twine"]
   },
   {
     "action": "scrape",
@@ -272,9 +312,10 @@ assets/data/interactions.json
 액션 영역은 화면 위쪽을 시작각으로 삼아 시계방향으로 나뉘고, 후보 아이템 영역은 선택된 액션 구역 안에서 그 액션의 시작각부터 시계방향으로 나뉜다.
 후보 아이템은 아이콘만 표시하고, 선택 중인 액션 또는 후보 이름은 중앙 라벨로 표시한다.
 후보가 여러 출력 아이템을 가지면 후보 영역 안에 출력 아이콘들을 함께 표시한다.
-대상 스택은 가능한 만큼 일괄 처리한다.
-손에 든 아이템이 내구도를 가지면 대상 스택 개수와 손 아이템의 남은 내구도 중 작은 값만큼 처리한다.
-손에 든 아이템이 내구도를 가지지 않으면 기존처럼 1회 처리한다.
+대상 스택 개수가 레시피의 `targetCount`보다 적어 1회 실행할 수 없는 후보는 해당 후보가 차지하는 바깥 링 구간을 빨간색으로 표시한다.
+우클릭 해제 시 `Shift`가 눌려 있지 않으면 선택 후보를 1회만 처리한다.
+우클릭 해제 시 `Shift`가 눌려 있으면 대상 스택, 레시피의 `targetCount`, 손 아이템의 남은 내구도가 허용하는 만큼 반복 처리한다.
+손에 든 아이템이 내구도를 가지지 않으면 `Shift` 반복 처리 때 대상 스택과 `targetCount`만으로 처리 횟수를 제한한다.
 대상 스택이 전부 처리되면 기존 드랍 엔티티를 선택 후보의 첫 번째 출력 아이템 스택으로 직접 바꾼다.
 대상 스택이 일부 남으면 기존 드랍 엔티티는 남은 원본 count를 유지하고, 결과물은 대상 위치 근처에 별도 드랍 아이템으로 생성한다.
 대상 드랍 아이템과 결과 아이템이 모두 내구도를 가지면 대상의 현재 내구도 비율을 결과 아이템에 적용하고, 결과 내구도는 올림 처리한다.
