@@ -600,6 +600,7 @@ namespace dolbuto::game
                 data->blocks = snapshot.blocks;
                 data->fluids = snapshot.fluids;
                 data->light = snapshot.light;
+                data->blockEntities = snapshot.blockEntities;
                 data->temperature = snapshot.temperature;
                 data->precipitation = snapshot.precipitation;
             }

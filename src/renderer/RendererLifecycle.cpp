@@ -62,7 +62,7 @@ namespace dolbuto
         configBridge_ = std::make_unique<RendererConfigBridge>(client_, rendererAssets_, gpuResources_);
         configBridge_->loadContentAndAssets(assetDirectory());
         audioBridge_ = std::make_unique<RendererAudioBridge>(client_.audio, assetDirectory());
-        terrainRuntimeBridge_ = std::make_unique<RendererTerrainRuntimeBridge>(client_, rendererAssets_, terrainRenderPath_, debugOverlayText_);
+        terrainRuntimeBridge_ = std::make_unique<RendererTerrainRuntimeBridge>(client_, rendererAssets_, terrainRenderPath_, particleRenderPath_, debugOverlayText_);
         gameplayBridge_ = std::make_unique<RendererGameplayBridge>(
             client_,
             vulkan_,
@@ -78,7 +78,26 @@ namespace dolbuto
                 },
                 [this](int x, int y, int z, uint16_t block)
                 {
-                    return terrainRuntimeBridge_->setBlockAtWorld(x, y, z, block);
+                    const uint16_t previousBlock = client_.worldRuntime.blockAtWorld(x, y, z);
+                    const bool changed = terrainRuntimeBridge_->setBlockAtWorld(x, y, z, block);
+                    if (changed)
+                    {
+                        const auto fireIt = client_.content.blockIdByName().find("fire");
+                        const uint16_t fireBlock = fireIt == client_.content.blockIdByName().end() ? 0 : fireIt->second;
+                        if (fireBlock != 0)
+                        {
+                            if (previousBlock == fireBlock && block != fireBlock)
+                            {
+                                client_.worldRuntime.removeBlockEntityAtWorld(x, y, z);
+                            }
+                            if (block == fireBlock)
+                            {
+                                client_.worldRuntime.ensureFireBlockEntityAtWorld(x, y, z, InitialFireBurnTicks);
+                            }
+                        }
+                        particleRenderPath_.handleBlockChanged(x, y, z, previousBlock, block, fireBlock);
+                    }
+                    return changed;
                 },
                 [this](int x, int y, int z)
                 {

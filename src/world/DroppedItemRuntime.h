@@ -57,6 +57,14 @@ namespace dolbuto::world
             float maxX,
             float maxY,
             float maxZ) const;
+        uint32_t consumeLowestBurnableInAabb(
+            float minX,
+            float minY,
+            float minZ,
+            float maxX,
+            float maxY,
+            float maxZ,
+            const MarkDirtyFn& markDirty);
         uint16_t replaceTargetItems(
             const WorldEntityHandle& itemHandle,
             uint64_t entityId,

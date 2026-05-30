@@ -3,6 +3,7 @@
 #include "renderer/DebugOverlayText.h"
 #include "renderer/RendererAssetStore.h"
 #include "game/ClientRuntimeState.h"
+#include "renderer/ParticleRenderPath.h"
 #include "renderer/RendererTerrainMeshBridge.h"
 #include "renderer/TerrainRenderPath.h"
 
@@ -75,10 +76,12 @@ namespace dolbuto
         game::ClientRuntimeState& client,
         RendererAssetStore& rendererAssets,
         TerrainRenderPath& terrainRenderPath,
+        ParticleRenderPath& particleRenderPath,
         DebugOverlayText& debugOverlayText) :
         client_(client),
         rendererAssets_(rendererAssets),
         terrainRenderPath_(terrainRenderPath),
+        particleRenderPath_(particleRenderPath),
         debugOverlayText_(debugOverlayText)
     {
     }
@@ -228,6 +231,7 @@ namespace dolbuto
             installMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sectionStart).count();
             sectionStart = std::chrono::steady_clock::now();
             client_.worldRuntime.markMeshed(key);
+            refreshFireEmittersForChunk(mesh.chunkX, mesh.chunkZ);
             markMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sectionStart).count();
         }
         game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainInstall, installMs);
@@ -264,6 +268,9 @@ namespace dolbuto
             }
 
             const uint64_t key = pendingUnload->key;
+            const int chunkX = static_cast<int32_t>(key >> 32u);
+            const int chunkZ = static_cast<int32_t>(key & 0xFFFFFFFFu);
+            particleRenderPath_.removeFireEmittersForChunk(chunkX, chunkZ);
             terrainRenderPath_.retireAndErase(key, static_cast<uint32_t>(MaxFramesInFlight + 1));
             client_.gameplayRuntime.removeDroppedItemChunkTracking(key);
             ++unloadedCount;
@@ -492,6 +499,7 @@ namespace dolbuto
             mesh,
             static_cast<uint32_t>(MaxFramesInFlight + 1));
         chunk->genState = ChunkGenState::Meshed;
+        refreshFireEmittersForChunk(chunkX, chunkZ);
     }
 
     void RendererTerrainRuntimeBridge::rebuildEditedChunkMeshes(int blockX, int blockY, int blockZ)
@@ -592,6 +600,7 @@ namespace dolbuto
         terrainRenderPath_.destroyAll();
         client_.clientWorldRuntime.resetSceneRuntime();
         client_.gameplayRuntime.resetDroppedItemTracking();
+        particleRenderPath_.clear();
     }
 
     void RendererTerrainRuntimeBridge::updateTerrainStats()
@@ -601,6 +610,52 @@ namespace dolbuto
         client_.diagnostics.terrainFaceCount = stats.faceCount;
         client_.diagnostics.terrainVertexCount = stats.vertexCount;
         debugOverlayText_.setTerrainStats(client_.diagnostics.terrainDrawCount, client_.diagnostics.terrainFaceCount, client_.diagnostics.terrainVertexCount);
+    }
+
+    uint16_t RendererTerrainRuntimeBridge::fireBlockId() const
+    {
+        const auto it = client_.content.blockIdByName().find("fire");
+        return it == client_.content.blockIdByName().end() ? 0 : it->second;
+    }
+
+    void RendererTerrainRuntimeBridge::refreshFireEmittersForChunk(int chunkX, int chunkZ)
+    {
+        const uint16_t fireBlock = fireBlockId();
+        if (fireBlock == 0)
+        {
+            return;
+        }
+
+        particleRenderPath_.removeFireEmittersForChunk(chunkX, chunkZ);
+        const RuntimeChunk* runtimeChunk = client_.worldRuntime.find(chunkKey(chunkX, chunkZ));
+        if (runtimeChunk == nullptr || !runtimeChunk->data || runtimeChunk->data->blocks.size() != ChunkBlockCount)
+        {
+            return;
+        }
+
+        for (int y = 0; y < ChunkSizeY; ++y)
+        {
+            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+            {
+                for (int localX = 0; localX < ChunkSizeX; ++localX)
+                {
+                    const std::size_t index = static_cast<std::size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+                    if (runtimeChunk->data->blocks[index] != fireBlock)
+                    {
+                        continue;
+                    }
+                    particleRenderPath_.registerFireEmitter(
+                        chunkX * ChunkSizeX + localX,
+                        y,
+                        chunkZ * ChunkSizeZ + localZ);
+                    client_.worldRuntime.ensureFireBlockEntityAtWorld(
+                        chunkX * ChunkSizeX + localX,
+                        y,
+                        chunkZ * ChunkSizeZ + localZ,
+                        InitialFireBurnTicks);
+                }
+            }
+        }
     }
 
 }

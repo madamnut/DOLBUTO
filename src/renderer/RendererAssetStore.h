@@ -30,6 +30,7 @@ namespace dolbuto
         Texture playerTexture;
         Texture terrainTextureArray;
         Texture fluidTextureArray;
+        Texture smokeParticleTextureArray;
         Texture itemTextureArray;
         std::vector<DroppedItemRenderPath::ItemSpriteMesh> itemSpriteMeshes;
         std::unordered_map<uint16_t, assets::PropMesh> propMeshesByBlock;

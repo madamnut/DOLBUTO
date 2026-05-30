@@ -52,7 +52,8 @@ assets/textures/item/*.png
     "texture": "rock_chunk"
   },
   "tags": [],
-  "useActions": []
+  "useActions": [],
+  "burnTimeTicks": 0
 }
 ```
 
@@ -73,6 +74,7 @@ assets/textures/item/*.png
 - `useActions`: 손에 들었을 때 수행 가능한 월드 상호작용 액션 키 목록
 - `placeActions`: 손에 들었을 때 수행 가능한 블록/오브젝트 설치 액션 키 목록
 - `placeBlock`: `place` 액션으로 설치할 블록 이름
+- `burnTimeTicks`: 불이 연료로 소비했을 때 더해지는 연소 tick 수. 생략하거나 `0`이면 타지 않는 아이템이다.
 
 `id = 0`은 `none`용으로 예약한다.
 실제 아이템은 `id = 1`부터 시작하며, 구체적으로 빈 구간을 남길 이유가 없으면 순차적으로 배정한다.
@@ -80,6 +82,31 @@ assets/textures/item/*.png
 아이템 데이터에는 별도 `block`이나 `viewModel` 필드를 두지 않는다.
 `slotRender.type = "block_model"`도 `placeBlock`의 블록 텍스처를 사용한다.
 콘텐츠 로딩 시 해당 블록의 위/옆면 텍스처를 합성해 `assets/textures/item/generated/{item_key}_slot.png` 아이콘을 만들고, UI는 기존 슬롯 이미지 경로처럼 이 생성 텍스처를 참조한다.
+
+## 연료 아이템
+
+`burnTimeTicks`는 아이템 1개가 불에 소모될 때 fire 블록 엔티티의 남은 연소 시간에 더해지는 값이다.
+현재 게임 시간은 초당 20틱 기준이며, 연료로 쓰는 아이템은 최소 100틱 이상을 사용한다.
+가공 아이템은 원재료 합보다 조금 낮은 값을 가진다.
+
+현재 연료 값:
+
+```text
+plant, plant_fiber, grass_scrap, leaf, bark_strip  100
+short_plant_twine                                  100
+plant_twine                                        160
+long_plant_twine                                   256
+branch                                             300
+short_wooden_stick                                 120
+wooden_stick                                       240
+long_wooden_stick                                  800
+bough                                              1000
+log                                                2000
+stripped_log                                       1800
+wooden_plank                                       225
+wooden_peg                                         100
+charcoal, coal                                     2400
+```
 
 ## 드랍 아이템 물리와 렌더링
 
@@ -131,6 +158,7 @@ assets/textures/item/*.png
 bark_strip.png
 bough.png
 branch.png
+charcoal.png
 coal.png
 dirt_pile.png
 grass_scrap.png
@@ -166,6 +194,7 @@ wooden_stick.png
 
   { "id": 1, "key": "rock_chunk", "name": "Rock Chunk", "stackSize": 99, "slotTexture": "rock_chunk", "droppedRender": { "type": "extruded_sprite", "texture": "rock_chunk" }, "heldRender": { "type": "extruded_sprite", "texture": "rock_chunk" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "rock" },
   { "id": 31, "key": "coal", "name": "Coal", "stackSize": 99, "slotTexture": "coal", "droppedRender": { "type": "extruded_sprite", "texture": "coal" }, "heldRender": { "type": "extruded_sprite", "texture": "coal" }, "tags": [], "useActions": [] },
+  { "id": 38, "key": "charcoal", "name": "Charcoal", "stackSize": 99, "slotTexture": "charcoal", "droppedRender": { "type": "extruded_sprite", "texture": "charcoal" }, "heldRender": { "type": "extruded_sprite", "texture": "charcoal" }, "tags": [], "useActions": [] },
   { "id": 32, "key": "raw_copper", "name": "Raw Copper", "stackSize": 99, "slotTexture": "raw_copper", "droppedRender": { "type": "extruded_sprite", "texture": "raw_copper" }, "heldRender": { "type": "extruded_sprite", "texture": "raw_copper" }, "tags": [], "useActions": [] },
   { "id": 33, "key": "raw_iron", "name": "Raw Iron", "stackSize": 99, "slotTexture": "raw_iron", "droppedRender": { "type": "extruded_sprite", "texture": "raw_iron" }, "heldRender": { "type": "extruded_sprite", "texture": "raw_iron" }, "tags": [], "useActions": [] },
   { "id": 34, "key": "raw_tin", "name": "Raw Tin", "stackSize": 99, "slotTexture": "raw_tin", "droppedRender": { "type": "extruded_sprite", "texture": "raw_tin" }, "heldRender": { "type": "extruded_sprite", "texture": "raw_tin" }, "tags": [], "useActions": [] },
@@ -411,6 +440,7 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 - `droppedRender.type`, `heldRender.type`은 유효한 아이템 렌더 타입이어야 한다.
 - `block_model` 렌더 타입은 `placeBlock`으로 렌더 대상 블록을 찾는다.
 - `slotRender.type = "block_model"`은 `placeBlock`으로 슬롯 아이콘 대상 블록을 찾는다.
+- `burnTimeTicks`는 생략 가능하며 음수 입력은 `0`으로 정규화한다.
 
 ## 블록 드랍
 

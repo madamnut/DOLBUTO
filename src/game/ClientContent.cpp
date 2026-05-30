@@ -367,6 +367,7 @@ namespace dolbuto::game
             itemDefinition.stackSize = definition.stackSize;
             itemDefinition.breakLevel = definition.breakLevel;
             itemDefinition.maxDurability = definition.maxDurability;
+            itemDefinition.burnTimeTicks = definition.burnTimeTicks;
             itemDefinition.slotRender = parseItemSlotRenderType(definition.slotRender);
             itemDefinition.droppedRender = parseItemRenderType(definition.droppedRender);
             itemDefinition.heldRender = parseItemRenderType(definition.heldRender);

@@ -151,6 +151,9 @@ namespace dolbuto::ui
             lines.push_back({"DURABILITY", item.maxDurability > 0
                 ? std::to_string(item.durability) + " / " + std::to_string(item.maxDurability)
                 : "none"});
+            lines.push_back({"BURN_TIME", item.burnTimeTicks > 0
+                ? std::to_string(item.burnTimeTicks) + " ticks"
+                : "none"});
             lines.push_back({"STACK_SIZE", std::to_string(item.stackSize)});
             lines.push_back({"SLOT_RENDER", item.slotRender});
             lines.push_back({"SLOT_TEXTURE", item.slotTexture});

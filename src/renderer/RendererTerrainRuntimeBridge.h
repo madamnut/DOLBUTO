@@ -9,6 +9,7 @@
 namespace dolbuto
 {
     class DebugOverlayText;
+    class ParticleRenderPath;
     class TerrainRenderPath;
     struct RendererAssetStore;
     namespace game
@@ -23,6 +24,7 @@ namespace dolbuto
             game::ClientRuntimeState& client,
             RendererAssetStore& rendererAssets,
             TerrainRenderPath& terrainRenderPath,
+            ParticleRenderPath& particleRenderPath,
             DebugOverlayText& debugOverlayText);
 
         void updateLoadedChunks(DVec3 playerPosition);
@@ -42,9 +44,13 @@ namespace dolbuto
         void updateTerrainStats();
 
     private:
+        void refreshFireEmittersForChunk(int chunkX, int chunkZ);
+        uint16_t fireBlockId() const;
+
         game::ClientRuntimeState& client_;
         RendererAssetStore& rendererAssets_;
         TerrainRenderPath& terrainRenderPath_;
+        ParticleRenderPath& particleRenderPath_;
         DebugOverlayText& debugOverlayText_;
     };
 }

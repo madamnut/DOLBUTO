@@ -54,7 +54,7 @@
 `src/renderer/PlayerModelLoader.h/.cpp`는 `Character.glb`의 node/mesh primitive/vertex/index 데이터를 읽어 파트별 플레이어 모델 source data를 만든다.
 `src/renderer/PlayerMeshRenderPath.h/.cpp`는 player GLB 모델 로드, player vertex/index buffer 생성, GLB node transform 기반 매 프레임 player vertex 위치 갱신, player indexed draw와 buffer 수명을 담당한다.
 `PlayerMeshRenderPath`는 `Head` node에 렌더 프레임의 head yaw/pitch 추가 transform을 적용한다.
-`src/renderer/ParticleRenderPath.h/.cpp`는 블록 파괴 파티클 상태, 파괴 오버레이 quad 생성, 파티클 수명/단순 terrain 충돌 갱신, host-visible particle vertex/index buffer 업로드, particle draw path를 담당한다.
+`src/renderer/ParticleRenderPath.h/.cpp`는 블록 파괴 파티클 상태, 파괴 오버레이 quad 생성, 불 연기 파티클, 파티클 수명/단순 terrain 충돌 갱신, host-visible particle vertex/index buffer 업로드, particle draw path를 담당한다.
 `src/renderer/DroppedItemRenderCollector.h/.cpp`는 드랍 아이템 청크 frustum culling, 거리 culling, `DroppedItemRenderPath::RenderInstance` 목록 생성을 담당한다.
 `src/renderer/DroppedItemRenderPath.h/.cpp`는 드랍 아이템 로컬 스프라이트 mesh 타입, GPU static vertex/index buffer, persistent instance buffer, instance 업로드, item id별 batch draw를 담당한다.
 `src/renderer/ItemSpriteMeshBuilder.h/.cpp`는 아이템 텍스처 alpha를 읽어 드랍 아이템용 extruded sprite mesh를 생성한다.
@@ -223,6 +223,11 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 - `ClientContent`는 `fire/fire_00`부터 `fire/fire_13`까지 14프레임을 block texture array에 연속 등록한다.
 - 지형 메쉬에는 `fire/fire_00` layer만 저장하고, terrain fragment shader가 프레임 시간으로 현재 fire layer를 선택한다.
 - 모든 불은 같은 프레임 값을 사용하므로 초당 12프레임의 동기화된 단순 애니메이션으로 표시된다.
+- 불 블록은 활성 fire emitter로 등록되어 `assets/textures/particle/smoke/smoke_0.png`부터 `smoke_7.png`까지의 연기 파티클을 주기적으로 생성한다.
+- fire emitter는 블록 설치/제거와 청크 로드/언로드 시점에 갱신하며, 매 프레임 전체 월드를 스캔하지 않는다.
+- 연기 파티클은 위로 천천히 상승하고 X/Z 방향으로 약하게 흔들리며, 생성 시점에 `0.8~1.0`블록 크기로 정해진 값을 유지한다.
+- 연기 파티클은 중심점 기준으로 solid terrain cell과 충돌하면 해당 축 이동을 막고 튕기지는 않는다.
+- 연기 애니메이션 프레임은 파티클 수명 비율로 `smoke_0`에서 `smoke_7`까지 1회 진행하고, alpha는 생성 직후 fade-in 후 수명 끝으로 갈수록 fade-out한다.
 
 ## 컬링
 
@@ -286,7 +291,7 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 
 ## 블록 파괴 파티클
 
-블록 파괴는 수명이 짧은 런타임 파티클을 생성한다. 파티클은 저장하지 않는다.
+블록 파괴와 불 연기는 수명이 짧은 런타임 파티클을 생성한다. 파티클은 저장하지 않는다.
 파티클 상태와 GPU buffer 수명, draw command 방출은 `ParticleRenderPath`가 소유하고, `Renderer`는 블록 정의 확인, texture layer 선택, 현재 파괴 상태와 terrain collision callback만 전달한다.
 
 - 트리거: 블록 제거 성공.
@@ -299,6 +304,7 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 - 중력: `22`.
 - 충돌: solid terrain cell에 대한 단순 바닥 충돌, 약한 bounce, 강한 X/Z friction.
 - Pipeline: 기존 block texture array를 사용하는 전용 particle graphics pipeline.
+- 불 연기 파티클은 별도 smoke particle texture array를 같은 particle pipeline에 바인딩해 그린다.
 - Depth test는 켜고 depth write는 끈다.
 - 파티클 vertex는 파티클 위치에서 `WorldRuntime::lightAtWorld`를 샘플링한 packed light를 담고, 프레임 전역 `skyBrightness`와 같은 light curve를 통해 밝아지거나 어두워진다.
 

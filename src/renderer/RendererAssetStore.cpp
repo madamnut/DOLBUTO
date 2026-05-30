@@ -44,6 +44,7 @@ namespace dolbuto
         const std::filesystem::path blockTextureDir = assetDirectory / "textures" / "block";
         const std::filesystem::path fluidTextureDir = assetDirectory / "textures" / "fluid";
         const std::filesystem::path itemTextureDir = assetDirectory / "textures" / "item";
+        const std::filesystem::path smokeTextureDir = assetDirectory / "textures" / "particle" / "smoke";
 
         store.sun = gpuResources.createTexture((assetDirectory / "textures" / "sky" / "Sun.png").string());
         store.moon = gpuResources.createTexture((assetDirectory / "textures" / "sky" / "Moon.png").string());
@@ -62,6 +63,16 @@ namespace dolbuto
         }
         store.terrainTextureArray = gpuResources.createTextureArray(blockTexturePaths);
         store.fluidTextureArray = gpuResources.createTextureArray({(fluidTextureDir / "water.png").string()});
+        store.smokeParticleTextureArray = gpuResources.createTextureArray({
+            (smokeTextureDir / "smoke_0.png").string(),
+            (smokeTextureDir / "smoke_1.png").string(),
+            (smokeTextureDir / "smoke_2.png").string(),
+            (smokeTextureDir / "smoke_3.png").string(),
+            (smokeTextureDir / "smoke_4.png").string(),
+            (smokeTextureDir / "smoke_5.png").string(),
+            (smokeTextureDir / "smoke_6.png").string(),
+            (smokeTextureDir / "smoke_7.png").string()
+        });
 
         if (!content.itemTextureNames().empty())
         {
@@ -105,6 +116,7 @@ namespace dolbuto
     {
         gpuResources.destroyTexture(terrainTextureArray);
         gpuResources.destroyTexture(fluidTextureArray);
+        gpuResources.destroyTexture(smokeParticleTextureArray);
         gpuResources.destroyTexture(playerTexture);
         gpuResources.destroyTexture(font);
         gpuResources.destroyTexture(white);

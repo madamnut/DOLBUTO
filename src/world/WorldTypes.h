@@ -17,6 +17,7 @@ namespace dolbuto
     inline constexpr std::size_t ChunkBlockCount = 16u * 512u * 16u;
     inline constexpr std::size_t SubchunkCount = 512u / 16u;
     inline constexpr std::size_t FeatureNeighborCount = 8u;
+    inline constexpr uint32_t InitialFireBurnTicks = 200u;
 
     enum class WorldEntityType : uint16_t
     {
@@ -73,12 +74,28 @@ namespace dolbuto
         bool terrainFeatureCandidatesValid = false;
     };
 
+    enum class BlockEntityType : uint16_t
+    {
+        None = 0,
+        Fire = 1
+    };
+
+    struct BlockEntity
+    {
+        BlockEntityType type = BlockEntityType::None;
+        uint8_t localX = 0;
+        uint8_t localZ = 0;
+        uint16_t y = 0;
+        uint32_t remainingBurnTicks = 0;
+    };
+
     struct ChunkBlockData
     {
         uint64_t revision = 0;
         std::vector<uint16_t> blocks;
         std::vector<uint16_t> fluids;
         std::vector<WorldEntity> entities;
+        std::vector<BlockEntity> blockEntities;
     };
 
     struct ChunkLightData
@@ -205,6 +222,7 @@ namespace dolbuto
         std::vector<uint16_t> blocks;
         std::vector<uint16_t> fluids;
         std::vector<uint8_t> light;
+        std::vector<BlockEntity> blockEntities;
         std::array<uint8_t, ChunkColumnCount> temperature{};
         std::array<uint8_t, ChunkColumnCount> precipitation{};
         std::vector<WorldEntity> entities;

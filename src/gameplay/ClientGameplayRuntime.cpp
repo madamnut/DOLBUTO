@@ -184,6 +184,103 @@ namespace dolbuto::gameplay
             return result;
         }
 
+        struct FireTick
+        {
+            int x = 0;
+            int y = 0;
+            int z = 0;
+        };
+        std::vector<FireTick> fireTicks;
+        for (const auto& entry : worldRuntime_->chunks())
+        {
+            const RuntimeChunk& chunk = entry.second;
+            if (!chunk.data)
+            {
+                continue;
+            }
+
+            for (const BlockEntity& entity : chunk.data->blockEntities)
+            {
+                if (entity.type != BlockEntityType::Fire)
+                {
+                    continue;
+                }
+                fireTicks.push_back(FireTick{
+                    chunk.chunkX * world::WorldRuntime::ChunkSizeX + entity.localX,
+                    static_cast<int>(entity.y),
+                    chunk.chunkZ * world::WorldRuntime::ChunkSizeZ + entity.localZ
+                });
+            }
+        }
+
+        auto markBlockEntityDirty = [&](int x, int z)
+        {
+            const int chunkX = world::WorldRuntime::floorDiv(x, world::WorldRuntime::ChunkSizeX);
+            const int chunkZ = world::WorldRuntime::floorDiv(z, world::WorldRuntime::ChunkSizeZ);
+            RuntimeChunk* chunk = worldRuntime_->findChunk(chunkX, chunkZ);
+            if (chunk != nullptr && markDirty)
+            {
+                markDirty(*chunk);
+            }
+        };
+
+        for (const FireTick& fire : fireTicks)
+        {
+            const uint16_t block = worldRuntime_->blockAtWorld(fire.x, fire.y, fire.z);
+            if (block == BlockAir || blockDefinition(block).renderType != BlockRenderType::Fire)
+            {
+                worldRuntime_->removeBlockEntityAtWorld(fire.x, fire.y, fire.z);
+                continue;
+            }
+
+            BlockEntity* entity = worldRuntime_->blockEntityAtWorld(fire.x, fire.y, fire.z);
+            if (entity == nullptr || entity->type != BlockEntityType::Fire)
+            {
+                continue;
+            }
+
+            if (entity->remainingBurnTicks > 0)
+            {
+                --entity->remainingBurnTicks;
+                markBlockEntityDirty(fire.x, fire.z);
+            }
+            if (entity->remainingBurnTicks > 0)
+            {
+                continue;
+            }
+
+            const uint32_t addedBurnTicks = droppedItemRuntime_.consumeLowestBurnableInAabb(
+                static_cast<float>(fire.x) - 0.5f,
+                static_cast<float>(fire.y),
+                static_cast<float>(fire.z) - 0.5f,
+                static_cast<float>(fire.x) + 0.5f,
+                static_cast<float>(fire.y + 1),
+                static_cast<float>(fire.z) + 0.5f,
+                markDirty);
+            if (addedBurnTicks > 0)
+            {
+                entity = worldRuntime_->blockEntityAtWorld(fire.x, fire.y, fire.z);
+                if (entity != nullptr && entity->type == BlockEntityType::Fire)
+                {
+                    entity->remainingBurnTicks += addedBurnTicks;
+                    markBlockEntityDirty(fire.x, fire.z);
+                }
+                continue;
+            }
+
+            if (!setBlockAtWorld(fire.x, fire.y, fire.z, BlockAir))
+            {
+                continue;
+            }
+
+            result.brokenBlocks.push_back(BlockBreakEvent{
+                fire.x,
+                fire.y,
+                fire.z,
+                block
+            });
+        }
+
         const std::vector<world::WorldRuntime::BlockTickCell> cells = worldRuntime_->takeScheduledBlockTicks(maxCells);
         for (const world::WorldRuntime::BlockTickCell& cell : cells)
         {

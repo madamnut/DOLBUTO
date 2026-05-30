@@ -38,7 +38,11 @@ void main()
         textureLayer = fireBaseLayer + mod(floor(pushData.cameraPosition.w * 12.0), fireFrameCount);
     }
     vec4 color = textureLod(terrainTexture, vec3(fragUv, textureLayer), mipLevel);
-    if (color.a < 0.5)
+    if (fragAlphaBlend >= 0.999 && color.a < 0.5)
+    {
+        discard;
+    }
+    if (fragAlphaBlend < 0.999 && color.a < 0.01)
     {
         discard;
     }

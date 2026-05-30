@@ -39,6 +39,7 @@ namespace dolbuto
         uint16_t breakLevel = 0;
         uint16_t maxDurability = 0;
         uint16_t placeBlockId = 0;
+        uint32_t burnTimeTicks = 0;
         uint32_t droppedTextureLayer = 0;
         uint32_t heldTextureLayer = 0;
         ItemSlotRenderType slotRender = ItemSlotRenderType::Sprite;

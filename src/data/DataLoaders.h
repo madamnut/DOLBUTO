@@ -71,6 +71,7 @@ namespace dolbuto::data
         std::vector<std::string> placeActions;
         uint16_t breakLevel = 0;
         uint16_t maxDurability = 0;
+        uint32_t burnTimeTicks = 0;
         std::string placeBlock;
     };
 

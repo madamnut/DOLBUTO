@@ -155,6 +155,20 @@ blockLight는 시간대별 하늘 밝기의 영향을 받지 않고, 렌더링�
 
 현재 `fire`는 `lightEmission = 15`를 사용한다.
 
+## 블록 엔티티
+
+일반 블록 ID만으로 표현하기 어려운 셀별 런타임 상태는 청크의 block entity 목록에 저장한다.
+block entity는 청크 로컬 X/Z, 월드 Y, 타입, 타입별 상태 값을 가진다.
+현재 타입은 `Fire`뿐이다.
+
+`fire` 블록은 설치되거나 로드될 때 같은 좌표에 fire block entity를 가진다.
+초기 남은 연소 시간은 `200`틱이다.
+매 world tick마다 남은 연소 시간이 1씩 줄고, 0이 되면 fire 셀의 `1 x 1 x 1` 영역 안에 있는 드랍 아이템 중 `burnTimeTicks`가 가장 낮은 연료 아이템 1개를 소비한다.
+연료를 소비하면 해당 아이템의 `burnTimeTicks`만큼 남은 연소 시간이 늘어난다.
+스택이 2개 이상이면 count만 1 줄이고, 1개짜리 스택이면 드랍 엔티티를 제거한다.
+소비할 연료가 없으면 fire 블록은 `air`로 바뀌고 일반 블록 파괴와 같은 갱신 경로로 메쉬, 파티클, 사운드 이벤트를 발생시킨다.
+fire block entity만 남고 실제 블록이 fire가 아니면 stale 상태로 보고 제거한다.
+
 ## 랜덤 오프셋
 
 `randomOffset`는 `cross`, `prop` 렌더 타입에 쓰는 블록 데이터 불리언 플래그다.
@@ -300,6 +314,7 @@ blend 블록은 terrain texture array를 그대로 사용하며, `alphaBlend` �
 - 모든 `fire` 블록은 초당 12프레임의 같은 시간 기반 프레임을 사용해 동기화된 애니메이션으로 표시한다.
 - 충돌은 없고, 선택/파괴 hit shape는 바닥 중심 기준 `0.8 x 0.1 x 0.8`이다.
 - `lightAttenuation = 0`, `lightEmission = 15`로 정의한다.
+- 남은 연소 시간은 블록 ID가 아니라 fire block entity에 저장한다.
 
 ## 텍스처 매핑
 

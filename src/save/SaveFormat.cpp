@@ -357,6 +357,32 @@ namespace dolbuto::save
         }
         payload[entityCountOffset] = static_cast<uint8_t>(writtenEntities & 0xFFu);
         payload[entityCountOffset + 1] = static_cast<uint8_t>((writtenEntities >> 8u) & 0xFFu);
+
+        const std::vector<BlockEntity>* blockEntities = value.chunkData ? &value.chunkData->blockEntities : &value.blockEntities;
+        const size_t maxBlockEntityCount = std::min<size_t>(blockEntities ? blockEntities->size() : 0, std::numeric_limits<uint16_t>::max());
+        const size_t blockEntityCountOffset = payload.size();
+        writeU16(payload, 0);
+        uint16_t writtenBlockEntities = 0;
+        for (size_t i = 0; blockEntities && i < maxBlockEntityCount; ++i)
+        {
+            const BlockEntity& entity = (*blockEntities)[i];
+            if (entity.type == BlockEntityType::None ||
+                entity.localX >= ChunkSizeX ||
+                entity.localZ >= ChunkSizeZ ||
+                entity.y >= ChunkSizeY)
+            {
+                continue;
+            }
+
+            writeU16(payload, static_cast<uint16_t>(entity.type));
+            writeU8(payload, entity.localX);
+            writeU8(payload, entity.localZ);
+            writeU16(payload, entity.y);
+            writeU32(payload, entity.remainingBurnTicks);
+            ++writtenBlockEntities;
+        }
+        payload[blockEntityCountOffset] = static_cast<uint8_t>(writtenBlockEntities & 0xFFu);
+        payload[blockEntityCountOffset + 1] = static_cast<uint8_t>((writtenBlockEntities >> 8u) & 0xFFu);
         writeU64(payload, value.revision);
         return payload;
     }
@@ -491,9 +517,12 @@ namespace dolbuto::save
                 constexpr size_t DroppedItemEntityLegacyBytes = 39;
                 constexpr size_t DroppedItemEntityBytes = 41;
                 const size_t entityBytesWithRevision = payload.size() >= offset + 8 ? payload.size() - offset - 8 : 0;
-                const bool hasEntityDurability = entityBytesWithRevision == static_cast<size_t>(entityCount) * DroppedItemEntityBytes;
-                if (entityBytesWithRevision != static_cast<size_t>(entityCount) * DroppedItemEntityLegacyBytes &&
-                    !hasEntityDurability)
+                const size_t legacyEntityBytes = static_cast<size_t>(entityCount) * DroppedItemEntityLegacyBytes;
+                const size_t durableEntityBytes = static_cast<size_t>(entityCount) * DroppedItemEntityBytes;
+                const bool hasEntityDurability = entityBytesWithRevision == durableEntityBytes ||
+                    entityBytesWithRevision >= durableEntityBytes + 2u;
+                if (entityBytesWithRevision != legacyEntityBytes &&
+                    entityBytesWithRevision < durableEntityBytes)
                 {
                     return std::nullopt;
                 }
@@ -528,6 +557,32 @@ namespace dolbuto::save
                         entity.droppedItem.stack.count != 0)
                     {
                         value.entities.push_back(entity);
+                    }
+                }
+            }
+            if (offset + 8 != payload.size() && offset + 2 <= payload.size())
+            {
+                const uint16_t blockEntityCount = readU16(payload, offset);
+                constexpr size_t BlockEntityBytes = 10;
+                if (payload.size() < offset + static_cast<size_t>(blockEntityCount) * BlockEntityBytes + 8u)
+                {
+                    return std::nullopt;
+                }
+                value.blockEntities.reserve(blockEntityCount);
+                for (uint16_t i = 0; i < blockEntityCount; ++i)
+                {
+                    BlockEntity entity{};
+                    entity.type = static_cast<BlockEntityType>(readU16(payload, offset));
+                    entity.localX = readU8(payload, offset);
+                    entity.localZ = readU8(payload, offset);
+                    entity.y = readU16(payload, offset);
+                    entity.remainingBurnTicks = readU32(payload, offset);
+                    if (entity.type != BlockEntityType::None &&
+                        entity.localX < ChunkSizeX &&
+                        entity.localZ < ChunkSizeZ &&
+                        entity.y < ChunkSizeY)
+                    {
+                        value.blockEntities.push_back(entity);
                     }
                 }
             }

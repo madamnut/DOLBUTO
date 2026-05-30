@@ -562,6 +562,123 @@ namespace dolbuto::world
         return chunk->data->blocks[index];
     }
 
+    BlockEntity* WorldRuntime::blockEntityAtWorld(int x, int y, int z)
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return nullptr;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        RuntimeChunk* chunk = findChunk(chunkX, chunkZ);
+        if (chunk == nullptr || !chunk->data)
+        {
+            return nullptr;
+        }
+
+        const uint8_t localX = static_cast<uint8_t>(positiveModulo(x, ChunkSizeX));
+        const uint8_t localZ = static_cast<uint8_t>(positiveModulo(z, ChunkSizeZ));
+        const uint16_t localY = static_cast<uint16_t>(y);
+        for (BlockEntity& entity : chunk->data->blockEntities)
+        {
+            if (entity.localX == localX && entity.localZ == localZ && entity.y == localY)
+            {
+                return &entity;
+            }
+        }
+        return nullptr;
+    }
+
+    const BlockEntity* WorldRuntime::blockEntityAtWorld(int x, int y, int z) const
+    {
+        return const_cast<WorldRuntime*>(this)->blockEntityAtWorld(x, y, z);
+    }
+
+    BlockEntity* WorldRuntime::ensureFireBlockEntityAtWorld(int x, int y, int z, uint32_t remainingBurnTicks)
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return nullptr;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        RuntimeChunk* chunk = findChunk(chunkX, chunkZ);
+        if (chunk == nullptr || !chunk->data)
+        {
+            return nullptr;
+        }
+
+        const uint8_t localX = static_cast<uint8_t>(positiveModulo(x, ChunkSizeX));
+        const uint8_t localZ = static_cast<uint8_t>(positiveModulo(z, ChunkSizeZ));
+        const uint16_t localY = static_cast<uint16_t>(y);
+        for (BlockEntity& entity : chunk->data->blockEntities)
+        {
+            if (entity.localX == localX && entity.localZ == localZ && entity.y == localY)
+            {
+                bool changed = false;
+                if (entity.type != BlockEntityType::Fire)
+                {
+                    entity.type = BlockEntityType::Fire;
+                    if (entity.remainingBurnTicks == 0)
+                    {
+                        entity.remainingBurnTicks = remainingBurnTicks;
+                    }
+                    changed = true;
+                }
+                if (changed)
+                {
+                    markDataDirty(*chunk);
+                }
+                return &entity;
+            }
+        }
+
+        BlockEntity entity{};
+        entity.type = BlockEntityType::Fire;
+        entity.localX = localX;
+        entity.localZ = localZ;
+        entity.y = localY;
+        entity.remainingBurnTicks = remainingBurnTicks;
+        chunk->data->blockEntities.push_back(entity);
+        markDataDirty(*chunk);
+        return &chunk->data->blockEntities.back();
+    }
+
+    bool WorldRuntime::removeBlockEntityAtWorld(int x, int y, int z)
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return false;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        RuntimeChunk* chunk = findChunk(chunkX, chunkZ);
+        if (chunk == nullptr || !chunk->data)
+        {
+            return false;
+        }
+
+        const uint8_t localX = static_cast<uint8_t>(positiveModulo(x, ChunkSizeX));
+        const uint8_t localZ = static_cast<uint8_t>(positiveModulo(z, ChunkSizeZ));
+        const uint16_t localY = static_cast<uint16_t>(y);
+        auto& entities = chunk->data->blockEntities;
+        const auto it = std::remove_if(entities.begin(), entities.end(), [&](const BlockEntity& entity)
+        {
+            return entity.localX == localX && entity.localZ == localZ && entity.y == localY;
+        });
+        if (it == entities.end())
+        {
+            return false;
+        }
+
+        entities.erase(it, entities.end());
+        markDataDirty(*chunk);
+        return true;
+    }
+
     uint8_t WorldRuntime::lightAtWorld(int x, int y, int z) const
     {
         if (y >= ChunkSizeY)

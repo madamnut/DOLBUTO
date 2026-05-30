@@ -52,7 +52,26 @@
             "texture": "coal"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 2400
+    },
+    {
+        "id": 38,
+        "key": "charcoal",
+        "name": "Charcoal",
+        "stackSize": 99,
+        "slotTexture": "charcoal",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "charcoal"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "charcoal"
+        },
+        "tags": [],
+        "useActions": [],
+        "burnTimeTicks": 2400
     },
     {
         "id": 32,
@@ -217,7 +236,8 @@
         "placeActions": [
             "place"
         ],
-        "placeBlock": "plant"
+        "placeBlock": "plant",
+        "burnTimeTicks": 100
     },
     {
         "id": 5,
@@ -234,7 +254,8 @@
             "texture": "plant_fiber"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 100
     },
     {
         "id": 6,
@@ -251,7 +272,8 @@
             "texture": "plant_twine"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 160
     },
     {
         "id": 24,
@@ -268,7 +290,8 @@
             "texture": "short_plant_twine"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 100
     },
     {
         "id": 25,
@@ -285,7 +308,8 @@
             "texture": "long_plant_twine"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 256
     },
     {
         "id": 7,
@@ -319,7 +343,8 @@
             "texture": "grass_scrap"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 100
     },
     {
         "id": 9,
@@ -340,7 +365,8 @@
         "placeActions": [
             "place"
         ],
-        "placeBlock": "branch"
+        "placeBlock": "branch",
+        "burnTimeTicks": 300
     },
     {
         "id": 10,
@@ -357,7 +383,8 @@
             "texture": "bough"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 1000
     },
     {
         "id": 11,
@@ -374,7 +401,8 @@
             "texture": "bark_strip"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 100
     },
     {
         "id": 12,
@@ -391,7 +419,8 @@
             "texture": "leaf"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 100
     },
     {
         "id": 13,
@@ -555,7 +584,8 @@
         "placeActions": [
             "place"
         ],
-        "placeBlock": "log"
+        "placeBlock": "log",
+        "burnTimeTicks": 2000
     },
     {
         "id": 19,
@@ -576,7 +606,8 @@
         "placeActions": [
             "place"
         ],
-        "placeBlock": "stripped_log"
+        "placeBlock": "stripped_log",
+        "burnTimeTicks": 1800
     },
     {
         "id": 20,
@@ -593,7 +624,8 @@
             "texture": "wooden_plank"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 225
     },
     {
         "id": 29,
@@ -652,7 +684,8 @@
             "texture": "wooden_stick"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 240
     },
     {
         "id": 22,
@@ -669,7 +702,8 @@
             "texture": "short_wooden_stick"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 120
     },
     {
         "id": 23,
@@ -686,7 +720,8 @@
             "texture": "long_wooden_stick"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 800
     },
     {
         "id": 28,
@@ -703,7 +738,8 @@
             "texture": "wooden_peg"
         },
         "tags": [],
-        "useActions": []
+        "useActions": [],
+        "burnTimeTicks": 100
     },
     {
         "id": 30,

@@ -895,6 +895,10 @@ namespace dolbuto::data
             {
                 definition.maxDurability = static_cast<uint16_t>(std::clamp(*maxDurability, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
             }
+            if (const std::optional<int> burnTimeTicks = jsonIntField(object, "burnTimeTicks"); burnTimeTicks.has_value())
+            {
+                definition.burnTimeTicks = static_cast<uint32_t>(std::max(*burnTimeTicks, 0));
+            }
             if (const std::optional<std::string> placeBlock = jsonStringField(object, "placeBlock"); placeBlock.has_value())
             {
                 definition.placeBlock = *placeBlock;

@@ -873,7 +873,7 @@ namespace dolbuto
         binding.stride = sizeof(TerrainVertex);
         binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-        std::array<VkVertexInputAttributeDescription, 6> attributes{};
+        std::array<VkVertexInputAttributeDescription, 7> attributes{};
         attributes[0].binding = 0;
         attributes[0].location = 0;
         attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -898,6 +898,10 @@ namespace dolbuto
         attributes[5].location = 5;
         attributes[5].format = VK_FORMAT_R8_UINT;
         attributes[5].offset = offsetof(TerrainVertex, packedLight);
+        attributes[6].binding = 0;
+        attributes[6].location = 6;
+        attributes[6].format = VK_FORMAT_R32_SFLOAT;
+        attributes[6].offset = offsetof(TerrainVertex, alphaBlend);
 
         VkPipelineVertexInputStateCreateInfo vertexInput{};
         vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -986,7 +990,13 @@ namespace dolbuto
         multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
         VkPipelineColorBlendAttachmentState colorBlend{};
-        colorBlend.blendEnable = VK_FALSE;
+        colorBlend.blendEnable = VK_TRUE;
+        colorBlend.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlend.colorBlendOp = VK_BLEND_OP_ADD;
+        colorBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlend.alphaBlendOp = VK_BLEND_OP_ADD;
         colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
         VkPipelineColorBlendStateCreateInfo colorBlending{};
@@ -1039,6 +1049,7 @@ namespace dolbuto
         }
 
         depthStencil.depthWriteEnable = VK_TRUE;
+        colorBlend.blendEnable = VK_FALSE;
         stages[0].module = itemVertShader;
         pipelineInfo.pVertexInputState = &itemVertexInput;
         if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.itemPipeline) != VK_SUCCESS)

@@ -460,6 +460,84 @@ namespace dolbuto::world
         return targets;
     }
 
+    uint32_t DroppedItemRuntime::consumeLowestBurnableInAabb(
+        float minX,
+        float minY,
+        float minZ,
+        float maxX,
+        float maxY,
+        float maxZ,
+        const MarkDirtyFn& markDirty)
+    {
+        const std::vector<ItemDefinition>& definitions = itemDefinitions();
+        uint32_t bestBurnTime = 0;
+        uint64_t bestChunkKey = 0;
+        std::size_t bestIndex = 0;
+        uint64_t bestEntityId = 0;
+
+        for (const Target& target : targetsInAabb(minX, minY, minZ, maxX, maxY, maxZ))
+        {
+            if (target.stack.itemId == 0 ||
+                static_cast<std::size_t>(target.stack.itemId) >= definitions.size())
+            {
+                continue;
+            }
+
+            const uint32_t burnTime = definitions[target.stack.itemId].burnTimeTicks;
+            if (burnTime == 0)
+            {
+                continue;
+            }
+
+            if (bestBurnTime == 0 || burnTime < bestBurnTime)
+            {
+                bestBurnTime = burnTime;
+                bestChunkKey = target.handle.chunkKey;
+                bestIndex = target.handle.index;
+                bestEntityId = target.entityId;
+            }
+        }
+
+        if (bestBurnTime == 0)
+        {
+            return 0;
+        }
+
+        RuntimeChunk* chunk = worldRuntime().find(bestChunkKey);
+        if (chunk == nullptr ||
+            !chunk->data ||
+            bestIndex >= chunk->data->entities.size() ||
+            chunk->data->entities[bestIndex].entityId != bestEntityId)
+        {
+            return 0;
+        }
+
+        WorldEntity& item = chunk->data->entities[bestIndex];
+        if (item.type != WorldEntityType::DroppedItem ||
+            item.droppedItem.stack.itemId == 0 ||
+            item.droppedItem.stack.count == 0 ||
+            static_cast<std::size_t>(item.droppedItem.stack.itemId) >= definitions.size() ||
+            definitions[item.droppedItem.stack.itemId].burnTimeTicks != bestBurnTime)
+        {
+            return 0;
+        }
+
+        if (item.droppedItem.stack.count <= 1)
+        {
+            chunk->data->entities.erase(chunk->data->entities.begin() + static_cast<std::ptrdiff_t>(bestIndex));
+        }
+        else
+        {
+            --item.droppedItem.stack.count;
+        }
+        refreshChunkTracking(bestChunkKey);
+        if (markDirty)
+        {
+            markDirty(*chunk);
+        }
+        return bestBurnTime;
+    }
+
     uint16_t DroppedItemRuntime::replaceTargetItems(
         const WorldEntityHandle& itemHandle,
         uint64_t entityId,

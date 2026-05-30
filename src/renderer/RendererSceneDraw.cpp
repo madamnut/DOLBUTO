@@ -320,6 +320,7 @@ namespace dolbuto
             vulkan_.particlePipeline,
             vulkan_.particlePipelineLayout,
             rendererAssets_.terrainTextureArray,
+            rendererAssets_.smokeParticleTextureArray,
             push,
             overlay,
             now,

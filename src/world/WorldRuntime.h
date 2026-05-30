@@ -125,6 +125,10 @@ namespace dolbuto::world
 
         uint16_t blockAtWorld(int x, int y, int z) const;
         uint16_t fluidAtWorld(int x, int y, int z) const;
+        BlockEntity* blockEntityAtWorld(int x, int y, int z);
+        const BlockEntity* blockEntityAtWorld(int x, int y, int z) const;
+        BlockEntity* ensureFireBlockEntityAtWorld(int x, int y, int z, uint32_t remainingBurnTicks);
+        bool removeBlockEntityAtWorld(int x, int y, int z);
         uint8_t lightAtWorld(int x, int y, int z) const;
         bool terrainCellBlocksPlayer(int x, int y, int z, const BlockDefinitionProvider& blockDefinition) const;
         bool setBlockAtWorld(int x, int y, int z, uint16_t block);

@@ -45,6 +45,8 @@ region 인덱스는 파일명으로 구분한다.
 - 청크 packed light 데이터
 - incoming feature slot 값
 - incoming feature mask 값
+- 청크 소유 월드 엔티티
+- 청크 block entity
 
 블록 데이터와 유체 데이터는 각각 별도 RLE run으로 저장한다.
 유체 값은 `uint16_t` 패킹 값이다.
@@ -127,7 +129,7 @@ snapshot load 완료 drain, desired 여부 판정, 기존 render/mesh/source/fea
 
 ## 청크 엔티티 페이로드 데이터
 
-청크 payload는 incoming feature write 뒤, 청크 revision 앞에 청크 소유 월드 엔티티도 저장한다.
+청크 payload는 incoming feature write 뒤, 청크 revision 앞에 청크 소유 월드 엔티티와 block entity를 저장한다.
 
 ```text
 uint16 entityCount
@@ -145,6 +147,13 @@ repeat entityCount:
     uint16 itemId
     uint16 count
     uint16 durability
+uint16 blockEntityCount
+repeat blockEntityCount:
+  uint16 type          // 1 = Fire
+  uint8 localX
+  uint8 localZ
+  uint16 y
+  uint32 remainingBurnTicks
 uint64 revision
 ```
 
@@ -153,6 +162,11 @@ uint64 revision
 기존 `itemId/count`만 있는 청크 엔티티 payload도 읽을 수 있으며, 로드 후 내구도 있는 드랍 아이템의 `durability = 0`은 최대 내구도로 정규화한다.
 드랍 아이템의 회전, 스핀, 나이, 획득 진행 상태는 런타임 전용이며 저장하지 않는다.
 엔티티만 바뀐 경우에는 terrain revision을 올리지 않고 런타임 dirty serial을 사용한다. terrain revision은 mesh validity에도 사용되기 때문이다.
+
+block entity는 블록 ID만으로 표현하지 않는 셀별 상태를 저장한다.
+현재 저장 타입은 fire뿐이며, `remainingBurnTicks`는 해당 fire 블록이 꺼지기까지 남은 tick 수다.
+로드된 fire 블록에 block entity가 없으면 렌더/런타임 갱신 시 초기값으로 보강하고, block entity만 남고 실제 블록이 fire가 아니면 런타임에서 제거한다.
+기존 청크 엔티티 payload처럼 block entity 섹션이 없는 저장도 읽을 수 있다.
 
 ## 플레이어 상태
 
