@@ -5,18 +5,34 @@
 #include "data/DataLoaders.h"
 #include "platform/Log.h"
 
+#include <stb_image.h>
+#include <stb_image_write.h>
+
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <fstream>
 #include <limits>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace dolbuto::game
 {
     namespace
     {
+        constexpr int FireAnimationFrameCount = 14;
+
+        struct RgbaImage
+        {
+            int width = 0;
+            int height = 0;
+            std::vector<unsigned char> pixels;
+        };
+
         std::vector<char> readContentFile(const std::filesystem::path& path)
         {
             std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -72,6 +88,10 @@ namespace dolbuto::game
             {
                 return BlockRenderType::Prop;
             }
+            if (value == "fire")
+            {
+                return BlockRenderType::Fire;
+            }
             return BlockRenderType::None;
         }
 
@@ -108,6 +128,198 @@ namespace dolbuto::game
                 return BlockAttachmentFace::Bottom;
             }
             return BlockAttachmentFace::None;
+        }
+
+        std::string displayNameFromKey(const std::string& key)
+        {
+            std::string text;
+            text.reserve(key.size());
+            bool upperNext = true;
+            for (const char c : key)
+            {
+                if (c == '_' || c == '-')
+                {
+                    text.push_back(' ');
+                    upperNext = true;
+                    continue;
+                }
+                if (upperNext && c >= 'a' && c <= 'z')
+                {
+                    text.push_back(static_cast<char>(c - 'a' + 'A'));
+                }
+                else
+                {
+                    text.push_back(c);
+                }
+                upperNext = false;
+            }
+            return text;
+        }
+
+        bool loadRgbaImage(const std::filesystem::path& path, RgbaImage& image)
+        {
+            int width = 0;
+            int height = 0;
+            int channels = 0;
+            stbi_uc* loadedPixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
+            if (loadedPixels == nullptr || width <= 0 || height <= 0)
+            {
+                if (loadedPixels != nullptr)
+                {
+                    stbi_image_free(loadedPixels);
+                }
+                return false;
+            }
+
+            image.width = width;
+            image.height = height;
+            const std::size_t byteCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4u;
+            image.pixels.assign(loadedPixels, loadedPixels + byteCount);
+            stbi_image_free(loadedPixels);
+            return true;
+        }
+
+        std::string sanitizedTextureName(const std::string& value)
+        {
+            std::string result;
+            result.reserve(value.size());
+            for (const char c : value)
+            {
+                if ((c >= 'a' && c <= 'z') ||
+                    (c >= 'A' && c <= 'Z') ||
+                    (c >= '0' && c <= '9') ||
+                    c == '_' ||
+                    c == '-')
+                {
+                    result.push_back(c);
+                }
+                else
+                {
+                    result.push_back('_');
+                }
+            }
+            return result;
+        }
+
+        std::string generatedBlockTextureName(const data::ParsedBlockTextureDefinition& texture)
+        {
+            return "generated/" + sanitizedTextureName(texture.base + "__" + texture.mask);
+        }
+
+        bool writeMaskedBlockTexture(
+            const std::filesystem::path& blockTextureDirectory,
+            const data::ParsedBlockTextureDefinition& texture,
+            const std::string& generatedTexture)
+        {
+            if (texture.base.empty() || texture.mask.empty())
+            {
+                return false;
+            }
+
+            RgbaImage base{};
+            RgbaImage mask{};
+            if (!loadRgbaImage(blockTextureDirectory / (texture.base + ".png"), base) ||
+                !loadRgbaImage(blockTextureDirectory / (texture.mask + ".png"), mask) ||
+                base.width != mask.width ||
+                base.height != mask.height)
+            {
+                return false;
+            }
+
+            RgbaImage output{};
+            output.width = base.width;
+            output.height = base.height;
+            output.pixels = base.pixels;
+            const std::size_t pixelCount = static_cast<std::size_t>(base.width) * static_cast<std::size_t>(base.height);
+            for (std::size_t pixel = 0; pixel < pixelCount; ++pixel)
+            {
+                const std::size_t index = pixel * 4u;
+                const float alpha = static_cast<float>(mask.pixels[index + 3u]) / 255.0f;
+                if (alpha <= 0.0f)
+                {
+                    continue;
+                }
+
+                for (std::size_t channel = 0; channel < 3u; ++channel)
+                {
+                    const float baseColor = static_cast<float>(base.pixels[index + channel]);
+                    const float maskColor = static_cast<float>(mask.pixels[index + channel]);
+                    output.pixels[index + channel] = static_cast<unsigned char>(
+                        std::clamp(baseColor * (1.0f - alpha) + maskColor * alpha, 0.0f, 255.0f));
+                }
+                output.pixels[index + 3u] = base.pixels[index + 3u];
+            }
+
+            const std::filesystem::path outputPath = blockTextureDirectory / (generatedTexture + ".png");
+            std::error_code error;
+            std::filesystem::create_directories(outputPath.parent_path(), error);
+            if (error)
+            {
+                return false;
+            }
+
+            return stbi_write_png(
+                outputPath.string().c_str(),
+                output.width,
+                output.height,
+                4,
+                output.pixels.data(),
+                output.width * 4) != 0;
+        }
+
+        std::string resolveBlockTextureName(
+            const std::filesystem::path& blockTextureDirectory,
+            const data::ParsedBlockTextureDefinition& texture,
+            const std::string& context)
+        {
+            if (!texture.texture.empty())
+            {
+                return texture.texture;
+            }
+            if (texture.base.empty())
+            {
+                return "none";
+            }
+            if (texture.mask.empty())
+            {
+                return texture.base;
+            }
+
+            const std::string generatedTexture = generatedBlockTextureName(texture);
+            if (writeMaskedBlockTexture(blockTextureDirectory, texture, generatedTexture))
+            {
+                return generatedTexture;
+            }
+
+            log::warn("Masked block texture generation failed: " + context + " -> " + texture.base + " + " + texture.mask);
+            return texture.base;
+        }
+
+        std::string primaryBlockTexture(
+            const data::ParsedBlockDefinition& definition,
+            const std::filesystem::path& blockTextureDirectory)
+        {
+            if (const auto it = definition.textures.find("all"); it != definition.textures.end())
+            {
+                return resolveBlockTextureName(blockTextureDirectory, it->second, definition.name + ".all");
+            }
+            if (const auto it = definition.textures.find("top"); it != definition.textures.end())
+            {
+                return resolveBlockTextureName(blockTextureDirectory, it->second, definition.name + ".top");
+            }
+            if (const auto it = definition.textures.find("side"); it != definition.textures.end())
+            {
+                return resolveBlockTextureName(blockTextureDirectory, it->second, definition.name + ".side");
+            }
+            if (const auto it = definition.textures.find("topBottom"); it != definition.textures.end())
+            {
+                return resolveBlockTextureName(blockTextureDirectory, it->second, definition.name + ".topBottom");
+            }
+            if (!definition.propTexture.empty())
+            {
+                return definition.propTexture;
+            }
+            return "none";
         }
     }
 
@@ -173,59 +385,11 @@ namespace dolbuto::game
             }
         }
 
-        const std::filesystem::path interactionPath = assetDirectory / "data" / "interactions.json";
-        if (std::filesystem::exists(interactionPath))
-        {
-            const std::vector<char> interactionData = readContentFile(interactionPath);
-            const std::string interactionText(interactionData.begin(), interactionData.end());
-            const std::vector<data::ParsedInteractionDefinition> parsedInteractions = data::parseInteractionDefinitions(interactionText);
-            for (const data::ParsedInteractionDefinition& definition : parsedInteractions)
-            {
-                const auto targetIt = content.itemIdByKey_.find(definition.target);
-                if (targetIt == content.itemIdByKey_.end())
-                {
-                    log::warn("Interaction references unknown target item key: " + definition.action + " -> " + definition.target);
-                    continue;
-                }
-
-                ItemInteractionRecipe recipe{};
-                recipe.action = definition.action;
-                recipe.targetItemId = targetIt->second;
-                recipe.targetCount = definition.targetCount;
-                for (const data::ParsedInteractionCandidate& parsedCandidate : definition.candidates)
-                {
-                    ItemInteractionCandidate candidate{};
-                    for (const data::ParsedInteractionOutput& parsedOutput : parsedCandidate.outputs)
-                    {
-                        const auto outputIt = content.itemIdByKey_.find(parsedOutput.item);
-                        if (outputIt == content.itemIdByKey_.end())
-                        {
-                            log::warn("Interaction references unknown candidate item key: " + definition.action + " -> " + parsedOutput.item);
-                            continue;
-                        }
-
-                        ItemInteractionOutput output{};
-                        output.itemId = outputIt->second;
-                        output.min = parsedOutput.min;
-                        output.max = parsedOutput.max;
-                        candidate.outputs.push_back(output);
-                    }
-                    if (!candidate.outputs.empty())
-                    {
-                        recipe.candidates.push_back(std::move(candidate));
-                    }
-                }
-                if (!recipe.action.empty() && recipe.targetItemId != 0 && !recipe.candidates.empty())
-                {
-                    content.itemInteractionRecipes_.push_back(std::move(recipe));
-                }
-            }
-        }
-
         const std::vector<char> blockDefinitionData = readContentFile(assetDirectory / "data" / "blocks.json");
         const std::string blockDefinitionText(blockDefinitionData.begin(), blockDefinitionData.end());
         const std::vector<data::ParsedBlockDefinition> parsedBlocks = data::parseBlockDefinitions(blockDefinitionText);
 
+        const std::filesystem::path blockTextureDir = assetDirectory / "textures" / "block";
         std::unordered_map<std::string, uint32_t> textureLayerByName;
         auto layerForTexture = [&](const std::string& textureName) -> uint32_t
         {
@@ -243,7 +407,7 @@ namespace dolbuto::game
 
         content.blockDefinitions_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
         content.blockTextureLayers_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
-        std::unordered_map<std::string, uint16_t> blockIdByName;
+        std::unordered_map<std::string, std::string> primaryBlockTextureByName;
         for (const data::ParsedBlockDefinition& definition : parsedBlocks)
         {
             BlockDefinition blockDefinition{};
@@ -265,6 +429,7 @@ namespace dolbuto::game
             blockDefinition.lightEmission = definition.lightEmission;
             blockDefinition.randomOffset = definition.randomOffset;
             blockDefinition.attachmentFace = parseAttachmentFace(definition.attachmentFace);
+            blockDefinition.interactActions = definition.interactActions;
             for (size_t dropIndex = 0; dropIndex < definition.dropItemKeys.size(); ++dropIndex)
             {
                 const auto itemIt = content.itemIdByKey_.find(definition.dropItemKeys[dropIndex]);
@@ -289,22 +454,23 @@ namespace dolbuto::game
                 }
             }
             content.blockDefinitions_[definition.id] = blockDefinition;
-            blockIdByName[definition.name] = definition.id;
+            content.blockIdByName_[definition.name] = definition.id;
+            primaryBlockTextureByName[definition.name] = primaryBlockTexture(definition, blockTextureDir);
 
             BlockTextureLayers layers{};
             if (const auto it = definition.textures.find("all"); it != definition.textures.end())
             {
-                layers.faces.fill(layerForTexture(it->second));
+                layers.faces.fill(layerForTexture(resolveBlockTextureName(blockTextureDir, it->second, definition.name + ".all")));
             }
             if (const auto it = definition.textures.find("topBottom"); it != definition.textures.end())
             {
-                const uint32_t layer = layerForTexture(it->second);
+                const uint32_t layer = layerForTexture(resolveBlockTextureName(blockTextureDir, it->second, definition.name + ".topBottom"));
                 layers.faces[0] = layer;
                 layers.faces[1] = layer;
             }
             if (const auto it = definition.textures.find("side"); it != definition.textures.end())
             {
-                const uint32_t layer = layerForTexture(it->second);
+                const uint32_t layer = layerForTexture(resolveBlockTextureName(blockTextureDir, it->second, definition.name + ".side"));
                 layers.faces[2] = layer;
                 layers.faces[3] = layer;
                 layers.faces[4] = layer;
@@ -312,17 +478,25 @@ namespace dolbuto::game
             }
             if (const auto it = definition.textures.find("top"); it != definition.textures.end())
             {
-                layers.faces[0] = layerForTexture(it->second);
+                layers.faces[0] = layerForTexture(resolveBlockTextureName(blockTextureDir, it->second, definition.name + ".top"));
             }
             if (const auto it = definition.textures.find("bottom"); it != definition.textures.end())
             {
-                layers.faces[1] = layerForTexture(it->second);
+                layers.faces[1] = layerForTexture(resolveBlockTextureName(blockTextureDir, it->second, definition.name + ".bottom"));
             }
             if (!definition.propTexture.empty())
             {
                 layers.faces.fill(layerForTexture(definition.propTexture));
             }
             content.blockTextureLayers_[definition.id] = layers;
+
+            if (definition.renderType == "fire")
+            {
+                for (int frame = 1; frame < FireAnimationFrameCount; ++frame)
+                {
+                    layerForTexture("fire/fire_" + std::string(frame < 10 ? "0" : "") + std::to_string(frame));
+                }
+            }
 
             if (definition.renderType == "prop" && !definition.propModel.empty())
             {
@@ -358,8 +532,8 @@ namespace dolbuto::game
                 continue;
             }
 
-            const auto blockIt = blockIdByName.find(definition.placeBlock);
-            if (blockIt == blockIdByName.end())
+            const auto blockIt = content.blockIdByName_.find(definition.placeBlock);
+            if (blockIt == content.blockIdByName_.end())
             {
                 log::warn("Item placeBlock references unknown block name: " + definition.key + " -> " + definition.placeBlock);
                 continue;
@@ -367,7 +541,114 @@ namespace dolbuto::game
             content.itemDefinitions_[definition.id].placeBlockId = blockIt->second;
         }
 
-        const std::filesystem::path blockTextureDir = assetDirectory / "textures" / "block";
+        const std::filesystem::path interactionPath = assetDirectory / "data" / "interactions.json";
+        if (std::filesystem::exists(interactionPath))
+        {
+            const std::vector<char> interactionData = readContentFile(interactionPath);
+            const std::string interactionText(interactionData.begin(), interactionData.end());
+            const std::vector<data::ParsedInteractionDefinition> parsedInteractions = data::parseInteractionDefinitions(interactionText);
+            for (const data::ParsedInteractionDefinition& definition : parsedInteractions)
+            {
+                ItemInteractionRecipe recipe{};
+                recipe.action = definition.action;
+                recipe.targetCount = definition.targetCount;
+
+                if (!definition.target.empty())
+                {
+                    const auto targetIt = content.itemIdByKey_.find(definition.target);
+                    if (targetIt == content.itemIdByKey_.end())
+                    {
+                        log::warn("Interaction references unknown target item key: " + definition.action + " -> " + definition.target);
+                        continue;
+                    }
+                    recipe.targetItemId = targetIt->second;
+                }
+
+                if (!definition.targetBlock.empty())
+                {
+                    if (definition.targetBlock == "*")
+                    {
+                        recipe.targetAnyBlock = true;
+                    }
+                    else
+                    {
+                        const auto blockIt = content.blockIdByName_.find(definition.targetBlock);
+                        if (blockIt == content.blockIdByName_.end())
+                        {
+                            log::warn("Interaction references unknown target block key: " + definition.action + " -> " + definition.targetBlock);
+                            continue;
+                        }
+                        recipe.targetBlockId = blockIt->second;
+                    }
+                }
+
+                for (const data::ParsedInteractionIngredient& parsedIngredient : definition.ingredients)
+                {
+                    const auto ingredientIt = content.itemIdByKey_.find(parsedIngredient.item);
+                    if (ingredientIt == content.itemIdByKey_.end())
+                    {
+                        log::warn("Interaction references unknown ingredient item key: " + definition.action + " -> " + parsedIngredient.item);
+                        continue;
+                    }
+
+                    recipe.ingredients.push_back(ItemInteractionIngredient{
+                        ingredientIt->second,
+                        parsedIngredient.count
+                    });
+                }
+                for (const data::ParsedInteractionCandidate& parsedCandidate : definition.candidates)
+                {
+                    ItemInteractionCandidate candidate{};
+                    for (const data::ParsedInteractionOutput& parsedOutput : parsedCandidate.outputs)
+                    {
+                        if (!parsedOutput.item.empty())
+                        {
+                            const auto outputIt = content.itemIdByKey_.find(parsedOutput.item);
+                            if (outputIt == content.itemIdByKey_.end())
+                            {
+                                log::warn("Interaction references unknown candidate item key: " + definition.action + " -> " + parsedOutput.item);
+                                continue;
+                            }
+
+                            ItemInteractionOutput output{};
+                            output.itemId = outputIt->second;
+                            output.min = parsedOutput.min;
+                            output.max = parsedOutput.max;
+                            candidate.outputs.push_back(output);
+                        }
+
+                        if (!parsedOutput.block.empty())
+                        {
+                            const auto blockIt = content.blockIdByName_.find(parsedOutput.block);
+                            if (blockIt == content.blockIdByName_.end())
+                            {
+                                log::warn("Interaction references unknown candidate block key: " + definition.action + " -> " + parsedOutput.block);
+                                continue;
+                            }
+
+                            candidate.placeBlockId = blockIt->second;
+                            candidate.placeBlockPlacement = parsedOutput.placement;
+                            candidate.displayName = displayNameFromKey(parsedOutput.block);
+                            if (const auto textureIt = primaryBlockTextureByName.find(parsedOutput.block); textureIt != primaryBlockTextureByName.end())
+                            {
+                                candidate.iconTexture = textureIt->second;
+                            }
+                        }
+                    }
+                    if (!candidate.outputs.empty() || candidate.placeBlockId != 0)
+                    {
+                        recipe.candidates.push_back(std::move(candidate));
+                    }
+                }
+                if (!recipe.action.empty() &&
+                    (recipe.targetItemId != 0 || recipe.targetBlockId != 0 || recipe.targetAnyBlock) &&
+                    !recipe.candidates.empty())
+                {
+                    content.itemInteractionRecipes_.push_back(std::move(recipe));
+                }
+            }
+        }
+
         for (const data::ParsedItemDefinition& definition : parsedItems)
         {
             if (definition.id >= content.itemDefinitions_.size())
@@ -476,6 +757,11 @@ namespace dolbuto::game
     const std::unordered_map<std::string, uint16_t>& ClientContent::itemIdByKey() const
     {
         return itemIdByKey_;
+    }
+
+    const std::unordered_map<std::string, uint16_t>& ClientContent::blockIdByName() const
+    {
+        return blockIdByName_;
     }
 
     const std::vector<ItemInteractionRecipe>& ClientContent::itemInteractionRecipes() const

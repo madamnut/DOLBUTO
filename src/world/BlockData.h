@@ -26,7 +26,8 @@ namespace dolbuto
         None,
         Cube,
         Cross,
-        Prop
+        Prop,
+        Fire
     };
 
     enum class BlockFaceOcclusion : uint8_t
@@ -69,6 +70,7 @@ namespace dolbuto
         uint8_t lightEmission = 0;
         bool randomOffset = false;
         BlockAttachmentFace attachmentFace = BlockAttachmentFace::None;
+        std::vector<std::string> interactActions;
         std::vector<BlockDrop> drops;
     };
 

@@ -21,7 +21,7 @@ namespace dolbuto::world
         constexpr float DroppedItemPickupBaseSpeed = 7.0f;
         constexpr float DroppedItemPickupAcceleration = 256.0f;
         constexpr float DroppedItemPickupMaxSpeed = 52.0f;
-        constexpr float DroppedItemManualDropForwardOffset = 0.75f;
+        constexpr float DroppedItemManualDropForwardOffset = 0.5f;
         constexpr float DroppedItemManualDropForwardVelocity = 7.0f;
         constexpr float DroppedItemManualDropUpVelocity = 1.5f;
         constexpr uint8_t WorldEntityFlagGrounded = 1u << 0u;
@@ -646,7 +646,7 @@ namespace dolbuto::world
 
     WorldEntity DroppedItemSystem::createManualDropEntity(
         ItemStack stack,
-        DVec3 playerPosition,
+        DVec3 sourcePosition,
         Vec3 direction,
         const EntityIdProvider& allocateEntityId)
     {
@@ -660,9 +660,9 @@ namespace dolbuto::world
         item.entityId = allocateEntityId ? allocateEntityId() : 0;
         item.type = WorldEntityType::DroppedItem;
         item.position = {
-            static_cast<float>(playerPosition.x) + dropDirection.x * DroppedItemManualDropForwardOffset,
-            static_cast<float>(playerPosition.y) + 0.875f + dropDirection.y * DroppedItemManualDropForwardOffset,
-            static_cast<float>(playerPosition.z) + dropDirection.z * DroppedItemManualDropForwardOffset
+            static_cast<float>(sourcePosition.x) + dropDirection.x * DroppedItemManualDropForwardOffset,
+            static_cast<float>(sourcePosition.y) + dropDirection.y * DroppedItemManualDropForwardOffset,
+            static_cast<float>(sourcePosition.z) + dropDirection.z * DroppedItemManualDropForwardOffset
         };
         item.previousPosition = item.position;
         item.velocity = {
@@ -670,7 +670,7 @@ namespace dolbuto::world
             dropDirection.y * DroppedItemManualDropForwardVelocity + DroppedItemManualDropUpVelocity,
             dropDirection.z * DroppedItemManualDropForwardVelocity
         };
-        item.droppedItem.stack = ItemStack{stack.itemId, 1, stack.durability};
+        item.droppedItem.stack = stack;
 
         static thread_local std::mt19937 manualDropRandom{std::random_device{}()};
         std::uniform_real_distribution<float> angleDistribution(0.0f, 6.2831853f);

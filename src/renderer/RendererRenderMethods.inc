@@ -17,5 +17,6 @@ void drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 
 void drawHeldItem(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, uint16_t heldItemId, float skyBrightness, uint8_t playerPackedLight);
 void ensureClimateOverlayTexture(int mode);
 void drawWaterBlurTargets(VkCommandBuffer commandBuffer, uint32_t imageIndex, const ScreenPresentation::WaterOverlay& waterOverlay);
+void drawBloomTargets(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 std::string readCpuName() const;
 std::string formatVersion(uint32_t version) const;

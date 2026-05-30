@@ -112,11 +112,11 @@ namespace dolbuto
             });
     }
 
-    bool RendererGameplayBridge::dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction)
+    bool RendererGameplayBridge::dropSelectedHotbarItem(bool wholeStack, DVec3 sourcePosition, Vec3 direction)
     {
         const bool dropped = client_.gameplayRuntime.dropSelectedHotbarItem(
             wholeStack,
-            playerPosition,
+            sourcePosition,
             direction,
             [this](RuntimeChunk& chunk)
             {
@@ -136,20 +136,31 @@ namespace dolbuto
         return true;
     }
 
-    gameplay::ItemInteractionMenu RendererGameplayBridge::beginItemInteractionInView(DVec3 origin, Vec3 direction)
+    gameplay::ItemInteractionMenu RendererGameplayBridge::beginItemInteractionInView(
+        DVec3 origin,
+        Vec3 direction,
+        bool preferHeldItemBlockActions)
     {
         return client_.gameplayRuntime.beginItemInteractionInView(
             origin,
             direction,
-            client_.content.itemInteractionRecipes());
+            preferHeldItemBlockActions,
+            client_.content.itemInteractionRecipes(),
+            [this](int x, int y, int z) { return blockAtWorld(x, y, z); },
+            [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); },
+            [this](uint16_t block) { return client_.content.propMeshForBlock(block); });
     }
 
     bool RendererGameplayBridge::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, bool repeat)
     {
-        const bool executed = client_.gameplayRuntime.executePendingItemInteraction(
+        const gameplay::ItemInteractionExecuteResult result = client_.gameplayRuntime.executePendingItemInteraction(
             actionIndex,
             candidateIndex,
             repeat,
+            [this](int x, int y, int z, uint16_t block)
+            {
+                return hooks_.setBlockAtWorld && hooks_.setBlockAtWorld(x, y, z, block);
+            },
             [this](RuntimeChunk& chunk)
             {
                 if (hooks_.markRuntimeChunkDataDirty)
@@ -157,12 +168,16 @@ namespace dolbuto
                     hooks_.markRuntimeChunkDataDirty(chunk);
                 }
             });
-        if (executed && hooks_.updateInventoryUi)
+        for (const gameplay::BlockEditResult& edit : result.blockEdits)
+        {
+            applyBlockEditResult(edit);
+        }
+        if (result.executed && hooks_.updateInventoryUi)
         {
             hooks_.updateInventoryUi();
             client_.uiBridge.updateItemTooltipUi(vulkan_.swapchainExtent.width, vulkan_.swapchainExtent.height);
         }
-        return executed;
+        return result.executed;
     }
 
     void RendererGameplayBridge::cancelPendingItemInteraction()

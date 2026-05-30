@@ -13,11 +13,26 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
 namespace dolbuto
 {
+    namespace
+    {
+        uint32_t stableStringHash(const std::string& value)
+        {
+            uint32_t hash = 2166136261u;
+            for (const char c : value)
+            {
+                hash ^= static_cast<uint8_t>(c);
+                hash *= 16777619u;
+            }
+            return hash;
+        }
+    }
+
     namespace
     {
         constexpr int MaxFramesInFlight = 2;
@@ -330,6 +345,30 @@ namespace dolbuto
         config.precipitationNoiseLacunarity = client_.worldConfig.precipitationNoiseLacunarity;
         config.precipitationNoiseGain = client_.worldConfig.precipitationNoiseGain;
         config.precipitationNoiseSimplexScale = client_.worldConfig.precipitationNoiseSimplexScale;
+        for (const config::WorldOreFeatureConfig& ore : client_.worldConfig.oreFeatures)
+        {
+            if (!ore.enabled || ore.attemptsPerChunk <= 0 || ore.size <= 0)
+            {
+                continue;
+            }
+
+            const auto blockIt = client_.content.blockIdByName().find(ore.block);
+            const auto replaceIt = client_.content.blockIdByName().find(ore.replace);
+            if (blockIt == client_.content.blockIdByName().end() || replaceIt == client_.content.blockIdByName().end())
+            {
+                continue;
+            }
+
+            world::TerrainBuilderConfig::OreFeature feature{};
+            feature.block = blockIt->second;
+            feature.replace = replaceIt->second;
+            feature.minY = ore.minY;
+            feature.maxY = ore.maxY;
+            feature.attemptsPerChunk = ore.attemptsPerChunk;
+            feature.size = ore.size;
+            feature.salt = stableStringHash(ore.name.empty() ? ore.block : ore.name);
+            config.oreFeatures.push_back(feature);
+        }
         return config;
     }
 

@@ -74,5 +74,59 @@
       "gain": 0.5,
       "simplexScale": 1.0
     }
+  },
+  "features": {
+    "ores": [
+      {
+        "name": "coal_ore",
+        "enabled": true,
+        "block": "coal_ore",
+        "replace": "rock",
+        "minY": 200,
+        "maxY": 512,
+        "attemptsPerChunk": 60,
+        "size": 25
+      },
+      {
+        "name": "copper_ore",
+        "enabled": true,
+        "block": "copper_ore",
+        "replace": "rock",
+        "minY": 200,
+        "maxY": 350,
+        "attemptsPerChunk": 32,
+        "size": 20
+      },
+      {
+        "name": "tin_ore",
+        "enabled": true,
+        "block": "tin_ore",
+        "replace": "rock",
+        "minY": 220,
+        "maxY": 350,
+        "attemptsPerChunk": 28,
+        "size": 16
+      },
+      {
+        "name": "gold_ore",
+        "enabled": true,
+        "block": "gold_ore",
+        "replace": "rock",
+        "minY": 50,
+        "maxY": 180,
+        "attemptsPerChunk": 15,
+        "size": 12
+      },
+      {
+        "name": "iron_ore",
+        "enabled": true,
+        "block": "iron_ore",
+        "replace": "rock",
+        "minY": 50,
+        "maxY": 512,
+        "attemptsPerChunk": 30,
+        "size": 25
+      }
+    ]
   }
 }

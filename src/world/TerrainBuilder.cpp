@@ -66,6 +66,7 @@ namespace dolbuto::world
         constexpr uint8_t BranchPlacementMax = 167;
         constexpr uint8_t TreePlacementMin = 168;
         constexpr uint8_t TreePlacementMax = 170;
+        constexpr uint32_t OrePlacementSalt = 0x0EED5EEDu;
 
         struct FeatureNeighborOffset
         {
@@ -131,6 +132,11 @@ namespace dolbuto::world
         uint8_t worldRandom8(int x, int y, int z, uint32_t salt)
         {
             return static_cast<uint8_t>(worldRandomHash(wrapBlockCoordinate(x), y, wrapBlockCoordinate(z), salt) & 255u);
+        }
+
+        float hashUnitFloat(uint32_t hash)
+        {
+            return static_cast<float>(hash & 0x00ffffffu) / static_cast<float>(0x01000000u);
         }
 
         int bedrockHeightAt(int worldX, int worldZ)
@@ -1274,6 +1280,103 @@ namespace dolbuto::world
         result->localLight.clear();
         result->light.clear();
 
+        auto setCenterOre = [&](int worldX, int y, int worldZ, const TerrainBuilderConfig::OreFeature& ore)
+        {
+            if (y < 0 || y >= ChunkSizeY)
+            {
+                return;
+            }
+            const int targetChunkX = floorDiv(worldX, ChunkSizeX);
+            const int targetChunkZ = floorDiv(worldZ, ChunkSizeZ);
+            if (targetChunkX != center->chunkX || targetChunkZ != center->chunkZ)
+            {
+                return;
+            }
+
+            const int localX = positiveModulo(worldX, ChunkSizeX);
+            const int localZ = positiveModulo(worldZ, ChunkSizeZ);
+            const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+            uint16_t& existing = result->blocks[index];
+            if (existing == ore.replace)
+            {
+                existing = ore.block;
+                result->emptySubchunks[static_cast<size_t>(y / SubchunkSize)] = false;
+            }
+        };
+
+        auto emitOreBlob = [&](const TerrainBuilderConfig::OreFeature& ore, int sourceChunkX, int sourceChunkZ, int attempt)
+        {
+            if (ore.block == 0 || ore.replace == 0 || ore.attemptsPerChunk <= 0 || ore.size <= 0)
+            {
+                return;
+            }
+
+            constexpr float Pi = 3.14159265358979323846f;
+            constexpr int WrappedChunkPeriod = WorldSizeBlocks / ChunkSizeX;
+            const int minY = std::clamp(ore.minY, 0, ChunkSizeY - 1);
+            const int maxYExclusive = std::clamp(ore.maxY, minY + 1, ChunkSizeY);
+            const int size = std::max(1, ore.size);
+            const int wrappedChunkX = positiveModulo(sourceChunkX, WrappedChunkPeriod);
+            const int wrappedChunkZ = positiveModulo(sourceChunkZ, WrappedChunkPeriod);
+            auto randomUnit = [&](uint32_t salt)
+            {
+                return hashUnitFloat(worldRandomHash(
+                    wrappedChunkX,
+                    attempt,
+                    wrappedChunkZ,
+                    OrePlacementSalt + ore.salt + salt));
+            };
+
+            const int anchorX = sourceChunkX * ChunkSizeX + std::clamp(static_cast<int>(randomUnit(0x11u) * ChunkSizeX), 0, ChunkSizeX - 1);
+            const int anchorZ = sourceChunkZ * ChunkSizeZ + std::clamp(static_cast<int>(randomUnit(0x22u) * ChunkSizeZ), 0, ChunkSizeZ - 1);
+            const int anchorY = minY + std::clamp(
+                static_cast<int>(randomUnit(0x33u) * static_cast<float>(maxYExclusive - minY)),
+                0,
+                maxYExclusive - minY - 1);
+            const float angle = randomUnit(0x44u) * Pi * 2.0f;
+            const float lineRadius = static_cast<float>(size) / 8.0f;
+            const float startX = static_cast<float>(anchorX) + std::sin(angle) * lineRadius;
+            const float endX = static_cast<float>(anchorX) - std::sin(angle) * lineRadius;
+            const float startZ = static_cast<float>(anchorZ) + std::cos(angle) * lineRadius;
+            const float endZ = static_cast<float>(anchorZ) - std::cos(angle) * lineRadius;
+            const float startY = static_cast<float>(anchorY + static_cast<int>(randomUnit(0x55u) * 5.0f) - 2);
+            const float endY = static_cast<float>(anchorY + static_cast<int>(randomUnit(0x66u) * 5.0f) - 2);
+
+            for (int step = 0; step < size; ++step)
+            {
+                const float progress = size <= 1 ? 0.0f : static_cast<float>(step) / static_cast<float>(size - 1);
+                const float centerX = startX + (endX - startX) * progress;
+                const float centerY = startY + (endY - startY) * progress;
+                const float centerZ = startZ + (endZ - startZ) * progress;
+                const float bulge = (std::sin(Pi * progress) + 1.0f) * 0.5f;
+                const float radius = std::max(0.75f, bulge * (0.75f + randomUnit(0x100u + static_cast<uint32_t>(step)) * static_cast<float>(size) / 16.0f));
+                const float radiusY = std::max(0.65f, radius * 0.75f);
+                const int minX = static_cast<int>(std::floor(centerX - radius));
+                const int maxX = static_cast<int>(std::floor(centerX + radius));
+                const int sampleMinY = std::max(minY, static_cast<int>(std::floor(centerY - radiusY)));
+                const int sampleMaxY = std::min(maxYExclusive - 1, static_cast<int>(std::floor(centerY + radiusY)));
+                const int minZ = static_cast<int>(std::floor(centerZ - radius));
+                const int maxZ = static_cast<int>(std::floor(centerZ + radius));
+
+                for (int y = sampleMinY; y <= sampleMaxY; ++y)
+                {
+                    for (int z = minZ; z <= maxZ; ++z)
+                    {
+                        for (int x = minX; x <= maxX; ++x)
+                        {
+                            const float dx = (static_cast<float>(x) + 0.5f - centerX) / radius;
+                            const float dy = (static_cast<float>(y) + 0.5f - centerY) / radiusY;
+                            const float dz = (static_cast<float>(z) + 0.5f - centerZ) / radius;
+                            if (dx * dx + dy * dy + dz * dz <= 1.0f)
+                            {
+                                setCenterOre(x, y, z, ore);
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
         auto canPlaceTrunk = [](uint16_t existing)
         {
             return existing == BlockAir || existing == BlockPlant || existing == BlockLeaves;
@@ -1344,6 +1447,22 @@ namespace dolbuto::world
                 }
             }
         };
+
+        for (const TerrainBuilderConfig::OreFeature& ore : config_.oreFeatures)
+        {
+            for (const std::shared_ptr<ChunkData>& source : sourceChunks)
+            {
+                if (!source || source->blocks.size() != ChunkBlockCount)
+                {
+                    continue;
+                }
+
+                for (int attempt = 0; attempt < ore.attemptsPerChunk; ++attempt)
+                {
+                    emitOreBlob(ore, source->chunkX, source->chunkZ, attempt);
+                }
+            }
+        }
 
         for (const std::shared_ptr<ChunkData>& source : sourceChunks)
         {

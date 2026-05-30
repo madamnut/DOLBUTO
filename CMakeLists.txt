@@ -127,6 +127,8 @@ set(SHADER_SOURCES
     shaders/sprite.vert
     shaders/sprite.frag
     shaders/kawase_blur.frag
+    shaders/bloom_downsample.frag
+    shaders/bloom_upsample.frag
     shaders/rmlui.vert
     shaders/rmlui.frag
     shaders/terrain.vert

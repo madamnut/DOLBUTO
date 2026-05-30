@@ -3,9 +3,23 @@
 #include "config/ViewmodelConfig.h"
 
 #include <filesystem>
+#include <string>
+#include <vector>
 
 namespace dolbuto::config
 {
+    struct WorldOreFeatureConfig
+    {
+        std::string name;
+        bool enabled = false;
+        std::string block;
+        std::string replace;
+        int minY = 0;
+        int maxY = 0;
+        int attemptsPerChunk = 0;
+        int size = 0;
+    };
+
     struct WorldConfig
     {
         int loadGridScale = 0;
@@ -51,6 +65,7 @@ namespace dolbuto::config
         float precipitationNoiseGain = 0.5f;
         float precipitationNoiseSimplexScale = 1.0f;
         int seaLevel = 256;
+        std::vector<WorldOreFeatureConfig> oreFeatures;
     };
 
     struct RenderConfig
@@ -60,6 +75,10 @@ namespace dolbuto::config
         float fluidWaterScreenBlurSpread = 1.0f;
         float fluidWaterScreenBlurIntensity = 0.75f;
         float fluidWaterScreenBlurTint = 0.025f;
+        bool bloomEnabled = true;
+        float bloomThreshold = 1.0f;
+        float bloomIntensity = 0.35f;
+        float bloomRadius = 1.2f;
     };
 
     WorldConfig loadWorldConfig(const std::filesystem::path& path, const WorldConfig& defaults, int maxSeaLevel);

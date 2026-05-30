@@ -23,6 +23,12 @@ namespace dolbuto
             float tint = 0.025f;
         };
 
+        struct BloomOverlay
+        {
+            bool active = false;
+            float intensity = 0.35f;
+        };
+
         void drawSkySprites(
             VkCommandBuffer commandBuffer,
             const Camera& camera,
@@ -41,8 +47,11 @@ namespace dolbuto
             const RendererAssetStore& assets,
             const SpriteRenderPath& sprites,
             VkPipeline spritePipeline,
+            VkPipeline additiveSpritePipeline,
             VkPipelineLayout spritePipelineLayout,
             VkBuffer spriteVertexBuffer,
+            BloomOverlay bloomOverlay,
+            const Texture& bloomTexture,
             WaterOverlay waterOverlay,
             const Texture& waterBlurTexture,
             int climateOverlayMode) const;

@@ -78,6 +78,7 @@ namespace dolbuto
         constexpr uint64_t DefaultWorldTicks = TicksPerHour * 6u;
         constexpr double SkyDebugTicksPerSecond = static_cast<double>(TicksPerHour);
         constexpr float MinSkyBrightness = 0.08f;
+        constexpr uint16_t DebugFireBlockId = 15;
         constexpr float MaxSkyBrightness = 1.0f;
         constexpr uint16_t BlockGrass = 2;
         constexpr int InitialSpawnZ = 16384;
@@ -756,13 +757,41 @@ namespace dolbuto
                 if (runtime_ != nullptr)
                 {
                     runtime_->gameplay().tickBlockUpdates();
-                    runtime_->gameplay().updateBlockBreaking(
-                        {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
-                        renderViewDirection(camera_),
-                        screen_ == AppScreen::Game && mouseCaptured_ && breakHeld_,
-                        playerPosition_,
-                        static_cast<float>(FixedPhysicsTimestep),
-                        gameMode_ == game::GameMode::Sandbox);
+                    const bool breaking = screen_ == AppScreen::Game && mouseCaptured_ && breakHeld_;
+                    if (gameMode_ == game::GameMode::Sandbox)
+                    {
+                        if (breaking && worldTicks_ >= nextSandboxHeldBreakTick_)
+                        {
+                            runtime_->gameplay().updateBlockBreaking(
+                                {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
+                                renderViewDirection(camera_),
+                                true,
+                                playerPosition_,
+                                static_cast<float>(FixedPhysicsTimestep),
+                                true);
+                            nextSandboxHeldBreakTick_ = worldTicks_ + 10u;
+                        }
+                        else if (!breaking)
+                        {
+                            runtime_->gameplay().updateBlockBreaking(
+                                {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
+                                renderViewDirection(camera_),
+                                false,
+                                playerPosition_,
+                                static_cast<float>(FixedPhysicsTimestep),
+                                true);
+                        }
+                    }
+                    else
+                    {
+                        runtime_->gameplay().updateBlockBreaking(
+                            {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
+                            renderViewDirection(camera_),
+                            breaking,
+                            playerPosition_,
+                            static_cast<float>(FixedPhysicsTimestep),
+                            false);
+                    }
                     if (worldTicks_ % 5u == 0u)
                     {
                         runtime_->gameplay().tickFluidSimulation();
@@ -847,8 +876,15 @@ namespace dolbuto
                 renderCamera.setAngles(camera_.yaw() + Pi, -camera_.pitch());
                 showPlayer = true;
             }
+            const bool renderPlayerInWater = runtime_ != nullptr &&
+                runtime_->gameplay().playerColliderIntersectsWater(renderPlayerPosition, currentPlayerHeightScale());
+            const bool viewBobEnabled = viewBobbing_ &&
+                moveMode_ == MoveMode::Ground &&
+                !renderPlayerInWater &&
+                !waterClimbActive_ &&
+                (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory);
             const Vec3 viewBobOffset = CameraViewBob::offset(CameraViewBobInput{
-                viewBobbing_ && moveMode_ == MoveMode::Ground && (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory),
+                viewBobEnabled,
                 renderCamera.yaw(),
                 renderWalkPhase,
                 renderWalkAmount
@@ -1175,14 +1211,27 @@ namespace dolbuto
                         renderViewDirection(app->camera_));
                 }
             }
+            else if (key == GLFW_KEY_T && action == GLFW_PRESS && app != nullptr)
+            {
+                if (app->screen_ == GameClient::AppScreen::Game && !app->chatOpen_ && app->runtime_ != nullptr)
+                {
+                    app->runtime_->gameplay().editBlockInView(
+                        {app->playerPosition_.x, app->playerPosition_.y + app->currentEyeHeight(), app->playerPosition_.z},
+                        renderViewDirection(app->camera_),
+                        true,
+                        DebugFireBlockId,
+                        app->playerPosition_,
+                        app->currentPlayerHeightScale());
+                }
+            }
             else if (key == GLFW_KEY_Q && action == GLFW_PRESS && app != nullptr)
             {
                 if (app->screen_ == GameClient::AppScreen::Game && app->runtime_ != nullptr)
                 {
-                    const bool wholeStack = (mods & GLFW_MOD_SHIFT) != 0;
+                    const bool wholeStack = (mods & GLFW_MOD_CONTROL) != 0;
                     app->runtime_->gameplay().dropSelectedHotbarItem(
                         wholeStack,
-                        app->playerPosition_,
+                        {app->playerPosition_.x, app->playerPosition_.y + app->currentEyeHeight(), app->playerPosition_.z},
                         renderViewDirection(app->camera_));
                 }
             }
@@ -1274,6 +1323,17 @@ namespace dolbuto
                 if (app->mouseCaptured_)
                 {
                     app->breakHeld_ = true;
+                    if (app->gameMode_ == game::GameMode::Sandbox && app->runtime_ != nullptr)
+                    {
+                        app->runtime_->gameplay().updateBlockBreaking(
+                            {app->playerPosition_.x, app->playerPosition_.y + app->currentEyeHeight(), app->playerPosition_.z},
+                            renderViewDirection(app->camera_),
+                            true,
+                            app->playerPosition_,
+                            static_cast<float>(FixedPhysicsTimestep),
+                            true);
+                        app->nextSandboxHeldBreakTick_ = app->worldTicks_ + 10u;
+                    }
                 }
                 app->setMouseCaptured(true);
             }
@@ -1281,7 +1341,8 @@ namespace dolbuto
             {
                 if (app->mouseCaptured_ && app->runtime_ != nullptr)
                 {
-                    if (app->openRadialInteraction())
+                    const bool preferHeldItemBlockActions = (mods & GLFW_MOD_SHIFT) != 0;
+                    if (app->openRadialInteraction(preferHeldItemBlockActions))
                     {
                         return;
                     }
@@ -1392,7 +1453,7 @@ namespace dolbuto
         lastMouseY_ = y;
     }
 
-    bool GameClient::openRadialInteraction()
+    bool GameClient::openRadialInteraction(bool preferHeldItemBlockActions)
     {
         if (runtime_ == nullptr || screen_ != AppScreen::Game || chatOpen_)
         {
@@ -1401,7 +1462,8 @@ namespace dolbuto
 
         const gameplay::ItemInteractionMenu menu = runtime_->gameplay().beginItemInteractionInView(
             {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
-            renderViewDirection(camera_));
+            renderViewDirection(camera_),
+            preferHeldItemBlockActions);
         if (!menu.available || menu.actions.empty())
         {
             return menu.hasUseTarget;
@@ -1525,8 +1587,8 @@ namespace dolbuto
             if (execute && radialSelectedActionIndex_.has_value() && radialSelectedCandidateIndex_.has_value())
             {
                 const bool repeat = window_ != nullptr &&
-                    (glfwGetKey(window_, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
-                        glfwGetKey(window_, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
+                    (glfwGetKey(window_, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
+                        glfwGetKey(window_, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS);
                 runtime_->gameplay().executePendingItemInteraction(*radialSelectedActionIndex_, *radialSelectedCandidateIndex_, repeat);
             }
             else

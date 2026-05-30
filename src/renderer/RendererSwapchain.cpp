@@ -11,6 +11,22 @@ namespace dolbuto
     namespace
     {
         constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
+
+        VkFormat chooseSceneColorFormat(VkPhysicalDevice physicalDevice, VkFormat fallback)
+        {
+            constexpr VkFormat preferred = VK_FORMAT_R16G16B16A16_SFLOAT;
+            VkFormatProperties properties{};
+            vkGetPhysicalDeviceFormatProperties(physicalDevice, preferred, &properties);
+            constexpr VkFormatFeatureFlags required =
+                VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
+                VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+                VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+            if ((properties.optimalTilingFeatures & required) == required)
+            {
+                return preferred;
+            }
+            return fallback;
+        }
     }
 
     void Renderer::createSwapchain()
@@ -81,6 +97,7 @@ namespace dolbuto
         vkGetSwapchainImagesKHR(vulkan_.device, vulkan_.swapchain, &imageCount, vulkan_.swapchainImages.data());
 
         vulkan_.swapchainImageFormat = surfaceFormat.format;
+        vulkan_.sceneColorFormat = chooseSceneColorFormat(vulkan_.physicalDevice, vulkan_.swapchainImageFormat);
         vulkan_.swapchainExtent = extent;
     }
 
@@ -175,7 +192,7 @@ namespace dolbuto
     void Renderer::createSceneRenderPass()
     {
         VkAttachmentDescription colorAttachment{};
-        colorAttachment.format = vulkan_.swapchainImageFormat;
+        colorAttachment.format = vulkan_.sceneColorFormat;
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -245,7 +262,7 @@ namespace dolbuto
     void Renderer::createWaterBlurRenderPass()
     {
         VkAttachmentDescription colorAttachment{};
-        colorAttachment.format = vulkan_.swapchainImageFormat;
+        colorAttachment.format = vulkan_.sceneColorFormat;
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -291,6 +308,13 @@ namespace dolbuto
         if (vkCreateRenderPass(vulkan_.device, &createInfo, nullptr, &vulkan_.waterBlurRenderPass) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create water blur render pass.");
+        }
+
+        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        if (vkCreateRenderPass(vulkan_.device, &createInfo, nullptr, &vulkan_.postProcessLoadRenderPass) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create post-process load render pass.");
         }
     }
 
@@ -354,10 +378,18 @@ namespace dolbuto
         sceneDepthTargets_.clear();
         waterBlurTargetsA_.clear();
         waterBlurTargetsB_.clear();
+        for (std::vector<Texture>& targets : bloomTargets_)
+        {
+            targets.clear();
+        }
         sceneColorTargets_.reserve(vulkan_.swapchainImageViews.size());
         sceneDepthTargets_.reserve(vulkan_.swapchainImageViews.size());
         waterBlurTargetsA_.reserve(vulkan_.swapchainImageViews.size());
         waterBlurTargetsB_.reserve(vulkan_.swapchainImageViews.size());
+        for (std::vector<Texture>& targets : bloomTargets_)
+        {
+            targets.reserve(vulkan_.swapchainImageViews.size());
+        }
         const VkExtent2D waterBlurExtent{
             std::max(1u, vulkan_.swapchainExtent.width / 4u),
             std::max(1u, vulkan_.swapchainExtent.height / 4u)
@@ -366,7 +398,7 @@ namespace dolbuto
         {
             sceneColorTargets_.push_back(gpuResources_.createRenderTargetTexture(
                 vulkan_.swapchainExtent,
-                vulkan_.swapchainImageFormat,
+                vulkan_.sceneColorFormat,
                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_IMAGE_ASPECT_COLOR_BIT,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -379,18 +411,33 @@ namespace dolbuto
                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL));
             waterBlurTargetsA_.push_back(gpuResources_.createRenderTargetTexture(
                 waterBlurExtent,
-                vulkan_.swapchainImageFormat,
+                vulkan_.sceneColorFormat,
                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_IMAGE_ASPECT_COLOR_BIT,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 vulkan_.linearSampler));
             waterBlurTargetsB_.push_back(gpuResources_.createRenderTargetTexture(
                 waterBlurExtent,
-                vulkan_.swapchainImageFormat,
+                vulkan_.sceneColorFormat,
                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_IMAGE_ASPECT_COLOR_BIT,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 vulkan_.linearSampler));
+            for (size_t mip = 0; mip < bloomTargets_.size(); ++mip)
+            {
+                const uint32_t divisor = 4u << static_cast<uint32_t>(mip);
+                const VkExtent2D bloomExtent{
+                    std::max(1u, vulkan_.swapchainExtent.width / divisor),
+                    std::max(1u, vulkan_.swapchainExtent.height / divisor)
+                };
+                bloomTargets_[mip].push_back(gpuResources_.createRenderTargetTexture(
+                    bloomExtent,
+                    vulkan_.sceneColorFormat,
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_IMAGE_ASPECT_COLOR_BIT,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    vulkan_.linearSampler));
+            }
         }
     }
 
@@ -420,7 +467,11 @@ namespace dolbuto
 
         vulkan_.waterBlurFramebuffersA.resize(waterBlurTargetsA_.size());
         vulkan_.waterBlurFramebuffersB.resize(waterBlurTargetsB_.size());
-        auto createWaterBlurFramebuffer = [this](const Texture& target, VkFramebuffer& framebuffer)
+        for (size_t mip = 0; mip < vulkan_.bloomFramebuffers.size(); ++mip)
+        {
+            vulkan_.bloomFramebuffers[mip].resize(bloomTargets_[mip].size());
+        }
+        auto createPostProcessFramebuffer = [this](const Texture& target, VkFramebuffer& framebuffer)
         {
             VkFramebufferCreateInfo createInfo{};
             createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -433,13 +484,20 @@ namespace dolbuto
 
             if (vkCreateFramebuffer(vulkan_.device, &createInfo, nullptr, &framebuffer) != VK_SUCCESS)
             {
-                throw std::runtime_error("Failed to create water blur framebuffer.");
+                throw std::runtime_error("Failed to create post-process framebuffer.");
             }
         };
         for (size_t i = 0; i < waterBlurTargetsA_.size(); ++i)
         {
-            createWaterBlurFramebuffer(waterBlurTargetsA_[i], vulkan_.waterBlurFramebuffersA[i]);
-            createWaterBlurFramebuffer(waterBlurTargetsB_[i], vulkan_.waterBlurFramebuffersB[i]);
+            createPostProcessFramebuffer(waterBlurTargetsA_[i], vulkan_.waterBlurFramebuffersA[i]);
+            createPostProcessFramebuffer(waterBlurTargetsB_[i], vulkan_.waterBlurFramebuffersB[i]);
+        }
+        for (size_t mip = 0; mip < bloomTargets_.size(); ++mip)
+        {
+            for (size_t i = 0; i < bloomTargets_[mip].size(); ++i)
+            {
+                createPostProcessFramebuffer(bloomTargets_[mip][i], vulkan_.bloomFramebuffers[mip][i]);
+            }
         }
 
         vulkan_.framebuffers.resize(vulkan_.swapchainImageViews.size());
@@ -483,6 +541,14 @@ namespace dolbuto
             vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
         }
         vulkan_.waterBlurFramebuffersB.clear();
+        for (std::vector<VkFramebuffer>& framebuffers : vulkan_.bloomFramebuffers)
+        {
+            for (VkFramebuffer framebuffer : framebuffers)
+            {
+                vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
+            }
+            framebuffers.clear();
+        }
 
         for (VkFramebuffer framebuffer : vulkan_.framebuffers)
         {
@@ -510,6 +576,14 @@ namespace dolbuto
             gpuResources_.destroyTexture(texture);
         }
         waterBlurTargetsB_.clear();
+        for (std::vector<Texture>& targets : bloomTargets_)
+        {
+            for (Texture& texture : targets)
+            {
+                gpuResources_.destroyTexture(texture);
+            }
+            targets.clear();
+        }
 
         if (vulkan_.depthImageView != VK_NULL_HANDLE)
         {

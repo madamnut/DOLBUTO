@@ -62,7 +62,7 @@ namespace dolbuto::world
 
         static WorldEntity createManualDropEntity(
             ItemStack stack,
-            DVec3 playerPosition,
+            DVec3 sourcePosition,
             Vec3 direction,
             const EntityIdProvider& allocateEntityId);
 

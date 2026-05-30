@@ -1,6 +1,7 @@
 #pragma once
 
 #include "audio/AudioSystem.h"
+#include "config/ConfigLoaders.h"
 #include "config/ViewmodelConfig.h"
 #include "game/ClientContent.h"
 #include "game/ClientSceneLifecycle.h"
@@ -15,6 +16,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <vector>
 
 namespace dolbuto::game
 {
@@ -72,6 +74,7 @@ namespace dolbuto::game
         float precipitationNoiseGain = 0.5f;
         float precipitationNoiseSimplexScale = 1.0f;
         int seaLevel = 0;
+        std::vector<config::WorldOreFeatureConfig> oreFeatures;
     };
 
     struct ClientRenderConfigState
@@ -81,6 +84,10 @@ namespace dolbuto::game
         float fluidWaterScreenBlurSpread = 1.0f;
         float fluidWaterScreenBlurIntensity = 0.75f;
         float fluidWaterScreenBlurTint = 0.025f;
+        bool bloomEnabled = true;
+        float bloomThreshold = 1.0f;
+        float bloomIntensity = 0.35f;
+        float bloomRadius = 1.2f;
     };
 
     enum class ClientPerfCounter

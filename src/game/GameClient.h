@@ -66,7 +66,7 @@ namespace dolbuto
 
         void attachWindowCallbacks();
         void handleMouse(double x, double y);
-        bool openRadialInteraction();
+        bool openRadialInteraction(bool preferHeldItemBlockActions);
         void updateRadialSelection(double x, double y);
         void closeRadialInteraction(bool execute);
         void handleMenuClick(double x, double y);
@@ -194,6 +194,7 @@ namespace dolbuto
         double lastForwardTapTime_ = -1000.0;
         double lastJumpTapTime_ = -1000.0;
         bool breakHeld_ = false;
+        uint64_t nextSandboxHeldBreakTick_ = 0;
         bool radialActive_ = false;
         bool radialRestoreMouseCaptured_ = true;
         std::vector<gameplay::ItemInteractionActionMenu> radialActions_;

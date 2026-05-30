@@ -10,8 +10,10 @@
 #include "world/WorldRuntime.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <iomanip>
 #include <sstream>
+#include <string>
 
 namespace dolbuto::game
 {
@@ -21,6 +23,17 @@ namespace dolbuto::game
         constexpr int ChunkSizeZ = 16;
         constexpr int TerrainTilePeriod = 65536;
         constexpr int WorldSizeBlocks = TerrainTilePeriod;
+
+        uint32_t stableStringHash(const std::string& value)
+        {
+            uint32_t hash = 2166136261u;
+            for (const char c : value)
+            {
+                hash ^= static_cast<uint8_t>(c);
+                hash *= 16777619u;
+            }
+            return hash;
+        }
 
         int positiveModulo(int value, int divisor)
         {
@@ -130,6 +143,30 @@ namespace dolbuto::game
             config.precipitationNoiseLacunarity = state.worldConfig.precipitationNoiseLacunarity;
             config.precipitationNoiseGain = state.worldConfig.precipitationNoiseGain;
             config.precipitationNoiseSimplexScale = state.worldConfig.precipitationNoiseSimplexScale;
+            for (const config::WorldOreFeatureConfig& ore : state.worldConfig.oreFeatures)
+            {
+                if (!ore.enabled || ore.attemptsPerChunk <= 0 || ore.size <= 0)
+                {
+                    continue;
+                }
+
+                const auto blockIt = state.content.blockIdByName().find(ore.block);
+                const auto replaceIt = state.content.blockIdByName().find(ore.replace);
+                if (blockIt == state.content.blockIdByName().end() || replaceIt == state.content.blockIdByName().end())
+                {
+                    continue;
+                }
+
+                world::TerrainBuilderConfig::OreFeature feature{};
+                feature.block = blockIt->second;
+                feature.replace = replaceIt->second;
+                feature.minY = ore.minY;
+                feature.maxY = ore.maxY;
+                feature.attemptsPerChunk = ore.attemptsPerChunk;
+                feature.size = ore.size;
+                feature.salt = stableStringHash(ore.name.empty() ? ore.block : ore.name);
+                config.oreFeatures.push_back(feature);
+            }
             return config;
         }
 
@@ -296,14 +333,17 @@ namespace dolbuto::game
         return owner_.renderRuntime_->pickupDroppedItemInView(origin, direction);
     }
 
-    bool ClientRuntime::GameplayAccess::dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction)
+    bool ClientRuntime::GameplayAccess::dropSelectedHotbarItem(bool wholeStack, DVec3 sourcePosition, Vec3 direction)
     {
-        return owner_.renderRuntime_->dropSelectedHotbarItem(wholeStack, playerPosition, direction);
+        return owner_.renderRuntime_->dropSelectedHotbarItem(wholeStack, sourcePosition, direction);
     }
 
-    gameplay::ItemInteractionMenu ClientRuntime::GameplayAccess::beginItemInteractionInView(DVec3 origin, Vec3 direction)
+    gameplay::ItemInteractionMenu ClientRuntime::GameplayAccess::beginItemInteractionInView(
+        DVec3 origin,
+        Vec3 direction,
+        bool preferHeldItemBlockActions)
     {
-        return owner_.renderRuntime_->beginItemInteractionInView(origin, direction);
+        return owner_.renderRuntime_->beginItemInteractionInView(origin, direction, preferHeldItemBlockActions);
     }
 
     bool ClientRuntime::GameplayAccess::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, bool repeat)

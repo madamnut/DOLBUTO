@@ -29,7 +29,15 @@ void main()
 {
     float cameraDistance = length(fragWorldPosition);
     float mipLevel = fragMipDistanceScale > 0.0 ? clamp(floor(cameraDistance / (64.0 * fragMipDistanceScale)), 0.0, 5.0) : 0.0;
-    vec4 color = textureLod(terrainTexture, vec3(fragUv, fragTextureLayer), mipLevel);
+    float textureLayer = fragTextureLayer;
+    float fireBaseLayer = pushData.fluidWaterParams.z;
+    float fireFrameCount = pushData.fluidWaterParams.w;
+    bool fireAnimated = fireFrameCount > 1.0 && abs(textureLayer - fireBaseLayer) < 0.5;
+    if (fireAnimated)
+    {
+        textureLayer = fireBaseLayer + mod(floor(pushData.cameraPosition.w * 12.0), fireFrameCount);
+    }
+    vec4 color = textureLod(terrainTexture, vec3(fragUv, textureLayer), mipLevel);
     if (color.a < 0.5)
     {
         discard;
@@ -37,6 +45,10 @@ void main()
     float skyLight = fragSkyLight * pushData.fluidWaterParams.y;
     float finalLight = lightCurve(max(skyLight, fragBlockLight));
     color.rgb *= fragAo * finalLight;
+    if (fireAnimated)
+    {
+        color.rgb *= 2.0;
+    }
     float outputAlpha = fragAlphaBlend >= 0.999 ? 1.0 : color.a * fragAlphaBlend;
     outColor = vec4(color.rgb, outputAlpha);
 }

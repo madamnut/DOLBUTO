@@ -1,444 +1,780 @@
 [
-  {
-    "id": 0,
-    "name": "air",
-    "renderType": "none",
-    "hardness": -1,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": false,
-    "ao": false,
-    "faceOcclusion": "none",
-    "sameBlockFaceCulling": false,
-    "alphaMode": "opaque",
-    "textures": {},
-    "drops": [],
-    "lightAttenuation": 1,
-    "breakLevel": 0,
-    "breakAction": "none"
-  },
-  {
-    "id": 1,
-    "name": "rock",
-    "renderType": "cube",
-    "hardness": 5,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": true,
-    "faceOcclusion": "opaque",
-    "sameBlockFaceCulling": true,
-    "alphaMode": "opaque",
-    "textures": {
-      "all": "rock"
+    {
+        "id": 0,
+        "name": "air",
+        "renderType": "none",
+        "hardness": -1,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "opaque",
+        "textures": {},
+        "drops": [],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "none"
     },
-    "drops": [
-      {
-        "item": "rock_chunk",
-        "min": 1,
-        "max": 2,
-        "chance": 1
-      }
-    ],
-    "lightAttenuation": 15,
-    "breakLevel": 2,
-    "breakAction": "smash"
-  },
-  {
-    "id": 2,
-    "name": "grass",
-    "renderType": "cube",
-    "hardness": 1.5,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": true,
-    "faceOcclusion": "opaque",
-    "sameBlockFaceCulling": true,
-    "alphaMode": "opaque",
-    "textures": {
-      "top": "grass_top",
-      "bottom": "grass_bottom",
-      "side": "grass_side"
+    {
+        "id": 1,
+        "name": "rock",
+        "renderType": "cube",
+        "hardness": 5,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": "rock"
+        },
+        "drops": [
+            {
+                "item": "rock_chunk",
+                "min": 4,
+                "max": 4,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "smash"
     },
-    "drops": [
-      {
-        "item": "dirt_pile",
-        "min": 1,
-        "max": 1,
-        "chance": 1
-      },
-      {
-        "item": "grass_scrap",
-        "min": 1,
-        "max": 1,
-        "chance": 0.25
-      },
-      {
-        "item": "seed",
-        "min": 1,
-        "max": 1,
-        "chance": 0.05
-      }
-    ],
-    "lightAttenuation": 15,
-    "breakLevel": 1,
-    "breakAction": "dig"
-  },
-  {
-    "id": 3,
-    "name": "dirt",
-    "renderType": "cube",
-    "hardness": 1.3,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": true,
-    "faceOcclusion": "opaque",
-    "sameBlockFaceCulling": true,
-    "alphaMode": "opaque",
-    "textures": {
-      "all": "dirt"
+    {
+        "id": 2,
+        "name": "grass",
+        "renderType": "cube",
+        "hardness": 1.5,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "top": "grass_top",
+            "bottom": "grass_bottom",
+            "side": "grass_side"
+        },
+        "drops": [
+            {
+                "item": "dirt_pile",
+                "min": 4,
+                "max": 4,
+                "chance": 1
+            },
+            {
+                "item": "grass_scrap",
+                "min": 2,
+                "max": 4,
+                "chance": 1
+            },
+            {
+                "item": "seed",
+                "min": 1,
+                "max": 1,
+                "chance": 0.05
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 1,
+        "breakAction": "dig"
     },
-    "drops": [
-      {
-        "item": "dirt_pile",
-        "min": 1,
-        "max": 2,
-        "chance": 1
-      }
-    ],
-    "lightAttenuation": 15,
-    "breakLevel": 1,
-    "breakAction": "dig"
-  },
-  {
-    "id": 4,
-    "name": "sand",
-    "renderType": "cube",
-    "hardness": 1,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": true,
-    "faceOcclusion": "opaque",
-    "sameBlockFaceCulling": true,
-    "alphaMode": "opaque",
-    "textures": {
-      "all": "sand"
+    {
+        "id": 3,
+        "name": "dirt",
+        "renderType": "cube",
+        "hardness": 1.3,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": "dirt"
+        },
+        "drops": [
+            {
+                "item": "dirt_pile",
+                "min": 4,
+                "max": 4,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 1,
+        "breakAction": "dig"
     },
-    "drops": [
-      {
-        "item": "sand_pile",
-        "min": 1,
-        "max": 2,
-        "chance": 1
-      }
-    ],
-    "lightAttenuation": 15,
-    "breakLevel": 1,
-    "breakAction": "dig"
-  },
-  {
-    "id": 5,
-    "name": "sandstone",
-    "renderType": "cube",
-    "hardness": 4,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": true,
-    "faceOcclusion": "opaque",
-    "sameBlockFaceCulling": true,
-    "alphaMode": "opaque",
-    "textures": {
-      "topBottom": "sandstone_topbottom",
-      "side": "sandstone_side"
+    {
+        "id": 4,
+        "name": "sand",
+        "renderType": "cube",
+        "hardness": 1,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": "sand"
+        },
+        "drops": [
+            {
+                "item": "sand_pile",
+                "min": 1,
+                "max": 2,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 1,
+        "breakAction": "dig"
     },
-    "drops": [],
-    "lightAttenuation": 15,
-    "breakLevel": 2,
-    "breakAction": "smash"
-  },
-  {
-    "id": 6,
-    "name": "mud",
-    "renderType": "cube",
-    "hardness": 0.7,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": true,
-    "faceOcclusion": "opaque",
-    "sameBlockFaceCulling": true,
-    "alphaMode": "opaque",
-    "textures": {
-      "all": "mud"
+    {
+        "id": 5,
+        "name": "sandstone",
+        "renderType": "cube",
+        "hardness": 4,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "topBottom": "sandstone_topbottom",
+            "side": "sandstone_side"
+        },
+        "drops": [],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "smash"
     },
-    "drops": [],
-    "lightAttenuation": 15,
-    "breakLevel": 1,
-    "breakAction": "dig"
-  },
-  {
-    "id": 7,
-    "name": "clay",
-    "renderType": "cube",
-    "hardness": 0.8,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": true,
-    "faceOcclusion": "opaque",
-    "sameBlockFaceCulling": true,
-    "alphaMode": "opaque",
-    "textures": {
-      "all": "clay"
+    {
+        "id": 6,
+        "name": "mud",
+        "renderType": "cube",
+        "hardness": 0.7,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": "mud"
+        },
+        "drops": [],
+        "lightAttenuation": 15,
+        "breakLevel": 1,
+        "breakAction": "dig"
     },
-    "drops": [],
-    "lightAttenuation": 15,
-    "breakLevel": 1,
-    "breakAction": "dig"
-  },
-  {
-    "id": 8,
-    "name": "log",
-    "renderType": "cube",
-    "hardness": 4,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": true,
-    "faceOcclusion": "opaque",
-    "sameBlockFaceCulling": true,
-    "alphaMode": "opaque",
-    "textures": {
-      "topBottom": "log_topbottom",
-      "side": "log_side"
+    {
+        "id": 7,
+        "name": "clay",
+        "renderType": "cube",
+        "hardness": 0.8,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": "clay"
+        },
+        "drops": [],
+        "lightAttenuation": 15,
+        "breakLevel": 1,
+        "breakAction": "dig"
     },
-    "drops": [
-      {
-        "item": "log",
-        "min": 1,
-        "max": 1,
-        "chance": 1
-      }
-    ],
-    "lightAttenuation": 15,
-    "breakLevel": 2,
-    "breakAction": "chop"
-  },
-  {
-    "id": 9,
-    "name": "leaves",
-    "renderType": "cube",
-    "hardness": 0.5,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": true,
-    "faceOcclusion": "cutout",
-    "sameBlockFaceCulling": false,
-    "alphaMode": "cutout",
-    "alphaCutoff": 0.5,
-    "textures": {
-      "all": "leaves"
+    {
+        "id": 8,
+        "name": "log",
+        "renderType": "cube",
+        "hardness": 4,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "topBottom": "log_topbottom",
+            "side": "log_side"
+        },
+        "drops": [
+            {
+                "item": "log",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "chop"
     },
-    "drops": [
-      {
-        "item": "leaf",
-        "min": 1,
-        "max": 1,
-        "chance": 1
-      }
-    ],
-    "lightAttenuation": 2,
-    "breakLevel": 0,
-    "breakAction": "cut"
-  },
-  {
-    "id": 10,
-    "name": "gravel",
-    "renderType": "cube",
-    "hardness": 1.4,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": true,
-    "faceOcclusion": "opaque",
-    "sameBlockFaceCulling": true,
-    "alphaMode": "opaque",
-    "textures": {
-      "all": "gravel"
+    {
+        "id": 9,
+        "name": "leaves",
+        "renderType": "cube",
+        "hardness": 0.5,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "cutout",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "cutout",
+        "alphaCutoff": 0.5,
+        "textures": {
+            "all": "leaves"
+        },
+        "drops": [
+            {
+                "item": "leaf",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 2,
+        "breakLevel": 0,
+        "breakAction": "cut"
     },
-    "drops": [],
-    "lightAttenuation": 15,
-    "breakLevel": 1,
-    "breakAction": "dig"
-  },
-  {
-    "id": 11,
-    "name": "ice",
-    "renderType": "cube",
-    "hardness": 2,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": false,
-    "faceOcclusion": "none",
-    "sameBlockFaceCulling": true,
-    "alphaMode": "blend",
-    "alphaBlend": 0.8,
-    "textures": {
-      "all": "ice"
+    {
+        "id": 10,
+        "name": "gravel",
+        "renderType": "cube",
+        "hardness": 1.4,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": "gravel"
+        },
+        "drops": [],
+        "lightAttenuation": 15,
+        "breakLevel": 1,
+        "breakAction": "dig"
     },
-    "drops": [],
-    "lightAttenuation": 2,
-    "breakLevel": 2,
-    "breakAction": "smash"
-  },
-  {
-    "id": 12,
-    "name": "stripped_log",
-    "renderType": "cube",
-    "hardness": 4,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": true,
-    "faceOcclusion": "opaque",
-    "sameBlockFaceCulling": true,
-    "alphaMode": "opaque",
-    "textures": {
-      "topBottom": "stripped_log_topbottom",
-      "side": "stripped_log_side"
+    {
+        "id": 11,
+        "name": "ice",
+        "renderType": "cube",
+        "hardness": 2,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "blend",
+        "alphaBlend": 0.8,
+        "textures": {
+            "all": "ice"
+        },
+        "drops": [],
+        "lightAttenuation": 2,
+        "breakLevel": 2,
+        "breakAction": "smash"
     },
-    "drops": [
-      {
-        "item": "stripped_log",
-        "min": 1,
-        "max": 1,
-        "chance": 1
-      }
-    ],
-    "lightAttenuation": 15,
-    "breakLevel": 2,
-    "breakAction": "chop"
-  },
-  {
-    "id": 10000,
-    "name": "plant",
-    "renderType": "cross",
-    "hardness": 0,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": false,
-    "ao": false,
-    "randomOffset": true,
-    "faceOcclusion": "cutout",
-    "sameBlockFaceCulling": false,
-    "alphaMode": "cutout",
-    "alphaCutoff": 0.5,
-    "textures": {
-      "all": "plant"
+    {
+        "id": 12,
+        "name": "stripped_log",
+        "renderType": "cube",
+        "hardness": 4,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "topBottom": "stripped_log_topbottom",
+            "side": "stripped_log_side"
+        },
+        "drops": [
+            {
+                "item": "stripped_log",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "chop"
     },
-    "attachment": {
-      "face": "bottom"
+    {
+        "id": 13,
+        "name": "primal_workbench",
+        "renderType": "cube",
+        "hardness": 4,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "top": "primal_workbench_top",
+            "bottom": "stripped_log_topbottom",
+            "side": "primal_workbench_side"
+        },
+        "drops": [
+            {
+                "item": "primal_workbench",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "chop",
+        "interactActions": [
+            "craft"
+        ]
     },
-    "drops": [
-      {
-        "item": "plant",
-        "min": 1,
-        "max": 1,
-        "chance": 1
-      }
-    ],
-    "lightAttenuation": 1,
-    "breakLevel": 0,
-    "breakAction": "cut"
-  },
-  {
-    "id": 20000,
-    "name": "stone",
-    "renderType": "prop",
-    "hardness": 0,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": false,
-    "ao": false,
-    "randomOffset": true,
-    "faceOcclusion": "none",
-    "sameBlockFaceCulling": false,
-    "alphaMode": "opaque",
-    "prop": {
-      "model": "stone",
-      "texture": "rock"
+    {
+        "id": 14,
+        "name": "wooden_box",
+        "renderType": "cube",
+        "hardness": 2.5,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": "wooden_box"
+        },
+        "drops": [
+            {
+                "item": "wooden_box",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 1,
+        "breakAction": "chop"
     },
-    "attachment": {
-      "face": "bottom"
+    {
+        "id": 15,
+        "name": "fire",
+        "renderType": "fire",
+        "hardness": 0,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "cutout",
+        "alphaCutoff": 0.5,
+        "textures": {
+            "all": "fire/fire_00"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [],
+        "lightAttenuation": 0,
+        "lightEmission": 15,
+        "breakLevel": 0,
+        "breakAction": "none"
     },
-    "drops": [
-      {
-        "item": "stone_shard",
-        "min": 1,
-        "max": 1,
-        "chance": 1
-      }
-    ],
-    "lightAttenuation": 1,
-    "breakLevel": 0,
-    "breakAction": "smash"
-  },
-  {
-    "id": 20001,
-    "name": "branch",
-    "renderType": "prop",
-    "hardness": 0,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": false,
-    "ao": false,
-    "randomOffset": true,
-    "faceOcclusion": "none",
-    "sameBlockFaceCulling": false,
-    "alphaMode": "opaque",
-    "prop": {
-      "model": "branch",
-      "texture": "log_side"
+    {
+        "id": 16,
+        "name": "coal_ore",
+        "renderType": "cube",
+        "hardness": 5,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": {
+                "base": "rock",
+                "mask": "mask/mask_coal_ore"
+            }
+        },
+        "drops": [
+            {
+                "item": "rock_chunk",
+                "min": 4,
+                "max": 4,
+                "chance": 1
+            },
+            {
+                "item": "coal",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "smash"
     },
-    "attachment": {
-      "face": "bottom"
+    {
+        "id": 17,
+        "name": "copper_ore",
+        "renderType": "cube",
+        "hardness": 5,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": {
+                "base": "rock",
+                "mask": "mask/mask_copper_ore"
+            }
+        },
+        "drops": [
+            {
+                "item": "rock_chunk",
+                "min": 4,
+                "max": 4,
+                "chance": 1
+            },
+            {
+                "item": "raw_copper",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "smash"
     },
-    "drops": [
-      {
-        "item": "branch",
-        "min": 1,
-        "max": 1,
-        "chance": 1
-      }
-    ],
-    "lightAttenuation": 1,
-    "breakLevel": 0,
-    "breakAction": "chop"
-  },
-  {
-    "id": 65535,
-    "name": "bedrock",
-    "renderType": "cube",
-    "hardness": -1,
-    "directional": false,
-    "mipDistanceScale": 1,
-    "collision": true,
-    "ao": true,
-    "faceOcclusion": "opaque",
-    "sameBlockFaceCulling": true,
-    "alphaMode": "opaque",
-    "textures": {
-      "all": "bedrock"
+    {
+        "id": 18,
+        "name": "iron_ore",
+        "renderType": "cube",
+        "hardness": 5,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": {
+                "base": "rock",
+                "mask": "mask/mask_iron_ore"
+            }
+        },
+        "drops": [
+            {
+                "item": "rock_chunk",
+                "min": 4,
+                "max": 4,
+                "chance": 1
+            },
+            {
+                "item": "raw_iron",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "smash"
     },
-    "drops": [],
-    "lightAttenuation": 15,
-    "breakLevel": 0,
-    "breakAction": "none"
-  }
+    {
+        "id": 19,
+        "name": "tin_ore",
+        "renderType": "cube",
+        "hardness": 5,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": {
+                "base": "rock",
+                "mask": "mask/mask_tin_ore"
+            }
+        },
+        "drops": [
+            {
+                "item": "rock_chunk",
+                "min": 4,
+                "max": 4,
+                "chance": 1
+            },
+            {
+                "item": "raw_tin",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "smash"
+    },
+    {
+        "id": 20,
+        "name": "zinc_ore",
+        "renderType": "cube",
+        "hardness": 5,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": {
+                "base": "rock",
+                "mask": "mask/mask_zinc_ore"
+            }
+        },
+        "drops": [
+            {
+                "item": "rock_chunk",
+                "min": 4,
+                "max": 4,
+                "chance": 1
+            },
+            {
+                "item": "raw_zinc",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "smash"
+    },
+    {
+        "id": 21,
+        "name": "silver_ore",
+        "renderType": "cube",
+        "hardness": 5,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": {
+                "base": "rock",
+                "mask": "mask/mask_silver_ore"
+            }
+        },
+        "drops": [
+            {
+                "item": "rock_chunk",
+                "min": 4,
+                "max": 4,
+                "chance": 1
+            },
+            {
+                "item": "raw_silver",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "smash"
+    },
+    {
+        "id": 22,
+        "name": "gold_ore",
+        "renderType": "cube",
+        "hardness": 5,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": {
+                "base": "rock",
+                "mask": "mask/mask_gold_ore"
+            }
+        },
+        "drops": [
+            {
+                "item": "rock_chunk",
+                "min": 4,
+                "max": 4,
+                "chance": 1
+            },
+            {
+                "item": "raw_gold",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "smash"
+    },
+    {
+        "id": 10000,
+        "name": "plant",
+        "renderType": "cross",
+        "hardness": 0,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "randomOffset": true,
+        "faceOcclusion": "cutout",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "cutout",
+        "alphaCutoff": 0.5,
+        "textures": {
+            "all": "plant"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "plant",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "cut"
+    },
+    {
+        "id": 20000,
+        "name": "stone",
+        "renderType": "prop",
+        "hardness": 0,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "randomOffset": true,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "opaque",
+        "prop": {
+            "model": "stone",
+            "texture": "rock"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "stone_shard",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
+    },
+    {
+        "id": 20001,
+        "name": "branch",
+        "renderType": "prop",
+        "hardness": 0,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "randomOffset": true,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "opaque",
+        "prop": {
+            "model": "branch",
+            "texture": "log_side"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "branch",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "chop"
+    },
+    {
+        "id": 65535,
+        "name": "bedrock",
+        "renderType": "cube",
+        "hardness": -1,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "opaque",
+        "sameBlockFaceCulling": true,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": "bedrock"
+        },
+        "drops": [],
+        "lightAttenuation": 15,
+        "breakLevel": 0,
+        "breakAction": "none"
+    }
 ]

@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <random>
 #include <stdexcept>
+#include <unordered_map>
 #include <utility>
 
 namespace dolbuto::world
@@ -36,6 +37,31 @@ namespace dolbuto::world
                 : std::min<uint16_t>(source.durability, sourceMaxDurability);
             const uint32_t numerator = sourceDurability * static_cast<uint32_t>(resultMaxDurability);
             return static_cast<uint16_t>(std::max<uint32_t>(1u, (numerator + sourceMaxDurability - 1u) / sourceMaxDurability));
+        }
+
+        bool droppedItemOverlapsAabb(
+            const WorldEntity& item,
+            const std::vector<ItemDefinition>& itemDefinitions,
+            float minX,
+            float minY,
+            float minZ,
+            float maxX,
+            float maxY,
+            float maxZ)
+        {
+            const DroppedItemSystem::Bounds bounds = DroppedItemSystem::boundsForStack(item.droppedItem.stack, itemDefinitions);
+            const float itemMinX = item.position.x - bounds.halfWidth;
+            const float itemMaxX = item.position.x + bounds.halfWidth;
+            const float itemMinY = item.position.y;
+            const float itemMaxY = item.position.y + bounds.height;
+            const float itemMinZ = item.position.z - bounds.halfWidth;
+            const float itemMaxZ = item.position.z + bounds.halfWidth;
+            return itemMinX < maxX &&
+                itemMaxX > minX &&
+                itemMinY < maxY &&
+                itemMaxY > minY &&
+                itemMinZ < maxZ &&
+                itemMaxZ > minZ;
         }
     }
 
@@ -262,11 +288,11 @@ namespace dolbuto::world
         }
     }
 
-    WorldEntity DroppedItemRuntime::createManualDropEntity(ItemStack stack, DVec3 playerPosition, Vec3 direction)
+    WorldEntity DroppedItemRuntime::createManualDropEntity(ItemStack stack, DVec3 sourcePosition, Vec3 direction)
     {
         return DroppedItemSystem::createManualDropEntity(
             stack,
-            playerPosition,
+            sourcePosition,
             direction,
             [this]()
             {
@@ -392,13 +418,55 @@ namespace dolbuto::world
         return true;
     }
 
-        uint16_t DroppedItemRuntime::replaceTargetItems(
-            const WorldEntityHandle& itemHandle,
-            uint64_t entityId,
-            const std::vector<ItemInteractionOutput>& outputs,
-            uint16_t targetCount,
-            uint16_t maxApplications,
-            const MarkDirtyFn& markDirty)
+    std::vector<DroppedItemRuntime::Target> DroppedItemRuntime::targetsInAabb(
+        float minX,
+        float minY,
+        float minZ,
+        float maxX,
+        float maxY,
+        float maxZ) const
+    {
+        std::vector<Target> targets;
+        const std::vector<ItemDefinition>& definitions = itemDefinitions();
+        for (const auto& entry : worldRuntime().chunks())
+        {
+            const RuntimeChunk& chunk = entry.second;
+            if (!chunk.data)
+            {
+                continue;
+            }
+
+            for (std::size_t i = 0; i < chunk.data->entities.size(); ++i)
+            {
+                const WorldEntity& item = chunk.data->entities[i];
+                if (item.type != WorldEntityType::DroppedItem ||
+                    item.droppedItem.stack.itemId == 0 ||
+                    item.droppedItem.stack.count == 0 ||
+                    item.collecting ||
+                    static_cast<std::size_t>(item.droppedItem.stack.itemId) >= definitions.size() ||
+                    !droppedItemOverlapsAabb(item, definitions, minX, minY, minZ, maxX, maxY, maxZ))
+                {
+                    continue;
+                }
+
+                targets.push_back(Target{
+                    WorldEntityHandle{entry.first, i},
+                    item.entityId,
+                    item.droppedItem.stack,
+                    item.position
+                });
+            }
+        }
+        return targets;
+    }
+
+    uint16_t DroppedItemRuntime::replaceTargetItems(
+        const WorldEntityHandle& itemHandle,
+        uint64_t entityId,
+        const std::vector<ItemInteractionOutput>& outputs,
+        uint16_t targetCount,
+        uint16_t maxApplications,
+        const MarkDirtyFn& markDirty)
     {
         if (outputs.empty() || maxApplications == 0)
         {
@@ -597,6 +665,195 @@ namespace dolbuto::world
             const ResolvedOutput& output = resolvedOutputs[outputIndex];
             spawnStackedOutput(output.itemId, output.count, output.durability);
         }
+        return applicationCount;
+    }
+
+    uint16_t DroppedItemRuntime::replaceAreaItems(
+        float minX,
+        float minY,
+        float minZ,
+        float maxX,
+        float maxY,
+        float maxZ,
+        const std::vector<ItemInteractionIngredient>& ingredients,
+        const std::vector<ItemInteractionOutput>& outputs,
+        uint16_t maxApplications,
+        Vec3 resultPosition,
+        const MarkDirtyFn& markDirty)
+    {
+        if (ingredients.empty() || outputs.empty() || maxApplications == 0)
+        {
+            return 0;
+        }
+
+        const std::vector<ItemDefinition>& definitions = itemDefinitions();
+        auto validItem = [&](uint16_t itemId)
+        {
+            return itemId != 0 &&
+                static_cast<std::size_t>(itemId) < definitions.size() &&
+                definitions[itemId].stackSize != 0;
+        };
+
+        std::unordered_map<uint16_t, uint32_t> availableCounts;
+        for (const Target& target : targetsInAabb(minX, minY, minZ, maxX, maxY, maxZ))
+        {
+            availableCounts[target.stack.itemId] += target.stack.count;
+        }
+
+        uint16_t applicationCount = maxApplications;
+        for (const ItemInteractionIngredient& ingredient : ingredients)
+        {
+            if (!validItem(ingredient.itemId) || ingredient.count == 0)
+            {
+                return 0;
+            }
+
+            const uint32_t available = availableCounts[ingredient.itemId];
+            applicationCount = std::min<uint16_t>(
+                applicationCount,
+                static_cast<uint16_t>(available / ingredient.count));
+        }
+        if (applicationCount == 0)
+        {
+            return 0;
+        }
+
+        struct ResolvedOutput
+        {
+            uint16_t itemId = 0;
+            uint16_t count = 0;
+            uint16_t durability = 0;
+        };
+
+        constexpr float InteractionBounceVelocity = 2.4f;
+        constexpr float InteractionSpin = 7.0f;
+        static thread_local std::mt19937 random{std::random_device{}()};
+        std::vector<ResolvedOutput> resolvedOutputs;
+        for (ItemInteractionOutput output : outputs)
+        {
+            if (!validItem(output.itemId))
+            {
+                continue;
+            }
+            if (output.max < output.min)
+            {
+                output.max = output.min;
+            }
+
+            uint32_t totalCount = 0;
+            std::uniform_int_distribution<int> countDistribution(output.min, output.max);
+            for (uint16_t application = 0; application < applicationCount; ++application)
+            {
+                totalCount += static_cast<uint32_t>(countDistribution(random));
+            }
+            while (totalCount > 0)
+            {
+                const uint16_t stackCount = static_cast<uint16_t>(std::min<uint32_t>(totalCount, definitions[output.itemId].stackSize));
+                resolvedOutputs.push_back(ResolvedOutput{
+                    output.itemId,
+                    stackCount,
+                    definitions[output.itemId].maxDurability
+                });
+                totalCount -= stackCount;
+            }
+        }
+        if (resolvedOutputs.empty())
+        {
+            return 0;
+        }
+
+        std::unordered_map<uint16_t, uint32_t> remainingToConsume;
+        for (const ItemInteractionIngredient& ingredient : ingredients)
+        {
+            remainingToConsume[ingredient.itemId] += static_cast<uint32_t>(ingredient.count) * applicationCount;
+        }
+
+        std::vector<uint64_t> changedChunkKeys;
+        for (auto& entry : worldRuntime().chunks())
+        {
+            RuntimeChunk& chunk = entry.second;
+            if (!chunk.data)
+            {
+                continue;
+            }
+
+            bool chunkChanged = false;
+            for (std::size_t i = 0; i < chunk.data->entities.size();)
+            {
+                WorldEntity& item = chunk.data->entities[i];
+                if (item.type != WorldEntityType::DroppedItem ||
+                    item.droppedItem.stack.itemId == 0 ||
+                    item.droppedItem.stack.count == 0 ||
+                    item.collecting ||
+                    static_cast<std::size_t>(item.droppedItem.stack.itemId) >= definitions.size() ||
+                    !droppedItemOverlapsAabb(item, definitions, minX, minY, minZ, maxX, maxY, maxZ))
+                {
+                    ++i;
+                    continue;
+                }
+
+                auto consumeIt = remainingToConsume.find(item.droppedItem.stack.itemId);
+                if (consumeIt == remainingToConsume.end() || consumeIt->second == 0)
+                {
+                    ++i;
+                    continue;
+                }
+
+                const uint16_t consumed = static_cast<uint16_t>(std::min<uint32_t>(item.droppedItem.stack.count, consumeIt->second));
+                consumeIt->second -= consumed;
+                if (consumed >= item.droppedItem.stack.count)
+                {
+                    chunk.data->entities.erase(chunk.data->entities.begin() + static_cast<std::ptrdiff_t>(i));
+                }
+                else
+                {
+                    item.droppedItem.stack.count = static_cast<uint16_t>(item.droppedItem.stack.count - consumed);
+                    ++i;
+                }
+                chunkChanged = true;
+            }
+
+            if (chunkChanged)
+            {
+                changedChunkKeys.push_back(entry.first);
+                if (markDirty)
+                {
+                    markDirty(chunk);
+                }
+            }
+        }
+
+        for (const uint64_t key : changedChunkKeys)
+        {
+            refreshChunkTracking(key);
+        }
+
+        std::uniform_real_distribution<float> offsetDistribution(-0.12f, 0.12f);
+        std::uniform_real_distribution<float> velocityDistribution(-0.45f, 0.45f);
+        for (const ResolvedOutput& output : resolvedOutputs)
+        {
+            WorldEntity extra{};
+            extra.entityId = allocateEntityId();
+            extra.type = WorldEntityType::DroppedItem;
+            extra.position = {
+                resultPosition.x + offsetDistribution(random),
+                resultPosition.y + 0.02f,
+                resultPosition.z + offsetDistribution(random)
+            };
+            extra.previousPosition = extra.position;
+            extra.velocity = {
+                velocityDistribution(random),
+                InteractionBounceVelocity + velocityDistribution(random) * 0.5f,
+                velocityDistribution(random)
+            };
+            extra.droppedItem.stack = ItemStack{output.itemId, output.count, output.durability};
+            extra.renderSpinX = InteractionSpin;
+            extra.renderSpin = InteractionSpin;
+            extra.renderSpinZ = InteractionSpin;
+            DroppedItemSystem::setGrounded(extra, false);
+            addWorldEntity(std::move(extra), markDirty);
+        }
+
         return applicationCount;
     }
 

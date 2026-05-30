@@ -34,6 +34,7 @@ namespace dolbuto::game
         const std::array<uint32_t, BlockBreakingStageCount>& blockBreakingTextureLayers() const;
         const std::vector<ItemDefinition>& itemDefinitions() const;
         const std::unordered_map<std::string, uint16_t>& itemIdByKey() const;
+        const std::unordered_map<std::string, uint16_t>& blockIdByName() const;
         const std::vector<ItemInteractionRecipe>& itemInteractionRecipes() const;
         const std::vector<std::string>& blockTextureNames() const;
         const std::vector<std::string>& itemTextureNames() const;
@@ -49,6 +50,7 @@ namespace dolbuto::game
         std::array<uint32_t, BlockBreakingStageCount> blockBreakingTextureLayers_{};
         std::vector<ItemDefinition> itemDefinitions_;
         std::unordered_map<std::string, uint16_t> itemIdByKey_;
+        std::unordered_map<std::string, uint16_t> blockIdByName_;
         std::vector<ItemInteractionRecipe> itemInteractionRecipes_;
         std::vector<std::string> blockTextureNames_;
         std::vector<std::string> itemTextureNames_;

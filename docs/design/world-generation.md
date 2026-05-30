@@ -247,7 +247,7 @@ PV 자체 범위는 `-1.0 ~ +1.0`으로 보고, `pv_weight_lut.*`도 이 입력 
 2. 기본 블록 모양은 `air`, `rock`, `bedrock`으로 만들고, 해수면 이하 빈 공간은 유체 `water`로 채운다.
 3. 각 칼럼의 지형 최상단 위가 `air`이면 표면은 `grass`, 아래 4칸은 `dirt`로 바꾼다.
 4. 각 칼럼의 지형 최상단 위가 `water`이면 표면과 아래 4칸은 `sand`로 바꾼다.
-5. 식생과 나무 feature를 생성한다.
+5. 광물 blob, 식생, 나무 feature를 생성한다.
 
 `BuildTerrainSource`는 이 과정에서 column별 `terrainHeight`, `terrainSurfaceY`, deterministic tree 후보를 함께 저장한다.
 이 source checkpoint는 이후 `ResolveFeatures`가 3x3 입력 view를 읽을 때 높이맵을 다시 샘플링하지 않고 사용할 수 있는 재사용 지점이다.
@@ -274,7 +274,7 @@ tree는 grass 위에 log와 leaves를 배치한다.
 
 ## 나무와 feature resolve
 
-나무는 청크 경계를 넘을 수 있으므로 feature 단계는 center 청크 단독으로 판단하지 않는다.
+나무와 광물 blob은 청크 경계를 넘을 수 있으므로 feature 단계는 center 청크 단독으로 판단하지 않는다.
 
 - `ResolveFeatures` job은 center 주변 3x3 `TerrainSourceReady` 청크를 입력으로 받는다.
 - fresh source 청크는 `TerrainSourceReady`에서 캐시한 deterministic tree 후보를 사용한다.
@@ -283,6 +283,32 @@ tree는 grass 위에 log와 leaves를 배치한다.
 - leaves는 air 또는 plant만 덮어쓴다.
 - log는 leaves/plant보다 우선한다.
 - worker는 주변 청크를 수정하지 않고 center 청크 복사본만 반환한다.
+
+일반 광물은 저장 후보 목록을 만들지 않고, `ResolveFeatures`가 3x3 source chunk 좌표에서 결정적 난수로 배치 시도를 다시 계산한다.
+광물 feature 목록은 `config/world.json`의 `features.ores`에서 읽는다.
+
+```json
+"features": {
+  "ores": [
+    {
+      "name": "coal_ore",
+      "enabled": true,
+      "block": "coal_ore",
+      "replace": "rock",
+      "minY": 200,
+      "maxY": 512,
+      "attemptsPerChunk": 60,
+      "size": 25
+    }
+  ]
+}
+```
+
+현재 설정 파일에는 `coal_ore`, `copper_ore`, `tin_ore`, `gold_ore`, `iron_ore`가 등록되어 있으며, 기본으로 켜진 것은 `coal_ore`뿐이다.
+각 시도는 source chunk 안에서 anchor 좌표를 하나 뽑고, 짧은 선분을 따라 여러 타원 샘플을 겹치는 blob 형태로 만든다.
+center chunk에 닿은 후보 칸 중 현재 블록이 `replace`와 같은 칸만 `block`으로 치환한다.
+지형 표면 위 공기, 물, 표층 블록, bedrock에 걸친 시도는 자연스럽게 불발되거나 일부만 생성된다.
+광물 blob을 먼저 적용하고, 이후 나무 feature를 적용한다.
 
 ## 생성 파이프라인
 

@@ -306,6 +306,8 @@ namespace dolbuto
         VkShaderModule vertShader = createShaderModule((shaderDir / "sprite.vert.spv").string());
         VkShaderModule fragShader = createShaderModule((shaderDir / "sprite.frag.spv").string());
         VkShaderModule waterBlurFragShader = createShaderModule((shaderDir / "kawase_blur.frag.spv").string());
+        VkShaderModule bloomDownsampleFragShader = createShaderModule((shaderDir / "bloom_downsample.frag.spv").string());
+        VkShaderModule bloomUpsampleFragShader = createShaderModule((shaderDir / "bloom_upsample.frag.spv").string());
 
         VkPipelineShaderStageCreateInfo vertStage{};
         vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -433,6 +435,25 @@ namespace dolbuto
             throw std::runtime_error("Failed to create graphics pipeline.");
         }
 
+        colorBlend.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.additiveSpritePipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create additive sprite pipeline.");
+        }
+
+        colorBlend.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        pipelineInfo.renderPass = vulkan_.sceneRenderPass;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.sceneSpritePipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create scene sprite pipeline.");
+        }
+
         if (vkCreatePipelineLayout(vulkan_.device, &layoutInfo, nullptr, &vulkan_.waterBlurPipelineLayout) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create water blur pipeline layout.");
@@ -447,6 +468,26 @@ namespace dolbuto
             throw std::runtime_error("Failed to create water blur pipeline.");
         }
 
+        stages[1].module = bloomDownsampleFragShader;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.bloomDownsamplePipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create bloom downsample pipeline.");
+        }
+
+        stages[1].module = bloomUpsampleFragShader;
+        colorBlend.blendEnable = VK_TRUE;
+        colorBlend.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        pipelineInfo.renderPass = vulkan_.postProcessLoadRenderPass;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.bloomUpsamplePipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create bloom upsample pipeline.");
+        }
+
+        vkDestroyShaderModule(vulkan_.device, bloomUpsampleFragShader, nullptr);
+        vkDestroyShaderModule(vulkan_.device, bloomDownsampleFragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, waterBlurFragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, fragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, vertShader, nullptr);
@@ -742,7 +783,7 @@ namespace dolbuto
         pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = vulkan_.terrainPipelineLayout;
-        pipelineInfo.renderPass = vulkan_.renderPass;
+        pipelineInfo.renderPass = vulkan_.sceneRenderPass;
         pipelineInfo.subpass = 0;
 
         if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.terrainPipeline) != VK_SUCCESS)
@@ -989,7 +1030,7 @@ namespace dolbuto
         pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = vulkan_.particlePipelineLayout;
-        pipelineInfo.renderPass = vulkan_.renderPass;
+        pipelineInfo.renderPass = vulkan_.sceneRenderPass;
         pipelineInfo.subpass = 0;
 
         if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.particlePipeline) != VK_SUCCESS)
@@ -1133,7 +1174,7 @@ namespace dolbuto
         pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = vulkan_.selectionPipelineLayout;
-        pipelineInfo.renderPass = vulkan_.renderPass;
+        pipelineInfo.renderPass = vulkan_.sceneRenderPass;
         pipelineInfo.subpass = 0;
 
         if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.selectionPipeline) != VK_SUCCESS)

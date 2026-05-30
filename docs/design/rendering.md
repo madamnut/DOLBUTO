@@ -21,6 +21,7 @@
 - 큐브형 블록은 가능한 면을 합친다.
 - AO 패턴이 다른 면은 무리해서 합치지 않는다.
 - 식물 같은 `cross` 렌더 타입은 X자 스프라이트 형태로 만든다.
+- `fire` 렌더 타입은 바닥 불꽃용 컷아웃 쿼드 묶음으로 만든다.
 - 청크 메싱은 주변 8청크 정보를 사용해 경계면을 처리한다.
 
 ## GPU 데이터
@@ -46,7 +47,7 @@
 `src/world/ClimateSystem.h/.cpp`는 climate seed, tileable climate noise sampling, chunk climate population, temperature/precipitation 계산을 담당한다.
 `src/renderer/ClimateOverlayTextureBuilder.h/.cpp`는 temperature/precipitation과 terrain noise overlay texture에 업로드할 RGBA pixel 데이터를 생성한다.
 `src/renderer/DebugOverlayText.h/.cpp`는 debug 표시 문자열, 해상도/FPS cache, text batch dirty 상태를 소유한다.
-`src/renderer/TerrainGeometryBuilder.h/.cpp`는 solid/blend/cross/prop terrain CPU mesh 생성을 담당하며 Vulkan 타입에 의존하지 않는다.
+`src/renderer/TerrainGeometryBuilder.h/.cpp`는 solid/blend/cross/prop/fire terrain CPU mesh 생성을 담당하며 Vulkan 타입에 의존하지 않는다.
 `src/renderer/RendererTerrainMeshBridge.h/.cpp`는 `TerrainGeometryBuilder`와 `TerrainMesher`를 연결해 chunk mesh와 edited subchunk mesh의 CPU 조립을 담당한다.
 `src/renderer/TextRenderPath.h/.cpp`는 font atlas texture 생성, host-visible text vertex buffer, glyph layout, outline/fill text batch draw를 담당한다.
 `src/renderer/TerrainRenderPath.h/.cpp`는 terrain chunk render data, render chunk 설치/교체/retire 규칙, retired terrain mesh 수명, packed terrain quad 변환, terrain GPU buffer upload, terrain vertex descriptor set 생성, solid/blend/fluid terrain mesh draw 순회와 terrain frustum culling을 담당한다.
@@ -100,7 +101,7 @@ Renderer/GPU가 필요 없는 collision query, block selection state, inventory 
 드롭 아이템 생성, 드롭 아이템끼리의 물리 충돌, 물리 tick, pickup 판정은 `src/world/DroppedItemSystem.h/.cpp`가 담당한다.
 드롭 아이템 entity id, 청크별 추적, spawn/drop/pickup/raycast/update 조율은 `src/world/DroppedItemRuntime.h/.cpp`가 담당한다.
 `src/world/TerrainMesher.h/.cpp`는 chunk mesh와 편집 subchunk mesh의 CPU orchestration을 맡는다.
-solid/blend/cross/prop subchunk mesh 생성은 `TerrainGeometryBuilder`가 담당하고, render chunk storage 조작, Vulkan upload, terrain render data 수명, terrain mesh draw loop는 `TerrainRenderPath`가 담당한다.
+solid/blend/cross/prop/fire subchunk mesh 생성은 `TerrainGeometryBuilder`가 담당하고, render chunk storage 조작, Vulkan upload, terrain render data 수명, terrain mesh draw loop는 `TerrainRenderPath`가 담당한다.
 chunk mesh와 edited subchunk mesh의 CPU 조립은 `RendererTerrainMeshBridge`가 담당하고, `Renderer`는 결과를 `TerrainRenderPath` 설치 API로 전달한다.
 player mesh는 terrain chunk mesh와 별도 indexed vertex buffer 경로이며 `PlayerMeshRenderPath`가 소유한다.
 플레이어는 `assets/textures/character/Character.glb`를 직접 읽고, 별도 `Character.mesh` 런타임 캐시 파일은 사용하지 않는다.
@@ -210,6 +211,19 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 - prop `.dpm` 로딩 결과는 렌더링뿐 아니라 블록 선택 레이캐스트에도 사용한다.
 - prop 선택 아웃라인은 quad wire가 아니라 `.dpm` local bounds에 동일한 offset/rotation을 적용한 작은 박스로 그린다.
 
+## 불 렌더링
+
+`renderType = "fire"` 블록은 일반 지형 메시 경로 안에서 컷아웃 쿼드 묶음으로 렌더링한다.
+
+- 텍스처는 block texture array의 `fire/fire_00` 레이어를 사용한다.
+- 중앙에는 plant와 같은 크기의 X자 쿼드 2장을 블록 중앙에 둔다.
+- 바닥 네 변에는 블록 한 면 크기의 쿼드 4장을 두고, 위쪽 edge를 중심 방향으로 30도 기울인다.
+- 같은 바닥 네 변에서 안쪽으로 0.1블록 당긴 위치에 완전 수직 90도 쿼드 4장을 추가로 둔다.
+- 모든 쿼드는 양면으로 방출한다.
+- `ClientContent`는 `fire/fire_00`부터 `fire/fire_13`까지 14프레임을 block texture array에 연속 등록한다.
+- 지형 메쉬에는 `fire/fire_00` layer만 저장하고, terrain fragment shader가 프레임 시간으로 현재 fire layer를 선택한다.
+- 모든 불은 같은 프레임 값을 사용하므로 초당 12프레임의 동기화된 단순 애니메이션으로 표시된다.
+
 ## 컬링
 
 - 프러스텀 컬링을 적용한다.
@@ -252,6 +266,23 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 `fluid.frag`는 fluid texture array를 샘플링하고 render config의 고정 alpha 값을 적용한다.
 `config/render.json` 파일 읽기와 값 검증은 `src/config/ConfigLoaders.h/.cpp`의 `config::loadRenderConfig`가 맡는다.
 물 normal mapping, Fresnel alpha, depth absorption, SSR은 현재 렌더러에 포함되어 있지 않다.
+
+## 포스트 프로세스와 블룸
+
+월드 씬은 swapchain 색상 포맷이 아니라 별도의 scene color target에 먼저 렌더링한다.
+가능한 GPU에서는 scene color target과 포스트 프로세스 임시 target에 `VK_FORMAT_R16G16B16A16_SFLOAT`를 사용하고, 선형 필터링까지 지원하지 않으면 swapchain 색상 포맷으로 되돌린다.
+
+블룸은 `config/render.json`의 `bloom` 섹션으로 제어한다.
+
+- `enabled`: 블룸 패스 사용 여부.
+- `threshold`: 이 밝기 이상의 픽셀만 블룸 후보로 추출한다.
+- `intensity`: 최종 화면에 더하는 블룸 세기.
+- `radius`: downsample/upsample sample offset 배율.
+
+렌더 순서는 scene pass 이후 `bloom_downsample.frag`로 밝은 픽셀을 1/4 해상도 target에 추출하고, 1/8, 1/16, 1/32 해상도로 순차 downsample한다.
+그 다음 `bloom_upsample.frag`로 작은 mip부터 큰 mip로 additive upsample해 여러 반경의 번짐을 합친다.
+최종 presentation pass에서는 scene color를 먼저 그리고, additive sprite pipeline으로 블룸 텍스처를 더한 뒤 물속 화면 블러와 기후 오버레이를 그린다.
+`fire` terrain fragment는 애니메이션 프레임 샘플 이후 색을 2배로 올려 HDR scene target에서 threshold를 넘을 수 있게 한다.
 
 ## 블록 파괴 파티클
 
@@ -333,6 +364,7 @@ Groundness/Smoothness/Weirdness/PV 오버레이는 월드 원점 기준 `0..4096
 
 태양과 달 스프라이트는 시간에 따라 변하는 월드 방향에서 투영해 screen-space sprite로 렌더링한다.
 현재 투영 half-size는 화면 너비의 `0.04`이며, 높이는 viewport aspect ratio에 맞게 조정한다.
+달 스프라이트는 scene pass에서 약간 따뜻한 흰노란 tint를 곱해 dual-filter bloom에 은은하게 잡히도록 한다.
 렌더러는 `GameClient`에서 `worldTicks`를 받아 28800틱 하루 주기를 계산한다.
 `06H`에는 태양이 동쪽 지평선 근처에 있고, `12H`에는 머리 위에 있으며, `18H`에는 서쪽 지평선 근처에 있다. 달은 반대 방향을 사용한다.
 하늘 각도는 하루 주기 동안 감소하므로 `06H` 시작 시점에서 투영된 태양은 지는 것이 아니라 떠오른다.

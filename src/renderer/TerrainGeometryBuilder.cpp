@@ -1,5 +1,7 @@
 #include "renderer/TerrainGeometryBuilder.h"
 
+#include "world/SkyLightSystem.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -456,6 +458,79 @@ namespace dolbuto
                 crossVertex(0.0f, y0, 1.0f, 1.0f, 1.0f));
         };
 
+        auto appendFireBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block)
+        {
+            constexpr float Height = 1.0f;
+            constexpr float HalfSize = 0.5f;
+            constexpr float VerticalInset = 0.1f;
+            constexpr float VerticalOffset = HalfSize - VerticalInset;
+            constexpr float EdgeLean = Height * 0.57735026919f;
+
+            const uint32_t textureLayer = blockFaceTextureLayer(block, 0);
+            const float mipDistanceScale = blockDefinition(block).mipDistanceScale;
+            const float alphaBlend = blockAlphaBlend(block);
+            const float baseY = static_cast<float>(y);
+            const float centerX = static_cast<float>(x);
+            const float centerZ = static_cast<float>(z);
+            const uint8_t sampledLight = lightAt(x - worldXStart, y, z - worldZStart);
+            const uint8_t packedLight = world::packLight(world::skyLightFromPacked(sampledLight), world::MaxSkyLight);
+
+            auto makeVertex = [&](float px, float py, float pz, float u, float v)
+            {
+                TerrainVertex vertex{px, py, pz, u, v, 1.0f};
+                vertex.textureLayer = static_cast<float>(textureLayer);
+                vertex.mipDistanceScale = mipDistanceScale;
+                vertex.alphaBlend = alphaBlend;
+                vertex.packedLight = packedLight;
+                return vertex;
+            };
+
+            auto appendDoubleSidedQuad = [&](TerrainVertex a, TerrainVertex b, TerrainVertex c, TerrainVertex d)
+            {
+                const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
+                buildData.vertices.push_back(a);
+                buildData.vertices.push_back(b);
+                buildData.vertices.push_back(c);
+                buildData.vertices.push_back(d);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 1);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex + 3);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex + 1);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 3);
+                buildData.indices.push_back(baseIndex + 2);
+            };
+
+            auto appendVerticalPlane = [&](float bottomCenterX, float bottomCenterZ, float topCenterX, float topCenterZ, float dirX, float dirZ, float width, float height)
+            {
+                const float halfWidth = width * 0.5f;
+                appendDoubleSidedQuad(
+                    makeVertex(bottomCenterX - dirX * halfWidth, baseY, bottomCenterZ - dirZ * halfWidth, 0.0f, 1.0f),
+                    makeVertex(topCenterX - dirX * halfWidth, baseY + height, topCenterZ - dirZ * halfWidth, 0.0f, 0.0f),
+                    makeVertex(topCenterX + dirX * halfWidth, baseY + height, topCenterZ + dirZ * halfWidth, 1.0f, 0.0f),
+                    makeVertex(bottomCenterX + dirX * halfWidth, baseY, bottomCenterZ + dirZ * halfWidth, 1.0f, 1.0f));
+            };
+
+            constexpr float Diagonal = 0.70710678118f;
+            appendVerticalPlane(centerX, centerZ, centerX, centerZ, Diagonal, Diagonal, 1.41421356237f, Height);
+            appendVerticalPlane(centerX, centerZ, centerX, centerZ, Diagonal, -Diagonal, 1.41421356237f, Height);
+
+            appendVerticalPlane(centerX, centerZ + HalfSize, centerX, centerZ + HalfSize - EdgeLean, 1.0f, 0.0f, 1.0f, Height);
+            appendVerticalPlane(centerX, centerZ - HalfSize, centerX, centerZ - HalfSize + EdgeLean, 1.0f, 0.0f, 1.0f, Height);
+            appendVerticalPlane(centerX + HalfSize, centerZ, centerX + HalfSize - EdgeLean, centerZ, 0.0f, 1.0f, 1.0f, Height);
+            appendVerticalPlane(centerX - HalfSize, centerZ, centerX - HalfSize + EdgeLean, centerZ, 0.0f, 1.0f, 1.0f, Height);
+
+            appendVerticalPlane(centerX, centerZ + VerticalOffset, centerX, centerZ + VerticalOffset, 1.0f, 0.0f, 1.0f, Height);
+            appendVerticalPlane(centerX, centerZ - VerticalOffset, centerX, centerZ - VerticalOffset, 1.0f, 0.0f, 1.0f, Height);
+            appendVerticalPlane(centerX + VerticalOffset, centerZ, centerX + VerticalOffset, centerZ, 0.0f, 1.0f, 1.0f, Height);
+            appendVerticalPlane(centerX - VerticalOffset, centerZ, centerX - VerticalOffset, centerZ, 0.0f, 1.0f, 1.0f, Height);
+        };
+
         auto appendPropBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block)
         {
             const auto meshIt = propMeshesByBlock_.find(block);
@@ -745,6 +820,10 @@ namespace dolbuto
                     else if (blockDefinition(block).renderType == BlockRenderType::Prop)
                     {
                         appendPropBlock(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, block);
+                    }
+                    else if (blockDefinition(block).renderType == BlockRenderType::Fire)
+                    {
+                        appendFireBlock(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, block);
                     }
                 }
             }

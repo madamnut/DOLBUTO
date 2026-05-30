@@ -53,17 +53,31 @@ namespace dolbuto
         uint16_t max = 1;
     };
 
+    struct ItemInteractionIngredient
+    {
+        uint16_t itemId = 0;
+        uint16_t count = 1;
+    };
+
     struct ItemInteractionCandidate
     {
         bool enabled = true;
+        std::vector<ItemInteractionIngredient> ingredients;
         std::vector<ItemInteractionOutput> outputs;
+        uint16_t placeBlockId = 0;
+        std::string placeBlockPlacement;
+        std::string displayName;
+        std::string iconTexture;
     };
 
     struct ItemInteractionRecipe
     {
         std::string action;
         uint16_t targetItemId = 0;
+        uint16_t targetBlockId = 0;
+        bool targetAnyBlock = false;
         uint16_t targetCount = 1;
+        std::vector<ItemInteractionIngredient> ingredients;
         std::vector<ItemInteractionCandidate> candidates;
     };
 }

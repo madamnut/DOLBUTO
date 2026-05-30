@@ -17,6 +17,17 @@ assets/data/blocks.json
 드랍 항목은 아이템 키로 작성하고, 로드 시점에 아이템 ID로 해석한다.
 아이템과 드랍 테이블 초안은 [[item-data]]에 기록한다.
 
+## 블록 상호작용
+
+블록 정의는 우클릭 상호작용용 `interactActions` 배열을 가질 수 있다.
+이 값이 비어 있으면 블록 우클릭은 아이템 설치 흐름으로 넘어간다.
+값이 있으면 해당 블록은 상호작용 대상 가능성이 있는 것으로 보고, `placeActions`보다 먼저 원형 상호작용 UI를 연다.
+
+현재 `primal_workbench`는 `interactActions: ["craft"]`를 가진다.
+워크벤치의 작업 영역은 블록 바로 위 `1 x 1 x 1` 공간이며, 그 안에 들어온 드랍 아이템 스택을 재료로 감지한다.
+블록에 `interactActions`가 있으면 기본 우클릭은 블록 액션을 우선하며, `Shift + 우클릭`은 손에 든 아이템의 블록 대상 `useActions`를 우선한다.
+현재 `bow_drill`의 `ignite`는 대상 블록 윗칸이 비어 있고 대상 블록이 충돌 블록이면 `fire`를 그 윗칸에 설치한다.
+
 ## 블록 파괴
 
 블록 정의는 블록 파괴용 `hardness`, `breakLevel`, `breakAction` 값을 포함한다.
@@ -31,6 +42,7 @@ assets/data/blocks.json
 손은 내부적으로 `breakLevel = 1`, 파괴 동작 없음으로 취급한다.
 든 아이템에 `breakActions`와 `breakLevel`이 모두 없으면 좌클릭 파괴에서는 손과 동일하게 취급한다.
 손이나 든 아이템의 레벨이 블록의 `breakLevel`보다 낮으면 파괴 진행도와 오버레이가 생기지 않는다.
+Sandbox 모드에서는 도구 레벨과 동작을 검사하지 않고 파괴 가능한 블록을 즉시 제거한다.
 레벨이 충분하면 파괴 파워는 다음 규칙으로 계산한다.
 
 ```text
@@ -40,7 +52,8 @@ breakPower = 1.0 * levelMultiplier * actionMultiplier
 progress += deltaSeconds * breakPower / hardness
 ```
 
-Sandbox 모드에서는 파괴 가능한 블록이 도구와 무관하게 최대 `0.5`초 안에 파괴된다.
+Sandbox 모드에서는 파괴 가능한 블록이 도구와 무관하게 즉시 파괴된다.
+좌클릭을 새로 누를 때는 즉시 1회 파괴하고, 누른 상태를 유지하는 반복 파괴는 10틱마다 처리한다.
 `hardness < 0`인 파괴 불가 블록은 Sandbox 모드에서도 파괴되지 않는다.
 Sandbox 모드의 블록 파괴는 도구 내구도를 소비하지 않는다.
 
@@ -67,15 +80,21 @@ ice       2.0
 sandstone 4.0
 log       4.0
 stripped_log 4.0
+primal_workbench 4.0
+wooden_box 2.5
+fire      0.0
 rock      5.0
+coal_ore, copper_ore, iron_ore, tin_ore, zinc_ore, silver_ore, gold_ore 5.0
 ```
 
 현재 초기 파괴 동작:
 
 ```text
-rock, sandstone                 breakLevel 2 / smash
+rock, sandstone, *_ore          breakLevel 2 / smash
 grass, dirt, sand, mud, clay, gravel  breakLevel 1 / dig
-log, stripped_log               breakLevel 2 / chop
+log, stripped_log, primal_workbench breakLevel 2 / chop
+wooden_box                      breakLevel 1 / chop
+fire                            breakLevel 0 / none
 branch prop                     breakLevel 0 / chop
 leaves, plant                   breakLevel 0 / cut
 ice                             breakLevel 2 / smash
@@ -83,8 +102,12 @@ stone prop                      breakLevel 0 / smash
 air, bedrock                    breakLevel 0 / none
 ```
 
+현재 `rock`은 파괴되면 `rock_chunk` 4개를 확정 드랍한다.
+현재 광물 블록은 파괴되면 `rock_chunk` 4개와 광물별 원재료 1개를 확정 드랍한다. `coal_ore`는 `coal`, 금속 광물은 `raw_copper`, `raw_iron`, `raw_tin`, `raw_zinc`, `raw_silver`, `raw_gold`를 사용한다.
+현재 `dirt`는 파괴되면 `dirt_pile` 4개를 확정 드랍한다.
+현재 `grass`는 파괴되면 `dirt_pile` 4개와 `grass_scrap` 2~4개를 확정 드랍하며, `seed`는 낮은 확률 드랍을 유지한다.
 현재 `log`는 파괴되면 `log` 아이템 1개를 드랍한다.
-`log`, `stripped_log`는 `block_model` 아이템으로, 각 아이템의 `placeBlock` 대상 블록 텍스처를 작은 블록 모델로 렌더링한다.
+`log`, `stripped_log`, `primal_workbench`, `wooden_box`는 `block_model` 아이템으로, 각 아이템의 `placeBlock` 대상 블록 텍스처를 작은 블록 모델로 렌더링한다.
 
 블록 파괴 오버레이 텍스처는 블록 렌더링 에셋으로 저장한다.
 
@@ -130,7 +153,7 @@ methane, hydrogen                    1
 `lightEmission`은 skyLight가 아니라 blockLight 채널에 들어가는 값이다.
 blockLight는 시간대별 하늘 밝기의 영향을 받지 않고, 렌더링에서는 `max(skyLight * skyBrightness, blockLight)`로 skyLight와 합성한다.
 
-현재 블록 데이터에는 발광 블록이 없다.
+현재 `fire`는 `lightEmission = 15`를 사용한다.
 
 ## 랜덤 오프셋
 
@@ -161,7 +184,7 @@ blockLight는 시간대별 하늘 밝기의 영향을 받지 않고, 렌더링�
 이때 드랍, 파티클, 사운드, 편집 메쉬 갱신을 모두 수행한다.
 연쇄 파괴는 즉시 재귀 처리하지 않고, 제거된 좌표와 그 6방향 이웃이 다음 블록 tick에 다시 등록되는 방식으로 이어진다.
 
-현재 `plant`, `stone` prop, `branch` prop은 `bottom` 부착 블록이다.
+현재 `plant`, `stone` prop, `branch` prop, `fire`는 `bottom` 부착 블록이다.
 
 ## 방향성 랜덤 회전
 
@@ -181,6 +204,7 @@ blockLight는 시간대별 하늘 밝기의 영향을 받지 않고, 렌더링�
 cube  : 기존 1 x 1 x 1 블록 셀
 cross : 렌더링에 쓰는 X자 quad 2장
 prop  : `.dpm` prop quad mesh
+fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 AABB
 ```
 
 `cross`와 `prop`은 렌더링과 동일한 `randomOffset` 및 4방향 랜덤 회전을 적용해서 hit 판정을 한다.
@@ -192,6 +216,7 @@ prop  : `.dpm` prop quad mesh
 cube  : 기존 블록 박스
 cross : X자 quad 2장의 edge
 prop  : prop mesh의 local AABB에 렌더 변환을 적용한 bounds 박스
+fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 bounds 박스
 ```
 
 ## 현재 블록 ID
@@ -210,13 +235,25 @@ prop  : prop mesh의 local AABB에 렌더 변환을 적용한 bounds 박스
 10    gravel
 11    ice
 12    stripped_log
+13    primal_workbench
+14    wooden_box
+15    fire
+16    coal_ore
+17    copper_ore
+18    iron_ore
+19    tin_ore
+20    zinc_ore
+21    silver_ore
+22    gold_ore
 10000 plant
+20000 stone
+20001 branch
 65535 bedrock
 ```
 
 ## 주요 속성
 
-- `renderType`: `none`, `cube`, `cross`
+- `renderType`: `none`, `cube`, `cross`, `prop`, `fire`
 - `directional`: 방향성을 가지는지 여부
 - `collision`: 플레이어 충돌 여부
 - `ao`: 메싱 AO 적용 여부
@@ -252,6 +289,18 @@ blend 블록은 terrain texture array를 그대로 사용하며, `alphaBlend` �
 - plant가 사용한다.
 - 양면으로 보이도록 메쉬를 만든다.
 
+`fire`:
+
+- 바닥에 붙는 컷아웃 스프라이트 불이다.
+- 중앙 X자 2장과 바닥 네 변에서 중심으로 30도 기울어진 쿼드 4장을 함께 방출한다.
+- 중앙 X자는 plant와 같은 1블록 크기이며 random offset 없이 블록 중앙에 정렬한다.
+- 네 변 쿼드는 각각 블록 한 면 크기이며, 아래쪽 edge는 바닥 네 변에 맞추고 위쪽 edge는 중심 방향으로 기울인다.
+- 같은 네 변에서 안쪽으로 0.1블록 당긴 위치에 90도 수직 쿼드 4장을 추가로 방출해 옆면 실루엣을 보강한다.
+- 텍스처는 `assets/textures/block/fire/fire_00.png`부터 `fire_13.png`까지 14프레임을 사용한다.
+- 모든 `fire` 블록은 초당 12프레임의 같은 시간 기반 프레임을 사용해 동기화된 애니메이션으로 표시한다.
+- 충돌은 없고, 선택/파괴 hit shape는 바닥 중심 기준 `0.8 x 0.1 x 0.8`이다.
+- `lightAttenuation = 0`, `lightEmission = 15`로 정의한다.
+
 ## 텍스처 매핑
 
 지원하는 텍스처 키:
@@ -262,9 +311,27 @@ blend 블록은 terrain texture array를 그대로 사용하며, `alphaBlend` �
 - `side`
 - `topBottom`
 
-텍스처 파일은 `assets/textures/block/*.png`에서 찾는다.
+텍스처 파일은 `assets/textures/block/{texture}.png`에서 찾는다.
+텍스처 이름에 `/`가 포함되면 `assets/textures/block/fire/fire_00.png`처럼 하위 폴더를 가리킬 수 있다.
 수동 mip 파일은 `assets/textures/block/mip/*_mipN.png`를 우선 사용한다.
 없는 mip은 실행 중 생성된다.
+
+텍스처 값은 기존처럼 문자열을 사용할 수 있고, 마스크 합성이 필요한 경우 객체를 사용할 수 있다.
+
+```json
+{
+  "textures": {
+    "all": {
+      "base": "rock",
+      "mask": "mask/mask_iron_ore"
+    }
+  }
+}
+```
+
+객체 텍스처는 로드 시점에 `assets/textures/block/{base}.png` 위에 `assets/textures/block/{mask}.png`를 알파 기준으로 합성한다.
+결과 PNG는 `assets/textures/block/generated/` 아래에 생성하고, 기존 블록 texture array에는 생성된 텍스처 이름을 등록한다.
+현재 광물 블록은 이 방식으로 `rock` 텍스처 위에 `assets/textures/block/mask/`의 광물 마스크를 올린다.
 
 ## 블록 저장 타입
 

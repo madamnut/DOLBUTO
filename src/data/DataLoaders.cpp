@@ -12,6 +12,8 @@ namespace dolbuto::data
 {
     namespace
     {
+        std::string trimJsonValue(const std::string& value);
+
         std::optional<std::string> jsonStringField(const std::string& object, const std::string& key)
         {
             const std::string token = "\"" + key + "\"";
@@ -304,6 +306,98 @@ namespace dolbuto::data
             return std::nullopt;
         }
 
+        std::optional<std::string> jsonFieldValue(const std::string& object, const std::string& key)
+        {
+            const std::string token = "\"" + key + "\"";
+            const size_t keyPos = object.find(token);
+            if (keyPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t colonPos = object.find(':', keyPos + token.size());
+            if (colonPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t valueStart = object.find_first_not_of(" \t\r\n", colonPos + 1);
+            if (valueStart == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const char first = object[valueStart];
+            if (first == '"' || first == '{' || first == '[')
+            {
+                int objectDepth = 0;
+                int arrayDepth = 0;
+                bool inString = false;
+                bool escaped = false;
+                for (size_t i = valueStart; i < object.size(); ++i)
+                {
+                    const char c = object[i];
+                    if (inString)
+                    {
+                        if (escaped)
+                        {
+                            escaped = false;
+                        }
+                        else if (c == '\\')
+                        {
+                            escaped = true;
+                        }
+                        else if (c == '"')
+                        {
+                            inString = false;
+                            if (first == '"' && objectDepth == 0 && arrayDepth == 0)
+                            {
+                                return object.substr(valueStart, i - valueStart + 1);
+                            }
+                        }
+                        continue;
+                    }
+
+                    if (c == '"')
+                    {
+                        inString = true;
+                    }
+                    else if (c == '{')
+                    {
+                        ++objectDepth;
+                    }
+                    else if (c == '}')
+                    {
+                        --objectDepth;
+                        if (first == '{' && objectDepth == 0)
+                        {
+                            return object.substr(valueStart, i - valueStart + 1);
+                        }
+                    }
+                    else if (c == '[')
+                    {
+                        ++arrayDepth;
+                    }
+                    else if (c == ']')
+                    {
+                        --arrayDepth;
+                        if (first == '[' && arrayDepth == 0)
+                        {
+                            return object.substr(valueStart, i - valueStart + 1);
+                        }
+                    }
+                }
+                return std::nullopt;
+            }
+
+            size_t valueEnd = valueStart;
+            while (valueEnd < object.size() && object[valueEnd] != ',' && object[valueEnd] != '}' && object[valueEnd] != ']')
+            {
+                ++valueEnd;
+            }
+            return trimJsonValue(object.substr(valueStart, valueEnd - valueStart));
+        }
+
         std::vector<std::string> jsonTopLevelObjects(const std::string& text)
         {
             std::vector<std::string> objects;
@@ -513,6 +607,45 @@ namespace dolbuto::data
             return result;
         }
 
+        std::optional<ParsedBlockTextureDefinition> parseBlockTextureDefinition(const std::string& value)
+        {
+            if (const std::optional<std::string> texture = jsonStringLiteralValue(value); texture.has_value())
+            {
+                if (texture->empty())
+                {
+                    return std::nullopt;
+                }
+                ParsedBlockTextureDefinition definition{};
+                definition.texture = *texture;
+                return definition;
+            }
+
+            const std::string trimmed = trimJsonValue(value);
+            if (trimmed.empty() || trimmed.front() != '{')
+            {
+                return std::nullopt;
+            }
+
+            ParsedBlockTextureDefinition definition{};
+            if (const std::optional<std::string> texture = jsonStringField(trimmed, "texture"); texture.has_value())
+            {
+                definition.texture = *texture;
+            }
+            if (const std::optional<std::string> base = jsonStringField(trimmed, "base"); base.has_value())
+            {
+                definition.base = *base;
+            }
+            if (const std::optional<std::string> mask = jsonStringField(trimmed, "mask"); mask.has_value())
+            {
+                definition.mask = *mask;
+            }
+            if (definition.texture.empty() && definition.base.empty())
+            {
+                return std::nullopt;
+            }
+            return definition;
+        }
+
         uint16_t clampedInteractionCount(int count)
         {
             return static_cast<uint16_t>(std::clamp(count, 1, 65535));
@@ -529,7 +662,11 @@ namespace dolbuto::data
                 {
                     return std::nullopt;
                 }
-                return ParsedInteractionOutput{*item, defaultMin, defaultMax};
+                ParsedInteractionOutput output{};
+                output.item = *item;
+                output.min = defaultMin;
+                output.max = defaultMax;
+                return output;
             }
 
             const std::string trimmed = trimJsonValue(value);
@@ -539,13 +676,25 @@ namespace dolbuto::data
             }
 
             const std::optional<std::string> item = jsonStringField(trimmed, "item");
-            if (!item.has_value() || item->empty())
+            const std::optional<std::string> block = jsonStringField(trimmed, "block");
+            if ((!item.has_value() || item->empty()) && (!block.has_value() || block->empty()))
             {
                 return std::nullopt;
             }
 
             ParsedInteractionOutput output{};
-            output.item = *item;
+            if (item.has_value())
+            {
+                output.item = *item;
+            }
+            if (block.has_value())
+            {
+                output.block = *block;
+            }
+            if (const std::optional<std::string> placement = jsonStringField(trimmed, "placement"); placement.has_value())
+            {
+                output.placement = *placement;
+            }
             output.min = clampedInteractionCount(jsonIntField(trimmed, "min").value_or(defaultMin));
             output.max = clampedInteractionCount(jsonIntField(trimmed, "max").value_or(output.min));
             if (output.max < output.min)
@@ -565,7 +714,11 @@ namespace dolbuto::data
             {
                 if (!item->empty())
                 {
-                    candidate.outputs.push_back(ParsedInteractionOutput{*item, defaultMin, defaultMax});
+                    ParsedInteractionOutput output{};
+                    output.item = *item;
+                    output.min = defaultMin;
+                    output.max = defaultMax;
+                    candidate.outputs.push_back(output);
                 }
                 return candidate;
             }
@@ -598,6 +751,35 @@ namespace dolbuto::data
                 candidate.outputs.push_back(*output);
             }
             return candidate;
+        }
+
+        std::optional<ParsedInteractionIngredient> parseInteractionIngredient(const std::string& value)
+        {
+            if (const std::optional<std::string> item = jsonStringLiteralValue(value); item.has_value())
+            {
+                if (!item->empty())
+                {
+                    return ParsedInteractionIngredient{*item, 1};
+                }
+                return std::nullopt;
+            }
+
+            const std::string trimmed = trimJsonValue(value);
+            if (trimmed.empty() || trimmed.front() != '{')
+            {
+                return std::nullopt;
+            }
+
+            const std::optional<std::string> item = jsonStringField(trimmed, "item");
+            if (!item.has_value() || item->empty())
+            {
+                return std::nullopt;
+            }
+
+            return ParsedInteractionIngredient{
+                *item,
+                clampedInteractionCount(jsonIntField(trimmed, "count").value_or(1))
+            };
         }
     }
 
@@ -814,11 +996,20 @@ namespace dolbuto::data
                     definition.attachmentFace = face->empty() ? "none" : *face;
                 }
             }
+            if (const std::optional<std::string> interactActions = jsonArrayField(object, "interactActions"); interactActions.has_value())
+            {
+                definition.interactActions = jsonStringArrayValues(*interactActions);
+            }
             if (const std::optional<std::string> textures = jsonObjectField(object, "textures"); textures.has_value())
             {
                 for (const char* key : TextureKeys)
                 {
-                    if (const std::optional<std::string> texture = jsonStringField(*textures, key); texture.has_value())
+                    const std::optional<std::string> textureValue = jsonFieldValue(*textures, key);
+                    if (!textureValue.has_value())
+                    {
+                        continue;
+                    }
+                    if (const std::optional<ParsedBlockTextureDefinition> texture = parseBlockTextureDefinition(*textureValue); texture.has_value())
                     {
                         definition.textures[key] = *texture;
                     }
@@ -902,6 +1093,10 @@ namespace dolbuto::data
             {
                 definition.target = *target;
             }
+            if (const std::optional<std::string> targetBlock = jsonStringField(object, "targetBlock"); targetBlock.has_value())
+            {
+                definition.targetBlock = *targetBlock;
+            }
             definition.targetCount = clampedInteractionCount(jsonIntField(object, "targetCount").value_or(1));
             const int minCount = jsonIntField(object, "min").value_or(1);
             const int maxCount = jsonIntField(object, "max").value_or(minCount);
@@ -925,7 +1120,19 @@ namespace dolbuto::data
                     }
                 }
             }
-            if (!definition.action.empty() && !definition.target.empty() && !definition.candidates.empty())
+            if (const std::optional<std::string> ingredients = jsonArrayField(object, "ingredients"); ingredients.has_value())
+            {
+                for (const std::string& ingredientValue : jsonTopLevelArrayValues(*ingredients))
+                {
+                    if (const std::optional<ParsedInteractionIngredient> ingredient = parseInteractionIngredient(ingredientValue); ingredient.has_value())
+                    {
+                        definition.ingredients.push_back(*ingredient);
+                    }
+                }
+            }
+            if (!definition.action.empty() &&
+                (!definition.target.empty() || !definition.targetBlock.empty()) &&
+                !definition.candidates.empty())
             {
                 definitions.push_back(std::move(definition));
             }

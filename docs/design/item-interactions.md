@@ -80,8 +80,8 @@
 
 ## 실행 규칙
 
-우클릭 해제 시 `Shift`가 눌려 있지 않으면 선택 후보를 1회만 처리한다.
-우클릭 해제 시 `Shift`가 눌려 있으면 같은 후보를 가능한 만큼 반복 처리한다.
+우클릭 해제 시 `Ctrl`이 눌려 있지 않으면 선택 후보를 1회만 처리한다.
+우클릭 해제 시 `Ctrl`이 눌려 있으면 같은 후보를 가능한 만큼 반복 처리한다.
 반복 처리 횟수는 대상 스택 개수, 레시피의 `targetCount`, 손 아이템의 남은 내구도 중 가능한 값으로 제한한다.
 손에 든 아이템이 내구도를 가지지 않으면 반복 처리 때 대상 스택과 `targetCount`만으로 처리 횟수를 제한한다.
 `handcraft`는 기본 손 액션으로 취급하며, 어떤 아이템을 들고 있어도 해당 아이템의 `useActions` 앞에 중복 없이 포함된다.
@@ -103,6 +103,9 @@ stone_shard + chip
 
 stone_shard + smash
 -> stone_flake x1~2
+
+stone_shard + grind
+-> stone_pounder
 
 stone_flake + chip
 -> stone_blade / stone_scraper 후보
@@ -131,6 +134,9 @@ log + scrape
 stripped_log + split
 -> wooden_plank x8
 
+stripped_log + carve
+-> primal_workbench
+
 bough + carve
 -> long_wooden_stick
 
@@ -145,16 +151,50 @@ long_wooden_stick + cut
 
 wooden_stick + cut
 -> short_wooden_stick x2
+
+short_wooden_stick + carve
+-> wooden_peg
+
+primal_workbench area:
+wooden_plank x2 + wooden_peg x2 + craft + pound
+-> wooden_box
+
+primal_workbench area:
+wooden_stick x2 + plant_twine + craft
+-> bow_drill
+
+bow_drill + ignite on block
+-> fire above target block
 ```
+
+## 블록 작업대 상호작용
+
+`interactActions`가 있는 블록을 우클릭하면 블록 액션이 기본 상호작용으로 열린다.
+현재 `primal_workbench`는 `craft` 액션을 제공한다.
+작업대의 재료 감지 영역은 블록 바로 위 `1 x 1 x 1` 공간이며, 이 영역과 AABB가 겹치는 드랍 아이템 스택을 재료 후보로 본다.
+시야 레이캐스트가 `interactActions`가 있는 블록을 잡으면, 그 위의 드랍 아이템도 작업 재료로 다룰 수 있도록 블록 상호작용을 드랍 아이템 직접 상호작용보다 먼저 연다.
+
+`craft`는 `handcraft` 레시피를 포함한다.
+따라서 `plant_fiber` 2개를 작업대 위에 올려두고 `primal_workbench`를 우클릭하면 `plant_twine` 후보가 표시된다.
+재료 수량이 부족한 후보는 기존 단일 아이템 상호작용과 동일하게 비활성 후보로 표시하고 실행하지 않는다.
+
+플레이어가 든 아이템의 `useActions`도 블록 액션에 더해질 수 있다.
+예를 들어 작업대가 `craft`를 제공하고 손에 든 도구가 `cut`을 제공하면, 해당 레시피 후보는 `craft + cut` 액션 구간으로 표시한다.
+이 경우 액션 구간에는 두 액션 심볼을 함께 배치한다.
+단, 블록 자체에 `interactActions`가 있으면 기본 우클릭은 블록 액션을 우선한다.
+손에 든 아이템의 블록 대상 액션을 우선하려면 `Shift + 우클릭`을 사용한다.
+현재 `bow_drill`의 `ignite`는 블록 대상 액션이며, 후보를 실행하면 대상 블록 바로 윗칸에 `fire` 블록을 설치한다.
 
 현재 우클릭 작업 액션:
 
 ```text
-stone_shard: chip, smash
+stone_shard: chip, smash, grind
 stone_flake: chip
 stone_chopper: smash, split
 stone_blade: cut, carve
 stone_scraper: scrape, pierce
+stone_pounder: pound, smash
+bow_drill: ignite
 base hand action: handcraft
 ```
 
@@ -164,6 +204,7 @@ base hand action: handcraft
 stone_shard: smash
 stone_chopper: chop, dig
 stone_blade: cut
+stone_pounder: smash
 stone_flake, stone_scraper: 없음
 ```
 

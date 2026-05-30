@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "index.md",
+                "file": "item-interactions.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "index"
+              "title": "item-interactions"
             }
           }
         ]
@@ -182,6 +182,7 @@
   },
   "active": "bda38083b81fbad1",
   "lastOpenFiles": [
+    "index.md",
     "world-generation.md",
     "ui.md",
     "save-load.md",
@@ -190,7 +191,6 @@
     "project-overview.md",
     "player.md",
     "item-data.md",
-    "index.md",
     "debug-profiling.md",
     "client-architecture.md",
     "chunk-system.md",

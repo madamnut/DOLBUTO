@@ -38,6 +38,125 @@
         "placeBlock": "rock"
     },
     {
+        "id": 31,
+        "key": "coal",
+        "name": "Coal",
+        "stackSize": 99,
+        "slotTexture": "coal",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "coal"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "coal"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 32,
+        "key": "raw_copper",
+        "name": "Raw Copper",
+        "stackSize": 99,
+        "slotTexture": "raw_copper",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "raw_copper"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "raw_copper"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 33,
+        "key": "raw_iron",
+        "name": "Raw Iron",
+        "stackSize": 99,
+        "slotTexture": "raw_iron",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "raw_iron"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "raw_iron"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 34,
+        "key": "raw_tin",
+        "name": "Raw Tin",
+        "stackSize": 99,
+        "slotTexture": "raw_tin",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "raw_tin"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "raw_tin"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 35,
+        "key": "raw_zinc",
+        "name": "Raw Zinc",
+        "stackSize": 99,
+        "slotTexture": "raw_zinc",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "raw_zinc"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "raw_zinc"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 36,
+        "key": "raw_silver",
+        "name": "Raw Silver",
+        "stackSize": 99,
+        "slotTexture": "raw_silver",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "raw_silver"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "raw_silver"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 37,
+        "key": "raw_gold",
+        "name": "Raw Gold",
+        "stackSize": 99,
+        "slotTexture": "raw_gold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "raw_gold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "raw_gold"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
         "id": 2,
         "key": "dirt_pile",
         "name": "Dirt Pile",
@@ -291,7 +410,8 @@
         "tags": [],
         "useActions": [
             "chip",
-            "smash"
+            "smash",
+            "grind"
         ],
         "breakActions": [
             "smash"
@@ -392,6 +512,31 @@
         "maxDurability": 64
     },
     {
+        "id": 27,
+        "key": "stone_pounder",
+        "name": "Stone Pounder",
+        "stackSize": 1,
+        "slotTexture": "stone_pounder",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_pounder"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_pounder"
+        },
+        "tags": [],
+        "useActions": [
+            "pound",
+            "smash"
+        ],
+        "breakActions": [
+            "smash"
+        ],
+        "breakLevel": 2,
+        "maxDurability": 64
+    },
+    {
         "id": 18,
         "key": "log",
         "name": "Log",
@@ -451,6 +596,48 @@
         "useActions": []
     },
     {
+        "id": 29,
+        "key": "wooden_box",
+        "name": "Wooden Box",
+        "stackSize": 99,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "tags": [],
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "wooden_box"
+    },
+    {
+        "id": 26,
+        "key": "primal_workbench",
+        "name": "Primal Workbench",
+        "stackSize": 99,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "tags": [],
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "primal_workbench"
+    },
+    {
         "id": 21,
         "key": "wooden_stick",
         "name": "Wooden Stick",
@@ -500,5 +687,42 @@
         },
         "tags": [],
         "useActions": []
+    },
+    {
+        "id": 28,
+        "key": "wooden_peg",
+        "name": "Wooden Peg",
+        "stackSize": 99,
+        "slotTexture": "wooden_peg",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "wooden_peg"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "wooden_peg"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 30,
+        "key": "bow_drill",
+        "name": "Bow Drill",
+        "stackSize": 1,
+        "slotTexture": "bow_drill",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "bow_drill"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "bow_drill"
+        },
+        "tags": [],
+        "useActions": [
+            "ignite"
+        ],
+        "maxDurability": 4
     }
 ]

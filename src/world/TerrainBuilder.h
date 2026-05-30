@@ -15,6 +15,17 @@ namespace dolbuto::world
 
     struct TerrainBuilderConfig
     {
+        struct OreFeature
+        {
+            uint16_t block = 0;
+            uint16_t replace = 0;
+            int minY = 0;
+            int maxY = 0;
+            int attemptsPerChunk = 0;
+            int size = 0;
+            uint32_t salt = 0;
+        };
+
         std::array<float, TerrainSplineLutCount> heightLut{};
         std::array<float, TerrainSplineLutCount> groundnessBaselineLut{};
         std::array<float, TerrainSplineLutCount> groundnessInfluenceLut{};
@@ -68,6 +79,7 @@ namespace dolbuto::world
         float precipitationNoiseLacunarity = 2.0f;
         float precipitationNoiseGain = 0.5f;
         float precipitationNoiseSimplexScale = 1.0f;
+        std::vector<OreFeature> oreFeatures;
     };
 
     struct TerrainDebugSample

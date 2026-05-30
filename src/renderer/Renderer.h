@@ -102,5 +102,6 @@ namespace dolbuto
         std::vector<Texture> sceneDepthTargets_;
         std::vector<Texture> waterBlurTargetsA_;
         std::vector<Texture> waterBlurTargetsB_;
+        std::array<std::vector<Texture>, RendererVulkanState::BloomMipCount> bloomTargets_;
     };
 }

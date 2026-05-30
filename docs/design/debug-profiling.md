@@ -5,6 +5,7 @@
 F3으로 디버그 텍스트 표시를 켜고 끈다.
 실행 시 기본값은 켜짐이다.
 F6으로 기후/지형 진단 오버레이를 순환한다.
+게임 화면에서 `T`를 누르면 디버그용으로 바라보는 블록의 맞은편 빈 칸에 `fire` 블록을 설치한다.
 
 ```text
 OFF -> Temperature -> Precipitation -> Groundness -> Smoothness -> Weirdness -> PV -> OFF

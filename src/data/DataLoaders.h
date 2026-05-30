@@ -7,6 +7,13 @@
 
 namespace dolbuto::data
 {
+    struct ParsedBlockTextureDefinition
+    {
+        std::string texture;
+        std::string base;
+        std::string mask;
+    };
+
     struct ParsedBlockDefinition
     {
         uint16_t id = 0;
@@ -28,9 +35,10 @@ namespace dolbuto::data
         uint8_t lightEmission = 0;
         bool randomOffset = false;
         std::string attachmentFace = "none";
-        std::unordered_map<std::string, std::string> textures;
+        std::unordered_map<std::string, ParsedBlockTextureDefinition> textures;
         std::string propModel;
         std::string propTexture;
+        std::vector<std::string> interactActions;
         std::vector<std::string> dropItemKeys;
         std::vector<uint16_t> dropMins;
         std::vector<uint16_t> dropMaxes;
@@ -69,6 +77,8 @@ namespace dolbuto::data
     struct ParsedInteractionOutput
     {
         std::string item;
+        std::string block;
+        std::string placement;
         uint16_t min = 1;
         uint16_t max = 1;
     };
@@ -78,11 +88,19 @@ namespace dolbuto::data
         std::vector<ParsedInteractionOutput> outputs;
     };
 
+    struct ParsedInteractionIngredient
+    {
+        std::string item;
+        uint16_t count = 1;
+    };
+
     struct ParsedInteractionDefinition
     {
         std::string action;
         std::string target;
+        std::string targetBlock;
         std::vector<ParsedInteractionCandidate> candidates;
+        std::vector<ParsedInteractionIngredient> ingredients;
         uint16_t targetCount = 1;
         uint16_t resultCountMin = 1;
         uint16_t resultCountMax = 1;

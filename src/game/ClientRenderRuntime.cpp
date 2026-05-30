@@ -84,14 +84,17 @@ namespace dolbuto::game
         return renderer_->gameplayBridge_->pickupDroppedItemInView(origin, direction);
     }
 
-    bool ClientRenderRuntime::dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction)
+    bool ClientRenderRuntime::dropSelectedHotbarItem(bool wholeStack, DVec3 sourcePosition, Vec3 direction)
     {
-        return renderer_->gameplayBridge_->dropSelectedHotbarItem(wholeStack, playerPosition, direction);
+        return renderer_->gameplayBridge_->dropSelectedHotbarItem(wholeStack, sourcePosition, direction);
     }
 
-    gameplay::ItemInteractionMenu ClientRenderRuntime::beginItemInteractionInView(DVec3 origin, Vec3 direction)
+    gameplay::ItemInteractionMenu ClientRenderRuntime::beginItemInteractionInView(
+        DVec3 origin,
+        Vec3 direction,
+        bool preferHeldItemBlockActions)
     {
-        return renderer_->gameplayBridge_->beginItemInteractionInView(origin, direction);
+        return renderer_->gameplayBridge_->beginItemInteractionInView(origin, direction, preferHeldItemBlockActions);
     }
 
     bool ClientRenderRuntime::executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, bool repeat)

@@ -1,4 +1,10 @@
 {
+  "bloom": {
+    "enabled": true,
+    "threshold": 1.0,
+    "intensity": 0.35,
+    "radius": 1.2
+  },
   "fluid": {
     "water": {
       "alpha": 0.8,

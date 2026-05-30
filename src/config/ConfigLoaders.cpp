@@ -7,6 +7,8 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace dolbuto::config
 {
@@ -139,6 +141,53 @@ namespace dolbuto::config
             return std::nullopt;
         }
 
+        std::optional<std::string> jsonStringField(const std::string& object, const std::string& key)
+        {
+            const std::string token = "\"" + key + "\"";
+            const size_t keyPos = object.find(token);
+            if (keyPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t colonPos = object.find(':', keyPos + token.size());
+            if (colonPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t quoteStart = object.find('"', colonPos + 1);
+            if (quoteStart == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            std::string value;
+            bool escaped = false;
+            for (size_t i = quoteStart + 1; i < object.size(); ++i)
+            {
+                const char c = object[i];
+                if (escaped)
+                {
+                    value.push_back(c);
+                    escaped = false;
+                    continue;
+                }
+                if (c == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                if (c == '"')
+                {
+                    return value;
+                }
+                value.push_back(c);
+            }
+
+            return std::nullopt;
+        }
+
         std::optional<std::string> jsonObjectField(const std::string& object, const std::string& key)
         {
             const std::string token = "\"" + key + "\"";
@@ -198,6 +247,119 @@ namespace dolbuto::config
             return std::nullopt;
         }
 
+        std::optional<std::string> jsonArrayField(const std::string& object, const std::string& key)
+        {
+            const std::string token = "\"" + key + "\"";
+            const size_t keyPos = object.find(token);
+            if (keyPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            const size_t openPos = object.find('[', keyPos + token.size());
+            if (openPos == std::string::npos)
+            {
+                return std::nullopt;
+            }
+
+            int depth = 0;
+            bool inString = false;
+            bool escaped = false;
+            for (size_t i = openPos; i < object.size(); ++i)
+            {
+                const char c = object[i];
+                if (inString)
+                {
+                    if (escaped)
+                    {
+                        escaped = false;
+                    }
+                    else if (c == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (c == '"')
+                    {
+                        inString = false;
+                    }
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inString = true;
+                }
+                else if (c == '[')
+                {
+                    ++depth;
+                }
+                else if (c == ']')
+                {
+                    --depth;
+                    if (depth == 0)
+                    {
+                        return object.substr(openPos, i - openPos + 1);
+                    }
+                }
+            }
+
+            return std::nullopt;
+        }
+
+        std::vector<std::string> jsonTopLevelObjects(const std::string& text)
+        {
+            std::vector<std::string> objects;
+            int depth = 0;
+            size_t objectStart = std::string::npos;
+            bool inString = false;
+            bool escaped = false;
+
+            for (size_t i = 0; i < text.size(); ++i)
+            {
+                const char c = text[i];
+                if (inString)
+                {
+                    if (escaped)
+                    {
+                        escaped = false;
+                    }
+                    else if (c == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (c == '"')
+                    {
+                        inString = false;
+                    }
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inString = true;
+                }
+                else if (c == '{')
+                {
+                    if (depth == 0)
+                    {
+                        objectStart = i;
+                    }
+                    ++depth;
+                }
+                else if (c == '}')
+                {
+                    --depth;
+                    if (depth == 0 && objectStart != std::string::npos)
+                    {
+                        objects.push_back(text.substr(objectStart, i - objectStart + 1));
+                        objectStart = std::string::npos;
+                    }
+                }
+            }
+
+            return objects;
+        }
+
         std::optional<std::string> readTextFile(const std::filesystem::path& path)
         {
             std::ifstream file(path);
@@ -232,6 +394,7 @@ namespace dolbuto::config
         const std::string climate = jsonObjectField(*text, "climate").value_or("{}");
         const std::string temperature = jsonObjectField(climate, "temperature").value_or("{}");
         const std::string precipitation = jsonObjectField(climate, "precipitation").value_or("{}");
+        const std::string features = jsonObjectField(*text, "features").value_or("{}");
 
         if (const std::optional<int> value = jsonIntField(terrain, "seaLevel"); value.has_value())
         {
@@ -405,6 +568,26 @@ namespace dolbuto::config
         {
             config.precipitationNoiseSimplexScale = *value;
         }
+        if (const std::optional<std::string> ores = jsonArrayField(features, "ores"); ores.has_value())
+        {
+            config.oreFeatures.clear();
+            for (const std::string& object : jsonTopLevelObjects(*ores))
+            {
+                WorldOreFeatureConfig ore{};
+                ore.name = jsonStringField(object, "name").value_or("");
+                ore.enabled = jsonBoolField(object, "enabled").value_or(true);
+                ore.block = jsonStringField(object, "block").value_or("");
+                ore.replace = jsonStringField(object, "replace").value_or("");
+                ore.minY = std::clamp(jsonIntField(object, "minY").value_or(0), 0, maxSeaLevel);
+                ore.maxY = std::clamp(jsonIntField(object, "maxY").value_or(maxSeaLevel + 1), ore.minY + 1, maxSeaLevel + 1);
+                ore.attemptsPerChunk = std::clamp(jsonIntField(object, "attemptsPerChunk").value_or(0), 0, 512);
+                ore.size = std::clamp(jsonIntField(object, "size").value_or(0), 0, 256);
+                if (!ore.name.empty() && !ore.block.empty() && !ore.replace.empty())
+                {
+                    config.oreFeatures.push_back(std::move(ore));
+                }
+            }
+        }
 
         return config;
     }
@@ -421,6 +604,7 @@ namespace dolbuto::config
         const std::string fluid = jsonObjectField(*text, "fluid").value_or("{}");
         const std::string water = jsonObjectField(fluid, "water").value_or("{}");
         const std::string screenBlur = jsonObjectField(water, "screenBlur").value_or("{}");
+        const std::string bloom = jsonObjectField(*text, "bloom").value_or("{}");
 
         if (const std::optional<float> value = jsonFloatField(water, "alpha"); value.has_value())
         {
@@ -441,6 +625,22 @@ namespace dolbuto::config
         if (const std::optional<float> value = jsonFloatField(screenBlur, "tint"); value.has_value())
         {
             config.fluidWaterScreenBlurTint = std::clamp(*value, 0.0f, 1.0f);
+        }
+        if (const std::optional<bool> value = jsonBoolField(bloom, "enabled"); value.has_value())
+        {
+            config.bloomEnabled = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(bloom, "threshold"); value.has_value())
+        {
+            config.bloomThreshold = std::clamp(*value, 0.0f, 8.0f);
+        }
+        if (const std::optional<float> value = jsonFloatField(bloom, "intensity"); value.has_value())
+        {
+            config.bloomIntensity = std::clamp(*value, 0.0f, 2.0f);
+        }
+        if (const std::optional<float> value = jsonFloatField(bloom, "radius"); value.has_value())
+        {
+            config.bloomRadius = std::clamp(*value, 0.0f, 8.0f);
         }
 
         return config;

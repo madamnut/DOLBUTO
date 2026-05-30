@@ -162,6 +162,44 @@ namespace dolbuto::gameplay
                 point.z <= static_cast<float>(z) + 0.5f + Epsilon;
         }
 
+        bool rayIntersectsAabb(DVec3 origin, Vec3 direction, Vec3 min, Vec3 max)
+        {
+            constexpr double Epsilon = 0.0000001;
+            double tMin = 0.0;
+            double tMax = BlockInteractionSystem::MaxInteractionDistance;
+
+            auto updateAxis = [&](double originValue, double directionValue, double minValue, double maxValue)
+            {
+                if (std::abs(directionValue) < Epsilon)
+                {
+                    return originValue >= minValue - Epsilon && originValue <= maxValue + Epsilon;
+                }
+
+                double nearT = (minValue - originValue) / directionValue;
+                double farT = (maxValue - originValue) / directionValue;
+                if (nearT > farT)
+                {
+                    std::swap(nearT, farT);
+                }
+                tMin = std::max(tMin, nearT);
+                tMax = std::min(tMax, farT);
+                return tMin <= tMax + Epsilon;
+            };
+
+            return updateAxis(origin.x, direction.x, min.x, max.x) &&
+                updateAxis(origin.y, direction.y, min.y, max.y) &&
+                updateAxis(origin.z, direction.z, min.z, max.z);
+        }
+
+        bool rayIntersectsFireBlock(DVec3 origin, Vec3 direction, int x, int y, int z)
+        {
+            return rayIntersectsAabb(
+                origin,
+                direction,
+                Vec3{static_cast<float>(x) - 0.4f, static_cast<float>(y), static_cast<float>(z) - 0.4f},
+                Vec3{static_cast<float>(x) + 0.4f, static_cast<float>(y) + 0.1f, static_cast<float>(z) + 0.4f});
+        }
+
         bool rayIntersectsCrossBlock(DVec3 origin, Vec3 direction, int x, int y, int z, const BlockDefinition& definition)
         {
             bool hit = false;
@@ -241,6 +279,10 @@ namespace dolbuto::gameplay
                 return mesh == nullptr || mesh->quads.empty()
                     ? true
                     : rayIntersectsPropBlock(origin, direction, x, y, z, definition, *mesh);
+            }
+            if (definition.renderType == BlockRenderType::Fire)
+            {
+                return rayIntersectsFireBlock(origin, direction, x, y, z);
             }
             return false;
         }
@@ -559,6 +601,13 @@ namespace dolbuto::gameplay
             return update;
         }
 
+        if (sandboxMode)
+        {
+            update.breakBlock = true;
+            resetBreaking(state);
+            return update;
+        }
+
         if (!state.active ||
             state.x != hit.blockX ||
             state.y != hit.blockY ||
@@ -573,8 +622,7 @@ namespace dolbuto::gameplay
             state.block = block;
         }
 
-        const float effectiveHardness = sandboxMode ? std::min(definition.hardness, 0.5f) : definition.hardness;
-        state.progress = std::min(1.0f, state.progress + deltaSeconds * breakPower / effectiveHardness);
+        state.progress = std::min(1.0f, state.progress + deltaSeconds * breakPower / definition.hardness);
         state.particleTimer += deltaSeconds;
         if (state.particleTimer >= BlockMiningParticleInterval)
         {

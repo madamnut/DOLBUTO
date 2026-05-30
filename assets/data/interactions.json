@@ -16,6 +16,13 @@
         ]
     },
     {
+        "action": "grind",
+        "target": "stone_shard",
+        "candidates": [
+            "stone_pounder"
+        ]
+    },
+    {
         "action": "chip",
         "target": "stone_flake",
         "candidates": [
@@ -95,6 +102,13 @@
     },
     {
         "action": "carve",
+        "target": "stripped_log",
+        "candidates": [
+            "primal_workbench"
+        ]
+    },
+    {
+        "action": "carve",
         "target": "bough",
         "candidates": [
             "long_wooden_stick"
@@ -132,6 +146,51 @@
         "max": 2,
         "candidates": [
             "short_wooden_stick"
+        ]
+    },
+    {
+        "action": "carve",
+        "target": "short_wooden_stick",
+        "candidates": [
+            "wooden_peg"
+        ]
+    },
+    {
+        "action": "pound",
+        "target": "wooden_plank",
+        "targetCount": 2,
+        "ingredients": [
+            {
+                "item": "wooden_peg",
+                "count": 2
+            }
+        ],
+        "candidates": [
+            "wooden_box"
+        ]
+    },
+    {
+        "action": "craft",
+        "target": "wooden_stick",
+        "targetCount": 2,
+        "ingredients": [
+            {
+                "item": "plant_twine",
+                "count": 1
+            }
+        ],
+        "candidates": [
+            "bow_drill"
+        ]
+    },
+    {
+        "action": "ignite",
+        "targetBlock": "*",
+        "candidates": [
+            {
+                "block": "fire",
+                "placement": "above_target"
+            }
         ]
     }
 ]

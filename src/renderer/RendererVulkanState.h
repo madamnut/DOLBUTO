@@ -12,6 +12,8 @@ namespace dolbuto
 {
     struct RendererVulkanState
     {
+        static constexpr size_t BloomMipCount = 4;
+
         VkInstance instance = VK_NULL_HANDLE;
         VkSurfaceKHR surface = VK_NULL_HANDLE;
         VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -24,6 +26,7 @@ namespace dolbuto
         std::vector<VkImageView> swapchainImageViews;
         std::vector<VkFramebuffer> framebuffers;
         VkFormat swapchainImageFormat = VK_FORMAT_UNDEFINED;
+        VkFormat sceneColorFormat = VK_FORMAT_UNDEFINED;
         VkExtent2D swapchainExtent{};
         VkImage depthImage = VK_NULL_HANDLE;
         VkDeviceMemory depthMemory = VK_NULL_HANDLE;
@@ -31,6 +34,7 @@ namespace dolbuto
         VkRenderPass renderPass = VK_NULL_HANDLE;
         VkRenderPass sceneRenderPass = VK_NULL_HANDLE;
         VkRenderPass waterBlurRenderPass = VK_NULL_HANDLE;
+        VkRenderPass postProcessLoadRenderPass = VK_NULL_HANDLE;
 
         VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorSetLayout terrainVertexDescriptorSetLayout = VK_NULL_HANDLE;
@@ -40,8 +44,12 @@ namespace dolbuto
         VkPipeline cloudPipeline = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
         VkPipeline pipeline = VK_NULL_HANDLE;
+        VkPipeline sceneSpritePipeline = VK_NULL_HANDLE;
+        VkPipeline additiveSpritePipeline = VK_NULL_HANDLE;
         VkPipelineLayout waterBlurPipelineLayout = VK_NULL_HANDLE;
         VkPipeline waterBlurPipeline = VK_NULL_HANDLE;
+        VkPipeline bloomDownsamplePipeline = VK_NULL_HANDLE;
+        VkPipeline bloomUpsamplePipeline = VK_NULL_HANDLE;
         VkPipelineLayout uiPipelineLayout = VK_NULL_HANDLE;
         VkPipeline uiPipeline = VK_NULL_HANDLE;
         VkPipelineLayout terrainPipelineLayout = VK_NULL_HANDLE;
@@ -84,6 +92,7 @@ namespace dolbuto
         std::vector<VkFramebuffer> sceneFramebuffers;
         std::vector<VkFramebuffer> waterBlurFramebuffersA;
         std::vector<VkFramebuffer> waterBlurFramebuffersB;
+        std::array<std::vector<VkFramebuffer>, BloomMipCount> bloomFramebuffers;
 
         std::vector<VkSemaphore> imageAvailableSemaphores;
         std::vector<VkSemaphore> renderFinishedSemaphores;

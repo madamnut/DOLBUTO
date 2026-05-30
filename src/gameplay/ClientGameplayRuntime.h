@@ -51,6 +51,9 @@ namespace dolbuto::gameplay
         std::string action;
         uint16_t targetCount = 1;
         std::vector<ItemInteractionCandidate> candidates;
+        std::vector<std::string> actions;
+        bool consumesHeldDurability = false;
+        bool areaInteraction = false;
     };
 
     struct ItemInteractionMenu
@@ -59,6 +62,13 @@ namespace dolbuto::gameplay
         bool available = false;
         uint16_t targetItemId = 0;
         std::vector<ItemInteractionActionMenu> actions;
+    };
+
+    struct ItemInteractionExecuteResult
+    {
+        bool executed = false;
+        bool inventoryChanged = false;
+        std::vector<BlockEditResult> blockEdits;
     };
 
     class ClientGameplayRuntime
@@ -117,7 +127,7 @@ namespace dolbuto::gameplay
         const BlockBreakingState& blockBreakingState() const;
 
         bool pickupDroppedItemInView(DVec3 origin, Vec3 direction, const MarkDirtyFn& markDirty);
-        bool dropSelectedHotbarItem(bool wholeStack, DVec3 playerPosition, Vec3 direction, const MarkDirtyFn& markDirty);
+        bool dropSelectedHotbarItem(bool wholeStack, DVec3 sourcePosition, Vec3 direction, const MarkDirtyFn& markDirty);
         BlockEditResult placeSelectedItemBlockInView(
             DVec3 origin,
             Vec3 direction,
@@ -129,8 +139,20 @@ namespace dolbuto::gameplay
             const SetBlockFn& setBlockAtWorld,
             const TerrainCollisionPredicate& terrainCellBlocksItem,
             const MarkDirtyFn& markDirty);
-        ItemInteractionMenu beginItemInteractionInView(DVec3 origin, Vec3 direction, const std::vector<ItemInteractionRecipe>& recipes);
-        bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, bool repeat, const MarkDirtyFn& markDirty);
+        ItemInteractionMenu beginItemInteractionInView(
+            DVec3 origin,
+            Vec3 direction,
+            bool preferHeldItemBlockActions,
+            const std::vector<ItemInteractionRecipe>& recipes,
+            const BlockSampler& blockAtWorld,
+            const BlockDefinitionProvider& blockDefinition,
+            const BlockInteractionSystem::PropMeshProvider& propMesh);
+        ItemInteractionExecuteResult executePendingItemInteraction(
+            std::size_t actionIndex,
+            std::size_t candidateIndex,
+            bool repeat,
+            const SetBlockFn& setBlockAtWorld,
+            const MarkDirtyFn& markDirty);
         void cancelPendingItemInteraction();
         bool updateDroppedItems(
             Vec3 playerPosition,
@@ -174,6 +196,19 @@ namespace dolbuto::gameplay
             std::size_t heldSlotIndex = 0;
             WorldEntityHandle targetHandle{};
             uint64_t targetEntityId = 0;
+            bool blockInteraction = false;
+            int blockX = 0;
+            int blockY = 0;
+            int blockZ = 0;
+            uint16_t blockId = 0;
+            bool areaInteraction = false;
+            float areaMinX = 0.0f;
+            float areaMinY = 0.0f;
+            float areaMinZ = 0.0f;
+            float areaMaxX = 0.0f;
+            float areaMaxY = 0.0f;
+            float areaMaxZ = 0.0f;
+            Vec3 areaResultPosition{};
             std::vector<ItemInteractionActionMenu> actions;
         };
 

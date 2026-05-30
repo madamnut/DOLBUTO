@@ -329,7 +329,6 @@ namespace dolbuto
             waterOverlay.blurIntensity = client_.renderConfig.fluidWaterScreenBlurIntensity;
             waterOverlay.tint = client_.renderConfig.fluidWaterScreenBlurTint;
         }
-
         sectionStart = std::chrono::steady_clock::now();
         recordCommandBuffer(
             vulkan_.commandBuffers[vulkan_.currentFrame],
@@ -526,7 +525,7 @@ namespace dolbuto
                 fovRadians,
                 vulkan_.swapchainExtent,
                 worldTicks);
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.pipeline);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.sceneSpritePipeline);
             screenPresentation_.drawSkySprites(
                 commandBuffer,
                 camera,
@@ -579,6 +578,10 @@ namespace dolbuto
         {
             drawWaterBlurTargets(commandBuffer, imageIndex, waterOverlay);
         }
+        if (gameSceneRenderEnabled && client_.renderConfig.bloomEnabled)
+        {
+            drawBloomTargets(commandBuffer, imageIndex);
+        }
 
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -614,8 +617,14 @@ namespace dolbuto
                 rendererAssets_,
                 spriteRenderPath_,
                 vulkan_.pipeline,
+                vulkan_.additiveSpritePipeline,
                 vulkan_.pipelineLayout,
                 textRenderPath_.vertexBuffer(),
+                ScreenPresentation::BloomOverlay{
+                    client_.renderConfig.bloomEnabled && imageIndex < bloomTargets_[0].size(),
+                    client_.renderConfig.bloomIntensity
+                },
+                (client_.renderConfig.bloomEnabled && imageIndex < bloomTargets_[0].size()) ? bloomTargets_[0][imageIndex] : sceneColorTargets_[imageIndex],
                 waterOverlay,
                 (waterOverlay.active && imageIndex < waterBlurTargetsB_.size()) ? waterBlurTargetsB_[imageIndex] : sceneColorTargets_[imageIndex],
                 climateOverlayMode);
@@ -751,6 +760,110 @@ namespace dolbuto
         const float spread = std::max(waterOverlay.blurSpread, 0.0f);
         drawBlurPass(sceneColorTargets_[imageIndex], vulkan_.waterBlurFramebuffersA[imageIndex], waterBlurTargetsA_[imageIndex], 1.5f * spread);
         drawBlurPass(waterBlurTargetsA_[imageIndex], vulkan_.waterBlurFramebuffersB[imageIndex], waterBlurTargetsB_[imageIndex], 2.5f * spread);
+    }
+
+    void Renderer::drawBloomTargets(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+    {
+        for (size_t mip = 0; mip < bloomTargets_.size(); ++mip)
+        {
+            if (imageIndex >= bloomTargets_[mip].size() ||
+                imageIndex >= vulkan_.bloomFramebuffers[mip].size())
+            {
+                return;
+            }
+        }
+
+        if (vulkan_.bloomDownsamplePipeline == VK_NULL_HANDLE ||
+            vulkan_.bloomUpsamplePipeline == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
+        auto beginPostPass = [this, commandBuffer](VkRenderPass renderPass, VkFramebuffer framebuffer, const Texture& target)
+        {
+            VkClearValue clearColor{};
+            clearColor.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+            VkRenderPassBeginInfo passInfo{};
+            passInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            passInfo.renderPass = renderPass;
+            passInfo.framebuffer = framebuffer;
+            passInfo.renderArea.offset = {0, 0};
+            passInfo.renderArea.extent = {static_cast<uint32_t>(target.width), static_cast<uint32_t>(target.height)};
+            passInfo.clearValueCount = 1;
+            passInfo.pClearValues = &clearColor;
+
+            vkCmdBeginRenderPass(commandBuffer, &passInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            VkViewport viewport{};
+            viewport.x = 0.0f;
+            viewport.y = 0.0f;
+            viewport.width = static_cast<float>(target.width);
+            viewport.height = static_cast<float>(target.height);
+            viewport.minDepth = 0.0f;
+            viewport.maxDepth = 1.0f;
+            vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+            VkRect2D scissor{};
+            scissor.offset = {0, 0};
+            scissor.extent = {static_cast<uint32_t>(target.width), static_cast<uint32_t>(target.height)};
+            vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+        };
+
+        auto fullscreenPush = [](const Texture& source, float radius)
+        {
+            SpriteRenderPath::Push push{};
+            push.data[2] = 1.0f;
+            push.data[3] = 1.0f;
+            push.data[4] = 0.0f;
+            push.data[5] = 1.0f;
+            push.data[6] = 1.0f;
+            push.data[7] = -1.0f;
+            push.data[8] = 1.0f / std::max(static_cast<float>(source.width), 1.0f);
+            push.data[9] = 1.0f / std::max(static_cast<float>(source.height), 1.0f);
+            push.data[10] = radius;
+            return push;
+        };
+
+        auto bindFullscreenSource = [this, commandBuffer](VkPipeline pipeline, const Texture& source, const SpriteRenderPath::Push& push)
+        {
+            const VkDeviceSize vertexOffset = 0;
+            VkBuffer vertexBuffer = textRenderPath_.vertexBuffer();
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &vertexOffset);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.waterBlurPipelineLayout, 0, 1, &source.descriptorSet, 0, nullptr);
+            vkCmdPushConstants(commandBuffer, vulkan_.waterBlurPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(SpriteRenderPath::Push), &push);
+            vkCmdDraw(commandBuffer, 6, 1, 0, 0);
+        };
+
+        const float radius = std::max(client_.renderConfig.bloomRadius, 0.0f);
+        const float downsampleRadius = std::max(radius, 0.5f);
+        const float upsampleRadius = std::max(radius * 0.75f, 0.5f);
+
+        const Texture* source = &sceneColorTargets_[imageIndex];
+        for (size_t mip = 0; mip < bloomTargets_.size(); ++mip)
+        {
+            Texture& target = bloomTargets_[mip][imageIndex];
+            beginPostPass(vulkan_.waterBlurRenderPass, vulkan_.bloomFramebuffers[mip][imageIndex], target);
+
+            SpriteRenderPath::Push push = fullscreenPush(*source, downsampleRadius);
+            push.data[11] = mip == 0 ? client_.renderConfig.bloomThreshold : -1.0f;
+            bindFullscreenSource(vulkan_.bloomDownsamplePipeline, *source, push);
+            vkCmdEndRenderPass(commandBuffer);
+
+            source = &target;
+        }
+
+        for (size_t mip = bloomTargets_.size() - 1; mip > 0; --mip)
+        {
+            const Texture& smaller = bloomTargets_[mip][imageIndex];
+            Texture& larger = bloomTargets_[mip - 1][imageIndex];
+            beginPostPass(vulkan_.postProcessLoadRenderPass, vulkan_.bloomFramebuffers[mip - 1][imageIndex], larger);
+
+            SpriteRenderPath::Push push = fullscreenPush(smaller, upsampleRadius);
+            bindFullscreenSource(vulkan_.bloomUpsamplePipeline, smaller, push);
+            vkCmdEndRenderPass(commandBuffer);
+        }
     }
 
     void Renderer::copySwapchainImageToBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VkBuffer buffer) const

@@ -4,10 +4,13 @@
 #include "renderer/RendererGameplayBridge.h"
 #include "world/BlockVisualShape.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
 #include <cstdint>
+#include <iterator>
+#include <string>
 #include <vector>
 
 namespace dolbuto
@@ -17,6 +20,7 @@ namespace dolbuto
         constexpr float TerrainNearPlane = 0.1f;
         constexpr float TerrainFarPlane = 4000.0f;
         constexpr float ViewmodelFieldOfViewRadians = 1.0471975512f;
+        constexpr int FireAnimationFrameCount = 14;
 
         struct Mat4
         {
@@ -111,6 +115,14 @@ namespace dolbuto
             appendLine(vertices, corners[2], corners[6]);
             appendLine(vertices, corners[3], corners[7]);
         }
+
+        float terrainTextureLayerFor(const std::vector<std::string>& textureNames, const char* name)
+        {
+            const auto it = std::find(textureNames.begin(), textureNames.end(), name);
+            return it != textureNames.end()
+                ? static_cast<float>(std::distance(textureNames.begin(), it))
+                : -1.0f;
+        }
     }
 
     void Renderer::updatePlayerMesh(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount, bool playerProne, uint32_t frameIndex, uint8_t packedLight)
@@ -175,6 +187,8 @@ namespace dolbuto
         push.cameraPosition[3] = static_cast<float>(glfwGetTime());
         push.fluidWaterParams[0] = client_.renderConfig.fluidWaterAlpha;
         push.fluidWaterParams[1] = skyBrightness;
+        push.fluidWaterParams[2] = terrainTextureLayerFor(client_.content.blockTextureNames(), "fire/fire_00");
+        push.fluidWaterParams[3] = static_cast<float>(FireAnimationFrameCount);
 
         uint32_t visibleDrawCount = 0;
         uint32_t visibleFaceCount = 0;
@@ -368,6 +382,26 @@ namespace dolbuto
                 }};
                 appendBoxLines(vertices, corners);
             }
+        }
+        else if (selectedDefinition.renderType == BlockRenderType::Fire)
+        {
+            constexpr float Expand = 0.003f;
+            const float minX = static_cast<float>(selectedX) - 0.4f - Expand;
+            const float maxX = static_cast<float>(selectedX) + 0.4f + Expand;
+            const float minY = static_cast<float>(selectedY) - Expand;
+            const float maxY = static_cast<float>(selectedY) + 0.1f + Expand;
+            const float minZ = static_cast<float>(selectedZ) - 0.4f - Expand;
+            const float maxZ = static_cast<float>(selectedZ) + 0.4f + Expand;
+            appendBoxLines(vertices, {{
+                Vec3{minX, minY, minZ},
+                Vec3{maxX, minY, minZ},
+                Vec3{minX, minY, maxZ},
+                Vec3{maxX, minY, maxZ},
+                Vec3{minX, maxY, minZ},
+                Vec3{maxX, maxY, minZ},
+                Vec3{minX, maxY, maxZ},
+                Vec3{maxX, maxY, maxZ}
+            }});
         }
         if (vertices.empty())
         {

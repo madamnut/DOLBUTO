@@ -47,7 +47,7 @@ namespace dolbuto
         }
         if (projectSkyDirection(camera, aspect, fovRadians, moonDirection, rect))
         {
-            sprites.draw(commandBuffer, pipelineLayout, spriteVertexBuffer, assets.moon, rect);
+            sprites.draw(commandBuffer, pipelineLayout, spriteVertexBuffer, assets.moon, rect, {}, {1.15f, 1.05f, 0.82f, 1.0f});
         }
     }
 
@@ -58,8 +58,11 @@ namespace dolbuto
         const RendererAssetStore& assets,
         const SpriteRenderPath& sprites,
         VkPipeline spritePipeline,
+        VkPipeline additiveSpritePipeline,
         VkPipelineLayout spritePipelineLayout,
         VkBuffer spriteVertexBuffer,
+        BloomOverlay bloomOverlay,
+        const Texture& bloomTexture,
         WaterOverlay waterOverlay,
         const Texture& waterBlurTexture,
         int climateOverlayMode) const
@@ -69,6 +72,20 @@ namespace dolbuto
         sceneRect.halfWidth = 1.0f;
         sceneRect.halfHeight = 1.0f;
         sprites.draw(commandBuffer, spritePipelineLayout, spriteVertexBuffer, sceneTexture, sceneRect, {0.0f, 1.0f, 1.0f, -1.0f});
+
+        if (bloomOverlay.active && bloomTexture.descriptorSet != VK_NULL_HANDLE && additiveSpritePipeline != VK_NULL_HANDLE)
+        {
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, additiveSpritePipeline);
+            sprites.draw(
+                commandBuffer,
+                spritePipelineLayout,
+                spriteVertexBuffer,
+                bloomTexture,
+                sceneRect,
+                {0.0f, 1.0f, 1.0f, -1.0f},
+                {std::max(bloomOverlay.intensity, 0.0f), std::max(bloomOverlay.intensity, 0.0f), std::max(bloomOverlay.intensity, 0.0f), 1.0f});
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, spritePipeline);
+        }
 
         const float line = std::clamp(waterOverlay.waterLineY, -1.0f, 1.0f);
         if (waterOverlay.active && line < 1.0f && waterBlurTexture.descriptorSet != VK_NULL_HANDLE)

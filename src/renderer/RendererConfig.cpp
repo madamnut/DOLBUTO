@@ -65,6 +65,10 @@ namespace dolbuto
         constexpr float DefaultFluidWaterScreenBlurSpread = 1.0f;
         constexpr float DefaultFluidWaterScreenBlurIntensity = 0.75f;
         constexpr float DefaultFluidWaterScreenBlurTint = 0.025f;
+        constexpr bool DefaultBloomEnabled = true;
+        constexpr float DefaultBloomThreshold = 1.0f;
+        constexpr float DefaultBloomIntensity = 0.35f;
+        constexpr float DefaultBloomRadius = 1.2f;
         constexpr uint32_t SplineLutVersion = 1;
         constexpr uint32_t SplineLutCount = 1024;
         constexpr float SplineLutInputMin = -2.0f;
@@ -183,6 +187,7 @@ namespace dolbuto
         client_.worldConfig.precipitationNoiseGain = worldConfig.precipitationNoiseGain;
         client_.worldConfig.precipitationNoiseSimplexScale = worldConfig.precipitationNoiseSimplexScale;
         client_.worldConfig.seaLevel = worldConfig.seaLevel;
+        client_.worldConfig.oreFeatures = worldConfig.oreFeatures;
     }
 
     void RendererConfigBridge::loadRenderConfig(const std::filesystem::path& configDirectory)
@@ -193,6 +198,10 @@ namespace dolbuto
         defaults.fluidWaterScreenBlurSpread = DefaultFluidWaterScreenBlurSpread;
         defaults.fluidWaterScreenBlurIntensity = DefaultFluidWaterScreenBlurIntensity;
         defaults.fluidWaterScreenBlurTint = DefaultFluidWaterScreenBlurTint;
+        defaults.bloomEnabled = DefaultBloomEnabled;
+        defaults.bloomThreshold = DefaultBloomThreshold;
+        defaults.bloomIntensity = DefaultBloomIntensity;
+        defaults.bloomRadius = DefaultBloomRadius;
 
         const config::RenderConfig renderConfig = config::loadRenderConfig(configDirectory / "render.json", defaults);
         client_.renderConfig.fluidWaterAlpha = renderConfig.fluidWaterAlpha;
@@ -200,6 +209,10 @@ namespace dolbuto
         client_.renderConfig.fluidWaterScreenBlurSpread = renderConfig.fluidWaterScreenBlurSpread;
         client_.renderConfig.fluidWaterScreenBlurIntensity = renderConfig.fluidWaterScreenBlurIntensity;
         client_.renderConfig.fluidWaterScreenBlurTint = renderConfig.fluidWaterScreenBlurTint;
+        client_.renderConfig.bloomEnabled = renderConfig.bloomEnabled;
+        client_.renderConfig.bloomThreshold = renderConfig.bloomThreshold;
+        client_.renderConfig.bloomIntensity = renderConfig.bloomIntensity;
+        client_.renderConfig.bloomRadius = renderConfig.bloomRadius;
     }
 
     void RendererConfigBridge::loadViewmodelConfig(const std::filesystem::path& configDirectory)

@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace dolbuto::ui
 {
@@ -43,10 +44,38 @@ namespace dolbuto::ui
             return text;
         }
 
+        std::vector<std::string> actionSymbols(const gameplay::ItemInteractionActionMenu& action)
+        {
+            if (!action.actions.empty())
+            {
+                return action.actions;
+            }
+            return {action.action};
+        }
+
+        std::string actionDisplayName(const gameplay::ItemInteractionActionMenu& action)
+        {
+            std::string label;
+            for (const std::string& symbol : actionSymbols(action))
+            {
+                if (!label.empty())
+                {
+                    label += " + ";
+                }
+                label += displayActionName(symbol);
+            }
+            return label;
+        }
+
         std::string candidateDisplayName(
             const ItemInteractionCandidate& candidate,
             const std::vector<ItemDefinition>& definitions)
         {
+            if (!candidate.displayName.empty())
+            {
+                return candidate.displayName;
+            }
+
             std::string label;
             for (const ItemInteractionOutput& output : candidate.outputs)
             {
@@ -100,6 +129,45 @@ namespace dolbuto::ui
                 return {8, 36, 28};
             default:
                 return {36, 36, 28};
+            }
+        }
+
+        struct ActionIconPlacement
+        {
+            int left = 5;
+            int top = 5;
+            int size = 44;
+        };
+
+        ActionIconPlacement actionIconPlacement(std::size_t actionIndex, std::size_t actionCount)
+        {
+            if (actionCount <= 1)
+            {
+                return {5, 5, 44};
+            }
+            if (actionCount == 2)
+            {
+                return actionIndex == 0 ? ActionIconPlacement{5, 15, 26} : ActionIconPlacement{23, 15, 26};
+            }
+            if (actionCount == 3)
+            {
+                if (actionIndex == 0)
+                {
+                    return {17, 5, 22};
+                }
+                return actionIndex == 1 ? ActionIconPlacement{8, 29, 20} : ActionIconPlacement{29, 29, 20};
+            }
+
+            switch (actionIndex)
+            {
+            case 0:
+                return {8, 8, 20};
+            case 1:
+                return {28, 8, 20};
+            case 2:
+                return {8, 28, 20};
+            default:
+                return {28, 28, 20};
             }
         }
     }
@@ -272,7 +340,7 @@ namespace dolbuto::ui
         std::string centerLabel = "Cancel";
         if (selectedActionIndex.has_value() && *selectedActionIndex < actions.size())
         {
-            centerLabel = displayActionName(actions[*selectedActionIndex].action);
+            centerLabel = actionDisplayName(actions[*selectedActionIndex]);
             const std::vector<ItemInteractionCandidate>& candidates = actions[*selectedActionIndex].candidates;
             if (selectedCandidateIndex.has_value() && *selectedCandidateIndex < candidates.size())
             {
@@ -302,7 +370,18 @@ namespace dolbuto::ui
                 actionsRml += " selected";
             }
             actionsRml += "\" style=\"left: " + std::to_string(left) + "px; top: " + std::to_string(top) + "px;\">";
-            actionsRml += "<img class=\"radial-action-symbol\" src=\"../textures/symbol/actions/" + escapeRml(actions[i].action) + ".png\"/>";
+            const std::vector<std::string> symbols = actionSymbols(actions[i]);
+            const std::size_t symbolCount = std::min<std::size_t>(symbols.size(), 4);
+            for (std::size_t symbolIndex = 0; symbolIndex < symbolCount; ++symbolIndex)
+            {
+                const ActionIconPlacement placement = actionIconPlacement(symbolIndex, symbolCount);
+                actionsRml += "<img class=\"radial-action-symbol\" style=\"left: " +
+                    std::to_string(placement.left) + "px; top: " +
+                    std::to_string(placement.top) + "px; width: " +
+                    std::to_string(placement.size) + "px; height: " +
+                    std::to_string(placement.size) + "px;\" src=\"../textures/symbol/actions/" +
+                    escapeRml(symbols[symbolIndex]) + ".png\"/>";
+            }
             actionsRml += "</div>";
         }
 
@@ -319,7 +398,7 @@ namespace dolbuto::ui
             for (std::size_t i = 0; i < candidates.size(); ++i)
             {
                 const ItemInteractionCandidate& candidate = candidates[i];
-                if (candidate.outputs.empty())
+                if (candidate.outputs.empty() && candidate.placeBlockId == 0)
                 {
                     continue;
                 }
@@ -352,6 +431,11 @@ namespace dolbuto::ui
                         std::to_string(placement.size) + "px; height: " +
                         std::to_string(placement.size) + "px;\" src=\"../textures/item/" +
                         escapeRml(definition.slotTexture) + ".png\"/>";
+                }
+                if (candidate.outputs.empty() && candidate.placeBlockId != 0 && !candidate.iconTexture.empty())
+                {
+                    candidatesRml += "<img class=\"radial-candidate-icon\" style=\"left: 4px; top: 4px; width: 64px; height: 64px;\" src=\"../textures/block/" +
+                        escapeRml(candidate.iconTexture) + ".png\"/>";
                 }
                 candidatesRml += "</div>";
             }
