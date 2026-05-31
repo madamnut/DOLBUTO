@@ -100,6 +100,52 @@ namespace dolbuto::save
             return value;
         }
 
+        uint32_t peekU32(const std::vector<uint8_t>& bytes, size_t offset)
+        {
+            if (offset + 4 > bytes.size())
+            {
+                throw std::runtime_error("Chunk payload read overflow.");
+            }
+            uint32_t value = 0;
+            for (int i = 0; i < 4; ++i)
+            {
+                value |= static_cast<uint32_t>(bytes[offset + static_cast<size_t>(i)]) << (i * 8);
+            }
+            return value;
+        }
+
+        bool blockStateSectionFits(const std::vector<uint8_t>& payload, size_t offset)
+        {
+            if (offset + 8 == payload.size())
+            {
+                return true;
+            }
+            if (offset + 4 + 8 > payload.size())
+            {
+                return false;
+            }
+
+            const uint32_t runCount = peekU32(payload, offset);
+            offset += 4;
+            uint64_t totalCount = 0;
+            for (uint32_t run = 0; run < runCount; ++run)
+            {
+                if (offset + 8 + 8 > payload.size())
+                {
+                    return false;
+                }
+                offset += 4;
+                const uint32_t count = peekU32(payload, offset);
+                offset += 4;
+                totalCount += count;
+                if (totalCount > ChunkBlockCount)
+                {
+                    return false;
+                }
+            }
+            return offset + 8 == payload.size() && (runCount == 0 || totalCount == ChunkBlockCount);
+        }
+
         void writeF32(std::vector<uint8_t>& bytes, float value)
         {
             uint32_t bits = 0;
@@ -194,6 +240,16 @@ namespace dolbuto::save
         else if (!value.blocks.empty())
         {
             blocks = &value.blocks;
+        }
+
+        const std::vector<uint16_t>* blockStates = nullptr;
+        if (value.chunkData && !value.chunkData->blockStates.empty())
+        {
+            blockStates = &value.chunkData->blockStates;
+        }
+        else if (!value.blockStates.empty())
+        {
+            blockStates = &value.blockStates;
         }
 
         const std::vector<uint16_t>* fluids = nullptr;
@@ -379,10 +435,13 @@ namespace dolbuto::save
             writeU8(payload, entity.localZ);
             writeU16(payload, entity.y);
             writeU32(payload, entity.remainingBurnTicks);
+            writeU16(payload, entity.pendingOutputItemId);
+            writeU16(payload, entity.pendingOutputCount);
             ++writtenBlockEntities;
         }
         payload[blockEntityCountOffset] = static_cast<uint8_t>(writtenBlockEntities & 0xFFu);
         payload[blockEntityCountOffset + 1] = static_cast<uint8_t>((writtenBlockEntities >> 8u) & 0xFFu);
+        writeRuns(blockStates);
         writeU64(payload, value.revision);
         return payload;
     }
@@ -563,8 +622,12 @@ namespace dolbuto::save
             if (offset + 8 != payload.size() && offset + 2 <= payload.size())
             {
                 const uint16_t blockEntityCount = readU16(payload, offset);
-                constexpr size_t BlockEntityBytes = 10;
-                if (payload.size() < offset + static_cast<size_t>(blockEntityCount) * BlockEntityBytes + 8u)
+                constexpr size_t LegacyBlockEntityBytes = 10;
+                constexpr size_t CurrentBlockEntityBytes = 14;
+                const size_t currentEndOffset = offset + static_cast<size_t>(blockEntityCount) * CurrentBlockEntityBytes;
+                const size_t legacyEndOffset = offset + static_cast<size_t>(blockEntityCount) * LegacyBlockEntityBytes;
+                const bool hasPendingOutputFields = currentEndOffset <= payload.size() && blockStateSectionFits(payload, currentEndOffset);
+                if (!hasPendingOutputFields && (legacyEndOffset > payload.size() || !blockStateSectionFits(payload, legacyEndOffset)))
                 {
                     return std::nullopt;
                 }
@@ -577,12 +640,41 @@ namespace dolbuto::save
                     entity.localZ = readU8(payload, offset);
                     entity.y = readU16(payload, offset);
                     entity.remainingBurnTicks = readU32(payload, offset);
+                    if (hasPendingOutputFields)
+                    {
+                        entity.pendingOutputItemId = readU16(payload, offset);
+                        entity.pendingOutputCount = readU16(payload, offset);
+                    }
                     if (entity.type != BlockEntityType::None &&
                         entity.localX < ChunkSizeX &&
                         entity.localZ < ChunkSizeZ &&
                         entity.y < ChunkSizeY)
                     {
                         value.blockEntities.push_back(entity);
+                    }
+                }
+            }
+            if (offset + 8 != payload.size() && offset + 4 <= payload.size())
+            {
+                const uint32_t blockStateRunCount = readU32(payload, offset);
+                if (blockStateRunCount > 0)
+                {
+                    value.blockStates.reserve(ChunkBlockCount);
+                    uint64_t totalCount = 0;
+                    for (uint32_t run = 0; run < blockStateRunCount; ++run)
+                    {
+                        const uint16_t state = static_cast<uint16_t>(readU32(payload, offset) & 0xFFFFu);
+                        const uint32_t count = readU32(payload, offset);
+                        totalCount += count;
+                        if (totalCount > ChunkBlockCount)
+                        {
+                            return std::nullopt;
+                        }
+                        value.blockStates.insert(value.blockStates.end(), count, state);
+                    }
+                    if (value.blockStates.size() != ChunkBlockCount)
+                    {
+                        return std::nullopt;
                     }
                 }
             }

@@ -25,6 +25,7 @@ namespace dolbuto
             const std::shared_ptr<ChunkData>& chunk,
             int subchunkY,
             const world::TerrainMesher::BlockSampler& blockAt,
+            const world::TerrainMesher::BlockStateSampler& blockStateAt,
             const world::TerrainMesher::LightSampler& lightAt) const;
 
     private:

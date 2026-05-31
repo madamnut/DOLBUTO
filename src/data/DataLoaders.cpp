@@ -993,6 +993,17 @@ namespace dolbuto::data
             {
                 definition.randomOffset = *randomOffset;
             }
+            if (const std::optional<std::string> stateKind = jsonStringField(object, "stateKind"); stateKind.has_value())
+            {
+                definition.stateKind = stateKind->empty() ? "none" : *stateKind;
+            }
+            if (const std::optional<std::string> breakEffects = jsonObjectField(object, "breakEffects"); breakEffects.has_value())
+            {
+                if (const std::optional<bool> particles = jsonBoolField(*breakEffects, "particles"); particles.has_value())
+                {
+                    definition.breakEffectParticles = *particles;
+                }
+            }
             if (const std::optional<std::string> attachment = jsonObjectField(object, "attachment"); attachment.has_value())
             {
                 if (const std::optional<std::string> face = jsonStringField(*attachment, "face"); face.has_value())

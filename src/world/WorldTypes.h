@@ -87,12 +87,15 @@ namespace dolbuto
         uint8_t localZ = 0;
         uint16_t y = 0;
         uint32_t remainingBurnTicks = 0;
+        uint16_t pendingOutputItemId = 0;
+        uint16_t pendingOutputCount = 0;
     };
 
     struct ChunkBlockData
     {
         uint64_t revision = 0;
         std::vector<uint16_t> blocks;
+        std::vector<uint16_t> blockStates;
         std::vector<uint16_t> fluids;
         std::vector<WorldEntity> entities;
         std::vector<BlockEntity> blockEntities;
@@ -220,6 +223,7 @@ namespace dolbuto
         uint64_t dataDirtySerial = 0;
         std::shared_ptr<const ChunkData> chunkData;
         std::vector<uint16_t> blocks;
+        std::vector<uint16_t> blockStates;
         std::vector<uint16_t> fluids;
         std::vector<uint8_t> light;
         std::vector<BlockEntity> blockEntities;

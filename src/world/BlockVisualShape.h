@@ -13,6 +13,12 @@ namespace dolbuto::world::block_visual
     constexpr uint32_t PlantPlacementSalt = 0x9A7D3E21u;
     constexpr float RandomBlockOffsetHalfRange = 0.2f;
 
+    struct LocalAabb
+    {
+        Vec3 min{};
+        Vec3 max{};
+    };
+
     inline int wrapBlockCoordinate(int coordinate)
     {
         int wrapped = coordinate % TerrainTilePeriod;
@@ -87,6 +93,51 @@ namespace dolbuto::world::block_visual
             static_cast<float>(x) - 0.5f + offset[0] + rotated[0],
             static_cast<float>(y) + localY,
             static_cast<float>(z) - 0.5f + offset[1] + rotated[1]
+        };
+    }
+
+    inline BlockAttachState attachState(uint16_t blockState)
+    {
+        switch (static_cast<BlockAttachState>(blockState))
+        {
+        case BlockAttachState::Top:
+        case BlockAttachState::North:
+        case BlockAttachState::South:
+        case BlockAttachState::West:
+        case BlockAttachState::East:
+            return static_cast<BlockAttachState>(blockState);
+        case BlockAttachState::Bottom:
+        default:
+            return BlockAttachState::Bottom;
+        }
+    }
+
+    inline LocalAabb slabLocalAabb(uint16_t blockState)
+    {
+        switch (attachState(blockState))
+        {
+        case BlockAttachState::Top:
+            return LocalAabb{Vec3{0.0f, 0.5f, 0.0f}, Vec3{1.0f, 1.0f, 1.0f}};
+        case BlockAttachState::North:
+            return LocalAabb{Vec3{0.0f, 0.0f, 0.0f}, Vec3{1.0f, 1.0f, 0.5f}};
+        case BlockAttachState::South:
+            return LocalAabb{Vec3{0.0f, 0.0f, 0.5f}, Vec3{1.0f, 1.0f, 1.0f}};
+        case BlockAttachState::West:
+            return LocalAabb{Vec3{0.0f, 0.0f, 0.0f}, Vec3{0.5f, 1.0f, 1.0f}};
+        case BlockAttachState::East:
+            return LocalAabb{Vec3{0.5f, 0.0f, 0.0f}, Vec3{1.0f, 1.0f, 1.0f}};
+        case BlockAttachState::Bottom:
+        default:
+            return LocalAabb{Vec3{0.0f, 0.0f, 0.0f}, Vec3{1.0f, 0.5f, 1.0f}};
+        }
+    }
+
+    inline LocalAabb slabWorldAabb(int x, int y, int z, uint16_t blockState)
+    {
+        const LocalAabb local = slabLocalAabb(blockState);
+        return LocalAabb{
+            Vec3{static_cast<float>(x) - 0.5f + local.min.x, static_cast<float>(y) + local.min.y, static_cast<float>(z) - 0.5f + local.min.z},
+            Vec3{static_cast<float>(x) - 0.5f + local.max.x, static_cast<float>(y) + local.max.y, static_cast<float>(z) - 0.5f + local.max.z}
         };
     }
 

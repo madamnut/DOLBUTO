@@ -12,5 +12,6 @@ namespace dolbuto::assets
         const std::filesystem::path& blockTextureDirectory,
         const std::vector<std::string>& blockTextureNames,
         const BlockTextureLayers& layers,
+        BlockRenderType renderType,
         const std::filesystem::path& outputPath);
 }

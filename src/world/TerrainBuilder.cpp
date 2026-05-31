@@ -333,6 +333,7 @@ namespace dolbuto::world
         chunk->chunkX = chunkX;
         chunk->chunkZ = chunkZ;
         chunk->blocks.assign(ChunkBlockCount, BlockAir);
+        chunk->blockStates.assign(ChunkBlockCount, 0);
         chunk->fluids.assign(ChunkBlockCount, FluidNone);
         chunk->fluidSubchunkCounts.fill(0);
         chunk->emptySubchunks.fill(true);

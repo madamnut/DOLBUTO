@@ -200,6 +200,12 @@ namespace dolbuto::gameplay
                 Vec3{static_cast<float>(x) + 0.4f, static_cast<float>(y) + 0.1f, static_cast<float>(z) + 0.4f});
         }
 
+        bool rayIntersectsSlabBlock(DVec3 origin, Vec3 direction, int x, int y, int z, uint16_t blockState)
+        {
+            const world::block_visual::LocalAabb aabb = world::block_visual::slabWorldAabb(x, y, z, blockState);
+            return rayIntersectsAabb(origin, direction, aabb.min, aabb.max);
+        }
+
         bool rayIntersectsCrossBlock(DVec3 origin, Vec3 direction, int x, int y, int z, const BlockDefinition& definition)
         {
             bool hit = false;
@@ -259,6 +265,7 @@ namespace dolbuto::gameplay
             int z,
             uint16_t block,
             const BlockDefinition& definition,
+            uint16_t blockState,
             const BlockInteractionSystem::PropMeshProvider& propMesh)
         {
             if (definition.renderType == BlockRenderType::Cube)
@@ -284,6 +291,10 @@ namespace dolbuto::gameplay
             {
                 return rayIntersectsFireBlock(origin, direction, x, y, z);
             }
+            if (definition.renderType == BlockRenderType::Slab)
+            {
+                return rayIntersectsSlabBlock(origin, direction, x, y, z, blockState);
+            }
             return false;
         }
     }
@@ -301,26 +312,22 @@ namespace dolbuto::gameplay
     bool BlockInteractionSystem::playerColliderIntersectsTerrain(
         DVec3 playerPosition,
         double heightScale,
-        const TerrainCollisionPredicate& terrainCellBlocksPlayer)
+        const TerrainAabbCollisionPredicate& terrainCellIntersectsPlayer)
     {
         constexpr double HalfWidth = 0.3;
         constexpr double Height = 1.75;
         constexpr double Epsilon = 0.000001;
         const double scaledHeight = std::max(0.1, Height * heightScale);
 
-        const double minX = playerPosition.x - HalfWidth;
-        const double maxX = playerPosition.x + HalfWidth;
-        const double minY = playerPosition.y;
-        const double maxY = playerPosition.y + scaledHeight;
-        const double minZ = playerPosition.z - HalfWidth;
-        const double maxZ = playerPosition.z + HalfWidth;
+        const DVec3 min{playerPosition.x - HalfWidth, playerPosition.y, playerPosition.z - HalfWidth};
+        const DVec3 max{playerPosition.x + HalfWidth, playerPosition.y + scaledHeight, playerPosition.z + HalfWidth};
 
-        const int blockMinX = blockCoordinateXz(minX);
-        const int blockMaxX = blockCoordinateXz(maxX - Epsilon);
-        const int blockMinY = blockCoordinateY(minY);
-        const int blockMaxY = blockCoordinateY(maxY - Epsilon);
-        const int blockMinZ = blockCoordinateXz(minZ);
-        const int blockMaxZ = blockCoordinateXz(maxZ - Epsilon);
+        const int blockMinX = blockCoordinateXz(min.x);
+        const int blockMaxX = blockCoordinateXz(max.x - Epsilon);
+        const int blockMinY = blockCoordinateY(min.y);
+        const int blockMaxY = blockCoordinateY(max.y - Epsilon);
+        const int blockMinZ = blockCoordinateXz(min.z);
+        const int blockMaxZ = blockCoordinateXz(max.z - Epsilon);
 
         for (int y = blockMinY; y <= blockMaxY; ++y)
         {
@@ -328,7 +335,7 @@ namespace dolbuto::gameplay
             {
                 for (int x = blockMinX; x <= blockMaxX; ++x)
                 {
-                    if (terrainCellBlocksPlayer && terrainCellBlocksPlayer(x, y, z))
+                    if (terrainCellIntersectsPlayer && terrainCellIntersectsPlayer(x, y, z, min, max))
                     {
                         return true;
                     }
@@ -341,28 +348,26 @@ namespace dolbuto::gameplay
 
     bool BlockInteractionSystem::playerColliderHasSupportBelow(
         DVec3 playerPosition,
-        const TerrainCollisionPredicate& terrainCellBlocksPlayer)
+        const TerrainAabbCollisionPredicate& terrainCellIntersectsPlayer)
     {
         constexpr double HalfWidth = 0.3;
         constexpr double SupportEpsilon = 0.03;
         constexpr double Epsilon = 0.000001;
 
-        const double minX = playerPosition.x - HalfWidth;
-        const double maxX = playerPosition.x + HalfWidth;
-        const double minZ = playerPosition.z - HalfWidth;
-        const double maxZ = playerPosition.z + HalfWidth;
-        const int y = blockCoordinateY(playerPosition.y - SupportEpsilon);
+        const DVec3 min{playerPosition.x - HalfWidth, playerPosition.y - SupportEpsilon, playerPosition.z - HalfWidth};
+        const DVec3 max{playerPosition.x + HalfWidth, playerPosition.y, playerPosition.z + HalfWidth};
+        const int y = blockCoordinateY(min.y);
 
-        const int blockMinX = blockCoordinateXz(minX);
-        const int blockMaxX = blockCoordinateXz(maxX - Epsilon);
-        const int blockMinZ = blockCoordinateXz(minZ);
-        const int blockMaxZ = blockCoordinateXz(maxZ - Epsilon);
+        const int blockMinX = blockCoordinateXz(min.x);
+        const int blockMaxX = blockCoordinateXz(max.x - Epsilon);
+        const int blockMinZ = blockCoordinateXz(min.z);
+        const int blockMaxZ = blockCoordinateXz(max.z - Epsilon);
 
         for (int z = blockMinZ; z <= blockMaxZ; ++z)
         {
             for (int x = blockMinX; x <= blockMaxX; ++x)
             {
-                if (terrainCellBlocksPlayer && terrainCellBlocksPlayer(x, y, z))
+                if (terrainCellIntersectsPlayer && terrainCellIntersectsPlayer(x, y, z, min, max))
                 {
                     return true;
                 }
@@ -426,13 +431,52 @@ namespace dolbuto::gameplay
         return false;
     }
 
+    bool BlockInteractionSystem::blockIntersectsAabb(
+        int x,
+        int y,
+        int z,
+        const BlockDefinition& definition,
+        DVec3 min,
+        DVec3 max,
+        uint16_t blockState)
+    {
+        if (!definition.collision)
+        {
+            return false;
+        }
+
+        constexpr double Epsilon = 0.000001;
+        const auto intersects = [&](DVec3 blockMin, DVec3 blockMax)
+        {
+            return max.x > blockMin.x + Epsilon &&
+                min.x < blockMax.x - Epsilon &&
+                max.y > blockMin.y + Epsilon &&
+                min.y < blockMax.y - Epsilon &&
+                max.z > blockMin.z + Epsilon &&
+                min.z < blockMax.z - Epsilon;
+        };
+
+        if (definition.renderType == BlockRenderType::Slab)
+        {
+            const world::block_visual::LocalAabb aabb = world::block_visual::slabWorldAabb(x, y, z, blockState);
+            return intersects(
+                DVec3{static_cast<double>(aabb.min.x), static_cast<double>(aabb.min.y), static_cast<double>(aabb.min.z)},
+                DVec3{static_cast<double>(aabb.max.x), static_cast<double>(aabb.max.y), static_cast<double>(aabb.max.z)});
+        }
+
+        return intersects(
+            DVec3{static_cast<double>(x) - 0.5, static_cast<double>(y), static_cast<double>(z) - 0.5},
+            DVec3{static_cast<double>(x) + 0.5, static_cast<double>(y) + 1.0, static_cast<double>(z) + 0.5});
+    }
+
     bool BlockInteractionSystem::blockIntersectsPlayerCollider(
         int x,
         int y,
         int z,
         const BlockDefinition& definition,
         DVec3 playerPosition,
-        double heightScale)
+        double heightScale,
+        uint16_t blockState)
     {
         if (!definition.collision)
         {
@@ -441,7 +485,6 @@ namespace dolbuto::gameplay
 
         constexpr double HalfWidth = 0.3;
         constexpr double Height = 1.75;
-        constexpr double Epsilon = 0.000001;
         const double scaledHeight = std::max(0.1, Height * heightScale);
 
         const double minX = playerPosition.x - HalfWidth;
@@ -451,12 +494,14 @@ namespace dolbuto::gameplay
         const double minZ = playerPosition.z - HalfWidth;
         const double maxZ = playerPosition.z + HalfWidth;
 
-        return x >= blockCoordinateXz(minX) &&
-            x <= blockCoordinateXz(maxX - Epsilon) &&
-            y >= blockCoordinateY(minY) &&
-            y <= blockCoordinateY(maxY - Epsilon) &&
-            z >= blockCoordinateXz(minZ) &&
-            z <= blockCoordinateXz(maxZ - Epsilon);
+        return blockIntersectsAabb(
+            x,
+            y,
+            z,
+            definition,
+            DVec3{minX, minY, minZ},
+            DVec3{maxX, maxY, maxZ},
+            blockState);
     }
 
     bool BlockInteractionSystem::raycastBlock(
@@ -465,7 +510,8 @@ namespace dolbuto::gameplay
         const BlockSampler& blockAtWorld,
         const BlockDefinitionProvider& blockDefinition,
         BlockRaycastHit& hit,
-        const PropMeshProvider& propMesh)
+        const PropMeshProvider& propMesh,
+        const BlockStateSampler& blockStateAtWorld)
     {
         constexpr double Epsilon = 0.000001;
 
@@ -513,7 +559,16 @@ namespace dolbuto::gameplay
             {
                 const BlockDefinition& definition = blockDefinition(block);
                 if (definition.renderType != BlockRenderType::None &&
-                    rayIntersectsBlockShape(origin, normalizedDirection, blockX, blockY, blockZ, block, definition, propMesh))
+                    rayIntersectsBlockShape(
+                        origin,
+                        normalizedDirection,
+                        blockX,
+                        blockY,
+                        blockZ,
+                        block,
+                        definition,
+                        blockStateAtWorld ? blockStateAtWorld(blockX, blockY, blockZ) : 0,
+                        propMesh))
                 {
                     hit.blockX = blockX;
                     hit.blockY = blockY;
@@ -561,7 +616,8 @@ namespace dolbuto::gameplay
         const BlockBreakTool& tool,
         const BlockSampler& blockAtWorld,
         const BlockDefinitionProvider& blockDefinition,
-        const PropMeshProvider& propMesh)
+        const PropMeshProvider& propMesh,
+        const BlockStateSampler& blockStateAtWorld)
     {
         BlockBreakingUpdate update{};
         if (!breaking || deltaSeconds <= 0.0f)
@@ -571,7 +627,7 @@ namespace dolbuto::gameplay
         }
 
         BlockRaycastHit hit{};
-        if (!raycastBlock(origin, direction, blockAtWorld, blockDefinition, hit, propMesh))
+        if (!raycastBlock(origin, direction, blockAtWorld, blockDefinition, hit, propMesh, blockStateAtWorld))
         {
             resetBreaking(state);
             return update;

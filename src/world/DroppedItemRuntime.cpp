@@ -460,20 +460,27 @@ namespace dolbuto::world
         return targets;
     }
 
-    uint32_t DroppedItemRuntime::consumeLowestBurnableInAabb(
+    DroppedItemRuntime::BurnableConsumptionResult DroppedItemRuntime::consumeRandomBurnableInAabb(
         float minX,
         float minY,
         float minZ,
         float maxX,
         float maxY,
         float maxZ,
+        bool allowCharcoal,
         const MarkDirtyFn& markDirty)
     {
+        struct BurnableCandidate
+        {
+            WorldEntityHandle handle{};
+            uint64_t entityId = 0;
+            uint16_t itemId = 0;
+            uint32_t burnTimeTicks = 0;
+        };
+
         const std::vector<ItemDefinition>& definitions = itemDefinitions();
-        uint32_t bestBurnTime = 0;
-        uint64_t bestChunkKey = 0;
-        std::size_t bestIndex = 0;
-        uint64_t bestEntityId = 0;
+        std::vector<BurnableCandidate> regularCandidates;
+        std::vector<BurnableCandidate> charcoalCandidates;
 
         for (const Target& target : targetsInAabb(minX, minY, minZ, maxX, maxY, maxZ))
         {
@@ -489,53 +496,70 @@ namespace dolbuto::world
                 continue;
             }
 
-            if (bestBurnTime == 0 || burnTime < bestBurnTime)
+            BurnableCandidate candidate{};
+            candidate.handle = target.handle;
+            candidate.entityId = target.entityId;
+            candidate.itemId = target.stack.itemId;
+            candidate.burnTimeTicks = burnTime;
+            if (definitions[target.stack.itemId].key == "charcoal")
             {
-                bestBurnTime = burnTime;
-                bestChunkKey = target.handle.chunkKey;
-                bestIndex = target.handle.index;
-                bestEntityId = target.entityId;
+                if (allowCharcoal)
+                {
+                    charcoalCandidates.push_back(candidate);
+                }
+            }
+            else
+            {
+                regularCandidates.push_back(candidate);
             }
         }
 
-        if (bestBurnTime == 0)
+        const std::vector<BurnableCandidate>& candidates = regularCandidates.empty()
+            ? charcoalCandidates
+            : regularCandidates;
+        if (candidates.empty())
         {
-            return 0;
+            return {};
         }
 
-        RuntimeChunk* chunk = worldRuntime().find(bestChunkKey);
+        static thread_local std::mt19937 random{std::random_device{}()};
+        std::uniform_int_distribution<std::size_t> candidateDistribution(0, candidates.size() - 1);
+        const BurnableCandidate& selected = candidates[candidateDistribution(random)];
+
+        RuntimeChunk* chunk = worldRuntime().find(selected.handle.chunkKey);
         if (chunk == nullptr ||
             !chunk->data ||
-            bestIndex >= chunk->data->entities.size() ||
-            chunk->data->entities[bestIndex].entityId != bestEntityId)
+            selected.handle.index >= chunk->data->entities.size() ||
+            chunk->data->entities[selected.handle.index].entityId != selected.entityId)
         {
-            return 0;
+            return {};
         }
 
-        WorldEntity& item = chunk->data->entities[bestIndex];
+        WorldEntity& item = chunk->data->entities[selected.handle.index];
         if (item.type != WorldEntityType::DroppedItem ||
             item.droppedItem.stack.itemId == 0 ||
             item.droppedItem.stack.count == 0 ||
             static_cast<std::size_t>(item.droppedItem.stack.itemId) >= definitions.size() ||
-            definitions[item.droppedItem.stack.itemId].burnTimeTicks != bestBurnTime)
+            item.droppedItem.stack.itemId != selected.itemId ||
+            definitions[item.droppedItem.stack.itemId].burnTimeTicks != selected.burnTimeTicks)
         {
-            return 0;
+            return {};
         }
 
         if (item.droppedItem.stack.count <= 1)
         {
-            chunk->data->entities.erase(chunk->data->entities.begin() + static_cast<std::ptrdiff_t>(bestIndex));
+            chunk->data->entities.erase(chunk->data->entities.begin() + static_cast<std::ptrdiff_t>(selected.handle.index));
         }
         else
         {
             --item.droppedItem.stack.count;
         }
-        refreshChunkTracking(bestChunkKey);
+        refreshChunkTracking(selected.handle.chunkKey);
         if (markDirty)
         {
             markDirty(*chunk);
         }
-        return bestBurnTime;
+        return BurnableConsumptionResult{selected.burnTimeTicks, selected.itemId};
     }
 
     uint16_t DroppedItemRuntime::replaceTargetItems(

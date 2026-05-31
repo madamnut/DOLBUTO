@@ -93,6 +93,48 @@ namespace dolbuto::game
                 });
         }
 
+        bool terrainCellIntersectsPlayerAabb(const ClientRuntimeState& state, int x, int y, int z, DVec3 min, DVec3 max)
+        {
+            if (y < 0)
+            {
+                return true;
+            }
+            if (y >= world::WorldRuntime::ChunkSizeY)
+            {
+                return false;
+            }
+
+            const int chunkX = floorDiv(x, world::WorldRuntime::ChunkSizeX);
+            const int chunkZ = floorDiv(z, world::WorldRuntime::ChunkSizeZ);
+            const RuntimeChunk* chunk = state.worldRuntime.find(chunkKey(chunkX, chunkZ));
+            if (chunk == nullptr || !chunk->data ||
+                (chunk->genState != ChunkGenState::LocalLightReady &&
+                    chunk->genState != ChunkGenState::LightResolved &&
+                    chunk->genState != ChunkGenState::Meshed))
+            {
+                return true;
+            }
+
+            const int localX = positiveModulo(x, world::WorldRuntime::ChunkSizeX);
+            const int localZ = positiveModulo(z, world::WorldRuntime::ChunkSizeZ);
+            const std::size_t index = static_cast<std::size_t>((y * world::WorldRuntime::ChunkSizeZ + localZ) * world::WorldRuntime::ChunkSizeX + localX);
+            if (index >= chunk->data->blocks.size())
+            {
+                return true;
+            }
+
+            const uint16_t block = chunk->data->blocks[index];
+            const uint16_t blockState = index < chunk->data->blockStates.size() ? chunk->data->blockStates[index] : 0;
+            return gameplay::BlockInteractionSystem::blockIntersectsAabb(
+                x,
+                y,
+                z,
+                blockDefinition(state, block),
+                min,
+                max,
+                blockState);
+        }
+
         world::TerrainBuilderConfig terrainBuilderConfig(const ClientRuntimeState& state)
         {
             world::TerrainBuilderConfig config{};
@@ -256,9 +298,9 @@ namespace dolbuto::game
         return owner_.state_->gameplayRuntime.playerColliderIntersectsTerrain(
             playerPosition,
             heightScale,
-            [this](int x, int y, int z)
+            [this](int x, int y, int z, DVec3 min, DVec3 max)
             {
-                return terrainCellBlocksPlayer(*owner_.state_, x, y, z);
+                return terrainCellIntersectsPlayerAabb(*owner_.state_, x, y, z, min, max);
             });
     }
 
@@ -266,9 +308,9 @@ namespace dolbuto::game
     {
         return owner_.state_->gameplayRuntime.playerColliderHasSupportBelow(
             playerPosition,
-            [this](int x, int y, int z)
+            [this](int x, int y, int z, DVec3 min, DVec3 max)
             {
-                return terrainCellBlocksPlayer(*owner_.state_, x, y, z);
+                return terrainCellIntersectsPlayerAabb(*owner_.state_, x, y, z, min, max);
             });
     }
 
@@ -301,6 +343,10 @@ namespace dolbuto::game
             [this](uint16_t block)
             {
                 return owner_.state_->content.propMeshForBlock(block);
+            },
+            [this](int x, int y, int z)
+            {
+                return owner_.state_->worldRuntime.blockStateAtWorld(x, y, z);
             });
         if (!owner_.state_->selection.hasSelectedBlock)
         {

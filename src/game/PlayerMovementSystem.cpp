@@ -19,6 +19,7 @@ namespace dolbuto::game
         constexpr double MaxWalkAmount = 1.35;
         constexpr double PlayerStandingHeight = 1.75;
         constexpr double PlayerStandingEyeHeight = 1.5625;
+        constexpr double GroundStepUpHeight = 0.5;
         constexpr double ProneClimbHeight = 1.0;
         constexpr double ProneClimbStepUpSpeed = 2.0;
         constexpr double WaterClimbHeight = 1.0;
@@ -391,6 +392,32 @@ namespace dolbuto::game
             {
                 state.position = next;
                 return true;
+            }
+            if (dy == 0.0 &&
+                state.moveMode == PlayerMoveMode::Ground &&
+                state.grounded &&
+                !swimming &&
+                !state.waterClimbActive &&
+                !waterClimbHandledThisTick &&
+                input.allowInput &&
+                horizontalIntentLength > 0.001 &&
+                (dx != 0.0 || dz != 0.0))
+            {
+                DVec3 stepped = state.position;
+                stepped.y += GroundStepUpHeight;
+                DVec3 steppedNext = stepped;
+                steppedNext.x += dx;
+                steppedNext.z += dz;
+                if (!moveBlocked(stepped, 0.0, GroundStepUpHeight, 0.0) &&
+                    !moveBlocked(steppedNext, dx, 0.0, dz) &&
+                    collision.playerColliderHasSupportBelow &&
+                    collision.playerColliderHasSupportBelow(steppedNext))
+                {
+                    state.position = steppedNext;
+                    state.verticalVelocity = 0.0;
+                    state.grounded = true;
+                    return true;
+                }
             }
             if (dy == 0.0 &&
                 groundProne &&

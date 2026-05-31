@@ -190,11 +190,49 @@
             "texture": "dirt_pile"
         },
         "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 39,
+        "key": "packed_dirt",
+        "name": "Packed Dirt",
+        "stackSize": 99,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "tags": [],
         "useActions": [],
         "placeActions": [
             "place"
         ],
         "placeBlock": "dirt"
+    },
+    {
+        "id": 40,
+        "key": "dirt_slab",
+        "name": "Dirt Slab",
+        "stackSize": 99,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "tags": [],
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "dirt_slab"
     },
     {
         "id": 3,

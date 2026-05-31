@@ -598,6 +598,7 @@ namespace dolbuto::game
                 data->chunkX = snapshot.chunkX;
                 data->chunkZ = snapshot.chunkZ;
                 data->blocks = snapshot.blocks;
+                data->blockStates = snapshot.blockStates;
                 data->fluids = snapshot.fluids;
                 data->light = snapshot.light;
                 data->blockEntities = snapshot.blockEntities;
@@ -607,6 +608,10 @@ namespace dolbuto::game
             if (data->fluids.size() != ChunkBlockCount)
             {
                 data->fluids.assign(ChunkBlockCount, FluidNone);
+            }
+            if (data->blockStates.size() != ChunkBlockCount)
+            {
+                data->blockStates.assign(ChunkBlockCount, 0);
             }
             world::WorldRuntime::rebuildDerivedCaches(*data, lightAttenuation);
             if (!snapshot.chunkData)

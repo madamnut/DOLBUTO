@@ -481,6 +481,10 @@ namespace dolbuto
             },
             [this](int x, int y, int z)
             {
+                return client_.worldRuntime.blockStateAtWorld(x, y, z);
+            },
+            [this](int x, int y, int z)
+            {
                 return client_.worldRuntime.lightAtWorld(x, y, z);
             });
 

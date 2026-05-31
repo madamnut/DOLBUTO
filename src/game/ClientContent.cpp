@@ -92,6 +92,10 @@ namespace dolbuto::game
             {
                 return BlockRenderType::Fire;
             }
+            if (value == "slab")
+            {
+                return BlockRenderType::Slab;
+            }
             return BlockRenderType::None;
         }
 
@@ -128,6 +132,15 @@ namespace dolbuto::game
                 return BlockAttachmentFace::Bottom;
             }
             return BlockAttachmentFace::None;
+        }
+
+        BlockStateKind parseStateKind(const std::string& value)
+        {
+            if (value == "attach")
+            {
+                return BlockStateKind::Attach;
+            }
+            return BlockStateKind::None;
         }
 
         std::string displayNameFromKey(const std::string& key)
@@ -429,6 +442,8 @@ namespace dolbuto::game
             blockDefinition.lightAttenuation = definition.lightAttenuation;
             blockDefinition.lightEmission = definition.lightEmission;
             blockDefinition.randomOffset = definition.randomOffset;
+            blockDefinition.breakEffectParticles = definition.breakEffectParticles;
+            blockDefinition.stateKind = parseStateKind(definition.stateKind);
             blockDefinition.attachmentFace = parseAttachmentFace(definition.attachmentFace);
             blockDefinition.interactActions = definition.interactActions;
             for (size_t dropIndex = 0; dropIndex < definition.dropItemKeys.size(); ++dropIndex)
@@ -675,6 +690,7 @@ namespace dolbuto::game
                 blockTextureDir,
                 content.blockTextureNames_,
                 content.blockTextureLayers_[item.placeBlockId],
+                content.blockDefinitions_[item.placeBlockId].renderType,
                 outputPath))
             {
                 item.slotTexture = generatedTexture;
@@ -700,10 +716,14 @@ namespace dolbuto::game
         auto lightAttenuationTables = std::make_shared<LightAttenuationTables>();
         lightAttenuationTables->block.assign(content.blockDefinitions_.size(), 15);
         lightAttenuationTables->blockEmission.assign(content.blockDefinitions_.size(), 0);
+        lightAttenuationTables->blockRenderTypes.assign(content.blockDefinitions_.size(), BlockRenderType::None);
+        lightAttenuationTables->blockStateKinds.assign(content.blockDefinitions_.size(), BlockStateKind::None);
         for (size_t i = 0; i < content.blockDefinitions_.size(); ++i)
         {
             lightAttenuationTables->block[i] = content.blockDefinitions_[i].lightAttenuation;
             lightAttenuationTables->blockEmission[i] = content.blockDefinitions_[i].lightEmission;
+            lightAttenuationTables->blockRenderTypes[i] = content.blockDefinitions_[i].renderType;
+            lightAttenuationTables->blockStateKinds[i] = content.blockDefinitions_[i].stateKind;
         }
         lightAttenuationTables->fluid.assign(content.fluidDefinitions_.size(), 0);
         for (size_t i = 0; i < content.fluidDefinitions_.size(); ++i)

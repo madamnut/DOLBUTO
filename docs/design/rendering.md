@@ -22,7 +22,9 @@
 - AO 패턴이 다른 면은 무리해서 합치지 않는다.
 - 식물 같은 `cross` 렌더 타입은 X자 스프라이트 형태로 만든다.
 - `fire` 렌더 타입은 바닥 불꽃용 컷아웃 쿼드 묶음으로 만든다.
+- `slab` 렌더 타입은 `blockStates`의 attach 상태를 읽어 셀 안의 반칸 cuboid를 별도 메쉬로 만든다.
 - 청크 메싱은 주변 8청크 정보를 사용해 경계면을 처리한다.
+- 조명 전파는 슬랩의 attach 상태를 읽어 붙은 면 방향으로만 블록 감쇄를 적용한다.
 
 ## GPU 데이터
 
@@ -116,7 +118,8 @@ viewmodel pipeline은 depth test/write를 사용해 viewmodel mesh 내부의 앞
 CPU는 매 프레임 vertex buffer를 덮어쓰지 않고, 현재 in-flight frame의 transform buffer만 갱신한다.
 아이템을 들고 있을 때는 손 mesh를 숨기고 아이템 viewmodel만 표시한다.
 든 아이템은 `item_viewmodel.vert`에서 카메라 회전을 적용하지 않는 view-space 좌표로 렌더링해 화면상 같은 면이 유지된다.
-`block_model` 든 아이템은 `placeBlock` 블록의 텍스처 layer를 사용하는 작은 큐브 mesh로 렌더링한다.
+`block_model` 든 아이템은 `placeBlock` 블록의 텍스처 layer를 사용하는 작은 블록 mesh로 렌더링한다.
+대상 블록이 `slab`이면 기본 bottom 반블럭 mesh와 생성 슬롯 아이콘을 사용한다.
 `config/viewmodel.json`은 손/아이템 viewmodel의 view-space 위치, 스케일, 회전값을 제공하고, `RendererConfigBridge`가 `ClientRuntimeState::viewmodelConfig`로 로드한다.
 `heldItem`은 `extruded_sprite` 든 아이템에 사용하고, `heldBlockModelItem`은 `block_model` 든 아이템에 사용한다.
 fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
@@ -210,6 +213,18 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 - 작은 회전 prop geometry와 모델 UV island가 보존되도록 packed terrain 위치와 UV는 1/256 정밀도를 사용한다.
 - prop `.dpm` 로딩 결과는 렌더링뿐 아니라 블록 선택 레이캐스트에도 사용한다.
 - prop 선택 아웃라인은 quad wire가 아니라 `.dpm` local bounds에 동일한 offset/rotation을 적용한 작은 박스로 그린다.
+
+## 슬랩 렌더링
+
+`renderType = "slab"` 블록은 일반 지형 메쉬 경로 안에서 반칸 cuboid로 렌더링한다.
+
+- 현재 상태 범주는 `stateKind: "attach"`이며 bottom/top/north/south/west/east를 지원한다.
+- 슬랩 메쉬는 큐브형 블록의 greedy meshing 대상이 아니며, 셀별 6면을 필요한 만큼 방출한다.
+- 슬랩의 외곽 면이 셀 경계에 닿고 이웃 블록이 해당 면을 가릴 수 있을 때만 그 면을 생략한다.
+- 옆면 UV는 해당 블록 안에서 슬랩이 차지하는 영역만 샘플링한다. bottom 슬랩은 옆면 텍스처의 아래 절반, top 슬랩은 위 절반을 사용한다.
+- 조명은 셀 전체 차단이 아니라 붙은 면 방향 차단으로 계산한다. bottom 슬랩은 아래 방향만 막고, top/side 슬랩도 각각 붙은 면 방향 하나만 막는다.
+- 선택 레이캐스트와 선택 아웃라인은 같은 슬랩 AABB를 사용한다.
+- 아이템 슬롯/든 아이템/드랍 아이템의 `block_model`은 기본 bottom 슬랩 모양을 사용하고, 옆면도 아래 절반 UV를 사용한다.
 
 ## 불 렌더링
 

@@ -156,6 +156,22 @@
         ]
     },
     {
+        "action": "craft",
+        "target": "dirt_pile",
+        "targetCount": 4,
+        "candidates": [
+            "packed_dirt"
+        ]
+    },
+    {
+        "action": "craft",
+        "target": "dirt_pile",
+        "targetCount": 2,
+        "candidates": [
+            "dirt_slab"
+        ]
+    },
+    {
         "action": "pound",
         "target": "wooden_plank",
         "targetCount": 2,

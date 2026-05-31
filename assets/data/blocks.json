@@ -403,6 +403,9 @@
         "attachment": {
             "face": "bottom"
         },
+        "breakEffects": {
+            "particles": false
+        },
         "drops": [],
         "lightAttenuation": 0,
         "lightEmission": 15,
@@ -660,6 +663,34 @@
         "lightAttenuation": 15,
         "breakLevel": 2,
         "breakAction": "smash"
+    },
+    {
+        "id": 23,
+        "name": "dirt_slab",
+        "renderType": "slab",
+        "stateKind": "attach",
+        "hardness": 0.8,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": "dirt"
+        },
+        "drops": [
+            {
+                "item": "dirt_slab",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 1,
+        "breakAction": "dig"
     },
     {
         "id": 10000,

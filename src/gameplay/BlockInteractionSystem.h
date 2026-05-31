@@ -52,10 +52,12 @@ namespace dolbuto::gameplay
     {
     public:
         using BlockSampler = std::function<uint16_t(int, int, int)>;
+        using BlockStateSampler = std::function<uint16_t(int, int, int)>;
         using FluidSampler = std::function<uint16_t(int, int, int)>;
         using BlockDefinitionProvider = std::function<const BlockDefinition&(uint16_t)>;
         using PropMeshProvider = std::function<const assets::PropMesh*(uint16_t)>;
         using TerrainCollisionPredicate = std::function<bool(int, int, int)>;
+        using TerrainAabbCollisionPredicate = std::function<bool(int, int, int, DVec3, DVec3)>;
 
         static constexpr double MaxInteractionDistance = 8.0;
         static constexpr float BlockBreakPower = 1.0f;
@@ -67,11 +69,11 @@ namespace dolbuto::gameplay
         static bool playerColliderIntersectsTerrain(
             DVec3 playerPosition,
             double heightScale,
-            const TerrainCollisionPredicate& terrainCellBlocksPlayer);
+            const TerrainAabbCollisionPredicate& terrainCellIntersectsPlayer);
 
         static bool playerColliderHasSupportBelow(
             DVec3 playerPosition,
-            const TerrainCollisionPredicate& terrainCellBlocksPlayer);
+            const TerrainAabbCollisionPredicate& terrainCellIntersectsPlayer);
 
         static bool playerColliderIntersectsWater(
             DVec3 playerPosition,
@@ -84,7 +86,17 @@ namespace dolbuto::gameplay
             int z,
             const BlockDefinition& definition,
             DVec3 playerPosition,
-            double heightScale);
+            double heightScale,
+            uint16_t blockState = 0);
+
+        static bool blockIntersectsAabb(
+            int x,
+            int y,
+            int z,
+            const BlockDefinition& definition,
+            DVec3 min,
+            DVec3 max,
+            uint16_t blockState = 0);
 
         static bool raycastBlock(
             DVec3 origin,
@@ -92,7 +104,8 @@ namespace dolbuto::gameplay
             const BlockSampler& blockAtWorld,
             const BlockDefinitionProvider& blockDefinition,
             BlockRaycastHit& hit,
-            const PropMeshProvider& propMesh = {});
+            const PropMeshProvider& propMesh = {},
+            const BlockStateSampler& blockStateAtWorld = {});
 
         static BlockBreakingUpdate updateBreaking(
             BlockBreakingState& state,
@@ -104,7 +117,8 @@ namespace dolbuto::gameplay
             const BlockBreakTool& tool,
             const BlockSampler& blockAtWorld,
             const BlockDefinitionProvider& blockDefinition,
-            const PropMeshProvider& propMesh = {});
+            const PropMeshProvider& propMesh = {},
+            const BlockStateSampler& blockStateAtWorld = {});
 
         static void resetBreaking(BlockBreakingState& state);
     };

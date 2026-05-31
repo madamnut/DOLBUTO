@@ -165,6 +165,7 @@ namespace dolbuto::assets
         const std::filesystem::path& blockTextureDirectory,
         const std::vector<std::string>& blockTextureNames,
         const BlockTextureLayers& layers,
+        BlockRenderType renderType,
         const std::filesystem::path& outputPath)
     {
         const std::array<uint32_t, 3> visibleLayers = {
@@ -197,22 +198,35 @@ namespace dolbuto::assets
         }
 
         std::vector<unsigned char> output(static_cast<std::size_t>(IconSize) * IconSize * 4u, 0u);
+        const bool slab = renderType == BlockRenderType::Slab;
+        const std::array<Vec2, 4> leftPositions = slab
+            ? std::array<Vec2, 4>{Vec2{12.0f, 32.0f}, Vec2{32.0f, 44.0f}, Vec2{32.0f, 56.0f}, Vec2{12.0f, 44.0f}}
+            : std::array<Vec2, 4>{Vec2{12.0f, 20.0f}, Vec2{32.0f, 32.0f}, Vec2{32.0f, 56.0f}, Vec2{12.0f, 44.0f}};
+        const std::array<Vec2, 4> rightPositions = slab
+            ? std::array<Vec2, 4>{Vec2{32.0f, 44.0f}, Vec2{52.0f, 32.0f}, Vec2{52.0f, 44.0f}, Vec2{32.0f, 56.0f}}
+            : std::array<Vec2, 4>{Vec2{32.0f, 32.0f}, Vec2{52.0f, 20.0f}, Vec2{52.0f, 44.0f}, Vec2{32.0f, 56.0f}};
+        const std::array<Vec2, 4> topPositions = slab
+            ? std::array<Vec2, 4>{Vec2{32.0f, 20.0f}, Vec2{52.0f, 32.0f}, Vec2{32.0f, 44.0f}, Vec2{12.0f, 32.0f}}
+            : std::array<Vec2, 4>{Vec2{32.0f, 8.0f}, Vec2{52.0f, 20.0f}, Vec2{32.0f, 32.0f}, Vec2{12.0f, 20.0f}};
+        const std::array<Vec2, 4> sideUvs = slab
+            ? std::array<Vec2, 4>{Vec2{0.0f, 0.5f}, Vec2{1.0f, 0.5f}, Vec2{1.0f, 1.0f}, Vec2{0.0f, 1.0f}}
+            : std::array<Vec2, 4>{Vec2{0.0f, 0.0f}, Vec2{1.0f, 0.0f}, Vec2{1.0f, 1.0f}, Vec2{0.0f, 1.0f}};
         drawQuad(
             output,
             *left,
-            std::array<Vec2, 4>{Vec2{12.0f, 20.0f}, Vec2{32.0f, 32.0f}, Vec2{32.0f, 56.0f}, Vec2{12.0f, 44.0f}},
-            std::array<Vec2, 4>{Vec2{0.0f, 0.0f}, Vec2{1.0f, 0.0f}, Vec2{1.0f, 1.0f}, Vec2{0.0f, 1.0f}},
+            leftPositions,
+            sideUvs,
             0.70f);
         drawQuad(
             output,
             *right,
-            std::array<Vec2, 4>{Vec2{32.0f, 32.0f}, Vec2{52.0f, 20.0f}, Vec2{52.0f, 44.0f}, Vec2{32.0f, 56.0f}},
-            std::array<Vec2, 4>{Vec2{0.0f, 0.0f}, Vec2{1.0f, 0.0f}, Vec2{1.0f, 1.0f}, Vec2{0.0f, 1.0f}},
+            rightPositions,
+            sideUvs,
             0.86f);
         drawQuad(
             output,
             *top,
-            std::array<Vec2, 4>{Vec2{32.0f, 8.0f}, Vec2{52.0f, 20.0f}, Vec2{32.0f, 32.0f}, Vec2{12.0f, 20.0f}},
+            topPositions,
             std::array<Vec2, 4>{Vec2{0.5f, 0.0f}, Vec2{1.0f, 0.5f}, Vec2{0.5f, 1.0f}, Vec2{0.0f, 0.5f}},
             1.0f);
 

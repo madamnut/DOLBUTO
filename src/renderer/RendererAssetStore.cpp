@@ -11,25 +11,55 @@ namespace dolbuto
 {
     namespace
     {
-        DroppedItemRenderPath::ItemSpriteMesh buildBlockModelItemMesh(const BlockTextureLayers& layers)
+        DroppedItemRenderPath::ItemSpriteMesh buildBlockModelItemMesh(const BlockTextureLayers& layers, BlockRenderType renderType)
         {
             DroppedItemRenderPath::ItemSpriteMesh mesh{};
-            auto addQuad = [&](std::array<Vec3, 4> positions, uint32_t textureLayer, float ao)
+            auto addQuad = [&](std::array<Vec3, 4> positions, std::array<std::array<float, 2>, 4> uvs, uint32_t textureLayer, float ao)
             {
                 DroppedItemRenderPath::ItemSpriteQuad quad{};
                 quad.positions = positions;
-                quad.uvs = {{{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}}};
+                quad.uvs = uvs;
                 quad.ao = ao;
                 quad.textureLayer = static_cast<float>(textureLayer);
                 mesh.quads.push_back(quad);
             };
 
-            addQuad({{{-0.5f, 0.5f, -0.5f}, {-0.5f, 0.5f, 0.5f}, {0.5f, 0.5f, 0.5f}, {0.5f, 0.5f, -0.5f}}}, layers.faces[0], 1.0f);
-            addQuad({{{-0.5f, -0.5f, 0.5f}, {-0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, 0.5f}}}, layers.faces[1], 0.82f);
-            addQuad({{{0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}, {0.5f, -0.5f, 0.5f}}}, layers.faces[2], 0.86f);
-            addQuad({{{-0.5f, -0.5f, 0.5f}, {-0.5f, 0.5f, 0.5f}, {-0.5f, 0.5f, -0.5f}, {-0.5f, -0.5f, -0.5f}}}, layers.faces[3], 0.78f);
-            addQuad({{{0.5f, -0.5f, 0.5f}, {0.5f, 0.5f, 0.5f}, {-0.5f, 0.5f, 0.5f}, {-0.5f, -0.5f, 0.5f}}}, layers.faces[4], 0.88f);
-            addQuad({{{-0.5f, -0.5f, -0.5f}, {-0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, -0.5f}, {0.5f, -0.5f, -0.5f}}}, layers.faces[5], 0.74f);
+            const float minY = -0.5f;
+            const float maxY = renderType == BlockRenderType::Slab ? 0.0f : 0.5f;
+            const float minLocalY = 0.0f;
+            const float maxLocalY = renderType == BlockRenderType::Slab ? 0.5f : 1.0f;
+            const float sideTopV = 1.0f - maxLocalY;
+            const float sideBottomV = 1.0f - minLocalY;
+            addQuad(
+                {{{-0.5f, maxY, -0.5f}, {-0.5f, maxY, 0.5f}, {0.5f, maxY, 0.5f}, {0.5f, maxY, -0.5f}}},
+                {{{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}}},
+                layers.faces[0],
+                1.0f);
+            addQuad(
+                {{{-0.5f, minY, 0.5f}, {-0.5f, minY, -0.5f}, {0.5f, minY, -0.5f}, {0.5f, minY, 0.5f}}},
+                {{{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}}},
+                layers.faces[1],
+                0.82f);
+            addQuad(
+                {{{0.5f, minY, -0.5f}, {0.5f, maxY, -0.5f}, {0.5f, maxY, 0.5f}, {0.5f, minY, 0.5f}}},
+                {{{0.0f, sideBottomV}, {0.0f, sideTopV}, {1.0f, sideTopV}, {1.0f, sideBottomV}}},
+                layers.faces[2],
+                0.86f);
+            addQuad(
+                {{{-0.5f, minY, 0.5f}, {-0.5f, maxY, 0.5f}, {-0.5f, maxY, -0.5f}, {-0.5f, minY, -0.5f}}},
+                {{{0.0f, sideBottomV}, {0.0f, sideTopV}, {1.0f, sideTopV}, {1.0f, sideBottomV}}},
+                layers.faces[3],
+                0.78f);
+            addQuad(
+                {{{0.5f, minY, 0.5f}, {0.5f, maxY, 0.5f}, {-0.5f, maxY, 0.5f}, {-0.5f, minY, 0.5f}}},
+                {{{0.0f, sideBottomV}, {0.0f, sideTopV}, {1.0f, sideTopV}, {1.0f, sideBottomV}}},
+                layers.faces[4],
+                0.88f);
+            addQuad(
+                {{{-0.5f, minY, -0.5f}, {-0.5f, maxY, -0.5f}, {0.5f, maxY, -0.5f}, {0.5f, minY, -0.5f}}},
+                {{{0.0f, sideBottomV}, {0.0f, sideTopV}, {1.0f, sideTopV}, {1.0f, sideBottomV}}},
+                layers.faces[5],
+                0.74f);
             return mesh;
         }
     }
@@ -96,7 +126,10 @@ namespace dolbuto
                 if (definition.placeBlockId != 0 &&
                     static_cast<size_t>(definition.placeBlockId) < content.blockTextureLayers().size())
                 {
-                    store.itemSpriteMeshes[itemId] = buildBlockModelItemMesh(content.blockTextureLayers()[definition.placeBlockId]);
+                    const BlockDefinition& blockDefinition = content.blockDefinitions()[definition.placeBlockId];
+                    store.itemSpriteMeshes[itemId] = buildBlockModelItemMesh(
+                        content.blockTextureLayers()[definition.placeBlockId],
+                        blockDefinition.renderType);
                 }
                 continue;
             }

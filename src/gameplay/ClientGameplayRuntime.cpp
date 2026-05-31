@@ -1,7 +1,7 @@
 #include "gameplay/ClientGameplayRuntime.h"
 
 #include "world/BlockData.h"
-
+#include "world/DroppedItemSystem.h"
 #include <algorithm>
 #include <iterator>
 #include <stdexcept>
@@ -17,6 +17,47 @@ namespace dolbuto::gameplay
         bool recipeTargetsBlock(const ItemInteractionRecipe& recipe, uint16_t block)
         {
             return recipe.targetAnyBlock || recipe.targetBlockId == block;
+        }
+
+        uint16_t attachStateForPlacement(const BlockRaycastHit& hit)
+        {
+            const int dx = hit.previousBlockX - hit.blockX;
+            const int dy = hit.previousBlockY - hit.blockY;
+            const int dz = hit.previousBlockZ - hit.blockZ;
+            if (dy > 0)
+            {
+                return static_cast<uint16_t>(BlockAttachState::Bottom);
+            }
+            if (dy < 0)
+            {
+                return static_cast<uint16_t>(BlockAttachState::Top);
+            }
+            if (dx > 0)
+            {
+                return static_cast<uint16_t>(BlockAttachState::West);
+            }
+            if (dx < 0)
+            {
+                return static_cast<uint16_t>(BlockAttachState::East);
+            }
+            if (dz > 0)
+            {
+                return static_cast<uint16_t>(BlockAttachState::North);
+            }
+            if (dz < 0)
+            {
+                return static_cast<uint16_t>(BlockAttachState::South);
+            }
+            return static_cast<uint16_t>(BlockAttachState::Bottom);
+        }
+
+        uint16_t placementStateForBlock(const BlockDefinition& definition, const BlockRaycastHit& hit)
+        {
+            if (definition.renderType == BlockRenderType::Slab && definition.stateKind == BlockStateKind::Attach)
+            {
+                return attachStateForPlacement(hit);
+            }
+            return 0;
         }
     }
 
@@ -46,16 +87,16 @@ namespace dolbuto::gameplay
     bool ClientGameplayRuntime::playerColliderIntersectsTerrain(
         DVec3 playerPosition,
         double heightScale,
-        const TerrainCollisionPredicate& terrainCellBlocksPlayer) const
+        const TerrainAabbCollisionPredicate& terrainCellIntersectsPlayer) const
     {
-        return BlockInteractionSystem::playerColliderIntersectsTerrain(playerPosition, heightScale, terrainCellBlocksPlayer);
+        return BlockInteractionSystem::playerColliderIntersectsTerrain(playerPosition, heightScale, terrainCellIntersectsPlayer);
     }
 
     bool ClientGameplayRuntime::playerColliderHasSupportBelow(
         DVec3 playerPosition,
-        const TerrainCollisionPredicate& terrainCellBlocksPlayer) const
+        const TerrainAabbCollisionPredicate& terrainCellIntersectsPlayer) const
     {
-        return BlockInteractionSystem::playerColliderHasSupportBelow(playerPosition, terrainCellBlocksPlayer);
+        return BlockInteractionSystem::playerColliderHasSupportBelow(playerPosition, terrainCellIntersectsPlayer);
     }
 
     bool ClientGameplayRuntime::playerColliderIntersectsWater(
@@ -80,7 +121,17 @@ namespace dolbuto::gameplay
         const MarkDirtyFn& markDirty)
     {
         BlockRaycastHit hit{};
-        if (!BlockInteractionSystem::raycastBlock(origin, direction, blockAtWorld, blockDefinition, hit, propMesh))
+        if (!BlockInteractionSystem::raycastBlock(
+                origin,
+                direction,
+                blockAtWorld,
+                blockDefinition,
+                hit,
+                propMesh,
+                [this](int x, int y, int z)
+                {
+                    return worldRuntime_ != nullptr ? worldRuntime_->blockStateAtWorld(x, y, z) : 0;
+                }))
         {
             return {};
         }
@@ -90,13 +141,16 @@ namespace dolbuto::gameplay
             return breakBlockAtHit(hit, 0, blockAtWorld, blockDefinition, setBlockAtWorld, markDirty);
         }
 
+        const BlockDefinition& placedDefinition = blockDefinition(placeBlockId);
+        const uint16_t placementState = placementStateForBlock(placedDefinition, hit);
         if (BlockInteractionSystem::blockIntersectsPlayerCollider(
                 hit.previousBlockX,
                 hit.previousBlockY,
                 hit.previousBlockZ,
-                blockDefinition(placeBlockId),
+                placedDefinition,
                 playerPosition,
-                playerHeightScale))
+                playerHeightScale,
+                placementState))
         {
             return {};
         }
@@ -104,6 +158,10 @@ namespace dolbuto::gameplay
         if (!setBlockAtWorld || !setBlockAtWorld(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ, placeBlockId))
         {
             return {};
+        }
+        if (placementState != 0 && worldRuntime_ != nullptr)
+        {
+            worldRuntime_->setBlockStateAtWorld(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ, placementState);
         }
 
         BlockEditResult result{};
@@ -169,7 +227,11 @@ namespace dolbuto::gameplay
             currentBlockBreakTool(),
             blockAtWorld,
             blockDefinition,
-            propMesh);
+            propMesh,
+            [this](int x, int y, int z)
+            {
+                return worldRuntime_ != nullptr ? worldRuntime_->blockStateAtWorld(x, y, z) : 0;
+            });
     }
 
     BlockTickResult ClientGameplayRuntime::tickBlockUpdates(
@@ -223,6 +285,77 @@ namespace dolbuto::gameplay
                 markDirty(*chunk);
             }
         };
+        auto itemIdByKey = [&](const char* key) -> uint16_t
+        {
+            const std::vector<ItemDefinition>& definitions = itemDefinitions();
+            for (std::size_t i = 0; i < definitions.size(); ++i)
+            {
+                if (definitions[i].key == key)
+                {
+                    return static_cast<uint16_t>(i);
+                }
+            }
+            return 0;
+        };
+        const uint16_t logItemId = itemIdByKey("log");
+        const uint16_t strippedLogItemId = itemIdByKey("stripped_log");
+        const uint16_t charcoalItemId = itemIdByKey("charcoal");
+        auto kilnOutputForFuel = [&](uint16_t itemId) -> ItemStack
+        {
+            if (charcoalItemId == 0)
+            {
+                return {};
+            }
+            if (itemId == logItemId || itemId == strippedLogItemId)
+            {
+                return ItemStack{charcoalItemId, 4, 0};
+            }
+            return {};
+        };
+        auto fireSealed = [&](int x, int y, int z) -> bool
+        {
+            constexpr int Directions[6][3] = {
+                {1, 0, 0},
+                {-1, 0, 0},
+                {0, 1, 0},
+                {0, -1, 0},
+                {0, 0, 1},
+                {0, 0, -1}
+            };
+            for (const auto& direction : Directions)
+            {
+                const uint16_t neighbor = worldRuntime_->blockAtWorld(x + direction[0], y + direction[1], z + direction[2]);
+                if (neighbor == BlockAir || !blockDefinition(neighbor).collision)
+                {
+                    return false;
+                }
+            }
+            return true;
+        };
+        auto spawnKilnOutput = [&](int x, int y, int z, ItemStack stack)
+        {
+            if (stack.itemId == 0 || stack.count == 0)
+            {
+                return false;
+            }
+
+            WorldEntity output{};
+            output.entityId = droppedItemRuntime_.allocateEntityId();
+            output.type = WorldEntityType::DroppedItem;
+            output.position = {
+                static_cast<float>(x),
+                static_cast<float>(y) + 0.08f,
+                static_cast<float>(z)
+            };
+            output.previousPosition = output.position;
+            output.velocity = {0.0f, 2.0f, 0.0f};
+            output.droppedItem.stack = stack;
+            output.renderSpinX = 5.0f;
+            output.renderSpin = 5.0f;
+            output.renderSpinZ = 5.0f;
+            world::DroppedItemSystem::setGrounded(output, false);
+            return droppedItemRuntime_.addWorldEntity(std::move(output), markDirty);
+        };
 
         for (const FireTick& fire : fireTicks)
         {
@@ -248,21 +381,39 @@ namespace dolbuto::gameplay
             {
                 continue;
             }
+            if (entity->pendingOutputItemId != 0 && entity->pendingOutputCount != 0)
+            {
+                const ItemStack output{entity->pendingOutputItemId, entity->pendingOutputCount, 0};
+                entity->pendingOutputItemId = 0;
+                entity->pendingOutputCount = 0;
+                markBlockEntityDirty(fire.x, fire.z);
+                if (fireSealed(fire.x, fire.y, fire.z) && spawnKilnOutput(fire.x, fire.y, fire.z, output))
+                {
+                    continue;
+                }
+            }
 
-            const uint32_t addedBurnTicks = droppedItemRuntime_.consumeLowestBurnableInAabb(
+            const bool sealedAtStart = fireSealed(fire.x, fire.y, fire.z);
+            const world::DroppedItemRuntime::BurnableConsumptionResult consumedFuel = droppedItemRuntime_.consumeRandomBurnableInAabb(
                 static_cast<float>(fire.x) - 0.5f,
                 static_cast<float>(fire.y),
                 static_cast<float>(fire.z) - 0.5f,
                 static_cast<float>(fire.x) + 0.5f,
                 static_cast<float>(fire.y + 1),
                 static_cast<float>(fire.z) + 0.5f,
+                !sealedAtStart,
                 markDirty);
-            if (addedBurnTicks > 0)
+            if (consumedFuel.burnTimeTicks > 0)
             {
                 entity = worldRuntime_->blockEntityAtWorld(fire.x, fire.y, fire.z);
                 if (entity != nullptr && entity->type == BlockEntityType::Fire)
                 {
-                    entity->remainingBurnTicks += addedBurnTicks;
+                    entity->remainingBurnTicks += consumedFuel.burnTimeTicks;
+                    const ItemStack kilnOutput = sealedAtStart
+                        ? kilnOutputForFuel(consumedFuel.itemId)
+                        : ItemStack{};
+                    entity->pendingOutputItemId = kilnOutput.itemId;
+                    entity->pendingOutputCount = kilnOutput.count;
                     markBlockEntityDirty(fire.x, fire.z);
                 }
                 continue;
@@ -398,7 +549,17 @@ namespace dolbuto::gameplay
         }
 
         BlockRaycastHit hit{};
-        if (!BlockInteractionSystem::raycastBlock(origin, direction, blockAtWorld, blockDefinition, hit, propMesh))
+        if (!BlockInteractionSystem::raycastBlock(
+                origin,
+                direction,
+                blockAtWorld,
+                blockDefinition,
+                hit,
+                propMesh,
+                [this](int x, int y, int z)
+                {
+                    return worldRuntime_ != nullptr ? worldRuntime_->blockStateAtWorld(x, y, z) : 0;
+                }))
         {
             return {};
         }
@@ -406,19 +567,26 @@ namespace dolbuto::gameplay
         {
             return {};
         }
+        const BlockDefinition& placedDefinition = blockDefinition(heldDefinition.placeBlockId);
+        const uint16_t placementState = placementStateForBlock(placedDefinition, hit);
         if (BlockInteractionSystem::blockIntersectsPlayerCollider(
                 hit.previousBlockX,
                 hit.previousBlockY,
                 hit.previousBlockZ,
-                blockDefinition(heldDefinition.placeBlockId),
+                placedDefinition,
                 playerPosition,
-                playerHeightScale))
+                playerHeightScale,
+                placementState))
         {
             return {};
         }
         if (!setBlockAtWorld || !setBlockAtWorld(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ, heldDefinition.placeBlockId))
         {
             return {};
+        }
+        if (placementState != 0 && worldRuntime_ != nullptr)
+        {
+            worldRuntime_->setBlockStateAtWorld(hit.previousBlockX, hit.previousBlockY, hit.previousBlockZ, placementState);
         }
 
         droppedItemRuntime_.pushItemsOutOfBlock(
@@ -464,7 +632,17 @@ namespace dolbuto::gameplay
         bool hasBlockTarget = false;
         bool hasInteractionBlock = false;
         if (blockAtWorld && blockDefinition &&
-            BlockInteractionSystem::raycastBlock(origin, direction, blockAtWorld, blockDefinition, interactionBlockHit, propMesh))
+            BlockInteractionSystem::raycastBlock(
+                origin,
+                direction,
+                blockAtWorld,
+                blockDefinition,
+                interactionBlockHit,
+                propMesh,
+                [this](int x, int y, int z)
+                {
+                    return worldRuntime_ != nullptr ? worldRuntime_->blockStateAtWorld(x, y, z) : 0;
+                }))
         {
             interactionBlock = blockAtWorld(interactionBlockHit.blockX, interactionBlockHit.blockY, interactionBlockHit.blockZ);
             hasBlockTarget = interactionBlock != BlockAir;

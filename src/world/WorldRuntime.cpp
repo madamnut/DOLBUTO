@@ -1,5 +1,6 @@
 #include "world/WorldRuntime.h"
 
+#include "world/BlockLightRules.h"
 #include "world/SkyLightSystem.h"
 
 #include <algorithm>
@@ -134,19 +135,46 @@ namespace dolbuto::world
             return fluid == FluidNone ? 0 : 2;
         }
 
-        uint8_t attenuationForCell(const ChunkData& chunk, size_t index, const LightAttenuationTables* lightAttenuation)
+        uint16_t blockStateAt(const ChunkData& chunk, size_t index)
+        {
+            return index < chunk.blockStates.size() ? chunk.blockStates[index] : 0;
+        }
+
+        uint8_t directionalAttenuationForCell(
+            const ChunkData& chunk,
+            size_t index,
+            block_light::Direction direction,
+            const LightAttenuationTables* lightAttenuation)
         {
             if (index >= chunk.blocks.size())
             {
                 return MaxSkyLight;
             }
 
-            uint8_t attenuation = blockLightAttenuation(lightAttenuation, chunk.blocks[index]);
+            const uint16_t block = chunk.blocks[index];
+            uint8_t attenuation = block_light::directionalAttenuation(
+                lightAttenuation,
+                block,
+                blockStateAt(chunk, index),
+                direction,
+                blockLightAttenuation(lightAttenuation, block));
             if (index < chunk.fluids.size() && fluidId(chunk.fluids[index]) != FluidNone && fluidAmount(chunk.fluids[index]) != 0)
             {
                 attenuation = std::max<uint8_t>(attenuation, fluidLightAttenuation(lightAttenuation, fluidId(chunk.fluids[index])));
             }
             return attenuation;
+        }
+
+        uint8_t transitionAttenuation(
+            const ChunkData& chunk,
+            size_t currentIndex,
+            size_t nextIndex,
+            block_light::Direction direction,
+            const LightAttenuationTables* lightAttenuation)
+        {
+            return std::max<uint8_t>(
+                directionalAttenuationForCell(chunk, currentIndex, direction, lightAttenuation),
+                directionalAttenuationForCell(chunk, nextIndex, block_light::opposite(direction), lightAttenuation));
         }
 
         void setSkyLight(std::vector<uint8_t>& light, size_t index, uint8_t skyLight)
@@ -290,6 +318,10 @@ namespace dolbuto::world
         if (chunk.fluids.size() != ChunkBlockCount)
         {
             chunk.fluids.assign(ChunkBlockCount, 0);
+        }
+        if (chunk.blockStates.size() != ChunkBlockCount)
+        {
+            chunk.blockStates.assign(ChunkBlockCount, 0);
         }
         if (chunk.light.size() != ChunkBlockCount)
         {
@@ -562,6 +594,35 @@ namespace dolbuto::world
         return chunk->data->blocks[index];
     }
 
+    uint16_t WorldRuntime::blockStateAtWorld(int x, int y, int z) const
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return 0;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        const RuntimeChunk* chunk = findChunk(chunkX, chunkZ);
+        if (chunk == nullptr || !chunk->data ||
+            (chunk->genState != ChunkGenState::LocalLightReady &&
+                chunk->genState != ChunkGenState::LightResolved &&
+                chunk->genState != ChunkGenState::Meshed))
+        {
+            return 0;
+        }
+
+        const int localX = positiveModulo(x, ChunkSizeX);
+        const int localZ = positiveModulo(z, ChunkSizeZ);
+        const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+        if (index >= chunk->data->blockStates.size())
+        {
+            return 0;
+        }
+
+        return chunk->data->blockStates[index];
+    }
+
     BlockEntity* WorldRuntime::blockEntityAtWorld(int x, int y, int z)
     {
         if (y < 0 || y >= ChunkSizeY)
@@ -621,6 +682,8 @@ namespace dolbuto::world
                 if (entity.type != BlockEntityType::Fire)
                 {
                     entity.type = BlockEntityType::Fire;
+                    entity.pendingOutputItemId = 0;
+                    entity.pendingOutputCount = 0;
                     if (entity.remainingBurnTicks == 0)
                     {
                         entity.remainingBurnTicks = remainingBurnTicks;
@@ -770,6 +833,11 @@ namespace dolbuto::world
         }
 
         runtimeChunk->data->blocks[index] = block;
+        if (runtimeChunk->data->blockStates.size() != ChunkBlockCount)
+        {
+            runtimeChunk->data->blockStates.assign(ChunkBlockCount, 0);
+        }
+        runtimeChunk->data->blockStates[index] = 0;
         if (runtimeChunk->data->fluids.size() != ChunkBlockCount)
         {
             runtimeChunk->data->fluids.assign(ChunkBlockCount, FluidNone);
@@ -790,6 +858,46 @@ namespace dolbuto::world
         updateChunkEmptySubchunk(runtimeChunk->data, y / SubchunkSize);
         scheduleBlockTickNeighborhood(x, y, z);
         scheduleFluidTickNeighborhood(x, y, z);
+        return true;
+    }
+
+    bool WorldRuntime::setBlockStateAtWorld(int x, int y, int z, uint16_t state)
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return false;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        RuntimeChunk* runtimeChunk = findChunk(chunkX, chunkZ);
+        if (runtimeChunk == nullptr || !runtimeChunk->data ||
+            (runtimeChunk->genState != ChunkGenState::LocalLightReady &&
+                runtimeChunk->genState != ChunkGenState::LightResolved &&
+                runtimeChunk->genState != ChunkGenState::Meshed))
+        {
+            return false;
+        }
+
+        const int localX = positiveModulo(x, ChunkSizeX);
+        const int localZ = positiveModulo(z, ChunkSizeZ);
+        const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+        if (index >= runtimeChunk->data->blocks.size())
+        {
+            return false;
+        }
+        if (runtimeChunk->data->blockStates.size() != ChunkBlockCount)
+        {
+            runtimeChunk->data->blockStates.assign(ChunkBlockCount, 0);
+        }
+        if (runtimeChunk->data->blockStates[index] == state)
+        {
+            return false;
+        }
+
+        runtimeChunk->data->blockStates[index] = state;
+        ++runtimeChunk->data->revision;
+        markDataDirty(*runtimeChunk);
         return true;
     }
 
@@ -1212,6 +1320,33 @@ namespace dolbuto::world
             const int localZ = positiveModulo(worldZ, ChunkSizeZ);
             return sampleChunk->data->light[blockIndex(localX, worldY, localZ)];
         };
+        auto directionalAttenuationAtWorld = [&](int worldX, int worldY, int worldZ, block_light::Direction direction) -> uint8_t
+        {
+            if (worldY >= ChunkSizeY)
+            {
+                return 1;
+            }
+            if (worldY < 0)
+            {
+                return MaxSkyLight;
+            }
+
+            const int sampleChunkX = floorDiv(worldX, ChunkSizeX);
+            const int sampleChunkZ = floorDiv(worldZ, ChunkSizeZ);
+            const RuntimeChunk* sampleChunk = findChunk(sampleChunkX, sampleChunkZ);
+            if (sampleChunk == nullptr || !sampleChunk->data)
+            {
+                return MaxSkyLight;
+            }
+
+            const int localX = positiveModulo(worldX, ChunkSizeX);
+            const int localZ = positiveModulo(worldZ, ChunkSizeZ);
+            return directionalAttenuationForCell(
+                *sampleChunk->data,
+                blockIndex(localX, worldY, localZ),
+                direction,
+                lightAttenuationTables_.get());
+        };
         auto markSubchunkChanged = [&](RuntimeChunk& chunk, const SubchunkKey& subchunk)
         {
             const uint64_t key = chunkKey(subchunk.chunkX, subchunk.chunkZ);
@@ -1290,10 +1425,12 @@ namespace dolbuto::world
                 setBlockLight(resolved, index, blockLight);
                 blockQueue.push_back(LightNode{index, blockLight});
             };
-            auto trySeedFromNeighbor = [&](int localX, int localY, int localZ, int neighborWorldX, int neighborWorldY, int neighborWorldZ)
+            auto trySeedFromNeighbor = [&](int localX, int localY, int localZ, int neighborWorldX, int neighborWorldY, int neighborWorldZ, block_light::Direction directionFromNeighbor)
             {
                 const size_t index = blockIndex(localX, localY, localZ);
-                const uint8_t attenuation = attenuationForCell(chunk, index, lightAttenuationTables_.get());
+                const uint8_t attenuation = std::max<uint8_t>(
+                    directionalAttenuationAtWorld(neighborWorldX, neighborWorldY, neighborWorldZ, directionFromNeighbor),
+                    directionalAttenuationForCell(chunk, index, block_light::opposite(directionFromNeighbor), lightAttenuationTables_.get()));
                 const uint8_t neighborPackedLight = lightAtWorld(neighborWorldX, neighborWorldY, neighborWorldZ);
                 const uint8_t neighborSkyLight = skyLightFromPacked(neighborPackedLight);
                 const uint8_t neighborBlockLight = blockLightFromPacked(neighborPackedLight);
@@ -1334,14 +1471,21 @@ namespace dolbuto::world
                         continue;
                     }
 
+                    bool hasPreviousCell = yEnd < ChunkSizeY;
+                    size_t previousIndex = hasPreviousCell ? blockIndex(localX, yEnd, localZ) : 0;
                     for (int localY = yEnd - 1; localY >= yStart; --localY)
                     {
                         const size_t index = blockIndex(localX, localY, localZ);
-                        if (attenuationForCell(chunk, index, lightAttenuationTables_.get()) >= MaxSkyLight)
+                        const uint8_t verticalAttenuation = hasPreviousCell
+                            ? transitionAttenuation(chunk, previousIndex, index, block_light::Direction::NegY, lightAttenuationTables_.get())
+                            : directionalAttenuationForCell(chunk, index, block_light::Direction::PosY, lightAttenuationTables_.get());
+                        if (verticalAttenuation >= MaxSkyLight)
                         {
                             break;
                         }
                         enqueueLight(index, MaxSkyLight);
+                        previousIndex = index;
+                        hasPreviousCell = true;
                     }
                 }
             }
@@ -1352,14 +1496,14 @@ namespace dolbuto::world
                 for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
                 {
                     const int worldZ = subchunk.chunkZ * ChunkSizeZ + localZ;
-                    trySeedFromNeighbor(0, localY, localZ, subchunk.chunkX * ChunkSizeX - 1, worldY, worldZ);
-                    trySeedFromNeighbor(ChunkSizeX - 1, localY, localZ, (subchunk.chunkX + 1) * ChunkSizeX, worldY, worldZ);
+                    trySeedFromNeighbor(0, localY, localZ, subchunk.chunkX * ChunkSizeX - 1, worldY, worldZ, block_light::Direction::PosX);
+                    trySeedFromNeighbor(ChunkSizeX - 1, localY, localZ, (subchunk.chunkX + 1) * ChunkSizeX, worldY, worldZ, block_light::Direction::NegX);
                 }
                 for (int localX = 0; localX < ChunkSizeX; ++localX)
                 {
                     const int worldX = subchunk.chunkX * ChunkSizeX + localX;
-                    trySeedFromNeighbor(localX, localY, 0, worldX, worldY, subchunk.chunkZ * ChunkSizeZ - 1);
-                    trySeedFromNeighbor(localX, localY, ChunkSizeZ - 1, worldX, worldY, (subchunk.chunkZ + 1) * ChunkSizeZ);
+                    trySeedFromNeighbor(localX, localY, 0, worldX, worldY, subchunk.chunkZ * ChunkSizeZ - 1, block_light::Direction::PosZ);
+                    trySeedFromNeighbor(localX, localY, ChunkSizeZ - 1, worldX, worldY, (subchunk.chunkZ + 1) * ChunkSizeZ, block_light::Direction::NegZ);
                 }
             }
             for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
@@ -1368,8 +1512,8 @@ namespace dolbuto::world
                 for (int localX = 0; localX < ChunkSizeX; ++localX)
                 {
                     const int worldX = subchunk.chunkX * ChunkSizeX + localX;
-                    trySeedFromNeighbor(localX, yStart, localZ, worldX, yStart - 1, worldZ);
-                    trySeedFromNeighbor(localX, yEnd - 1, localZ, worldX, yEnd, worldZ);
+                    trySeedFromNeighbor(localX, yStart, localZ, worldX, yStart - 1, worldZ, block_light::Direction::PosY);
+                    trySeedFromNeighbor(localX, yEnd - 1, localZ, worldX, yEnd, worldZ, block_light::Direction::NegY);
                 }
             }
 
@@ -1385,7 +1529,7 @@ namespace dolbuto::world
                 const int localX = blockX(node.index);
                 const int localY = blockY(node.index);
                 const int localZ = blockZ(node.index);
-                auto tryPropagate = [&](int nextX, int nextY, int nextZ)
+                auto tryPropagate = [&](int nextX, int nextY, int nextZ, block_light::Direction direction)
                 {
                     if (nextX < 0 || nextX >= ChunkSizeX ||
                         nextY < yStart || nextY >= yEnd ||
@@ -1395,19 +1539,19 @@ namespace dolbuto::world
                     }
 
                     const size_t nextIndex = blockIndex(nextX, nextY, nextZ);
-                    const uint8_t attenuation = attenuationForCell(chunk, nextIndex, lightAttenuationTables_.get());
+                    const uint8_t attenuation = transitionAttenuation(chunk, node.index, nextIndex, direction, lightAttenuationTables_.get());
                     if (attenuation < node.light)
                     {
                         enqueueLight(nextIndex, static_cast<uint8_t>(node.light - attenuation));
                     }
                 };
 
-                tryPropagate(localX + 1, localY, localZ);
-                tryPropagate(localX - 1, localY, localZ);
-                tryPropagate(localX, localY + 1, localZ);
-                tryPropagate(localX, localY - 1, localZ);
-                tryPropagate(localX, localY, localZ + 1);
-                tryPropagate(localX, localY, localZ - 1);
+                tryPropagate(localX + 1, localY, localZ, block_light::Direction::PosX);
+                tryPropagate(localX - 1, localY, localZ, block_light::Direction::NegX);
+                tryPropagate(localX, localY + 1, localZ, block_light::Direction::PosY);
+                tryPropagate(localX, localY - 1, localZ, block_light::Direction::NegY);
+                tryPropagate(localX, localY, localZ + 1, block_light::Direction::PosZ);
+                tryPropagate(localX, localY, localZ - 1, block_light::Direction::NegZ);
             }
 
             while (!blockQueue.empty())
@@ -1422,7 +1566,7 @@ namespace dolbuto::world
                 const int localX = blockX(node.index);
                 const int localY = blockY(node.index);
                 const int localZ = blockZ(node.index);
-                auto tryPropagate = [&](int nextX, int nextY, int nextZ)
+                auto tryPropagate = [&](int nextX, int nextY, int nextZ, block_light::Direction direction)
                 {
                     if (nextX < 0 || nextX >= ChunkSizeX ||
                         nextY < yStart || nextY >= yEnd ||
@@ -1432,19 +1576,19 @@ namespace dolbuto::world
                     }
 
                     const size_t nextIndex = blockIndex(nextX, nextY, nextZ);
-                    const uint8_t attenuation = attenuationForCell(chunk, nextIndex, lightAttenuationTables_.get());
+                    const uint8_t attenuation = transitionAttenuation(chunk, node.index, nextIndex, direction, lightAttenuationTables_.get());
                     if (attenuation < node.light)
                     {
                         enqueueBlockLight(nextIndex, static_cast<uint8_t>(node.light - attenuation));
                     }
                 };
 
-                tryPropagate(localX + 1, localY, localZ);
-                tryPropagate(localX - 1, localY, localZ);
-                tryPropagate(localX, localY + 1, localZ);
-                tryPropagate(localX, localY - 1, localZ);
-                tryPropagate(localX, localY, localZ + 1);
-                tryPropagate(localX, localY, localZ - 1);
+                tryPropagate(localX + 1, localY, localZ, block_light::Direction::PosX);
+                tryPropagate(localX - 1, localY, localZ, block_light::Direction::NegX);
+                tryPropagate(localX, localY + 1, localZ, block_light::Direction::PosY);
+                tryPropagate(localX, localY - 1, localZ, block_light::Direction::NegY);
+                tryPropagate(localX, localY, localZ + 1, block_light::Direction::PosZ);
+                tryPropagate(localX, localY, localZ - 1, block_light::Direction::NegZ);
             }
 
             bool subchunkChanged = false;

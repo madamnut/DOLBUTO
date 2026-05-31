@@ -11,6 +11,30 @@ assets/data/blocks.json
 정의 파일 파싱은 `src/data/DataLoaders.h/.cpp`의 `data::parseBlockDefinitions`가 맡는다.
 렌더러는 파싱된 블록 정의를 받아 블록 ID별 `BlockDefinition`, 텍스처 레이어, 드랍 테이블, 소품 모델 캐시를 구성한다.
 
+## 블록 상태
+
+일반 블록 ID 외에 셀별 소형 상태값은 청크의 `blockStates` 배열에 `uint16_t`로 저장한다.
+상태가 필요 없는 블록은 `0`을 사용한다.
+블록 정의의 `stateKind`는 해당 블록이 상태값을 어떤 의미로 해석하는지 정한다.
+
+현재 지원하는 상태 범주는 `stateKind: "attach"`이며, `renderType: "slab"`에서 사용한다.
+
+```text
+0 bottom
+1 top
+2 north
+3 south
+4 west
+5 east
+```
+
+`dirt_slab`은 `renderType: "slab"`, `stateKind: "attach"`를 사용한다.
+텍스처는 `dirt` 블록의 `all` 텍스처를 재사용하며, 설치한 면에 따라 위/아래/동서남북 반칸 AABB로 렌더링, 레이캐스트, 선택 아웃라인, 배치 충돌, 플레이어 이동 충돌, 발밑 지지 판정을 처리한다.
+드랍 아이템 지형 충돌처럼 셀 단위 terrain collision callback을 쓰는 경로는 아직 블록 셀 단위 판정을 유지한다.
+슬랩 조명 감쇄는 셀 전체에 적용하지 않고 붙은 면 방향에만 적용한다.
+예를 들어 bottom 슬랩은 아래 방향 전파만 `lightAttenuation`을 사용하고, 위/동서남북 방향은 공기처럼 통과한다.
+top/north/south/west/east 슬랩도 각각 붙은 면 방향 하나만 감쇄한다.
+
 ## 블록 드랍
 
 블록 정의는 `drops` 배열을 포함한다.
@@ -83,6 +107,7 @@ stripped_log 4.0
 primal_workbench 4.0
 wooden_box 2.5
 fire      0.0
+dirt_slab 0.8
 rock      5.0
 coal_ore, copper_ore, iron_ore, tin_ore, zinc_ore, silver_ore, gold_ore 5.0
 ```
@@ -92,6 +117,7 @@ coal_ore, copper_ore, iron_ore, tin_ore, zinc_ore, silver_ore, gold_ore 5.0
 ```text
 rock, sandstone, *_ore          breakLevel 2 / smash
 grass, dirt, sand, mud, clay, gravel  breakLevel 1 / dig
+dirt_slab                       breakLevel 1 / dig
 log, stripped_log, primal_workbench breakLevel 2 / chop
 wooden_box                      breakLevel 1 / chop
 fire                            breakLevel 0 / none
@@ -117,6 +143,21 @@ assets/textures/block/breaking/destroy_stage_0.png
 assets/textures/block/breaking/destroy_stage_9.png
 ```
 
+블록 정의는 선택적으로 `breakEffects` 객체를 가질 수 있다.
+현재 지원하는 값은 `particles`뿐이며, 생략하면 `true`로 처리한다.
+
+```json
+{
+  "breakEffects": {
+    "particles": false
+  }
+}
+```
+
+`breakEffects.particles = false`이면 해당 블록이 플레이어에게 파괴되거나 런타임 규칙으로 제거될 때 블록 깨짐 파티클을 생성하지 않는다.
+사운드와 메쉬 갱신은 기존 파괴 흐름대로 처리한다.
+현재 `fire`는 깨짐 파티클을 사용하지 않는다.
+
 ## LightAttenuation
 
 블록과 유체 정의는 조명 전파 감쇠값 `lightAttenuation`을 가진다.
@@ -130,9 +171,12 @@ assets/textures/block/breaking/destroy_stage_9.png
 ```
 
 청크 skylight 계산은 블록 ID를 직접 분기하지 않고 `BlockDefinition`/`FluidDefinition`에서 만든 attenuation table을 조회한다.
-셀에 유체가 있으면 `max(block.lightAttenuation, fluid.lightAttenuation)`을 사용한다.
+일반 블록 셀에 유체가 있으면 `max(block.lightAttenuation, fluid.lightAttenuation)`을 사용한다.
 유체량은 조명 감쇠량에 영향을 주지 않는다.
 따라서 유체 흐름 중 물량만 바뀌는 경우에는 조명을 다시 계산하지 않고, 유체가 없던 셀에 생기거나 있던 유체가 사라지는 경우처럼 유체 존재/종류가 바뀔 때만 조명 dirty로 본다.
+`renderType = "slab"`과 `stateKind = "attach"`를 가진 블록은 방향별 감쇄를 사용한다.
+빛이 한 셀에서 이웃 셀로 전파될 때 현재 셀의 출구 방향 감쇄와 다음 셀의 입구 방향 감쇄 중 큰 값을 사용한다.
+슬랩은 붙은 면 방향에서만 블록의 `lightAttenuation`을 적용하고, 나머지 방향은 공기와 같은 기본 감쇄를 사용한다. 해당 셀에 유체가 있으면 이 방향별 블록 감쇄와 유체 감쇄 중 큰 값을 쓴다.
 
 현재 초기값:
 
@@ -163,8 +207,14 @@ block entity는 청크 로컬 X/Z, 월드 Y, 타입, 타입별 상태 값을 가
 
 `fire` 블록은 설치되거나 로드될 때 같은 좌표에 fire block entity를 가진다.
 초기 남은 연소 시간은 `200`틱이다.
-매 world tick마다 남은 연소 시간이 1씩 줄고, 0이 되면 fire 셀의 `1 x 1 x 1` 영역 안에 있는 드랍 아이템 중 `burnTimeTicks`가 가장 낮은 연료 아이템 1개를 소비한다.
+매 world tick마다 남은 연소 시간이 1씩 줄고, 0이 되면 fire 셀의 `1 x 1 x 1` 영역 안에 있는 드랍 아이템 중 연료 아이템 1개를 무작위로 소비한다.
+단, `charcoal`은 같은 영역에 다른 연료가 하나도 없을 때만 소비 후보로 사용한다.
+밀폐된 fire는 pit kiln 결과물이 바로 다시 타지 않도록 `charcoal`을 연료 후보에서 제외한다.
 연료를 소비하면 해당 아이템의 `burnTimeTicks`만큼 남은 연소 시간이 늘어난다.
+연료 소비 시점에 fire의 동서남북/상하 6방향이 모두 `collision = true`인 블록으로 막혀 있으면 pit kiln 후보로 본다.
+현재 pit kiln 레시피는 `log -> charcoal x4`, `stripped_log -> charcoal x4`다.
+후보 연료의 연소 시간이 끝났을 때 다시 6방향이 막혀 있으면 예약된 숯을 fire 위치에 드랍하고, 숯을 드랍한 tick에는 다음 연료를 소비하지 않는다.
+시작 또는 종료 시점 중 하나라도 막혀 있지 않으면 해당 연료는 일반 연료처럼 타고 결과물은 나오지 않는다.
 스택이 2개 이상이면 count만 1 줄이고, 1개짜리 스택이면 드랍 엔티티를 제거한다.
 소비할 연료가 없으면 fire 블록은 `air`로 바뀌고 일반 블록 파괴와 같은 갱신 경로로 메쉬, 파티클, 사운드 이벤트를 발생시킨다.
 fire block entity만 남고 실제 블록이 fire가 아니면 stale 상태로 보고 제거한다.
@@ -276,6 +326,7 @@ fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 bounds 박스
 - `alphaMode`: `opaque`, `cutout`, `blend`
 - `alphaCutoff`: cutout 기준값
 - `alphaBlend`: blend 렌더링에서 텍스처 전체에 곱하는 alpha 값
+- `breakEffects.particles`: 블록 파괴/제거 시 깨짐 파티클을 생성할지 여부
 - `mipDistanceScale`: mip 거리 배율
 - `textures`: 면별 텍스처 매핑
 

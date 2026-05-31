@@ -34,6 +34,8 @@ namespace dolbuto::data
         uint8_t lightAttenuation = 15;
         uint8_t lightEmission = 0;
         bool randomOffset = false;
+        bool breakEffectParticles = true;
+        std::string stateKind = "none";
         std::string attachmentFace = "none";
         std::unordered_map<std::string, ParsedBlockTextureDefinition> textures;
         std::string propModel;

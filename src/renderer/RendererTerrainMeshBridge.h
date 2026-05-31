@@ -20,6 +20,7 @@ namespace dolbuto
             const std::array<std::shared_ptr<ChunkData>, 9>& chunks,
             int subchunkY,
             const world::TerrainMesher::WorldBlockSampler& blockAtWorld,
+            const world::TerrainMesher::WorldBlockStateSampler& blockStateAtWorld,
             const world::TerrainMesher::WorldLightSampler& lightAtWorld) const;
 
         CompletedChunkMesh buildChunkMesh(

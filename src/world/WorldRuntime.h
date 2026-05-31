@@ -124,6 +124,7 @@ namespace dolbuto::world
         void markMeshed(uint64_t key);
 
         uint16_t blockAtWorld(int x, int y, int z) const;
+        uint16_t blockStateAtWorld(int x, int y, int z) const;
         uint16_t fluidAtWorld(int x, int y, int z) const;
         BlockEntity* blockEntityAtWorld(int x, int y, int z);
         const BlockEntity* blockEntityAtWorld(int x, int y, int z) const;
@@ -132,6 +133,7 @@ namespace dolbuto::world
         uint8_t lightAtWorld(int x, int y, int z) const;
         bool terrainCellBlocksPlayer(int x, int y, int z, const BlockDefinitionProvider& blockDefinition) const;
         bool setBlockAtWorld(int x, int y, int z, uint16_t block);
+        bool setBlockStateAtWorld(int x, int y, int z, uint16_t state);
         void scheduleBlockTickAtWorld(int x, int y, int z);
         void scheduleBlockTickNeighborhood(int x, int y, int z);
         std::vector<BlockTickCell> takeScheduledBlockTicks(uint32_t maxCells);

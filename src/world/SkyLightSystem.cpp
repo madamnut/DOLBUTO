@@ -1,5 +1,7 @@
 #include "world/SkyLightSystem.h"
 
+#include "world/BlockLightRules.h"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -130,19 +132,46 @@ namespace dolbuto::world
             return 0;
         }
 
-        uint8_t attenuationForCell(const ChunkData& chunk, std::size_t index, const LightAttenuationTables* lightAttenuation)
+        uint16_t blockStateAt(const ChunkData& chunk, std::size_t index)
+        {
+            return index < chunk.blockStates.size() ? chunk.blockStates[index] : 0;
+        }
+
+        uint8_t directionalAttenuationForCell(
+            const ChunkData& chunk,
+            std::size_t index,
+            block_light::Direction direction,
+            const LightAttenuationTables* lightAttenuation)
         {
             if (index >= chunk.blocks.size())
             {
                 return MaxSkyLight;
             }
+
             const uint16_t block = chunk.blocks[index];
-            uint8_t attenuation = blockLightAttenuation(lightAttenuation, block);
+            uint8_t attenuation = block_light::directionalAttenuation(
+                lightAttenuation,
+                block,
+                blockStateAt(chunk, index),
+                direction,
+                blockLightAttenuation(lightAttenuation, block));
             if (hasFluid(chunk, index))
             {
                 attenuation = std::max<uint8_t>(attenuation, fluidLightAttenuation(lightAttenuation, fluidId(chunk.fluids[index])));
             }
             return attenuation;
+        }
+
+        uint8_t transitionAttenuation(
+            const ChunkData& chunk,
+            std::size_t currentIndex,
+            std::size_t nextIndex,
+            block_light::Direction direction,
+            const LightAttenuationTables* lightAttenuation)
+        {
+            return std::max<uint8_t>(
+                directionalAttenuationForCell(chunk, currentIndex, direction, lightAttenuation),
+                directionalAttenuationForCell(chunk, nextIndex, block_light::opposite(direction), lightAttenuation));
         }
 
         void setBufferedSkyLight(std::vector<uint8_t>& light, std::size_t index, uint8_t skyLight)
@@ -155,16 +184,6 @@ namespace dolbuto::world
         {
             const uint8_t skyLight = index < light.size() ? skyLightFromPacked(light[index]) : 0;
             light[index] = packLight(skyLight, blockLight);
-        }
-
-        std::vector<uint8_t> buildAttenuationCache(const ChunkData& chunk, const LightAttenuationTables* lightAttenuation)
-        {
-            std::vector<uint8_t> attenuation(ChunkBlockCount, MaxSkyLight);
-            for (std::size_t index = 0; index < ChunkBlockCount; ++index)
-            {
-                attenuation[index] = attenuationForCell(chunk, index, lightAttenuation);
-            }
-            return attenuation;
         }
 
         void enqueueSkyLight(
@@ -199,12 +218,15 @@ namespace dolbuto::world
 
         void tryPropagateSkyLight(
             std::vector<uint8_t>& light,
-            const std::vector<uint8_t>& attenuation,
+            const ChunkData& chunk,
             LightQueue<LightNode>& queue,
+            std::size_t currentIndex,
             std::size_t nextIndex,
-            uint8_t sourceSkyLight)
+            uint8_t sourceSkyLight,
+            block_light::Direction direction,
+            const LightAttenuationTables* lightAttenuation)
         {
-            const uint8_t nextAttenuation = attenuation[nextIndex];
+            const uint8_t nextAttenuation = transitionAttenuation(chunk, currentIndex, nextIndex, direction, lightAttenuation);
             if (nextAttenuation >= sourceSkyLight)
             {
                 return;
@@ -215,12 +237,15 @@ namespace dolbuto::world
 
         void tryPropagateBlockLight(
             std::vector<uint8_t>& light,
-            const std::vector<uint8_t>& attenuation,
+            const ChunkData& chunk,
             LightQueue<LightNode>& queue,
+            std::size_t currentIndex,
             std::size_t nextIndex,
-            uint8_t sourceBlockLight)
+            uint8_t sourceBlockLight,
+            block_light::Direction direction,
+            const LightAttenuationTables* lightAttenuation)
         {
-            const uint8_t nextAttenuation = attenuation[nextIndex];
+            const uint8_t nextAttenuation = transitionAttenuation(chunk, currentIndex, nextIndex, direction, lightAttenuation);
             if (nextAttenuation >= sourceBlockLight)
             {
                 return;
@@ -231,7 +256,8 @@ namespace dolbuto::world
 
         void propagateSkyLight(
             std::vector<uint8_t>& light,
-            const std::vector<uint8_t>& attenuation,
+            const ChunkData& chunk,
+            const LightAttenuationTables* lightAttenuation,
             LightQueue<LightNode>& queue)
         {
             while (!queue.empty())
@@ -250,34 +276,35 @@ namespace dolbuto::world
 
                 if (x < ChunkSizeX - 1)
                 {
-                    tryPropagateSkyLight(light, attenuation, queue, currentIndex + 1, node.light);
+                    tryPropagateSkyLight(light, chunk, queue, currentIndex, currentIndex + 1, node.light, block_light::Direction::PosX, lightAttenuation);
                 }
                 if (x > 0)
                 {
-                    tryPropagateSkyLight(light, attenuation, queue, currentIndex - 1, node.light);
+                    tryPropagateSkyLight(light, chunk, queue, currentIndex, currentIndex - 1, node.light, block_light::Direction::NegX, lightAttenuation);
                 }
                 if (z < ChunkSizeZ - 1)
                 {
-                    tryPropagateSkyLight(light, attenuation, queue, currentIndex + ChunkStrideZ, node.light);
+                    tryPropagateSkyLight(light, chunk, queue, currentIndex, currentIndex + ChunkStrideZ, node.light, block_light::Direction::PosZ, lightAttenuation);
                 }
                 if (z > 0)
                 {
-                    tryPropagateSkyLight(light, attenuation, queue, currentIndex - ChunkStrideZ, node.light);
+                    tryPropagateSkyLight(light, chunk, queue, currentIndex, currentIndex - ChunkStrideZ, node.light, block_light::Direction::NegZ, lightAttenuation);
                 }
                 if (y < ChunkSizeY - 1)
                 {
-                    tryPropagateSkyLight(light, attenuation, queue, currentIndex + ChunkStrideY, node.light);
+                    tryPropagateSkyLight(light, chunk, queue, currentIndex, currentIndex + ChunkStrideY, node.light, block_light::Direction::PosY, lightAttenuation);
                 }
                 if (y > 0)
                 {
-                    tryPropagateSkyLight(light, attenuation, queue, currentIndex - ChunkStrideY, node.light);
+                    tryPropagateSkyLight(light, chunk, queue, currentIndex, currentIndex - ChunkStrideY, node.light, block_light::Direction::NegY, lightAttenuation);
                 }
             }
         }
 
         void propagateBlockLight(
             std::vector<uint8_t>& light,
-            const std::vector<uint8_t>& attenuation,
+            const ChunkData& chunk,
+            const LightAttenuationTables* lightAttenuation,
             LightQueue<LightNode>& queue)
         {
             while (!queue.empty())
@@ -296,27 +323,27 @@ namespace dolbuto::world
 
                 if (x < ChunkSizeX - 1)
                 {
-                    tryPropagateBlockLight(light, attenuation, queue, currentIndex + 1, node.light);
+                    tryPropagateBlockLight(light, chunk, queue, currentIndex, currentIndex + 1, node.light, block_light::Direction::PosX, lightAttenuation);
                 }
                 if (x > 0)
                 {
-                    tryPropagateBlockLight(light, attenuation, queue, currentIndex - 1, node.light);
+                    tryPropagateBlockLight(light, chunk, queue, currentIndex, currentIndex - 1, node.light, block_light::Direction::NegX, lightAttenuation);
                 }
                 if (z < ChunkSizeZ - 1)
                 {
-                    tryPropagateBlockLight(light, attenuation, queue, currentIndex + ChunkStrideZ, node.light);
+                    tryPropagateBlockLight(light, chunk, queue, currentIndex, currentIndex + ChunkStrideZ, node.light, block_light::Direction::PosZ, lightAttenuation);
                 }
                 if (z > 0)
                 {
-                    tryPropagateBlockLight(light, attenuation, queue, currentIndex - ChunkStrideZ, node.light);
+                    tryPropagateBlockLight(light, chunk, queue, currentIndex, currentIndex - ChunkStrideZ, node.light, block_light::Direction::NegZ, lightAttenuation);
                 }
                 if (y < ChunkSizeY - 1)
                 {
-                    tryPropagateBlockLight(light, attenuation, queue, currentIndex + ChunkStrideY, node.light);
+                    tryPropagateBlockLight(light, chunk, queue, currentIndex, currentIndex + ChunkStrideY, node.light, block_light::Direction::PosY, lightAttenuation);
                 }
                 if (y > 0)
                 {
-                    tryPropagateBlockLight(light, attenuation, queue, currentIndex - ChunkStrideY, node.light);
+                    tryPropagateBlockLight(light, chunk, queue, currentIndex, currentIndex - ChunkStrideY, node.light, block_light::Direction::NegY, lightAttenuation);
                 }
             }
         }
@@ -324,21 +351,27 @@ namespace dolbuto::world
         std::vector<uint8_t> recomputeLocalSkyLight(const ChunkData& source, const LightAttenuationTables* lightAttenuation)
         {
             std::vector<uint8_t> light(ChunkBlockCount, 0);
-            const std::vector<uint8_t> attenuation = buildAttenuationCache(source, lightAttenuation);
             LightQueue<LightNode> skyQueue(ChunkBlockCount);
             for (int z = 0; z < ChunkSizeZ; ++z)
             {
                 for (int x = 0; x < ChunkSizeX; ++x)
                 {
+                    bool hasPreviousCell = false;
+                    std::size_t previousIndex = 0;
                     for (int y = ChunkSizeY - 1; y >= 0; --y)
                     {
                         const std::size_t index = blockIndex(x, y, z);
-                        if (attenuation[index] >= MaxSkyLight)
+                        const uint8_t verticalAttenuation = hasPreviousCell
+                            ? transitionAttenuation(source, previousIndex, index, block_light::Direction::NegY, lightAttenuation)
+                            : directionalAttenuationForCell(source, index, block_light::Direction::PosY, lightAttenuation);
+                        if (verticalAttenuation >= MaxSkyLight)
                         {
                             break;
                         }
 
                         enqueueSkyLight(light, skyQueue, index, MaxSkyLight);
+                        previousIndex = index;
+                        hasPreviousCell = true;
                     }
                 }
             }
@@ -353,21 +386,23 @@ namespace dolbuto::world
                 }
             }
 
-            propagateSkyLight(light, attenuation, skyQueue);
-            propagateBlockLight(light, attenuation, blockQueue);
+            propagateSkyLight(light, source, lightAttenuation, skyQueue);
+            propagateBlockLight(light, source, lightAttenuation, blockQueue);
             return light;
         }
 
         void injectBoundaryLight(
             std::vector<uint8_t>& resolved,
-            const std::vector<uint8_t>& attenuation,
             LightQueue<LightNode>& skyQueue,
             LightQueue<LightNode>& blockQueue,
             int centerX,
             int centerZ,
+            const ChunkData& center,
             const ChunkData& neighbor,
             int neighborX,
-            int neighborZ)
+            int neighborZ,
+            block_light::Direction directionFromNeighbor,
+            const LightAttenuationTables* lightAttenuation)
         {
             if (neighbor.localLight.size() != ChunkBlockCount)
             {
@@ -377,10 +412,13 @@ namespace dolbuto::world
             for (int y = 0; y < ChunkSizeY; ++y)
             {
                 const std::size_t centerIndex = blockIndex(centerX, y, centerZ);
-                const uint8_t neighborPackedLight = neighbor.localLight[blockIndex(neighborX, y, neighborZ)];
+                const std::size_t neighborIndex = blockIndex(neighborX, y, neighborZ);
+                const uint8_t neighborPackedLight = neighbor.localLight[neighborIndex];
                 const uint8_t neighborSkyLight = skyLightFromPacked(neighborPackedLight);
                 const uint8_t neighborBlockLight = blockLightFromPacked(neighborPackedLight);
-                const uint8_t centerAttenuation = attenuation[centerIndex];
+                const uint8_t centerAttenuation = std::max<uint8_t>(
+                    directionalAttenuationForCell(neighbor, neighborIndex, directionFromNeighbor, lightAttenuation),
+                    directionalAttenuationForCell(center, centerIndex, block_light::opposite(directionFromNeighbor), lightAttenuation));
                 if (centerAttenuation < neighborSkyLight)
                 {
                     enqueueSkyLight(resolved, skyQueue, centerIndex, static_cast<uint8_t>(neighborSkyLight - centerAttenuation));
@@ -465,22 +503,21 @@ namespace dolbuto::world
             return {};
         }
 
-        const std::vector<uint8_t> attenuation = buildAttenuationCache(*center, lightAttenuation);
         LightQueue<LightNode> skyQueue(ChunkBlockCount);
         LightQueue<LightNode> blockQueue(ChunkBlockCount);
         for (int z = 0; z < ChunkSizeZ; ++z)
         {
-            injectBoundaryLight(resolved, attenuation, skyQueue, blockQueue, 0, z, *west, ChunkSizeX - 1, z);
-            injectBoundaryLight(resolved, attenuation, skyQueue, blockQueue, ChunkSizeX - 1, z, *east, 0, z);
+            injectBoundaryLight(resolved, skyQueue, blockQueue, 0, z, *center, *west, ChunkSizeX - 1, z, block_light::Direction::PosX, lightAttenuation);
+            injectBoundaryLight(resolved, skyQueue, blockQueue, ChunkSizeX - 1, z, *center, *east, 0, z, block_light::Direction::NegX, lightAttenuation);
         }
         for (int x = 0; x < ChunkSizeX; ++x)
         {
-            injectBoundaryLight(resolved, attenuation, skyQueue, blockQueue, x, 0, *north, x, ChunkSizeZ - 1);
-            injectBoundaryLight(resolved, attenuation, skyQueue, blockQueue, x, ChunkSizeZ - 1, *south, x, 0);
+            injectBoundaryLight(resolved, skyQueue, blockQueue, x, 0, *center, *north, x, ChunkSizeZ - 1, block_light::Direction::PosZ, lightAttenuation);
+            injectBoundaryLight(resolved, skyQueue, blockQueue, x, ChunkSizeZ - 1, *center, *south, x, 0, block_light::Direction::NegZ, lightAttenuation);
         }
 
-        propagateSkyLight(resolved, attenuation, skyQueue);
-        propagateBlockLight(resolved, attenuation, blockQueue);
+        propagateSkyLight(resolved, *center, lightAttenuation, skyQueue);
+        propagateBlockLight(resolved, *center, lightAttenuation, blockQueue);
         return resolved;
     }
 }

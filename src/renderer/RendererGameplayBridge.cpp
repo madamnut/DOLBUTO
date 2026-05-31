@@ -359,7 +359,7 @@ namespace dolbuto
     void RendererGameplayBridge::spawnBlockBreakParticles(int x, int y, int z, uint16_t block)
     {
         const BlockDefinition& definition = blockDefinition(block);
-        if (definition.renderType == BlockRenderType::None)
+        if (definition.renderType == BlockRenderType::None || !definition.breakEffectParticles)
         {
             return;
         }

@@ -27,7 +27,8 @@ namespace dolbuto
         Cube,
         Cross,
         Prop,
-        Fire
+        Fire,
+        Slab
     };
 
     enum class BlockFaceOcclusion : uint8_t
@@ -50,6 +51,22 @@ namespace dolbuto
         Bottom
     };
 
+    enum class BlockStateKind : uint8_t
+    {
+        None,
+        Attach
+    };
+
+    enum class BlockAttachState : uint16_t
+    {
+        Bottom = 0,
+        Top = 1,
+        North = 2,
+        South = 3,
+        West = 4,
+        East = 5
+    };
+
     struct BlockDefinition
     {
         std::string name = "unknown";
@@ -69,6 +86,8 @@ namespace dolbuto
         uint8_t lightAttenuation = 15;
         uint8_t lightEmission = 0;
         bool randomOffset = false;
+        bool breakEffectParticles = true;
+        BlockStateKind stateKind = BlockStateKind::None;
         BlockAttachmentFace attachmentFace = BlockAttachmentFace::None;
         std::vector<std::string> interactActions;
         std::vector<BlockDrop> drops;
@@ -84,6 +103,8 @@ namespace dolbuto
     {
         std::vector<uint8_t> block;
         std::vector<uint8_t> blockEmission;
+        std::vector<BlockRenderType> blockRenderTypes;
+        std::vector<BlockStateKind> blockStateKinds;
         std::vector<uint8_t> fluid;
     };
 

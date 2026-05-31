@@ -82,12 +82,20 @@ assets/textures/item/*.png
 아이템 데이터에는 별도 `block`이나 `viewModel` 필드를 두지 않는다.
 `slotRender.type = "block_model"`도 `placeBlock`의 블록 텍스처를 사용한다.
 콘텐츠 로딩 시 해당 블록의 위/옆면 텍스처를 합성해 `assets/textures/item/generated/{item_key}_slot.png` 아이콘을 만들고, UI는 기존 슬롯 이미지 경로처럼 이 생성 텍스처를 참조한다.
+`placeBlock` 대상이 `renderType: "slab"`이면 슬롯/든 아이템/드랍 아이템의 블록 모델도 기본 bottom 반블럭 형태로 만든다.
+
+현재 `dirt_pile`은 직접 설치하지 않는다.
+`primal_workbench`의 `craft` 작업으로 `dirt_pile` 4개를 `packed_dirt` 1개로 만들고, `packed_dirt`를 설치하면 `dirt` 블록이 된다.
+`dirt_pile` 2개는 `dirt_slab` 1개로 만들며, `dirt_slab`은 설치 면에 붙는 반블럭 아이템이다.
 
 ## 연료 아이템
 
 `burnTimeTicks`는 아이템 1개가 불에 소모될 때 fire 블록 엔티티의 남은 연소 시간에 더해지는 값이다.
 현재 게임 시간은 초당 20틱 기준이며, 연료로 쓰는 아이템은 최소 100틱 이상을 사용한다.
 가공 아이템은 원재료 합보다 조금 낮은 값을 가진다.
+불은 같은 셀 영역에 있는 연료 아이템 중 하나를 무작위로 소비한다.
+`charcoal`은 하드코딩된 후순위 연료이며, 다른 연료가 없을 때만 무작위 소비 후보에 들어간다.
+밀폐된 fire는 pit kiln 결과 숯을 보호하기 위해 `charcoal`을 연료 후보로 보지 않는다.
 
 현재 연료 값:
 
@@ -108,12 +116,21 @@ wooden_peg                                         100
 charcoal, coal                                     2400
 ```
 
+## Pit Kiln 숯화
+
+fire가 연료를 소비하는 시작 시점과 해당 연료가 다 타는 종료 시점에 fire의 동서남북/상하 6방향이 모두 `collision = true` 블록으로 막혀 있으면 pit kiln 결과물을 만든다.
+현재 레시피는 `log -> charcoal x4`, `stripped_log -> charcoal x4`다.
+반블럭도 `collision = true`이면 밀폐 판정에 사용할 수 있다.
+결과 숯은 fire 위치에 드랍되며, 생성된 tick에는 같은 fire가 다음 연료를 바로 소비하지 않는다.
+밀폐가 유지된 fire는 `charcoal`을 연료로 소비하지 않으므로, 남은 일반 연료가 없으면 결과 숯을 남기고 꺼진다.
+
 ## 드랍 아이템 물리와 렌더링
 
 드랍된 `extruded_sprite` 아이템은 전용 아이템 파이프라인을 통해 얇은 수평 월드 공간 3D 스프라이트 파생 메쉬로 렌더링한다.
 현재 메쉬는 윗면/아랫면 스프라이트 면과 스프라이트 알파 경계에서 생성한 옆면을 사용한다.
 현재 드랍 스프라이트와 기본 드랍 물리 AABB는 같은 `0.68 x 0.05 x 0.68` 블록 크기를 사용한다.
-드랍된 `block_model` 아이템은 `placeBlock` 블록의 6면 텍스처를 사용하는 작은 큐브 mesh로 렌더링하며, 기본 렌더 크기와 기본 물리 AABB는 모두 `0.2 x 0.2 x 0.2`다.
+드랍된 `block_model` 아이템은 `placeBlock` 블록의 6면 텍스처를 사용하는 작은 블록 mesh로 렌더링하며, 기본 렌더 크기와 기본 물리 AABB는 모두 `0.2 x 0.2 x 0.2`다.
+`placeBlock` 대상이 `slab`이면 반높이 블록 모델을 사용하되 드랍 물리 AABB는 기존 `block_model` 기본값을 유지한다.
 드랍 아이템 런타임 위치는 아이템의 중앙 하단 접점이다.
 
 드랍 생성은 파괴된 블록 중심 주변에서 시작한다.
@@ -201,7 +218,9 @@ wooden_stick.png
   { "id": 35, "key": "raw_zinc", "name": "Raw Zinc", "stackSize": 99, "slotTexture": "raw_zinc", "droppedRender": { "type": "extruded_sprite", "texture": "raw_zinc" }, "heldRender": { "type": "extruded_sprite", "texture": "raw_zinc" }, "tags": [], "useActions": [] },
   { "id": 36, "key": "raw_silver", "name": "Raw Silver", "stackSize": 99, "slotTexture": "raw_silver", "droppedRender": { "type": "extruded_sprite", "texture": "raw_silver" }, "heldRender": { "type": "extruded_sprite", "texture": "raw_silver" }, "tags": [], "useActions": [] },
   { "id": 37, "key": "raw_gold", "name": "Raw Gold", "stackSize": 99, "slotTexture": "raw_gold", "droppedRender": { "type": "extruded_sprite", "texture": "raw_gold" }, "heldRender": { "type": "extruded_sprite", "texture": "raw_gold" }, "tags": [], "useActions": [] },
-  { "id": 2, "key": "dirt_pile", "name": "Dirt Pile", "stackSize": 99, "slotTexture": "dirt_pile", "droppedRender": { "type": "extruded_sprite", "texture": "dirt_pile" }, "heldRender": { "type": "extruded_sprite", "texture": "dirt_pile" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "dirt" },
+  { "id": 2, "key": "dirt_pile", "name": "Dirt Pile", "stackSize": 99, "slotTexture": "dirt_pile", "droppedRender": { "type": "extruded_sprite", "texture": "dirt_pile" }, "heldRender": { "type": "extruded_sprite", "texture": "dirt_pile" }, "tags": [], "useActions": [] },
+  { "id": 39, "key": "packed_dirt", "name": "Packed Dirt", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "dirt" },
+  { "id": 40, "key": "dirt_slab", "name": "Dirt Slab", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "dirt_slab" },
   { "id": 3, "key": "sand_pile", "name": "Sand Pile", "stackSize": 99, "slotTexture": "sand_pile", "droppedRender": { "type": "extruded_sprite", "texture": "sand_pile" }, "heldRender": { "type": "extruded_sprite", "texture": "sand_pile" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "sand" },
 
   { "id": 4, "key": "plant", "name": "Plant", "stackSize": 99, "slotTexture": "plant", "droppedRender": { "type": "extruded_sprite", "texture": "plant" }, "heldRender": { "type": "extruded_sprite", "texture": "plant" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "plant" },

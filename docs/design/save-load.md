@@ -47,8 +47,11 @@ region 인덱스는 파일명으로 구분한다.
 - incoming feature mask 값
 - 청크 소유 월드 엔티티
 - 청크 block entity
+- 청크 block state
 
 블록 데이터와 유체 데이터는 각각 별도 RLE run으로 저장한다.
+block state 값은 블록 ID와 별도인 `uint16_t` 배열이며 RLE run으로 저장한다.
+상태가 없는 셀은 `0`이고, 오래된 payload에 block state 섹션이 없으면 로드 후 전체를 `0`으로 보강한다.
 유체 값은 `uint16_t` 패킹 값이다.
 packed light 값은 `uint8_t` RLE run으로 저장하며, 상위 4비트는 skylight, 하위 4비트는 block light이다.
 현재 구현은 skylight만 계산하고 block light는 `0`으로 둔다.
@@ -154,6 +157,12 @@ repeat blockEntityCount:
   uint8 localZ
   uint16 y
   uint32 remainingBurnTicks
+  uint16 pendingOutputItemId
+  uint16 pendingOutputCount
+uint32 blockStateRunCount
+repeat blockStateRunCount:
+  uint32 state
+  uint32 count
 uint64 revision
 ```
 
@@ -165,8 +174,12 @@ uint64 revision
 
 block entity는 블록 ID만으로 표현하지 않는 셀별 상태를 저장한다.
 현재 저장 타입은 fire뿐이며, `remainingBurnTicks`는 해당 fire 블록이 꺼지기까지 남은 tick 수다.
+`pendingOutputItemId/count`는 pit kiln 연소가 끝날 때 조건이 맞으면 드랍할 예약 결과물이며, 예약 결과물이 없으면 둘 다 `0`이다.
 로드된 fire 블록에 block entity가 없으면 렌더/런타임 갱신 시 초기값으로 보강하고, block entity만 남고 실제 블록이 fire가 아니면 런타임에서 제거한다.
 기존 청크 엔티티 payload처럼 block entity 섹션이 없는 저장도 읽을 수 있다.
+`pendingOutputItemId/count`가 없는 기존 fire block entity payload도 읽을 수 있으며, 이 경우 예약 결과물은 없는 것으로 처리한다.
+block state RLE 섹션은 block entity 뒤, revision 앞에 붙는다.
+구버전 payload처럼 해당 섹션이 없으면 `revision`을 바로 읽고, 런타임 설치 시 `blockStates`를 0으로 채운다.
 
 ## 플레이어 상태
 

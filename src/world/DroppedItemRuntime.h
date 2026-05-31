@@ -29,6 +29,12 @@ namespace dolbuto::world
             Vec3 position{};
         };
 
+        struct BurnableConsumptionResult
+        {
+            uint32_t burnTimeTicks = 0;
+            uint16_t itemId = 0;
+        };
+
         DroppedItemRuntime() = default;
         DroppedItemRuntime(WorldRuntime* worldRuntime, const std::vector<ItemDefinition>* itemDefinitions);
 
@@ -57,13 +63,14 @@ namespace dolbuto::world
             float maxX,
             float maxY,
             float maxZ) const;
-        uint32_t consumeLowestBurnableInAabb(
+        BurnableConsumptionResult consumeRandomBurnableInAabb(
             float minX,
             float minY,
             float minZ,
             float maxX,
             float maxY,
             float maxZ,
+            bool allowCharcoal,
             const MarkDirtyFn& markDirty);
         uint16_t replaceTargetItems(
             const WorldEntityHandle& itemHandle,

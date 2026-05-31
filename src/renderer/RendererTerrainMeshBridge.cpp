@@ -22,6 +22,7 @@ namespace dolbuto
         const std::array<std::shared_ptr<ChunkData>, 9>& chunks,
         int subchunkY,
         const world::TerrainMesher::WorldBlockSampler& blockAtWorld,
+        const world::TerrainMesher::WorldBlockStateSampler& blockStateAtWorld,
         const world::TerrainMesher::WorldLightSampler& lightAtWorld) const
     {
         const std::shared_ptr<ChunkData>& chunk = chunks[4];
@@ -40,10 +41,11 @@ namespace dolbuto
             chunk,
             subchunkY,
             blockAtWorld,
+            blockStateAtWorld,
             lightAtWorld,
-            [&geometryBuilder](const std::shared_ptr<ChunkData>& sourceChunk, int sourceSubchunkY, const world::TerrainMesher::BlockSampler& blockAt, const world::TerrainMesher::LightSampler& lightAt)
+            [&geometryBuilder](const std::shared_ptr<ChunkData>& sourceChunk, int sourceSubchunkY, const world::TerrainMesher::BlockSampler& blockAt, const world::TerrainMesher::BlockStateSampler& blockStateAt, const world::TerrainMesher::LightSampler& lightAt)
             {
-                return geometryBuilder.buildSubchunkMesh(sourceChunk, sourceSubchunkY, blockAt, lightAt);
+                return geometryBuilder.buildSubchunkMesh(sourceChunk, sourceSubchunkY, blockAt, blockStateAt, lightAt);
             });
 
         if (subchunkY >= 0 &&
@@ -79,9 +81,9 @@ namespace dolbuto
         return world::TerrainMesher().buildChunkMesh(
             chunks,
             generation,
-            [&geometryBuilder](const std::shared_ptr<ChunkData>& chunk, int subchunkY, const world::TerrainMesher::BlockSampler& blockAt, const world::TerrainMesher::LightSampler& lightAt)
+            [&geometryBuilder](const std::shared_ptr<ChunkData>& chunk, int subchunkY, const world::TerrainMesher::BlockSampler& blockAt, const world::TerrainMesher::BlockStateSampler& blockStateAt, const world::TerrainMesher::LightSampler& lightAt)
             {
-                return geometryBuilder.buildSubchunkMesh(chunk, subchunkY, blockAt, lightAt);
+                return geometryBuilder.buildSubchunkMesh(chunk, subchunkY, blockAt, blockStateAt, lightAt);
             },
             [this](uint16_t block)
             {

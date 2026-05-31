@@ -78,6 +78,7 @@ namespace dolbuto::gameplay
         using FluidSampler = BlockInteractionSystem::FluidSampler;
         using BlockDefinitionProvider = BlockInteractionSystem::BlockDefinitionProvider;
         using TerrainCollisionPredicate = BlockInteractionSystem::TerrainCollisionPredicate;
+        using TerrainAabbCollisionPredicate = BlockInteractionSystem::TerrainAabbCollisionPredicate;
         using SetBlockFn = std::function<bool(int, int, int, uint16_t)>;
         using MarkDirtyFn = world::DroppedItemRuntime::MarkDirtyFn;
         using PickupSoundFn = world::DroppedItemRuntime::PickupSoundFn;
@@ -87,8 +88,8 @@ namespace dolbuto::gameplay
 
         void setContext(world::WorldRuntime* worldRuntime, const std::vector<ItemDefinition>* itemDefinitions);
 
-        bool playerColliderIntersectsTerrain(DVec3 playerPosition, double heightScale, const TerrainCollisionPredicate& terrainCellBlocksPlayer) const;
-        bool playerColliderHasSupportBelow(DVec3 playerPosition, const TerrainCollisionPredicate& terrainCellBlocksPlayer) const;
+        bool playerColliderIntersectsTerrain(DVec3 playerPosition, double heightScale, const TerrainAabbCollisionPredicate& terrainCellIntersectsPlayer) const;
+        bool playerColliderHasSupportBelow(DVec3 playerPosition, const TerrainAabbCollisionPredicate& terrainCellIntersectsPlayer) const;
         bool playerColliderIntersectsWater(DVec3 playerPosition, double heightScale, const FluidSampler& fluidAtWorld) const;
         BlockEditResult editBlockInView(
             DVec3 origin,

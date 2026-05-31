@@ -1,5 +1,6 @@
 #include "renderer/TerrainGeometryBuilder.h"
 
+#include "world/BlockVisualShape.h"
 #include "world/SkyLightSystem.h"
 
 #include <algorithm>
@@ -68,6 +69,7 @@ namespace dolbuto
         const std::shared_ptr<ChunkData>& chunk,
         int subchunkY,
         const world::TerrainMesher::BlockSampler& blockAt,
+        const world::TerrainMesher::BlockStateSampler& blockStateAt,
         const world::TerrainMesher::LightSampler& lightAt) const
     {
         TerrainSubchunkBuildData result{};
@@ -531,6 +533,90 @@ namespace dolbuto
             appendVerticalPlane(centerX - VerticalOffset, centerZ, centerX - VerticalOffset, centerZ, 0.0f, 1.0f, 1.0f, Height);
         };
 
+        auto appendSlabBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block, uint16_t blockState)
+        {
+            const world::block_visual::LocalAabb aabb = world::block_visual::slabWorldAabb(x, y, z, blockState);
+            const world::block_visual::LocalAabb localAabb = world::block_visual::slabLocalAabb(blockState);
+            const uint32_t topTextureLayer = blockFaceTextureLayer(block, 0);
+            const uint32_t bottomTextureLayer = blockFaceTextureLayer(block, 1);
+            const float mipDistanceScale = blockDefinition(block).mipDistanceScale;
+            const float alphaBlend = blockAlphaBlend(block);
+
+            auto appendQuad = [&](std::array<TerrainVertex, 4> quad, uint32_t textureLayer, uint8_t packedLight)
+            {
+                for (TerrainVertex& vertex : quad)
+                {
+                    vertex.ao = 1.0f;
+                    vertex.textureLayer = static_cast<float>(textureLayer);
+                    vertex.mipDistanceScale = mipDistanceScale;
+                    vertex.alphaBlend = alphaBlend;
+                    vertex.packedLight = packedLight;
+                }
+
+                const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
+                buildData.vertices.push_back(quad[0]);
+                buildData.vertices.push_back(quad[1]);
+                buildData.vertices.push_back(quad[2]);
+                buildData.vertices.push_back(quad[3]);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 1);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex + 3);
+            };
+
+            const float x0 = aabb.min.x;
+            const float x1 = aabb.max.x;
+            const float y0 = aabb.min.y;
+            const float y1 = aabb.max.y;
+            const float z0 = aabb.min.z;
+            const float z1 = aabb.max.z;
+            const float lx0 = localAabb.min.x;
+            const float lx1 = localAabb.max.x;
+            const float ly0 = localAabb.min.y;
+            const float ly1 = localAabb.max.y;
+            const float lz0 = localAabb.min.z;
+            const float lz1 = localAabb.max.z;
+
+            if (!(localAabb.max.y >= 1.0f && neighborCullsFace(block, blockAt(x - worldXStart, y + 1, z - worldZStart))))
+            {
+                appendQuad({{{x0, y1, z0, lz0, lx0}, {x0, y1, z1, lz1, lx0}, {x1, y1, z1, lz1, lx1}, {x1, y1, z0, lz0, lx1}}},
+                    topTextureLayer,
+                    faceLight(x, y, z, 0));
+            }
+            if (!(localAabb.min.y <= 0.0f && neighborCullsFace(block, blockAt(x - worldXStart, y - 1, z - worldZStart))))
+            {
+                appendQuad({{{x0, y0, z1, 1.0f - lz1, lx0}, {x0, y0, z0, 1.0f - lz0, lx0}, {x1, y0, z0, 1.0f - lz0, lx1}, {x1, y0, z1, 1.0f - lz1, lx1}}},
+                    bottomTextureLayer,
+                    faceLight(x, y, z, 1));
+            }
+            if (!(localAabb.max.x >= 1.0f && neighborCullsFace(block, blockAt(x - worldXStart + 1, y, z - worldZStart))))
+            {
+                appendQuad({{{x1, y0, z0, lz0, 1.0f - ly0}, {x1, y1, z0, lz0, 1.0f - ly1}, {x1, y1, z1, lz1, 1.0f - ly1}, {x1, y0, z1, lz1, 1.0f - ly0}}},
+                    blockFaceTextureLayer(block, 2),
+                    faceLight(x, y, z, 2));
+            }
+            if (!(localAabb.min.x <= 0.0f && neighborCullsFace(block, blockAt(x - worldXStart - 1, y, z - worldZStart))))
+            {
+                appendQuad({{{x0, y0, z1, 1.0f - lz1, 1.0f - ly0}, {x0, y1, z1, 1.0f - lz1, 1.0f - ly1}, {x0, y1, z0, 1.0f - lz0, 1.0f - ly1}, {x0, y0, z0, 1.0f - lz0, 1.0f - ly0}}},
+                    blockFaceTextureLayer(block, 3),
+                    faceLight(x, y, z, 3));
+            }
+            if (!(localAabb.max.z >= 1.0f && neighborCullsFace(block, blockAt(x - worldXStart, y, z - worldZStart + 1))))
+            {
+                appendQuad({{{x1, y0, z1, 1.0f - lx1, 1.0f - ly0}, {x1, y1, z1, 1.0f - lx1, 1.0f - ly1}, {x0, y1, z1, 1.0f - lx0, 1.0f - ly1}, {x0, y0, z1, 1.0f - lx0, 1.0f - ly0}}},
+                    blockFaceTextureLayer(block, 4),
+                    faceLight(x, y, z, 4));
+            }
+            if (!(localAabb.min.z <= 0.0f && neighborCullsFace(block, blockAt(x - worldXStart, y, z - worldZStart - 1))))
+            {
+                appendQuad({{{x0, y0, z0, lx0, 1.0f - ly0}, {x0, y1, z0, lx0, 1.0f - ly1}, {x1, y1, z0, lx1, 1.0f - ly1}, {x1, y0, z0, lx1, 1.0f - ly0}}},
+                    blockFaceTextureLayer(block, 5),
+                    faceLight(x, y, z, 5));
+            }
+        };
+
         auto appendPropBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block)
         {
             const auto meshIt = propMeshesByBlock_.find(block);
@@ -824,6 +910,10 @@ namespace dolbuto
                     else if (blockDefinition(block).renderType == BlockRenderType::Fire)
                     {
                         appendFireBlock(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, block);
+                    }
+                    else if (blockDefinition(block).renderType == BlockRenderType::Slab)
+                    {
+                        appendSlabBlock(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, block, blockStateAt(localX, y, localZ));
                     }
                 }
             }
