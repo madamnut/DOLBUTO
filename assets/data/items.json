@@ -648,6 +648,54 @@
         "burnTimeTicks": 1800
     },
     {
+        "id": 41,
+        "key": "half_stripped_log",
+        "name": "Half Stripped Log",
+        "stackSize": 99,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "modelBlock": "stripped_log",
+        "modelShape": "slab",
+        "tags": [],
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "half_stripped_log",
+        "burnTimeTicks": 900
+    },
+    {
+        "id": 42,
+        "key": "quarter_stripped_log",
+        "name": "Quarter Stripped Log",
+        "stackSize": 99,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "modelBlock": "stripped_log",
+        "modelShape": "quarter_log",
+        "tags": [],
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "quarter_stripped_log",
+        "burnTimeTicks": 450
+    },
+    {
         "id": 20,
         "key": "wooden_plank",
         "name": "Wooden Plank",

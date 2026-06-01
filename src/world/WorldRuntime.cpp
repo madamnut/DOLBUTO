@@ -1,5 +1,6 @@
 #include "world/WorldRuntime.h"
 
+#include "world/BlockCollisionShape.h"
 #include "world/BlockLightRules.h"
 #include "world/SkyLightSystem.h"
 
@@ -682,14 +683,16 @@ namespace dolbuto::world
                 if (entity.type != BlockEntityType::Fire)
                 {
                     entity.type = BlockEntityType::Fire;
-                    entity.pendingOutputItemId = 0;
-                    entity.pendingOutputCount = 0;
+                    entity.fireMode = FireMode::Normal;
+                    entity.carbonizingOutputItemId = 0;
+                    entity.carbonizingOutputCount = 0;
                     if (entity.remainingBurnTicks == 0)
                     {
                         entity.remainingBurnTicks = remainingBurnTicks;
                     }
                     changed = true;
                 }
+                scheduleBlockTickAtWorld(x, y, z, BlockTickReasonSelfBlockChanged | BlockTickReasonFireBurn);
                 if (changed)
                 {
                     markDataDirty(*chunk);
@@ -705,6 +708,7 @@ namespace dolbuto::world
         entity.y = localY;
         entity.remainingBurnTicks = remainingBurnTicks;
         chunk->data->blockEntities.push_back(entity);
+        scheduleBlockTickAtWorld(x, y, z, BlockTickReasonSelfBlockChanged | BlockTickReasonFireBurn);
         markDataDirty(*chunk);
         return &chunk->data->blockEntities.back();
     }
@@ -806,6 +810,52 @@ namespace dolbuto::world
         return !blockDefinition || blockDefinition(chunk->data->blocks[index]).collision;
     }
 
+    bool WorldRuntime::terrainCellIntersectsAabb(
+        int x,
+        int y,
+        int z,
+        DVec3 min,
+        DVec3 max,
+        const BlockDefinitionProvider& blockDefinition) const
+    {
+        if (y < 0)
+        {
+            return true;
+        }
+        if (y >= ChunkSizeY)
+        {
+            return false;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        const RuntimeChunk* chunk = findChunk(chunkX, chunkZ);
+        if (chunk == nullptr || !chunk->data ||
+            (chunk->genState != ChunkGenState::LocalLightReady &&
+                chunk->genState != ChunkGenState::LightResolved &&
+                chunk->genState != ChunkGenState::Meshed))
+        {
+            return true;
+        }
+
+        const int localX = positiveModulo(x, ChunkSizeX);
+        const int localZ = positiveModulo(z, ChunkSizeZ);
+        const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+        if (index >= chunk->data->blocks.size())
+        {
+            return true;
+        }
+
+        if (!blockDefinition)
+        {
+            return true;
+        }
+
+        const uint16_t block = chunk->data->blocks[index];
+        const uint16_t blockState = index < chunk->data->blockStates.size() ? chunk->data->blockStates[index] : 0;
+        return block_collision::blockIntersectsAabb(x, y, z, blockDefinition(block), min, max, blockState);
+    }
+
     bool WorldRuntime::setBlockAtWorld(int x, int y, int z, uint16_t block)
     {
         if (y < 0 || y >= ChunkSizeY)
@@ -901,25 +951,34 @@ namespace dolbuto::world
         return true;
     }
 
-    void WorldRuntime::scheduleBlockTickAtWorld(int x, int y, int z)
+    void WorldRuntime::scheduleBlockTickAtWorld(int x, int y, int z, uint32_t reasons)
     {
-        if (y < 0 || y >= ChunkSizeY)
+        if (y < 0 || y >= ChunkSizeY || reasons == 0)
         {
             return;
         }
 
-        nextBlockTicks_.insert(BlockTickCell{x, y, z});
+        BlockTickCell cell{x, y, z, 0};
+        auto it = nextBlockTicks_.find(cell);
+        if (it == nextBlockTicks_.end())
+        {
+            nextBlockTicks_.emplace(cell, reasons);
+        }
+        else
+        {
+            it->second |= reasons;
+        }
     }
 
     void WorldRuntime::scheduleBlockTickNeighborhood(int x, int y, int z)
     {
-        scheduleBlockTickAtWorld(x, y, z);
-        scheduleBlockTickAtWorld(x + 1, y, z);
-        scheduleBlockTickAtWorld(x - 1, y, z);
-        scheduleBlockTickAtWorld(x, y + 1, z);
-        scheduleBlockTickAtWorld(x, y - 1, z);
-        scheduleBlockTickAtWorld(x, y, z + 1);
-        scheduleBlockTickAtWorld(x, y, z - 1);
+        scheduleBlockTickAtWorld(x, y, z, BlockTickReasonSelfBlockChanged);
+        scheduleBlockTickAtWorld(x + 1, y, z, BlockTickReasonBlockNeighborChanged);
+        scheduleBlockTickAtWorld(x - 1, y, z, BlockTickReasonBlockNeighborChanged);
+        scheduleBlockTickAtWorld(x, y + 1, z, BlockTickReasonBlockNeighborChanged);
+        scheduleBlockTickAtWorld(x, y - 1, z, BlockTickReasonBlockNeighborChanged);
+        scheduleBlockTickAtWorld(x, y, z + 1, BlockTickReasonBlockNeighborChanged);
+        scheduleBlockTickAtWorld(x, y, z - 1, BlockTickReasonBlockNeighborChanged);
     }
 
     std::vector<WorldRuntime::BlockTickCell> WorldRuntime::takeScheduledBlockTicks(uint32_t maxCells)
@@ -930,17 +989,27 @@ namespace dolbuto::world
             return cells;
         }
 
-        std::unordered_set<BlockTickCell, BlockTickCellHash> processing;
+        std::unordered_map<BlockTickCell, uint32_t, BlockTickCellHash> processing;
         processing.swap(nextBlockTicks_);
         const std::size_t cellLimit = static_cast<std::size_t>(maxCells);
         cells.reserve(std::min(processing.size(), cellLimit));
-        for (const BlockTickCell& cell : processing)
+        for (const auto& entry : processing)
         {
             if (cells.size() >= cellLimit)
             {
-                nextBlockTicks_.insert(cell);
+                auto it = nextBlockTicks_.find(entry.first);
+                if (it == nextBlockTicks_.end())
+                {
+                    nextBlockTicks_.emplace(entry.first, entry.second);
+                }
+                else
+                {
+                    it->second |= entry.second;
+                }
                 continue;
             }
+            BlockTickCell cell = entry.first;
+            cell.reasons = entry.second;
             cells.push_back(cell);
         }
         return cells;

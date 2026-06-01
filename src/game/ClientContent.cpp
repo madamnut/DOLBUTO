@@ -74,6 +74,64 @@ namespace dolbuto::game
             throw std::runtime_error("Unknown item slot render type: " + value);
         }
 
+        struct ItemBlockModelSize
+        {
+            float width = 0.0f;
+            float height = 0.0f;
+            float depth = 0.0f;
+            bool useVerticalSection = false;
+        };
+
+        ItemBlockModelSize parseItemBlockModelSize(const std::string& value)
+        {
+            if (value.empty() || value == "source")
+            {
+                return {};
+            }
+            if (value == "cube")
+            {
+                return {1.0f, 1.0f, 1.0f};
+            }
+            if (value == "slab")
+            {
+                return {1.0f, 0.5f, 1.0f};
+            }
+            if (value == "quarter_log" || value == "quarter")
+            {
+                return {0.5f, 0.5f, 1.0f, true};
+            }
+            throw std::runtime_error("Unknown item block model shape: " + value);
+        }
+
+        int blockTextureFaceIndex(const std::string& value)
+        {
+            if (value == "up" || value == "top")
+            {
+                return 0;
+            }
+            if (value == "down" || value == "bottom")
+            {
+                return 1;
+            }
+            if (value == "right" || value == "east")
+            {
+                return 2;
+            }
+            if (value == "left" || value == "west")
+            {
+                return 3;
+            }
+            if (value == "front" || value == "south")
+            {
+                return 4;
+            }
+            if (value == "back" || value == "north")
+            {
+                return 5;
+            }
+            return -1;
+        }
+
         BlockRenderType parseRenderType(const std::string& value)
         {
             if (value == "cube")
@@ -95,6 +153,10 @@ namespace dolbuto::game
             if (value == "slab")
             {
                 return BlockRenderType::Slab;
+            }
+            if (value == "half_slab")
+            {
+                return BlockRenderType::HalfSlab;
             }
             return BlockRenderType::None;
         }
@@ -139,6 +201,10 @@ namespace dolbuto::game
             if (value == "attach")
             {
                 return BlockStateKind::Attach;
+            }
+            if (value == "attach_grid")
+            {
+                return BlockStateKind::AttachGrid;
             }
             return BlockStateKind::None;
         }
@@ -381,6 +447,11 @@ namespace dolbuto::game
             itemDefinition.breakLevel = definition.breakLevel;
             itemDefinition.maxDurability = definition.maxDurability;
             itemDefinition.burnTimeTicks = definition.burnTimeTicks;
+            const ItemBlockModelSize blockModelSize = parseItemBlockModelSize(definition.modelShape);
+            itemDefinition.blockModelWidth = blockModelSize.width;
+            itemDefinition.blockModelHeight = blockModelSize.height;
+            itemDefinition.blockModelDepth = blockModelSize.depth;
+            itemDefinition.useBlockModelVerticalSection = blockModelSize.useVerticalSection;
             itemDefinition.slotRender = parseItemSlotRenderType(definition.slotRender);
             itemDefinition.droppedRender = parseItemRenderType(definition.droppedRender);
             itemDefinition.heldRender = parseItemRenderType(definition.heldRender);
@@ -417,6 +488,21 @@ namespace dolbuto::game
             textureLayerByName.emplace(textureName, layer);
             content.blockTextureNames_.push_back(textureName);
             return layer;
+        };
+        auto layerForBlockTextureDefinition = [&](
+            const data::ParsedBlockTextureDefinition& texture,
+            const BlockTextureLayers& layers,
+            const std::string& context) -> uint32_t
+        {
+            if (!texture.texture.empty())
+            {
+                const int faceIndex = blockTextureFaceIndex(texture.texture);
+                if (faceIndex >= 0)
+                {
+                    return layers.faces[static_cast<std::size_t>(faceIndex)];
+                }
+            }
+            return layerForTexture(resolveBlockTextureName(blockTextureDir, texture, context));
         };
 
         content.blockDefinitions_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
@@ -504,6 +590,16 @@ namespace dolbuto::game
             {
                 layers.faces.fill(layerForTexture(definition.propTexture));
             }
+            layers.horizontalSection = layers.faces[0];
+            layers.verticalSection = layers.faces[3];
+            if (const auto it = definition.textures.find("horizontalSection"); it != definition.textures.end())
+            {
+                layers.horizontalSection = layerForBlockTextureDefinition(it->second, layers, definition.name + ".horizontalSection");
+            }
+            if (const auto it = definition.textures.find("verticalSection"); it != definition.textures.end())
+            {
+                layers.verticalSection = layerForBlockTextureDefinition(it->second, layers, definition.name + ".verticalSection");
+            }
             content.blockTextureLayers_[definition.id] = layers;
 
             if (definition.renderType == "fire")
@@ -555,6 +651,30 @@ namespace dolbuto::game
                 continue;
             }
             content.itemDefinitions_[definition.id].placeBlockId = blockIt->second;
+        }
+
+        for (const data::ParsedItemDefinition& definition : parsedItems)
+        {
+            if (definition.id >= content.itemDefinitions_.size())
+            {
+                continue;
+            }
+
+            ItemDefinition& item = content.itemDefinitions_[definition.id];
+            if (!definition.modelBlock.empty())
+            {
+                const auto blockIt = content.blockIdByName_.find(definition.modelBlock);
+                if (blockIt == content.blockIdByName_.end())
+                {
+                    log::warn("Item modelBlock references unknown block name: " + definition.key + " -> " + definition.modelBlock);
+                    continue;
+                }
+                item.modelBlockId = blockIt->second;
+            }
+            else if (item.placeBlockId != 0)
+            {
+                item.modelBlockId = item.placeBlockId;
+            }
         }
 
         const std::filesystem::path interactionPath = assetDirectory / "data" / "interactions.json";
@@ -677,10 +797,10 @@ namespace dolbuto::game
             {
                 continue;
             }
-            if (item.placeBlockId == 0 ||
-                static_cast<size_t>(item.placeBlockId) >= content.blockTextureLayers_.size())
+            if (item.modelBlockId == 0 ||
+                static_cast<size_t>(item.modelBlockId) >= content.blockTextureLayers_.size())
             {
-                log::warn("Block model slot item has no valid placeBlock: " + item.key);
+                log::warn("Block model slot item has no valid modelBlock/placeBlock: " + item.key);
                 continue;
             }
 
@@ -689,8 +809,12 @@ namespace dolbuto::game
             if (assets::writeBlockItemIcon(
                 blockTextureDir,
                 content.blockTextureNames_,
-                content.blockTextureLayers_[item.placeBlockId],
-                content.blockDefinitions_[item.placeBlockId].renderType,
+                content.blockTextureLayers_[item.modelBlockId],
+                content.blockDefinitions_[item.modelBlockId].renderType,
+                item.blockModelWidth,
+                item.blockModelHeight,
+                item.blockModelDepth,
+                item.useBlockModelVerticalSection,
                 outputPath))
             {
                 item.slotTexture = generatedTexture;

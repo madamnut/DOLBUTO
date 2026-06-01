@@ -53,6 +53,7 @@ namespace dolbuto
         const BlockDefinition& blockDefinition(uint16_t block) const;
         uint16_t blockAtWorld(int x, int y, int z) const;
         bool terrainCellBlocksPlayer(int x, int y, int z) const;
+        bool terrainAabbIntersects(DVec3 min, DVec3 max) const;
         uint32_t blockFaceTextureLayer(uint16_t block, int face) const;
         void resetBlockBreaking();
 

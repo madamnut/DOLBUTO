@@ -239,6 +239,26 @@ namespace dolbuto
         }), fireEmitters_.end());
     }
 
+    void ParticleRenderPath::setFireEmitterSmokeMultiplier(int x, int y, int z, float multiplier)
+    {
+        const float clampedMultiplier = std::max(0.1f, multiplier);
+        const auto it = std::find_if(fireEmitters_.begin(), fireEmitters_.end(), [&](const FireEmitter& emitter)
+        {
+            return emitter.x == x && emitter.y == y && emitter.z == z;
+        });
+        if (it != fireEmitters_.end())
+        {
+            it->smokeMultiplier = clampedMultiplier;
+            return;
+        }
+
+        registerFireEmitter(x, y, z);
+        if (!fireEmitters_.empty())
+        {
+            fireEmitters_.back().smokeMultiplier = clampedMultiplier;
+        }
+    }
+
     void ParticleRenderPath::handleBlockChanged(int x, int y, int z, uint16_t previousBlock, uint16_t nextBlock, uint16_t fireBlock)
     {
         if (fireBlock == 0 || previousBlock == nextBlock)
@@ -412,14 +432,30 @@ namespace dolbuto
         for (FireEmitter& emitter : fireEmitters_)
         {
             emitter.spawnTimer += dt;
-            while (emitter.spawnTimer >= SmokeSpawnInterval)
+            const float spawnInterval = SmokeSpawnInterval / std::max(0.1f, emitter.smokeMultiplier);
+            while (emitter.spawnTimer >= spawnInterval)
             {
-                emitter.spawnTimer -= SmokeSpawnInterval;
+                emitter.spawnTimer -= spawnInterval;
                 spawnSmoke(emitter);
             }
         }
 
         const float drag = std::pow(BlockBreakParticleDrag, dt * 60.0f);
+        auto particleBlocked = [&](Vec3 position, float radius)
+        {
+            return terrainBlocks &&
+                terrainBlocks(
+                    DVec3{
+                        static_cast<double>(position.x - radius),
+                        static_cast<double>(position.y - radius),
+                        static_cast<double>(position.z - radius)
+                    },
+                    DVec3{
+                        static_cast<double>(position.x + radius),
+                        static_cast<double>(position.y + radius),
+                        static_cast<double>(position.z + radius)
+                    });
+        };
         for (BlockBreakParticle& particle : particles_)
         {
             particle.age += dt;
@@ -432,15 +468,26 @@ namespace dolbuto
             particle.position.z += particle.velocity.z * dt;
 
             const float radius = particle.size * 0.5f;
-            const int groundX = blockCoordinateXz(particle.position.x);
-            const int groundY = blockCoordinateY(particle.position.y - radius);
-            const int groundZ = blockCoordinateXz(particle.position.z);
             if (terrainBlocks &&
                 particle.velocity.y < 0.0f &&
                 particle.position.y <= previousY &&
-                terrainBlocks(groundX, groundY, groundZ))
+                particleBlocked(particle.position, radius))
             {
-                particle.position.y = static_cast<float>(groundY + 1) + radius;
+                float low = particle.position.y;
+                float high = previousY;
+                for (int iteration = 0; iteration < 8; ++iteration)
+                {
+                    const float mid = (low + high) * 0.5f;
+                    if (particleBlocked(Vec3{particle.position.x, mid, particle.position.z}, radius))
+                    {
+                        low = mid;
+                    }
+                    else
+                    {
+                        high = mid;
+                    }
+                }
+                particle.position.y = high;
                 particle.velocity.y *= -0.25f;
                 particle.velocity.x *= 0.55f;
                 particle.velocity.z *= 0.55f;
@@ -457,6 +504,22 @@ namespace dolbuto
         }), particles_.end());
 
         const float smokeDrag = std::pow(0.985f, dt * 60.0f);
+        auto smokeBlocked = [&](Vec3 position)
+        {
+            constexpr float SmokeCollisionHalfExtent = 0.001f;
+            return terrainBlocks &&
+                terrainBlocks(
+                    DVec3{
+                        static_cast<double>(position.x - SmokeCollisionHalfExtent),
+                        static_cast<double>(position.y - SmokeCollisionHalfExtent),
+                        static_cast<double>(position.z - SmokeCollisionHalfExtent)
+                    },
+                    DVec3{
+                        static_cast<double>(position.x + SmokeCollisionHalfExtent),
+                        static_cast<double>(position.y + SmokeCollisionHalfExtent),
+                        static_cast<double>(position.z + SmokeCollisionHalfExtent)
+                    });
+        };
         for (SmokeParticle& particle : smokeParticles_)
         {
             particle.age += dt;
@@ -471,16 +534,20 @@ namespace dolbuto
                 }
 
                 const float target = coordinate + delta;
-                const int sampleX = axis == 0
-                    ? blockCoordinateXz(target)
-                    : blockCoordinateXz(particle.position.x);
-                const int sampleY = axis == 1
-                    ? blockCoordinateY(target)
-                    : blockCoordinateY(particle.position.y);
-                const int sampleZ = axis == 2
-                    ? blockCoordinateXz(target)
-                    : blockCoordinateXz(particle.position.z);
-                if (terrainBlocks && terrainBlocks(sampleX, sampleY, sampleZ))
+                Vec3 targetPosition = particle.position;
+                if (axis == 0)
+                {
+                    targetPosition.x = target;
+                }
+                else if (axis == 1)
+                {
+                    targetPosition.y = target;
+                }
+                else
+                {
+                    targetPosition.z = target;
+                }
+                if (smokeBlocked(targetPosition))
                 {
                     if (axis == 0)
                     {

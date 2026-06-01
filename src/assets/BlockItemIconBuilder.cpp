@@ -166,12 +166,16 @@ namespace dolbuto::assets
         const std::vector<std::string>& blockTextureNames,
         const BlockTextureLayers& layers,
         BlockRenderType renderType,
+        float modelWidth,
+        float modelHeight,
+        float modelDepth,
+        bool useVerticalSection,
         const std::filesystem::path& outputPath)
     {
         const std::array<uint32_t, 3> visibleLayers = {
             layers.faces[0],
             layers.faces[3],
-            layers.faces[4]
+            useVerticalSection ? layers.verticalSection : layers.faces[4]
         };
 
         std::array<Image, 3> images{};
@@ -191,26 +195,61 @@ namespace dolbuto::assets
 
         const Image* top = imageForLayer(layers.faces[0], images, visibleLayers);
         const Image* left = imageForLayer(layers.faces[3], images, visibleLayers);
-        const Image* right = imageForLayer(layers.faces[4], images, visibleLayers);
+        const Image* right = imageForLayer(useVerticalSection ? layers.verticalSection : layers.faces[4], images, visibleLayers);
         if (top == nullptr || left == nullptr || right == nullptr)
         {
             return false;
         }
 
         std::vector<unsigned char> output(static_cast<std::size_t>(IconSize) * IconSize * 4u, 0u);
-        const bool slab = renderType == BlockRenderType::Slab;
-        const std::array<Vec2, 4> leftPositions = slab
-            ? std::array<Vec2, 4>{Vec2{12.0f, 32.0f}, Vec2{32.0f, 44.0f}, Vec2{32.0f, 56.0f}, Vec2{12.0f, 44.0f}}
-            : std::array<Vec2, 4>{Vec2{12.0f, 20.0f}, Vec2{32.0f, 32.0f}, Vec2{32.0f, 56.0f}, Vec2{12.0f, 44.0f}};
-        const std::array<Vec2, 4> rightPositions = slab
-            ? std::array<Vec2, 4>{Vec2{32.0f, 44.0f}, Vec2{52.0f, 32.0f}, Vec2{52.0f, 44.0f}, Vec2{32.0f, 56.0f}}
-            : std::array<Vec2, 4>{Vec2{32.0f, 32.0f}, Vec2{52.0f, 20.0f}, Vec2{52.0f, 44.0f}, Vec2{32.0f, 56.0f}};
-        const std::array<Vec2, 4> topPositions = slab
-            ? std::array<Vec2, 4>{Vec2{32.0f, 20.0f}, Vec2{52.0f, 32.0f}, Vec2{32.0f, 44.0f}, Vec2{12.0f, 32.0f}}
-            : std::array<Vec2, 4>{Vec2{32.0f, 8.0f}, Vec2{52.0f, 20.0f}, Vec2{32.0f, 32.0f}, Vec2{12.0f, 20.0f}};
-        const std::array<Vec2, 4> sideUvs = slab
-            ? std::array<Vec2, 4>{Vec2{0.0f, 0.5f}, Vec2{1.0f, 0.5f}, Vec2{1.0f, 1.0f}, Vec2{0.0f, 1.0f}}
-            : std::array<Vec2, 4>{Vec2{0.0f, 0.0f}, Vec2{1.0f, 0.0f}, Vec2{1.0f, 1.0f}, Vec2{0.0f, 1.0f}};
+        const float width = std::clamp(modelWidth > 0.0f ? modelWidth : 1.0f, 0.0625f, 1.0f);
+        const float height = std::clamp(
+            modelHeight > 0.0f ? modelHeight : (renderType == BlockRenderType::Slab ? 0.5f : 1.0f),
+            0.0625f,
+            1.0f);
+        const float depth = std::clamp(modelDepth > 0.0f ? modelDepth : 1.0f, 0.0625f, 1.0f);
+        const float topOffset = (1.0f - height) * 24.0f;
+        const float topY = 8.0f + topOffset;
+        const float widthX = 20.0f * width;
+        const float widthY = 12.0f * width;
+        const float depthX = 20.0f * depth;
+        const float depthY = 12.0f * depth;
+        const float originX = 32.0f + (depthX - widthX) * 0.5f;
+        const float sideDown = 24.0f * height;
+        const Vec2 top0{originX, topY};
+        const Vec2 top1{originX + widthX, topY + widthY};
+        const Vec2 top2{originX + widthX - depthX, topY + widthY + depthY};
+        const Vec2 top3{originX - depthX, topY + depthY};
+        const std::array<Vec2, 4> leftPositions{
+            top3,
+            top2,
+            Vec2{top2.x, top2.y + sideDown},
+            Vec2{top3.x, top3.y + sideDown}
+        };
+        const std::array<Vec2, 4> rightPositions{
+            top2,
+            top1,
+            Vec2{top1.x, top1.y + sideDown},
+            Vec2{top2.x, top2.y + sideDown}
+        };
+        const std::array<Vec2, 4> topPositions{
+            top0,
+            top1,
+            top2,
+            top3
+        };
+        const std::array<Vec2, 4> sideUvs{
+            Vec2{0.0f, 1.0f - height},
+            Vec2{1.0f, 1.0f - height},
+            Vec2{1.0f, 1.0f},
+            Vec2{0.0f, 1.0f}
+        };
+        const std::array<Vec2, 4> sectionUvs{
+            Vec2{0.0f, 0.0f},
+            Vec2{1.0f, 0.0f},
+            Vec2{1.0f, 1.0f},
+            Vec2{0.0f, 1.0f}
+        };
         drawQuad(
             output,
             *left,
@@ -221,13 +260,18 @@ namespace dolbuto::assets
             output,
             *right,
             rightPositions,
-            sideUvs,
+            useVerticalSection ? sectionUvs : sideUvs,
             0.86f);
         drawQuad(
             output,
             *top,
             topPositions,
-            std::array<Vec2, 4>{Vec2{0.5f, 0.0f}, Vec2{1.0f, 0.5f}, Vec2{0.5f, 1.0f}, Vec2{0.0f, 0.5f}},
+            std::array<Vec2, 4>{
+                Vec2{0.5f * width, 0.0f},
+                Vec2{width, 0.5f * depth},
+                Vec2{0.5f * width, depth},
+                Vec2{0.0f, 0.5f * depth}
+            },
             1.0f);
 
         std::error_code error;

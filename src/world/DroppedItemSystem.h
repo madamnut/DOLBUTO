@@ -18,7 +18,7 @@ namespace dolbuto::world
     public:
         using RuntimeChunkMap = std::unordered_map<uint64_t, RuntimeChunk>;
         using EntityIdProvider = std::function<uint64_t()>;
-        using TerrainCollisionPredicate = std::function<bool(int, int, int)>;
+        using TerrainAabbCollisionPredicate = std::function<bool(DVec3, DVec3)>;
         using InventoryInsertCallback = std::function<uint16_t(ItemStack)>;
         using DirtyChunkCallback = std::function<void(RuntimeChunk&)>;
         using ChunkTrackingCallback = std::function<void(uint64_t)>;
@@ -31,7 +31,7 @@ namespace dolbuto::world
         };
 
         static constexpr size_t MaxDroppedItems = 1024;
-        static constexpr float DroppedItemSize = 0.68f;
+        static constexpr float DroppedItemSize = 0.4f;
         static constexpr float DroppedItemThickness = 0.05f;
         static constexpr float BlockModelDroppedItemSize = 0.2f;
         static constexpr float DroppedItemTickSeconds = 1.0f / 20.0f;
@@ -71,7 +71,7 @@ namespace dolbuto::world
             const std::vector<ItemDefinition>& itemDefinitions,
             Vec3 playerPosition,
             float dt,
-            const TerrainCollisionPredicate& terrainCellBlocksPlayer,
+            const TerrainAabbCollisionPredicate& terrainCellBlocksPlayer,
             const InventoryInsertCallback& addToPlayerInventory,
             const PickupSoundCallback& playPickupSound,
             const DirtyChunkCallback& markDirty,

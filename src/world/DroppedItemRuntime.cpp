@@ -1,5 +1,6 @@
 #include "world/DroppedItemRuntime.h"
 
+#include "world/BlockCollisionShape.h"
 #include "world/DroppedItemSystem.h"
 
 #include <algorithm>
@@ -963,6 +964,8 @@ namespace dolbuto::world
         int blockX,
         int blockY,
         int blockZ,
+        const BlockDefinition& placedDefinition,
+        uint16_t placedBlockState,
         const TerrainCollisionFn& terrainCellBlocksItem,
         const MarkDirtyFn& markDirty)
     {
@@ -971,12 +974,23 @@ namespace dolbuto::world
         constexpr float VerticalPushSpeed = 1.4f;
         constexpr float Spin = 6.0f;
 
-        const float blockMinX = static_cast<float>(blockX) - 0.5f;
-        const float blockMaxX = static_cast<float>(blockX) + 0.5f;
-        const float blockMinY = static_cast<float>(blockY);
-        const float blockMaxY = static_cast<float>(blockY + 1);
-        const float blockMinZ = static_cast<float>(blockZ) - 0.5f;
-        const float blockMaxZ = static_cast<float>(blockZ) + 0.5f;
+        if (!placedDefinition.collision)
+        {
+            return;
+        }
+
+        const block_visual::LocalAabb placedAabb = block_collision::blockWorldAabb(
+            blockX,
+            blockY,
+            blockZ,
+            placedDefinition,
+            placedBlockState);
+        const float blockMinX = placedAabb.min.x;
+        const float blockMaxX = placedAabb.max.x;
+        const float blockMinY = placedAabb.min.y;
+        const float blockMaxY = placedAabb.max.y;
+        const float blockMinZ = placedAabb.min.z;
+        const float blockMaxZ = placedAabb.max.z;
 
         auto overlapsPlacedBlock = [&](const WorldEntity& item)
         {
@@ -1002,26 +1016,17 @@ namespace dolbuto::world
                 return false;
             }
 
-            const int minX = DroppedItemSystem::blockCoordinateXz(position.x - bounds.halfWidth);
-            const int maxX = DroppedItemSystem::blockCoordinateXz(position.x + bounds.halfWidth - Epsilon);
-            const int minY = DroppedItemSystem::blockCoordinateY(position.y);
-            const int maxY = DroppedItemSystem::blockCoordinateY(position.y + bounds.height - Epsilon);
-            const int minZ = DroppedItemSystem::blockCoordinateXz(position.z - bounds.halfWidth);
-            const int maxZ = DroppedItemSystem::blockCoordinateXz(position.z + bounds.halfWidth - Epsilon);
-            for (int y = minY; y <= maxY; ++y)
-            {
-                for (int z = minZ; z <= maxZ; ++z)
-                {
-                    for (int x = minX; x <= maxX; ++x)
-                    {
-                        if (terrainCellBlocksItem(x, y, z))
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
+            return terrainCellBlocksItem(
+                DVec3{
+                    static_cast<double>(position.x - bounds.halfWidth),
+                    static_cast<double>(position.y),
+                    static_cast<double>(position.z - bounds.halfWidth)
+                },
+                DVec3{
+                    static_cast<double>(position.x + bounds.halfWidth),
+                    static_cast<double>(position.y + bounds.height),
+                    static_cast<double>(position.z + bounds.halfWidth)
+                });
         };
 
         struct Candidate

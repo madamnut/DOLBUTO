@@ -311,7 +311,8 @@
         "alphaMode": "opaque",
         "textures": {
             "topBottom": "stripped_log_topbottom",
-            "side": "stripped_log_side"
+            "side": "stripped_log_side",
+            "verticalSection": "stripped_log_section_vertical"
         },
         "drops": [
             {
@@ -691,6 +692,66 @@
         "lightAttenuation": 15,
         "breakLevel": 1,
         "breakAction": "dig"
+    },
+    {
+        "id": 24,
+        "name": "half_stripped_log",
+        "renderType": "slab",
+        "stateKind": "attach",
+        "hardness": 2,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "opaque",
+        "textures": {
+            "topBottom": "stripped_log_topbottom",
+            "side": "stripped_log_side",
+            "verticalSection": "stripped_log_section_vertical"
+        },
+        "drops": [
+            {
+                "item": "half_stripped_log",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "chop"
+    },
+    {
+        "id": 25,
+        "name": "quarter_stripped_log",
+        "renderType": "half_slab",
+        "stateKind": "attach_grid",
+        "hardness": 1,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "opaque",
+        "textures": {
+            "topBottom": "stripped_log_topbottom",
+            "side": "stripped_log_side",
+            "verticalSection": "stripped_log_section_vertical"
+        },
+        "drops": [
+            {
+                "item": "quarter_stripped_log",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 2,
+        "breakAction": "chop"
     },
     {
         "id": 10000,

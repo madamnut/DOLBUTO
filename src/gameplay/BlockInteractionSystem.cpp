@@ -1,5 +1,6 @@
 #include "gameplay/BlockInteractionSystem.h"
 
+#include "world/BlockCollisionShape.h"
 #include "world/BlockVisualShape.h"
 
 #include <algorithm>
@@ -162,7 +163,7 @@ namespace dolbuto::gameplay
                 point.z <= static_cast<float>(z) + 0.5f + Epsilon;
         }
 
-        bool rayIntersectsAabb(DVec3 origin, Vec3 direction, Vec3 min, Vec3 max)
+        bool rayIntersectsAabb(DVec3 origin, Vec3 direction, Vec3 min, Vec3 max, double& distance)
         {
             constexpr double Epsilon = 0.0000001;
             double tMin = 0.0;
@@ -186,29 +187,39 @@ namespace dolbuto::gameplay
                 return tMin <= tMax + Epsilon;
             };
 
-            return updateAxis(origin.x, direction.x, min.x, max.x) &&
+            const bool intersects = updateAxis(origin.x, direction.x, min.x, max.x) &&
                 updateAxis(origin.y, direction.y, min.y, max.y) &&
                 updateAxis(origin.z, direction.z, min.z, max.z);
+            distance = std::max(0.0, tMin);
+            return intersects;
         }
 
-        bool rayIntersectsFireBlock(DVec3 origin, Vec3 direction, int x, int y, int z)
+        bool rayIntersectsFireBlock(DVec3 origin, Vec3 direction, int x, int y, int z, double& distance)
         {
             return rayIntersectsAabb(
                 origin,
                 direction,
                 Vec3{static_cast<float>(x) - 0.4f, static_cast<float>(y), static_cast<float>(z) - 0.4f},
-                Vec3{static_cast<float>(x) + 0.4f, static_cast<float>(y) + 0.1f, static_cast<float>(z) + 0.4f});
+                Vec3{static_cast<float>(x) + 0.4f, static_cast<float>(y) + 0.1f, static_cast<float>(z) + 0.4f},
+                distance);
         }
 
-        bool rayIntersectsSlabBlock(DVec3 origin, Vec3 direction, int x, int y, int z, uint16_t blockState)
+        bool rayIntersectsSlabBlock(DVec3 origin, Vec3 direction, int x, int y, int z, uint16_t blockState, double& distance)
         {
             const world::block_visual::LocalAabb aabb = world::block_visual::slabWorldAabb(x, y, z, blockState);
-            return rayIntersectsAabb(origin, direction, aabb.min, aabb.max);
+            return rayIntersectsAabb(origin, direction, aabb.min, aabb.max, distance);
         }
 
-        bool rayIntersectsCrossBlock(DVec3 origin, Vec3 direction, int x, int y, int z, const BlockDefinition& definition)
+        bool rayIntersectsHalfSlabBlock(DVec3 origin, Vec3 direction, int x, int y, int z, uint16_t blockState, double& distance)
+        {
+            const world::block_visual::LocalAabb aabb = world::block_visual::halfSlabWorldAabb(x, y, z, blockState);
+            return rayIntersectsAabb(origin, direction, aabb.min, aabb.max, distance);
+        }
+
+        bool rayIntersectsCrossBlock(DVec3 origin, Vec3 direction, int x, int y, int z, const BlockDefinition& definition, double& distance)
         {
             bool hit = false;
+            double bestDistance = std::numeric_limits<double>::infinity();
             world::block_visual::forEachCrossQuad(
                 definition,
                 x,
@@ -220,9 +231,11 @@ namespace dolbuto::gameplay
                     if (rayIntersectsQuad(origin, direction, a, b, c, d, distance) &&
                         pointInBlockCell(rayPoint(origin, direction, distance), x, y, z))
                     {
+                        bestDistance = std::min(bestDistance, distance);
                         hit = true;
                     }
                 });
+            distance = bestDistance;
             return hit;
         }
 
@@ -233,8 +246,11 @@ namespace dolbuto::gameplay
             int y,
             int z,
             const BlockDefinition& definition,
-            const assets::PropMesh& mesh)
+            const assets::PropMesh& mesh,
+            double& distance)
         {
+            bool hit = false;
+            double bestDistance = std::numeric_limits<double>::infinity();
             for (size_t offset = 0; offset + assets::PropQuadRenderFloatCount <= mesh.quads.size(); offset += assets::PropQuadRenderFloatCount)
             {
                 size_t cursor = offset;
@@ -251,10 +267,12 @@ namespace dolbuto::gameplay
                 if (rayIntersectsQuad(origin, direction, quad[0], quad[1], quad[2], quad[3], distance) &&
                     pointInBlockCell(rayPoint(origin, direction, distance), x, y, z))
                 {
-                    return true;
+                    bestDistance = std::min(bestDistance, distance);
+                    hit = true;
                 }
             }
-            return false;
+            distance = bestDistance;
+            return hit;
         }
 
         bool rayIntersectsBlockShape(
@@ -266,7 +284,8 @@ namespace dolbuto::gameplay
             uint16_t block,
             const BlockDefinition& definition,
             uint16_t blockState,
-            const BlockInteractionSystem::PropMeshProvider& propMesh)
+            const BlockInteractionSystem::PropMeshProvider& propMesh,
+            double& distance)
         {
             if (definition.renderType == BlockRenderType::Cube)
             {
@@ -274,7 +293,7 @@ namespace dolbuto::gameplay
             }
             if (definition.renderType == BlockRenderType::Cross)
             {
-                return rayIntersectsCrossBlock(origin, direction, x, y, z, definition);
+                return rayIntersectsCrossBlock(origin, direction, x, y, z, definition, distance);
             }
             if (definition.renderType == BlockRenderType::Prop)
             {
@@ -285,15 +304,19 @@ namespace dolbuto::gameplay
                 const assets::PropMesh* mesh = propMesh(block);
                 return mesh == nullptr || mesh->quads.empty()
                     ? true
-                    : rayIntersectsPropBlock(origin, direction, x, y, z, definition, *mesh);
+                    : rayIntersectsPropBlock(origin, direction, x, y, z, definition, *mesh, distance);
             }
             if (definition.renderType == BlockRenderType::Fire)
             {
-                return rayIntersectsFireBlock(origin, direction, x, y, z);
+                return rayIntersectsFireBlock(origin, direction, x, y, z, distance);
             }
             if (definition.renderType == BlockRenderType::Slab)
             {
-                return rayIntersectsSlabBlock(origin, direction, x, y, z, blockState);
+                return rayIntersectsSlabBlock(origin, direction, x, y, z, blockState, distance);
+            }
+            if (definition.renderType == BlockRenderType::HalfSlab)
+            {
+                return rayIntersectsHalfSlabBlock(origin, direction, x, y, z, blockState, distance);
             }
             return false;
         }
@@ -440,33 +463,7 @@ namespace dolbuto::gameplay
         DVec3 max,
         uint16_t blockState)
     {
-        if (!definition.collision)
-        {
-            return false;
-        }
-
-        constexpr double Epsilon = 0.000001;
-        const auto intersects = [&](DVec3 blockMin, DVec3 blockMax)
-        {
-            return max.x > blockMin.x + Epsilon &&
-                min.x < blockMax.x - Epsilon &&
-                max.y > blockMin.y + Epsilon &&
-                min.y < blockMax.y - Epsilon &&
-                max.z > blockMin.z + Epsilon &&
-                min.z < blockMax.z - Epsilon;
-        };
-
-        if (definition.renderType == BlockRenderType::Slab)
-        {
-            const world::block_visual::LocalAabb aabb = world::block_visual::slabWorldAabb(x, y, z, blockState);
-            return intersects(
-                DVec3{static_cast<double>(aabb.min.x), static_cast<double>(aabb.min.y), static_cast<double>(aabb.min.z)},
-                DVec3{static_cast<double>(aabb.max.x), static_cast<double>(aabb.max.y), static_cast<double>(aabb.max.z)});
-        }
-
-        return intersects(
-            DVec3{static_cast<double>(x) - 0.5, static_cast<double>(y), static_cast<double>(z) - 0.5},
-            DVec3{static_cast<double>(x) + 0.5, static_cast<double>(y) + 1.0, static_cast<double>(z) + 0.5});
+        return world::block_collision::blockIntersectsAabb(x, y, z, definition, min, max, blockState);
     }
 
     bool BlockInteractionSystem::blockIntersectsPlayerCollider(
@@ -558,6 +555,7 @@ namespace dolbuto::gameplay
             if (block != 0 && blockDefinition)
             {
                 const BlockDefinition& definition = blockDefinition(block);
+                double hitDistance = traveled;
                 if (definition.renderType != BlockRenderType::None &&
                     rayIntersectsBlockShape(
                         origin,
@@ -568,14 +566,21 @@ namespace dolbuto::gameplay
                         block,
                         definition,
                         blockStateAtWorld ? blockStateAtWorld(blockX, blockY, blockZ) : 0,
-                        propMesh))
+                        propMesh,
+                        hitDistance))
                 {
+                    const Vec3 hitPoint = rayPoint(origin, normalizedDirection, hitDistance);
                     hit.blockX = blockX;
                     hit.blockY = blockY;
                     hit.blockZ = blockZ;
                     hit.previousBlockX = previousBlockX;
                     hit.previousBlockY = previousBlockY;
                     hit.previousBlockZ = previousBlockZ;
+                    hit.hitPosition = DVec3{
+                        static_cast<double>(hitPoint.x),
+                        static_cast<double>(hitPoint.y),
+                        static_cast<double>(hitPoint.z)
+                    };
                     return true;
                 }
             }

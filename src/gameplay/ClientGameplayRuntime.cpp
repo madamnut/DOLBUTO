@@ -1,8 +1,10 @@
 #include "gameplay/ClientGameplayRuntime.h"
 
 #include "world/BlockData.h"
+#include "world/BlockVisualShape.h"
 #include "world/DroppedItemSystem.h"
 #include <algorithm>
+#include <cmath>
 #include <iterator>
 #include <stdexcept>
 #include <unordered_map>
@@ -51,11 +53,171 @@ namespace dolbuto::gameplay
             return static_cast<uint16_t>(BlockAttachState::Bottom);
         }
 
-        uint16_t placementStateForBlock(const BlockDefinition& definition, const BlockRaycastHit& hit)
+        struct PlacementAxis
+        {
+            int x = 0;
+            int y = 0;
+            int z = 0;
+        };
+
+        struct SlabPlacementFrame
+        {
+            PlacementAxis uAxis{};
+            PlacementAxis vAxis{};
+            double u = 0.5;
+            double v = 0.5;
+        };
+
+        double axisDot(Vec3 direction, PlacementAxis axis)
+        {
+            return static_cast<double>(direction.x) * static_cast<double>(axis.x) +
+                static_cast<double>(direction.y) * static_cast<double>(axis.y) +
+                static_cast<double>(direction.z) * static_cast<double>(axis.z);
+        }
+
+        PlacementAxis negated(PlacementAxis axis)
+        {
+            return PlacementAxis{-axis.x, -axis.y, -axis.z};
+        }
+
+        uint16_t attachStateForDirection(PlacementAxis axis)
+        {
+            if (axis.y > 0)
+            {
+                return static_cast<uint16_t>(BlockAttachState::Top);
+            }
+            if (axis.y < 0)
+            {
+                return static_cast<uint16_t>(BlockAttachState::Bottom);
+            }
+            if (axis.x > 0)
+            {
+                return static_cast<uint16_t>(BlockAttachState::East);
+            }
+            if (axis.x < 0)
+            {
+                return static_cast<uint16_t>(BlockAttachState::West);
+            }
+            if (axis.z > 0)
+            {
+                return static_cast<uint16_t>(BlockAttachState::South);
+            }
+            if (axis.z < 0)
+            {
+                return static_cast<uint16_t>(BlockAttachState::North);
+            }
+            return static_cast<uint16_t>(BlockAttachState::Bottom);
+        }
+
+        SlabPlacementFrame slabPlacementFrame(const BlockRaycastHit& hit)
+        {
+            const double localX = std::clamp(hit.hitPosition.x - (static_cast<double>(hit.blockX) - 0.5), 0.0, 1.0);
+            const double localY = std::clamp(hit.hitPosition.y - static_cast<double>(hit.blockY), 0.0, 1.0);
+            const double localZ = std::clamp(hit.hitPosition.z - (static_cast<double>(hit.blockZ) - 0.5), 0.0, 1.0);
+            const int dx = hit.previousBlockX - hit.blockX;
+            const int dy = hit.previousBlockY - hit.blockY;
+            const int dz = hit.previousBlockZ - hit.blockZ;
+
+            if (dy > 0)
+            {
+                return SlabPlacementFrame{PlacementAxis{1, 0, 0}, PlacementAxis{0, 0, -1}, localX, 1.0 - localZ};
+            }
+            if (dy < 0)
+            {
+                return SlabPlacementFrame{PlacementAxis{1, 0, 0}, PlacementAxis{0, 0, 1}, localX, localZ};
+            }
+            if (dx > 0)
+            {
+                return SlabPlacementFrame{PlacementAxis{0, 0, 1}, PlacementAxis{0, 1, 0}, localZ, localY};
+            }
+            if (dx < 0)
+            {
+                return SlabPlacementFrame{PlacementAxis{0, 0, -1}, PlacementAxis{0, 1, 0}, 1.0 - localZ, localY};
+            }
+            if (dz > 0)
+            {
+                return SlabPlacementFrame{PlacementAxis{-1, 0, 0}, PlacementAxis{0, 1, 0}, 1.0 - localX, localY};
+            }
+            if (dz < 0)
+            {
+                return SlabPlacementFrame{PlacementAxis{1, 0, 0}, PlacementAxis{0, 1, 0}, localX, localY};
+            }
+            return SlabPlacementFrame{};
+        }
+
+        int slabGridCommand(double u, double v)
+        {
+            const int col = std::clamp(static_cast<int>(std::floor(std::clamp(u, 0.0, 1.0) * 3.0)), 0, 2);
+            const int row = std::clamp(static_cast<int>(std::floor(std::clamp(v, 0.0, 1.0) * 3.0)), 0, 2);
+            return row * 3 + col + 1;
+        }
+
+        int resolveSlabCornerCommand(int command, const SlabPlacementFrame& frame, Vec3 viewDirection)
+        {
+            const bool useUAxis = std::abs(axisDot(viewDirection, frame.uAxis)) >= std::abs(axisDot(viewDirection, frame.vAxis));
+            switch (command)
+            {
+            case 1: return useUAxis ? 4 : 2;
+            case 3: return useUAxis ? 6 : 2;
+            case 7: return useUAxis ? 4 : 8;
+            case 9: return useUAxis ? 6 : 8;
+            default: return command;
+            }
+        }
+
+        uint16_t slabPlacementState(const BlockRaycastHit& hit, Vec3 viewDirection)
+        {
+            const SlabPlacementFrame frame = slabPlacementFrame(hit);
+            switch (resolveSlabCornerCommand(slabGridCommand(frame.u, frame.v), frame, viewDirection))
+            {
+            case 2: return attachStateForDirection(negated(frame.vAxis));
+            case 4: return attachStateForDirection(negated(frame.uAxis));
+            case 6: return attachStateForDirection(frame.uAxis);
+            case 8: return attachStateForDirection(frame.vAxis);
+            case 5:
+            default:
+                return attachStateForPlacement(hit);
+            }
+        }
+
+        BlockAttachState attachFaceForPlacement(const BlockRaycastHit& hit)
+        {
+            return static_cast<BlockAttachState>(attachStateForPlacement(hit));
+        }
+
+        int resolveHalfSlabGridCommand(int command, const SlabPlacementFrame& frame, Vec3 viewDirection)
+        {
+            if (command != 5)
+            {
+                return command;
+            }
+
+            const double u = axisDot(viewDirection, frame.uAxis);
+            const double v = axisDot(viewDirection, frame.vAxis);
+            if (std::abs(u) >= std::abs(v))
+            {
+                return u >= 0.0 ? 6 : 4;
+            }
+            return v >= 0.0 ? 8 : 2;
+        }
+
+        uint16_t halfSlabPlacementState(const BlockRaycastHit& hit, Vec3 viewDirection)
+        {
+            const SlabPlacementFrame frame = slabPlacementFrame(hit);
+            return world::block_visual::attachGridState(
+                attachFaceForPlacement(hit),
+                resolveHalfSlabGridCommand(slabGridCommand(frame.u, frame.v), frame, viewDirection));
+        }
+
+        uint16_t placementStateForBlock(const BlockDefinition& definition, const BlockRaycastHit& hit, Vec3 viewDirection)
         {
             if (definition.renderType == BlockRenderType::Slab && definition.stateKind == BlockStateKind::Attach)
             {
-                return attachStateForPlacement(hit);
+                return slabPlacementState(hit, viewDirection);
+            }
+            if (definition.renderType == BlockRenderType::HalfSlab && definition.stateKind == BlockStateKind::AttachGrid)
+            {
+                return halfSlabPlacementState(hit, viewDirection);
             }
             return 0;
         }
@@ -142,7 +304,7 @@ namespace dolbuto::gameplay
         }
 
         const BlockDefinition& placedDefinition = blockDefinition(placeBlockId);
-        const uint16_t placementState = placementStateForBlock(placedDefinition, hit);
+        const uint16_t placementState = placementStateForBlock(placedDefinition, hit, direction);
         if (BlockInteractionSystem::blockIntersectsPlayerCollider(
                 hit.previousBlockX,
                 hit.previousBlockY,
@@ -246,35 +408,6 @@ namespace dolbuto::gameplay
             return result;
         }
 
-        struct FireTick
-        {
-            int x = 0;
-            int y = 0;
-            int z = 0;
-        };
-        std::vector<FireTick> fireTicks;
-        for (const auto& entry : worldRuntime_->chunks())
-        {
-            const RuntimeChunk& chunk = entry.second;
-            if (!chunk.data)
-            {
-                continue;
-            }
-
-            for (const BlockEntity& entity : chunk.data->blockEntities)
-            {
-                if (entity.type != BlockEntityType::Fire)
-                {
-                    continue;
-                }
-                fireTicks.push_back(FireTick{
-                    chunk.chunkX * world::WorldRuntime::ChunkSizeX + entity.localX,
-                    static_cast<int>(entity.y),
-                    chunk.chunkZ * world::WorldRuntime::ChunkSizeZ + entity.localZ
-                });
-            }
-        }
-
         auto markBlockEntityDirty = [&](int x, int z)
         {
             const int chunkX = world::WorldRuntime::floorDiv(x, world::WorldRuntime::ChunkSizeX);
@@ -299,6 +432,8 @@ namespace dolbuto::gameplay
         };
         const uint16_t logItemId = itemIdByKey("log");
         const uint16_t strippedLogItemId = itemIdByKey("stripped_log");
+        const uint16_t halfStrippedLogItemId = itemIdByKey("half_stripped_log");
+        const uint16_t quarterStrippedLogItemId = itemIdByKey("quarter_stripped_log");
         const uint16_t charcoalItemId = itemIdByKey("charcoal");
         auto kilnOutputForFuel = [&](uint16_t itemId) -> ItemStack
         {
@@ -309,6 +444,14 @@ namespace dolbuto::gameplay
             if (itemId == logItemId || itemId == strippedLogItemId)
             {
                 return ItemStack{charcoalItemId, 4, 0};
+            }
+            if (itemId == halfStrippedLogItemId)
+            {
+                return ItemStack{charcoalItemId, 3, 0};
+            }
+            if (itemId == quarterStrippedLogItemId)
+            {
+                return ItemStack{charcoalItemId, 2, 0};
             }
             return {};
         };
@@ -357,85 +500,148 @@ namespace dolbuto::gameplay
             return droppedItemRuntime_.addWorldEntity(std::move(output), markDirty);
         };
 
-        for (const FireTick& fire : fireTicks)
+        auto updateFireMode = [&](int x, int y, int z, BlockEntity& entity, bool forceNotify)
         {
-            const uint16_t block = worldRuntime_->blockAtWorld(fire.x, fire.y, fire.z);
-            if (block == BlockAir || blockDefinition(block).renderType != BlockRenderType::Fire)
+            const FireMode nextMode = fireSealed(x, y, z) ? FireMode::Pyrolysis : FireMode::Normal;
+            if (entity.fireMode == nextMode && !forceNotify)
             {
-                worldRuntime_->removeBlockEntityAtWorld(fire.x, fire.y, fire.z);
-                continue;
+                return;
             }
 
-            BlockEntity* entity = worldRuntime_->blockEntityAtWorld(fire.x, fire.y, fire.z);
+            const FireMode previousMode = entity.fireMode;
+            entity.fireMode = nextMode;
+            bool changed = previousMode != nextMode;
+            if (nextMode == FireMode::Normal)
+            {
+                changed = changed || entity.carbonizingOutputItemId != 0 || entity.carbonizingOutputCount != 0;
+                entity.carbonizingOutputItemId = 0;
+                entity.carbonizingOutputCount = 0;
+            }
+            if (changed)
+            {
+                markBlockEntityDirty(x, z);
+            }
+            result.fireSmokeRateUpdates.push_back(FireSmokeRateUpdate{
+                x,
+                y,
+                z,
+                nextMode == FireMode::Pyrolysis ? 3.0f : 1.0f
+            });
+        };
+
+        auto processFireBurn = [&](const world::WorldRuntime::BlockTickCell& cell, uint16_t block)
+        {
+            BlockEntity* entity = worldRuntime_->blockEntityAtWorld(cell.x, cell.y, cell.z);
             if (entity == nullptr || entity->type != BlockEntityType::Fire)
             {
-                continue;
+                entity = worldRuntime_->ensureFireBlockEntityAtWorld(cell.x, cell.y, cell.z, 0);
+            }
+            if (entity == nullptr || entity->type != BlockEntityType::Fire)
+            {
+                return;
+            }
+
+            const bool modeEvent = (cell.reasons &
+                (world::WorldRuntime::BlockTickReasonSelfBlockChanged | world::WorldRuntime::BlockTickReasonBlockNeighborChanged)) != 0;
+            if (modeEvent)
+            {
+                updateFireMode(cell.x, cell.y, cell.z, *entity, true);
+            }
+
+            if ((cell.reasons & world::WorldRuntime::BlockTickReasonFireBurn) == 0)
+            {
+                return;
             }
 
             if (entity->remainingBurnTicks > 0)
             {
                 --entity->remainingBurnTicks;
-                markBlockEntityDirty(fire.x, fire.z);
-            }
-            if (entity->remainingBurnTicks > 0)
-            {
-                continue;
-            }
-            if (entity->pendingOutputItemId != 0 && entity->pendingOutputCount != 0)
-            {
-                const ItemStack output{entity->pendingOutputItemId, entity->pendingOutputCount, 0};
-                entity->pendingOutputItemId = 0;
-                entity->pendingOutputCount = 0;
-                markBlockEntityDirty(fire.x, fire.z);
-                if (fireSealed(fire.x, fire.y, fire.z) && spawnKilnOutput(fire.x, fire.y, fire.z, output))
+                markBlockEntityDirty(cell.x, cell.z);
+                if (entity->remainingBurnTicks > 0)
                 {
-                    continue;
+                    worldRuntime_->scheduleBlockTickAtWorld(
+                        cell.x,
+                        cell.y,
+                        cell.z,
+                        world::WorldRuntime::BlockTickReasonFireBurn);
+                    return;
                 }
             }
 
-            const bool sealedAtStart = fireSealed(fire.x, fire.y, fire.z);
+            if (entity->carbonizingOutputItemId != 0 && entity->carbonizingOutputCount != 0)
+            {
+                const ItemStack output{entity->carbonizingOutputItemId, entity->carbonizingOutputCount, 0};
+                entity->carbonizingOutputItemId = 0;
+                entity->carbonizingOutputCount = 0;
+                markBlockEntityDirty(cell.x, cell.z);
+                if (spawnKilnOutput(cell.x, cell.y, cell.z, output))
+                {
+                    worldRuntime_->scheduleBlockTickAtWorld(
+                        cell.x,
+                        cell.y,
+                        cell.z,
+                        world::WorldRuntime::BlockTickReasonFireBurn);
+                    return;
+                }
+            }
+
+            const bool pyrolysis = entity->fireMode == FireMode::Pyrolysis;
             const world::DroppedItemRuntime::BurnableConsumptionResult consumedFuel = droppedItemRuntime_.consumeRandomBurnableInAabb(
-                static_cast<float>(fire.x) - 0.5f,
-                static_cast<float>(fire.y),
-                static_cast<float>(fire.z) - 0.5f,
-                static_cast<float>(fire.x) + 0.5f,
-                static_cast<float>(fire.y + 1),
-                static_cast<float>(fire.z) + 0.5f,
-                !sealedAtStart,
+                static_cast<float>(cell.x) - 0.5f,
+                static_cast<float>(cell.y),
+                static_cast<float>(cell.z) - 0.5f,
+                static_cast<float>(cell.x) + 0.5f,
+                static_cast<float>(cell.y + 1),
+                static_cast<float>(cell.z) + 0.5f,
+                !pyrolysis,
                 markDirty);
             if (consumedFuel.burnTimeTicks > 0)
             {
-                entity = worldRuntime_->blockEntityAtWorld(fire.x, fire.y, fire.z);
+                entity = worldRuntime_->blockEntityAtWorld(cell.x, cell.y, cell.z);
                 if (entity != nullptr && entity->type == BlockEntityType::Fire)
                 {
                     entity->remainingBurnTicks += consumedFuel.burnTimeTicks;
-                    const ItemStack kilnOutput = sealedAtStart
+                    const ItemStack kilnOutput = pyrolysis
                         ? kilnOutputForFuel(consumedFuel.itemId)
                         : ItemStack{};
-                    entity->pendingOutputItemId = kilnOutput.itemId;
-                    entity->pendingOutputCount = kilnOutput.count;
-                    markBlockEntityDirty(fire.x, fire.z);
+                    entity->carbonizingOutputItemId = kilnOutput.itemId;
+                    entity->carbonizingOutputCount = kilnOutput.count;
+                    markBlockEntityDirty(cell.x, cell.z);
+                    worldRuntime_->scheduleBlockTickAtWorld(
+                        cell.x,
+                        cell.y,
+                        cell.z,
+                        world::WorldRuntime::BlockTickReasonFireBurn);
                 }
-                continue;
+                return;
             }
 
-            if (!setBlockAtWorld(fire.x, fire.y, fire.z, BlockAir))
+            if (!setBlockAtWorld(cell.x, cell.y, cell.z, BlockAir))
             {
-                continue;
+                return;
             }
 
             result.brokenBlocks.push_back(BlockBreakEvent{
-                fire.x,
-                fire.y,
-                fire.z,
+                cell.x,
+                cell.y,
+                cell.z,
                 block
             });
-        }
+        };
 
         const std::vector<world::WorldRuntime::BlockTickCell> cells = worldRuntime_->takeScheduledBlockTicks(maxCells);
         for (const world::WorldRuntime::BlockTickCell& cell : cells)
         {
             const uint16_t block = worldRuntime_->blockAtWorld(cell.x, cell.y, cell.z);
+            if (block != BlockAir && blockDefinition(block).renderType == BlockRenderType::Fire)
+            {
+                processFireBurn(cell, block);
+                continue;
+            }
+            if (worldRuntime_->blockEntityAtWorld(cell.x, cell.y, cell.z) != nullptr)
+            {
+                worldRuntime_->removeBlockEntityAtWorld(cell.x, cell.y, cell.z);
+            }
             if (block == BlockAir)
             {
                 continue;
@@ -528,7 +734,7 @@ namespace dolbuto::gameplay
         const BlockDefinitionProvider& blockDefinition,
         const BlockInteractionSystem::PropMeshProvider& propMesh,
         const SetBlockFn& setBlockAtWorld,
-        const TerrainCollisionPredicate& terrainCellBlocksItem,
+        const world::DroppedItemRuntime::TerrainCollisionFn& terrainCellBlocksItem,
         const MarkDirtyFn& markDirty)
     {
         const std::size_t slotIndex = static_cast<std::size_t>(std::clamp(hotbarSelectedSlot_, 0, 9));
@@ -568,7 +774,7 @@ namespace dolbuto::gameplay
             return {};
         }
         const BlockDefinition& placedDefinition = blockDefinition(heldDefinition.placeBlockId);
-        const uint16_t placementState = placementStateForBlock(placedDefinition, hit);
+        const uint16_t placementState = placementStateForBlock(placedDefinition, hit, direction);
         if (BlockInteractionSystem::blockIntersectsPlayerCollider(
                 hit.previousBlockX,
                 hit.previousBlockY,
@@ -593,6 +799,8 @@ namespace dolbuto::gameplay
             hit.previousBlockX,
             hit.previousBlockY,
             hit.previousBlockZ,
+            placedDefinition,
+            placementState,
             terrainCellBlocksItem,
             markDirty);
 

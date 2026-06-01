@@ -1,5 +1,6 @@
 #pragma once
 
+#include "camera/Camera.h"
 #include "world/BlockData.h"
 #include "world/WorldTypes.h"
 
@@ -49,6 +50,7 @@ namespace dolbuto::world
             int x = 0;
             int y = 0;
             int z = 0;
+            uint32_t reasons = 0;
 
             bool operator==(const BlockTickCell& other) const
             {
@@ -89,6 +91,9 @@ namespace dolbuto::world
         static constexpr int SubchunkSize = 16;
         static constexpr int SubchunksPerChunk = ChunkSizeY / SubchunkSize;
         static constexpr uint16_t BlockAir = 0;
+        static constexpr uint32_t BlockTickReasonSelfBlockChanged = 1u << 0u;
+        static constexpr uint32_t BlockTickReasonBlockNeighborChanged = 1u << 1u;
+        static constexpr uint32_t BlockTickReasonFireBurn = 1u << 2u;
 
         static int floorDiv(int value, int divisor);
         static int positiveModulo(int value, int divisor);
@@ -132,9 +137,10 @@ namespace dolbuto::world
         bool removeBlockEntityAtWorld(int x, int y, int z);
         uint8_t lightAtWorld(int x, int y, int z) const;
         bool terrainCellBlocksPlayer(int x, int y, int z, const BlockDefinitionProvider& blockDefinition) const;
+        bool terrainCellIntersectsAabb(int x, int y, int z, DVec3 min, DVec3 max, const BlockDefinitionProvider& blockDefinition) const;
         bool setBlockAtWorld(int x, int y, int z, uint16_t block);
         bool setBlockStateAtWorld(int x, int y, int z, uint16_t state);
-        void scheduleBlockTickAtWorld(int x, int y, int z);
+        void scheduleBlockTickAtWorld(int x, int y, int z, uint32_t reasons);
         void scheduleBlockTickNeighborhood(int x, int y, int z);
         std::vector<BlockTickCell> takeScheduledBlockTicks(uint32_t maxCells);
         void scheduleFluidTickAtWorld(int x, int y, int z);
@@ -150,7 +156,7 @@ namespace dolbuto::world
 
         RuntimeChunkMap chunks_;
         LightAttenuationTablesPtr lightAttenuationTables_;
-        std::unordered_set<BlockTickCell, BlockTickCellHash> nextBlockTicks_;
+        std::unordered_map<BlockTickCell, uint32_t, BlockTickCellHash> nextBlockTicks_;
         std::unordered_set<FluidTickCell, FluidTickCellHash> nextFluidTicks_;
     };
 }

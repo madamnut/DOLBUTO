@@ -3,7 +3,9 @@
 #include "camera/Camera.h"
 #include "world/BlockData.h"
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace dolbuto::world::block_visual
@@ -135,6 +137,144 @@ namespace dolbuto::world::block_visual
     inline LocalAabb slabWorldAabb(int x, int y, int z, uint16_t blockState)
     {
         const LocalAabb local = slabLocalAabb(blockState);
+        return LocalAabb{
+            Vec3{static_cast<float>(x) - 0.5f + local.min.x, static_cast<float>(y) + local.min.y, static_cast<float>(z) - 0.5f + local.min.z},
+            Vec3{static_cast<float>(x) - 0.5f + local.max.x, static_cast<float>(y) + local.max.y, static_cast<float>(z) - 0.5f + local.max.z}
+        };
+    }
+
+    struct LocalAxis
+    {
+        int axis = 0;
+        int sign = 1;
+    };
+
+    struct AttachFaceBasis
+    {
+        BlockAttachState face = BlockAttachState::Bottom;
+        LocalAxis normal{};
+        LocalAxis u{};
+        LocalAxis v{};
+    };
+
+    inline uint16_t attachGridState(BlockAttachState face, int grid)
+    {
+        const int clampedGrid = std::clamp(grid, 1, 9);
+        return static_cast<uint16_t>(static_cast<uint16_t>(face) * 9u + static_cast<uint16_t>(clampedGrid - 1));
+    }
+
+    inline BlockAttachState attachGridFace(uint16_t blockState)
+    {
+        const uint16_t face = static_cast<uint16_t>(blockState / 9u);
+        return attachState(face);
+    }
+
+    inline int attachGridCommand(uint16_t blockState)
+    {
+        const int grid = static_cast<int>(blockState % 9u) + 1;
+        switch (grid)
+        {
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+            return grid;
+        case 5:
+        default:
+            return 2;
+        }
+    }
+
+    inline AttachFaceBasis attachFaceBasis(BlockAttachState face)
+    {
+        switch (face)
+        {
+        case BlockAttachState::Top:
+            return AttachFaceBasis{face, LocalAxis{1, -1}, LocalAxis{0, 1}, LocalAxis{2, 1}};
+        case BlockAttachState::North:
+            return AttachFaceBasis{face, LocalAxis{2, 1}, LocalAxis{0, -1}, LocalAxis{1, 1}};
+        case BlockAttachState::South:
+            return AttachFaceBasis{face, LocalAxis{2, -1}, LocalAxis{0, 1}, LocalAxis{1, 1}};
+        case BlockAttachState::West:
+            return AttachFaceBasis{face, LocalAxis{0, 1}, LocalAxis{2, 1}, LocalAxis{1, 1}};
+        case BlockAttachState::East:
+            return AttachFaceBasis{face, LocalAxis{0, -1}, LocalAxis{2, -1}, LocalAxis{1, 1}};
+        case BlockAttachState::Bottom:
+        default:
+            return AttachFaceBasis{BlockAttachState::Bottom, LocalAxis{1, 1}, LocalAxis{0, 1}, LocalAxis{2, -1}};
+        }
+    }
+
+    inline void applyAxisRange(std::array<float, 3>& minValues, std::array<float, 3>& maxValues, LocalAxis axis, float minValue, float maxValue)
+    {
+        const float clampedMin = std::clamp(minValue, 0.0f, 1.0f);
+        const float clampedMax = std::clamp(maxValue, clampedMin, 1.0f);
+        if (axis.sign >= 0)
+        {
+            minValues[static_cast<size_t>(axis.axis)] = clampedMin;
+            maxValues[static_cast<size_t>(axis.axis)] = clampedMax;
+        }
+        else
+        {
+            minValues[static_cast<size_t>(axis.axis)] = 1.0f - clampedMax;
+            maxValues[static_cast<size_t>(axis.axis)] = 1.0f - clampedMin;
+        }
+    }
+
+    inline LocalAabb halfSlabLocalAabb(uint16_t blockState)
+    {
+        const AttachFaceBasis basis = attachFaceBasis(attachGridFace(blockState));
+        const int grid = attachGridCommand(blockState);
+        std::array<float, 3> minValues{0.0f, 0.0f, 0.0f};
+        std::array<float, 3> maxValues{1.0f, 1.0f, 1.0f};
+
+        const bool corner = grid == 1 || grid == 3 || grid == 7 || grid == 9;
+        const float normalMax = corner ? 1.0f : 0.5f;
+        float uMin = 0.0f;
+        float uMax = 1.0f;
+        float vMin = 0.0f;
+        float vMax = 1.0f;
+
+        if (corner)
+        {
+            uMin = (grid == 3 || grid == 9) ? 0.5f : 0.0f;
+            uMax = uMin + 0.5f;
+            vMin = (grid == 7 || grid == 9) ? 0.5f : 0.0f;
+            vMax = vMin + 0.5f;
+        }
+        else if (grid == 2)
+        {
+            vMax = 0.5f;
+        }
+        else if (grid == 8)
+        {
+            vMin = 0.5f;
+        }
+        else if (grid == 4)
+        {
+            uMax = 0.5f;
+        }
+        else if (grid == 6)
+        {
+            uMin = 0.5f;
+        }
+
+        applyAxisRange(minValues, maxValues, basis.normal, 0.0f, normalMax);
+        applyAxisRange(minValues, maxValues, basis.u, uMin, uMax);
+        applyAxisRange(minValues, maxValues, basis.v, vMin, vMax);
+        return LocalAabb{
+            Vec3{minValues[0], minValues[1], minValues[2]},
+            Vec3{maxValues[0], maxValues[1], maxValues[2]}
+        };
+    }
+
+    inline LocalAabb halfSlabWorldAabb(int x, int y, int z, uint16_t blockState)
+    {
+        const LocalAabb local = halfSlabLocalAabb(blockState);
         return LocalAabb{
             Vec3{static_cast<float>(x) - 0.5f + local.min.x, static_cast<float>(y) + local.min.y, static_cast<float>(z) - 0.5f + local.min.z},
             Vec3{static_cast<float>(x) - 0.5f + local.max.x, static_cast<float>(y) + local.max.y, static_cast<float>(z) - 0.5f + local.max.z}

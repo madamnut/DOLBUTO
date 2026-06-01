@@ -22,7 +22,7 @@
 - AO 패턴이 다른 면은 무리해서 합치지 않는다.
 - 식물 같은 `cross` 렌더 타입은 X자 스프라이트 형태로 만든다.
 - `fire` 렌더 타입은 바닥 불꽃용 컷아웃 쿼드 묶음으로 만든다.
-- `slab` 렌더 타입은 `blockStates`의 attach 상태를 읽어 셀 안의 반칸 cuboid를 별도 메쉬로 만든다.
+- `slab` 렌더 타입은 `blockStates`의 attach 상태를 읽어 셀 안의 반칸 cuboid를 별도 메쉬로 만들고, `half_slab`은 attach_grid 상태를 읽어 `0.5 x 0.5 x 1.0` 조각 메쉬를 만든다.
 - 청크 메싱은 주변 8청크 정보를 사용해 경계면을 처리한다.
 - 조명 전파는 슬랩의 attach 상태를 읽어 붙은 면 방향으로만 블록 감쇄를 적용한다.
 
@@ -56,7 +56,7 @@
 `src/renderer/PlayerModelLoader.h/.cpp`는 `Character.glb`의 node/mesh primitive/vertex/index 데이터를 읽어 파트별 플레이어 모델 source data를 만든다.
 `src/renderer/PlayerMeshRenderPath.h/.cpp`는 player GLB 모델 로드, player vertex/index buffer 생성, GLB node transform 기반 매 프레임 player vertex 위치 갱신, player indexed draw와 buffer 수명을 담당한다.
 `PlayerMeshRenderPath`는 `Head` node에 렌더 프레임의 head yaw/pitch 추가 transform을 적용한다.
-`src/renderer/ParticleRenderPath.h/.cpp`는 블록 파괴 파티클 상태, 파괴 오버레이 quad 생성, 불 연기 파티클, 파티클 수명/단순 terrain 충돌 갱신, host-visible particle vertex/index buffer 업로드, particle draw path를 담당한다.
+`src/renderer/ParticleRenderPath.h/.cpp`는 블록 파괴 파티클 상태, 파괴 오버레이 quad 생성, 불 연기 파티클, 파티클 수명/형상 기반 terrain 충돌 갱신, host-visible particle vertex/index buffer 업로드, particle draw path를 담당한다.
 `src/renderer/DroppedItemRenderCollector.h/.cpp`는 드랍 아이템 청크 frustum culling, 거리 culling, `DroppedItemRenderPath::RenderInstance` 목록 생성을 담당한다.
 `src/renderer/DroppedItemRenderPath.h/.cpp`는 드랍 아이템 로컬 스프라이트 mesh 타입, GPU static vertex/index buffer, persistent instance buffer, instance 업로드, item id별 batch draw를 담당한다.
 `src/renderer/ItemSpriteMeshBuilder.h/.cpp`는 아이템 텍스처 alpha를 읽어 드랍 아이템용 extruded sprite mesh를 생성한다.
@@ -118,8 +118,8 @@ viewmodel pipeline은 depth test/write를 사용해 viewmodel mesh 내부의 앞
 CPU는 매 프레임 vertex buffer를 덮어쓰지 않고, 현재 in-flight frame의 transform buffer만 갱신한다.
 아이템을 들고 있을 때는 손 mesh를 숨기고 아이템 viewmodel만 표시한다.
 든 아이템은 `item_viewmodel.vert`에서 카메라 회전을 적용하지 않는 view-space 좌표로 렌더링해 화면상 같은 면이 유지된다.
-`block_model` 든 아이템은 `placeBlock` 블록의 텍스처 layer를 사용하는 작은 블록 mesh로 렌더링한다.
-대상 블록이 `slab`이면 기본 bottom 반블럭 mesh와 생성 슬롯 아이콘을 사용한다.
+`block_model` 든 아이템은 `modelBlock` 또는 fallback `placeBlock` 블록의 텍스처 layer를 사용하는 작은 블록 mesh로 렌더링한다.
+대상 블록이 `slab`이거나 아이템의 `modelShape`가 `slab`, `quarter_log`이면 해당 X/Y/Z 크기의 bottom 기준 mesh와 생성 슬롯 아이콘을 사용한다.
 `config/viewmodel.json`은 손/아이템 viewmodel의 view-space 위치, 스케일, 회전값을 제공하고, `RendererConfigBridge`가 `ClientRuntimeState::viewmodelConfig`로 로드한다.
 `heldItem`은 `extruded_sprite` 든 아이템에 사용하고, `heldBlockModelItem`은 `block_model` 든 아이템에 사용한다.
 fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
@@ -217,11 +217,17 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 ## 슬랩 렌더링
 
 `renderType = "slab"` 블록은 일반 지형 메쉬 경로 안에서 반칸 cuboid로 렌더링한다.
+`renderType = "half_slab"` 블록은 같은 경로에서 `0.5 x 0.5 x 1.0` cuboid로 렌더링한다.
 
 - 현재 상태 범주는 `stateKind: "attach"`이며 bottom/top/north/south/west/east를 지원한다.
+- `half_slab`은 `stateKind: "attach_grid"`를 사용한다. 상태값은 `face * 9 + (grid - 1)`이고, grid는 배치 면의 `7 8 9 / 4 5 6 / 1 2 3` 위치다.
 - 슬랩 메쉬는 큐브형 블록의 greedy meshing 대상이 아니며, 셀별 6면을 필요한 만큼 방출한다.
 - 슬랩의 외곽 면이 셀 경계에 닿고 이웃 블록이 해당 면을 가릴 수 있을 때만 그 면을 생략한다.
-- 옆면 UV는 해당 블록 안에서 슬랩이 차지하는 영역만 샘플링한다. bottom 슬랩은 옆면 텍스처의 아래 절반, top 슬랩은 위 절반을 사용한다.
+- 슬랩 텍스처는 bottom 상태의 기준 반칸 cuboid 6면을 먼저 정의하고, top/north/south/west/east 상태는 그 기준 모델을 셀 안에서 회전/이동한 결과로 렌더링한다.
+- 따라서 세워진 슬랩도 기준 상태의 위/아래/옆면 관계와 UV 영역을 유지한다. bottom 기준 옆면은 텍스처의 아래 절반을 사용한다.
+- `half_slab` 배치에서 grid `1/3/7/9`는 꼭짓점에 세운 조각이고, `2/4/6/8`은 모서리에 눕힌 조각이다. grid `5`는 설치 시 플레이어가 보는 방향의 `2/4/6/8`로 변환한다.
+- `half_slab` 텍스처도 기준 slab을 수직으로 반 자른 `0.5 x 0.5 x 1.0` 조각 모델을 먼저 정의한다. slab의 위/아래였던 면은 `topBottom`, 원래 외곽 옆면은 `side`, 새로 잘린 수직 절단면은 `verticalSection`을 사용하고, attach_grid 상태는 이 기준 배치를 회전/이동만 한다.
+- `half_slab` UV는 현재 배치된 AABB에 맞춰 다시 0~1로 펴지 않는다. 배치 좌표와 재질 좌표를 분리해, 조각을 다른 위치나 방향으로 놓아도 slab을 자른 기준의 위/아래/외곽/절단면 관계가 유지된다.
 - 조명은 셀 전체 차단이 아니라 붙은 면 방향 차단으로 계산한다. bottom 슬랩은 아래 방향만 막고, top/side 슬랩도 각각 붙은 면 방향 하나만 막는다.
 - 선택 레이캐스트와 선택 아웃라인은 같은 슬랩 AABB를 사용한다.
 - 아이템 슬롯/든 아이템/드랍 아이템의 `block_model`은 기본 bottom 슬랩 모양을 사용하고, 옆면도 아래 절반 UV를 사용한다.
@@ -240,8 +246,9 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 - 모든 불은 같은 프레임 값을 사용하므로 초당 12프레임의 동기화된 단순 애니메이션으로 표시된다.
 - 불 블록은 활성 fire emitter로 등록되어 `assets/textures/particle/smoke/smoke_0.png`부터 `smoke_7.png`까지의 연기 파티클을 주기적으로 생성한다.
 - fire emitter는 블록 설치/제거와 청크 로드/언로드 시점에 갱신하며, 매 프레임 전체 월드를 스캔하지 않는다.
+- fire block entity가 `pyrolysis` mode이면 해당 emitter의 연기 생성 간격을 1/3로 줄여 일반 불보다 3배 많은 연기를 만든다.
 - 연기 파티클은 위로 천천히 상승하고 X/Z 방향으로 약하게 흔들리며, 생성 시점에 `0.8~1.0`블록 크기로 정해진 값을 유지한다.
-- 연기 파티클은 중심점 기준으로 solid terrain cell과 충돌하면 해당 축 이동을 막고 튕기지는 않는다.
+- 연기 파티클은 중심점 기준으로 지형 충돌 형상과 충돌하면 해당 축 이동을 막고 튕기지는 않는다.
 - 연기 애니메이션 프레임은 파티클 수명 비율로 `smoke_0`에서 `smoke_7`까지 1회 진행하고, alpha는 생성 직후 fade-in 후 수명 끝으로 갈수록 fade-out한다.
 
 ## 컬링
@@ -317,7 +324,7 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 - 수명: `0.45 ~ 0.75`초.
 - 크기: `0.10 ~ 0.16`블록.
 - 중력: `22`.
-- 충돌: solid terrain cell에 대한 단순 바닥 충돌, 약한 bounce, 강한 X/Z friction.
+- 충돌: 파티클 AABB와 지형 충돌 형상을 비교하는 바닥 충돌, 약한 bounce, 강한 X/Z friction.
 - Pipeline: 기존 block texture array를 사용하는 전용 particle graphics pipeline.
 - 불 연기 파티클은 별도 smoke particle texture array를 같은 particle pipeline에 바인딩해 그린다.
 - Depth test는 켜고 depth write는 끈다.
@@ -330,7 +337,7 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 
 드랍 아이템은 전용 item pipeline으로 렌더링한다.
 아이템 스프라이트에서 만든 로컬 extruded mesh와 `block_model`용 작은 큐브 mesh는 시작 시 정적 vertex/index buffer에 한 번 업로드한다.
-로컬 extruded mesh 생성은 `ItemSpriteMeshBuilder`가 담당하고, `block_model` mesh는 `placeBlock` 블록의 6면 텍스처 layer를 사용해 구성한다.
+로컬 extruded mesh 생성은 `ItemSpriteMeshBuilder`가 담당하고, `block_model` mesh는 `modelBlock` 또는 fallback `placeBlock` 블록의 6면 텍스처 layer를 사용해 구성한다.
 결과 타입은 모두 `DroppedItemRenderPath::ItemSpriteMesh`이다.
 프레임마다 CPU가 아이템 쿼드 정점을 다시 펼치지 않고, 드랍 아이템 위치/회전/텍스처 layer만 담은 instance buffer를 갱신한다.
 instance buffer는 persistent mapping 상태로 유지해 매 프레임 `vkMapMemory`/`vkUnmapMemory`를 반복하지 않는다.
@@ -358,8 +365,11 @@ item instance buffer는 frame-in-flight별 영역을 나누고, 각 프레임 �
 
 인벤토리/핫바 슬롯 아이콘은 RmlUi `<img>`로 표시한다.
 `sprite` 슬롯 아이콘은 `assets/textures/item/{slotTexture}.png`를 직접 사용한다.
-`block_model` 슬롯 아이콘은 콘텐츠 로딩 중 `assets::writeBlockItemIcon`이 `placeBlock` 블록 텍스처를 합성해 `assets/textures/item/generated/{item_key}_slot.png` 파일로 만든다.
+`block_model` 슬롯 아이콘은 콘텐츠 로딩 중 `assets::writeBlockItemIcon`이 `modelBlock` 또는 fallback `placeBlock` 블록 텍스처를 합성해 `assets/textures/item/generated/{item_key}_slot.png` 파일로 만든다.
 UI는 생성된 텍스처도 일반 슬롯 이미지와 같은 경로로 읽는다.
+아이템 슬롯 아이콘도 `modelShape`의 X/Y/Z 크기를 반영하므로 `quarter_log`는 반블럭보다 낮은 조각이 아니라 수직으로 한 번 더 자른 긴 1/4 통나무 조각으로 보인다.
+`quarter_log`의 한쪽 수직 절단면은 `modelBlock` 블록 재질의 `verticalSection` 레이어를 전체 UV로 사용한다.
+현재 `quarter_stripped_log`는 `stripped_log`의 `verticalSection = stripped_log_section_vertical` 설정을 절단면 텍스처로 사용한다.
 
 ## 진단 오버레이
 

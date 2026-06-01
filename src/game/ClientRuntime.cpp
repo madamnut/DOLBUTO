@@ -95,44 +95,16 @@ namespace dolbuto::game
 
         bool terrainCellIntersectsPlayerAabb(const ClientRuntimeState& state, int x, int y, int z, DVec3 min, DVec3 max)
         {
-            if (y < 0)
-            {
-                return true;
-            }
-            if (y >= world::WorldRuntime::ChunkSizeY)
-            {
-                return false;
-            }
-
-            const int chunkX = floorDiv(x, world::WorldRuntime::ChunkSizeX);
-            const int chunkZ = floorDiv(z, world::WorldRuntime::ChunkSizeZ);
-            const RuntimeChunk* chunk = state.worldRuntime.find(chunkKey(chunkX, chunkZ));
-            if (chunk == nullptr || !chunk->data ||
-                (chunk->genState != ChunkGenState::LocalLightReady &&
-                    chunk->genState != ChunkGenState::LightResolved &&
-                    chunk->genState != ChunkGenState::Meshed))
-            {
-                return true;
-            }
-
-            const int localX = positiveModulo(x, world::WorldRuntime::ChunkSizeX);
-            const int localZ = positiveModulo(z, world::WorldRuntime::ChunkSizeZ);
-            const std::size_t index = static_cast<std::size_t>((y * world::WorldRuntime::ChunkSizeZ + localZ) * world::WorldRuntime::ChunkSizeX + localX);
-            if (index >= chunk->data->blocks.size())
-            {
-                return true;
-            }
-
-            const uint16_t block = chunk->data->blocks[index];
-            const uint16_t blockState = index < chunk->data->blockStates.size() ? chunk->data->blockStates[index] : 0;
-            return gameplay::BlockInteractionSystem::blockIntersectsAabb(
+            return state.worldRuntime.terrainCellIntersectsAabb(
                 x,
                 y,
                 z,
-                blockDefinition(state, block),
                 min,
                 max,
-                blockState);
+                [&state](uint16_t block) -> const BlockDefinition&
+                {
+                    return blockDefinition(state, block);
+                });
         }
 
         world::TerrainBuilderConfig terrainBuilderConfig(const ClientRuntimeState& state)

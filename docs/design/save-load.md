@@ -157,8 +157,10 @@ repeat blockEntityCount:
   uint8 localZ
   uint16 y
   uint32 remainingBurnTicks
-  uint16 pendingOutputItemId
-  uint16 pendingOutputCount
+  uint8 fireMode      // 0 = normal, 1 = pyrolysis
+  uint8 reserved
+  uint16 carbonizingOutputItemId
+  uint16 carbonizingOutputCount
 uint32 blockStateRunCount
 repeat blockStateRunCount:
   uint32 state
@@ -174,10 +176,10 @@ uint64 revision
 
 block entity는 블록 ID만으로 표현하지 않는 셀별 상태를 저장한다.
 현재 저장 타입은 fire뿐이며, `remainingBurnTicks`는 해당 fire 블록이 꺼지기까지 남은 tick 수다.
-`pendingOutputItemId/count`는 pit kiln 연소가 끝날 때 조건이 맞으면 드랍할 예약 결과물이며, 예약 결과물이 없으면 둘 다 `0`이다.
+`fireMode`는 주변 block change event로 갱신된 fire의 현재 모드이며, `0`은 일반 불, `1`은 열분해 불이다.
+`carbonizingOutputItemId/count`는 열분해 연료가 다 탔을 때 드랍할 예약 결과물이며, 예약 결과물이 없으면 둘 다 `0`이다.
 로드된 fire 블록에 block entity가 없으면 렌더/런타임 갱신 시 초기값으로 보강하고, block entity만 남고 실제 블록이 fire가 아니면 런타임에서 제거한다.
-기존 청크 엔티티 payload처럼 block entity 섹션이 없는 저장도 읽을 수 있다.
-`pendingOutputItemId/count`가 없는 기존 fire block entity payload도 읽을 수 있으며, 이 경우 예약 결과물은 없는 것으로 처리한다.
+현재 block entity payload는 기존 저장 호환을 지원하지 않고 새 fire mode/열분해 결과 포맷을 기준으로 읽는다.
 block state RLE 섹션은 block entity 뒤, revision 앞에 붙는다.
 구버전 payload처럼 해당 섹션이 없으면 `revision`을 바로 읽고, 런타임 설치 시 `blockStates`를 0으로 채운다.
 

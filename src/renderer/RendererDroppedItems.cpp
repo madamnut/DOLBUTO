@@ -187,9 +187,9 @@ namespace dolbuto
         const bool inventoryChanged = client_.gameplayRuntime.updateDroppedItems(
             playerPosition,
             glfwGetTime(),
-            [this](int x, int y, int z)
+            [this](DVec3 min, DVec3 max)
             {
-                return gameplayBridge_->terrainCellBlocksPlayer(x, y, z);
+                return gameplayBridge_->terrainAabbIntersects(min, max);
             },
             [this]()
             {

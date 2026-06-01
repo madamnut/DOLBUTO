@@ -13,5 +13,9 @@ namespace dolbuto::assets
         const std::vector<std::string>& blockTextureNames,
         const BlockTextureLayers& layers,
         BlockRenderType renderType,
+        float modelWidth,
+        float modelHeight,
+        float modelDepth,
+        bool useVerticalSection,
         const std::filesystem::path& outputPath);
 }

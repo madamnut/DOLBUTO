@@ -74,15 +74,22 @@ assets/textures/item/*.png
 - `useActions`: 손에 들었을 때 수행 가능한 월드 상호작용 액션 키 목록
 - `placeActions`: 손에 들었을 때 수행 가능한 블록/오브젝트 설치 액션 키 목록
 - `placeBlock`: `place` 액션으로 설치할 블록 이름
+- `modelBlock`: `block_model` 아이템 렌더링에 사용할 블록 이름. 생략하면 `placeBlock`을 사용한다.
+- `modelShape`: `block_model` 아이템 렌더링 형상. 현재 `source`, `cube`, `slab`, `quarter_log`를 사용한다.
 - `burnTimeTicks`: 불이 연료로 소비했을 때 더해지는 연소 tick 수. 생략하거나 `0`이면 타지 않는 아이템이다.
 
 `id = 0`은 `none`용으로 예약한다.
 실제 아이템은 `id = 1`부터 시작하며, 구체적으로 빈 구간을 남길 이유가 없으면 순차적으로 배정한다.
-`block_model` 렌더 타입은 아이템의 `placeBlock`으로 지정된 블록의 텍스처 레이어를 사용한다.
+`block_model` 렌더 타입은 아이템의 `modelBlock`으로 지정된 블록의 텍스처 레이어를 사용한다.
+`modelBlock`을 생략하면 기존 설치 아이템처럼 `placeBlock`으로 지정된 블록을 사용한다.
 아이템 데이터에는 별도 `block`이나 `viewModel` 필드를 두지 않는다.
-`slotRender.type = "block_model"`도 `placeBlock`의 블록 텍스처를 사용한다.
+`slotRender.type = "block_model"`도 같은 표시용 블록 텍스처를 사용한다.
 콘텐츠 로딩 시 해당 블록의 위/옆면 텍스처를 합성해 `assets/textures/item/generated/{item_key}_slot.png` 아이콘을 만들고, UI는 기존 슬롯 이미지 경로처럼 이 생성 텍스처를 참조한다.
-`placeBlock` 대상이 `renderType: "slab"`이면 슬롯/든 아이템/드랍 아이템의 블록 모델도 기본 bottom 반블럭 형태로 만든다.
+`modelShape`가 `source`이거나 생략된 상태에서 표시 대상 블록이 `renderType: "slab"`이면 슬롯/든 아이템/드랍 아이템의 블록 모델도 기본 bottom 반블럭 형태로 만든다.
+`modelShape = "slab"`은 표시 대상 블록을 `1.0 x 0.5 x 1.0` 크기로 렌더링한다.
+`modelShape = "quarter_log"`는 반통나무를 수직으로 한 번 더 자른 `0.5 x 0.5 x 1.0` 크기로 렌더링한다.
+설치된 `quarter_stripped_log` 블록은 `renderType: "half_slab"`과 `stateKind: "attach_grid"`를 사용해 같은 크기의 배치 가능 조각으로 처리한다.
+`quarter_log`의 새로 생긴 수직 절단면 한쪽은 `modelBlock` 블록 재질의 `verticalSection` 레이어를 전체 UV로 사용하고, 나머지 바깥 옆면은 기존 side 텍스처의 아래 절반을 사용한다.
 
 현재 `dirt_pile`은 직접 설치하지 않는다.
 `primal_workbench`의 `craft` 작업으로 `dirt_pile` 4개를 `packed_dirt` 1개로 만들고, `packed_dirt`를 설치하면 `dirt` 블록이 된다.
@@ -95,7 +102,7 @@ assets/textures/item/*.png
 가공 아이템은 원재료 합보다 조금 낮은 값을 가진다.
 불은 같은 셀 영역에 있는 연료 아이템 중 하나를 무작위로 소비한다.
 `charcoal`은 하드코딩된 후순위 연료이며, 다른 연료가 없을 때만 무작위 소비 후보에 들어간다.
-밀폐된 fire는 pit kiln 결과 숯을 보호하기 위해 `charcoal`을 연료 후보로 보지 않는다.
+`pyrolysis` fire는 pit kiln 결과 숯을 보호하기 위해 `charcoal`을 연료 후보로 보지 않는다.
 
 현재 연료 값:
 
@@ -111,6 +118,8 @@ long_wooden_stick                                  800
 bough                                              1000
 log                                                2000
 stripped_log                                       1800
+half_stripped_log                                  900
+quarter_stripped_log                               450
 wooden_plank                                       225
 wooden_peg                                         100
 charcoal, coal                                     2400
@@ -118,26 +127,29 @@ charcoal, coal                                     2400
 
 ## Pit Kiln 숯화
 
-fire가 연료를 소비하는 시작 시점과 해당 연료가 다 타는 종료 시점에 fire의 동서남북/상하 6방향이 모두 `collision = true` 블록으로 막혀 있으면 pit kiln 결과물을 만든다.
-현재 레시피는 `log -> charcoal x4`, `stripped_log -> charcoal x4`다.
+fire는 주변 6방향 block change event를 받았을 때 밀폐 여부를 재검사하며, 6방향이 모두 `collision = true`이면 `pyrolysis` mode가 된다.
+연료 소비 시점에 fire mode가 `pyrolysis`이면 pit kiln 결과물을 예약한다.
+현재 레시피는 `log -> charcoal x4`, `stripped_log -> charcoal x4`, `half_stripped_log -> charcoal x3`, `quarter_stripped_log -> charcoal x2`다.
 반블럭도 `collision = true`이면 밀폐 판정에 사용할 수 있다.
 결과 숯은 fire 위치에 드랍되며, 생성된 tick에는 같은 fire가 다음 연료를 바로 소비하지 않는다.
-밀폐가 유지된 fire는 `charcoal`을 연료로 소비하지 않으므로, 남은 일반 연료가 없으면 결과 숯을 남기고 꺼진다.
+열분해 중 밀폐가 깨지면 fire mode는 `normal`로 내려가고 예약된 숯 결과는 폐기된다.
+`pyrolysis` fire는 `charcoal`을 연료로 소비하지 않으므로, 남은 일반 연료가 없으면 결과 숯을 남기고 꺼진다.
 
 ## 드랍 아이템 물리와 렌더링
 
 드랍된 `extruded_sprite` 아이템은 전용 아이템 파이프라인을 통해 얇은 수평 월드 공간 3D 스프라이트 파생 메쉬로 렌더링한다.
 현재 메쉬는 윗면/아랫면 스프라이트 면과 스프라이트 알파 경계에서 생성한 옆면을 사용한다.
-현재 드랍 스프라이트와 기본 드랍 물리 AABB는 같은 `0.68 x 0.05 x 0.68` 블록 크기를 사용한다.
-드랍된 `block_model` 아이템은 `placeBlock` 블록의 6면 텍스처를 사용하는 작은 블록 mesh로 렌더링하며, 기본 렌더 크기와 기본 물리 AABB는 모두 `0.2 x 0.2 x 0.2`다.
-`placeBlock` 대상이 `slab`이면 반높이 블록 모델을 사용하되 드랍 물리 AABB는 기존 `block_model` 기본값을 유지한다.
+현재 드랍 스프라이트와 기본 드랍 물리 AABB는 같은 `0.4 x 0.05 x 0.4` 블록 크기를 사용한다.
+드랍된 `block_model` 아이템은 `modelBlock` 또는 fallback `placeBlock` 블록의 6면 텍스처를 사용하는 작은 블록 mesh로 렌더링하며, 기본 렌더 크기와 기본 물리 AABB는 모두 `0.2 x 0.2 x 0.2`다.
+표시 대상이 `slab`이거나 `modelShape`가 `slab`, `quarter_log`이면 해당 X/Y/Z 크기의 블록 모델을 사용하되 드랍 물리 AABB는 기존 `block_model` 기본값을 유지한다.
 드랍 아이템 런타임 위치는 아이템의 중앙 하단 접점이다.
 
 드랍 생성은 파괴된 블록 중심 주변에서 시작한다.
 드랍 아이템 생성 오프셋, 초기 속도, 공중 회전, 스핀은 런타임 랜덤 값을 사용하므로 던져지는 방향은 결정적이지 않다.
 드랍 아이템 물리는 초당 20틱으로 처리하고, 렌더링은 이전 물리 위치와 현재 물리 위치 사이를 보간한다.
 낙하 중에는 플레이어 지상 이동과 같은 중력값 및 수직 속도 공식을 사용한다: `velocityY -= gravity * dt`.
-수평 감속, 바닥 충돌, 대략적인 옆면 충돌, X/Y/Z 렌더 회전은 아이템 전용으로 유지한다.
+수평 감속, 바닥 충돌, 옆면 충돌, X/Y/Z 렌더 회전은 아이템 전용으로 유지한다.
+지형 충돌은 드랍 아이템의 실제 AABB와 블록의 `collision`, `renderType`, `blockStates`를 비교해 처리하므로 반블럭은 붙은 면의 반칸 범위만 충돌한다.
 착지 후 드랍 아이템은 이동을 멈추고, 평평하게 놓이도록 X/Z 회전을 초기화하며, 랜덤 Y 회전은 유지한다.
 나중에 지지하던 블록이 제거되면, 땅에 있던 아이템은 다음 아이템 물리 틱에서 다시 공중 상태가 되어 낙하한다.
 
@@ -243,6 +255,8 @@ wooden_stick.png
   { "id": 27, "key": "stone_pounder", "name": "Stone Pounder", "stackSize": 1, "slotTexture": "stone_pounder", "droppedRender": { "type": "extruded_sprite", "texture": "stone_pounder" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_pounder" }, "tags": [], "useActions": ["pound", "smash"], "breakActions": ["smash"], "breakLevel": 2, "maxDurability": 64 },
   { "id": 18, "key": "log", "name": "Log", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "log" },
   { "id": 19, "key": "stripped_log", "name": "Stripped Log", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "stripped_log" },
+  { "id": 41, "key": "half_stripped_log", "name": "Half Stripped Log", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "modelBlock": "stripped_log", "modelShape": "slab", "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "half_stripped_log" },
+  { "id": 42, "key": "quarter_stripped_log", "name": "Quarter Stripped Log", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "modelBlock": "stripped_log", "modelShape": "quarter_log", "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "quarter_stripped_log" },
   { "id": 20, "key": "wooden_plank", "name": "Wooden Plank", "stackSize": 99, "slotTexture": "wooden_plank", "droppedRender": { "type": "extruded_sprite", "texture": "wooden_plank" }, "heldRender": { "type": "extruded_sprite", "texture": "wooden_plank" }, "tags": [], "useActions": [] },
   { "id": 26, "key": "primal_workbench", "name": "Primal Workbench", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "primal_workbench" },
   { "id": 29, "key": "wooden_box", "name": "Wooden Box", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "wooden_box" },
@@ -345,14 +359,29 @@ assets/data/interactions.json
   {
     "action": "split",
     "target": "stripped_log",
-    "min": 8,
-    "max": 8,
-    "candidates": ["wooden_plank"]
+    "candidates": [
+      { "item": "half_stripped_log", "min": 2, "max": 2 }
+    ]
+  },
+  {
+    "action": "split",
+    "target": "half_stripped_log",
+    "candidates": [
+      { "item": "quarter_stripped_log", "min": 2, "max": 2 },
+      { "item": "wooden_plank", "min": 4, "max": 4 }
+    ]
   },
   {
     "action": "carve",
     "target": "stripped_log",
     "candidates": ["primal_workbench"]
+  },
+  {
+    "action": "carve",
+    "target": "quarter_stripped_log",
+    "min": 2,
+    "max": 2,
+    "candidates": ["long_wooden_stick"]
   },
   {
     "action": "carve",
@@ -457,8 +486,8 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 - `key`, `slotTexture`, `slotRender.texture`, `droppedRender.texture`, `heldRender.texture`는 소문자 `snake_case`를 사용해야 한다. 생성 슬롯 텍스처는 `generated/{item_key}_slot` 경로를 사용한다.
 - 내구도 없는 실제 아이템의 `stackSize`는 `99`, 내구도 있는 아이템의 `stackSize`는 `1`이어야 한다.
 - `droppedRender.type`, `heldRender.type`은 유효한 아이템 렌더 타입이어야 한다.
-- `block_model` 렌더 타입은 `placeBlock`으로 렌더 대상 블록을 찾는다.
-- `slotRender.type = "block_model"`은 `placeBlock`으로 슬롯 아이콘 대상 블록을 찾는다.
+- `block_model` 렌더 타입은 `modelBlock`으로 렌더 대상 블록을 찾고, 생략 시 `placeBlock`을 사용한다.
+- `slotRender.type = "block_model"`은 같은 표시 대상 블록으로 슬롯 아이콘 대상 블록을 찾는다.
 - `burnTimeTicks`는 생략 가능하며 음수 입력은 `0`으로 정규화한다.
 
 ## 블록 드랍
@@ -599,9 +628,13 @@ plant: placeActions place, placeBlock plant
 branch: placeActions place, placeBlock branch
 log: placeActions place, placeBlock log
 stripped_log: placeActions place, placeBlock stripped_log
+half_stripped_log: placeActions place, placeBlock half_stripped_log
+quarter_stripped_log: placeActions place, placeBlock quarter_stripped_log
 primal_workbench: placeActions place, placeBlock primal_workbench
 wooden_box: placeActions place, placeBlock wooden_box
 ```
+
+`half_stripped_log`, `quarter_stripped_log`는 `modelBlock: "stripped_log"`와 `modelShape`를 사용해 표시 형태를 정하고, 각각 `slab`, `half_slab` 배치 블록으로 설치된다.
 
 현재 석기 아이템 기준:
 

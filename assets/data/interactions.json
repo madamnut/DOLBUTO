@@ -94,10 +94,28 @@
     {
         "action": "split",
         "target": "stripped_log",
-        "min": 8,
-        "max": 8,
         "candidates": [
-            "wooden_plank"
+            {
+                "item": "half_stripped_log",
+                "min": 2,
+                "max": 2
+            }
+        ]
+    },
+    {
+        "action": "split",
+        "target": "half_stripped_log",
+        "candidates": [
+            {
+                "item": "quarter_stripped_log",
+                "min": 2,
+                "max": 2
+            },
+            {
+                "item": "wooden_plank",
+                "min": 4,
+                "max": 4
+            }
         ]
     },
     {
@@ -105,6 +123,15 @@
         "target": "stripped_log",
         "candidates": [
             "primal_workbench"
+        ]
+    },
+    {
+        "action": "carve",
+        "target": "quarter_stripped_log",
+        "min": 2,
+        "max": 2,
+        "candidates": [
+            "long_wooden_stick"
         ]
     },
     {

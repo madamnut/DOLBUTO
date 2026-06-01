@@ -75,6 +75,8 @@ namespace dolbuto::data
         uint16_t maxDurability = 0;
         uint32_t burnTimeTicks = 0;
         std::string placeBlock;
+        std::string modelBlock;
+        std::string modelShape;
     };
 
     struct ParsedInteractionOutput

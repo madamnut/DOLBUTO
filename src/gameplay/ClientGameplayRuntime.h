@@ -41,9 +41,18 @@ namespace dolbuto::gameplay
         uint16_t block = 0;
     };
 
+    struct FireSmokeRateUpdate
+    {
+        int x = 0;
+        int y = 0;
+        int z = 0;
+        float multiplier = 1.0f;
+    };
+
     struct BlockTickResult
     {
         std::vector<BlockBreakEvent> brokenBlocks;
+        std::vector<FireSmokeRateUpdate> fireSmokeRateUpdates;
     };
 
     struct ItemInteractionActionMenu
@@ -77,7 +86,6 @@ namespace dolbuto::gameplay
         using BlockSampler = BlockInteractionSystem::BlockSampler;
         using FluidSampler = BlockInteractionSystem::FluidSampler;
         using BlockDefinitionProvider = BlockInteractionSystem::BlockDefinitionProvider;
-        using TerrainCollisionPredicate = BlockInteractionSystem::TerrainCollisionPredicate;
         using TerrainAabbCollisionPredicate = BlockInteractionSystem::TerrainAabbCollisionPredicate;
         using SetBlockFn = std::function<bool(int, int, int, uint16_t)>;
         using MarkDirtyFn = world::DroppedItemRuntime::MarkDirtyFn;
@@ -138,7 +146,7 @@ namespace dolbuto::gameplay
             const BlockDefinitionProvider& blockDefinition,
             const BlockInteractionSystem::PropMeshProvider& propMesh,
             const SetBlockFn& setBlockAtWorld,
-            const TerrainCollisionPredicate& terrainCellBlocksItem,
+            const world::DroppedItemRuntime::TerrainCollisionFn& terrainCellBlocksItem,
             const MarkDirtyFn& markDirty);
         ItemInteractionMenu beginItemInteractionInView(
             DVec3 origin,

@@ -903,7 +903,14 @@ namespace dolbuto::data
             {
                 definition.placeBlock = *placeBlock;
             }
-
+            if (const std::optional<std::string> modelBlock = jsonStringField(object, "modelBlock"); modelBlock.has_value())
+            {
+                definition.modelBlock = *modelBlock;
+            }
+            if (const std::optional<std::string> modelShape = jsonStringField(object, "modelShape"); modelShape.has_value())
+            {
+                definition.modelShape = *modelShape;
+            }
             definitions.push_back(std::move(definition));
         }
 
@@ -913,7 +920,15 @@ namespace dolbuto::data
     std::vector<ParsedBlockDefinition> parseBlockDefinitions(const std::string& text)
     {
         std::vector<ParsedBlockDefinition> definitions;
-        constexpr std::array<const char*, 5> TextureKeys = {"all", "top", "bottom", "side", "topBottom"};
+        constexpr std::array<const char*, 7> TextureKeys = {
+            "all",
+            "top",
+            "bottom",
+            "side",
+            "topBottom",
+            "verticalSection",
+            "horizontalSection"
+        };
 
         for (const std::string& object : jsonTopLevelObjects(text))
         {
@@ -1022,6 +1037,16 @@ namespace dolbuto::data
                     const std::optional<std::string> textureValue = jsonFieldValue(*textures, key);
                     if (!textureValue.has_value())
                     {
+                        continue;
+                    }
+                    if (std::string(key) == "verticalSection" || std::string(key) == "horizontalSection")
+                    {
+                        if (const std::optional<std::string> texture = jsonStringLiteralValue(*textureValue); texture.has_value() && !texture->empty())
+                        {
+                            ParsedBlockTextureDefinition sectionTexture{};
+                            sectionTexture.texture = *texture;
+                            definition.textures[key] = sectionTexture;
+                        }
                         continue;
                     }
                     if (const std::optional<ParsedBlockTextureDefinition> texture = parseBlockTextureDefinition(*textureValue); texture.has_value())

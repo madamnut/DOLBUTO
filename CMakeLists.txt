@@ -302,6 +302,7 @@ add_executable(DOLBUTO
     src/ui/RmlInput.h
     src/ui/UiSystem.cpp
     src/ui/UiSystem.h
+    src/world/BlockCollisionShape.h
     src/world/BlockData.h
     src/world/BlockVisualShape.h
     src/world/Biome.cpp

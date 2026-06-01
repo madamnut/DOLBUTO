@@ -535,22 +535,382 @@ namespace dolbuto
 
         auto appendSlabBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block, uint16_t blockState)
         {
-            const world::block_visual::LocalAabb aabb = world::block_visual::slabWorldAabb(x, y, z, blockState);
-            const world::block_visual::LocalAabb localAabb = world::block_visual::slabLocalAabb(blockState);
-            const uint32_t topTextureLayer = blockFaceTextureLayer(block, 0);
-            const uint32_t bottomTextureLayer = blockFaceTextureLayer(block, 1);
             const float mipDistanceScale = blockDefinition(block).mipDistanceScale;
             const float alphaBlend = blockAlphaBlend(block);
 
-            auto appendQuad = [&](std::array<TerrainVertex, 4> quad, uint32_t textureLayer, uint8_t packedLight)
+            struct SlabVertex
             {
-                for (TerrainVertex& vertex : quad)
+                Vec3 local{};
+                float u = 0.0f;
+                float v = 0.0f;
+            };
+
+            auto transformLocal = [&](Vec3 local)
+            {
+                switch (world::block_visual::attachState(blockState))
                 {
+                case BlockAttachState::Top:
+                    return Vec3{local.x, local.y + 0.5f, local.z};
+                case BlockAttachState::North:
+                    return Vec3{local.x, 1.0f - local.z, local.y};
+                case BlockAttachState::South:
+                    return Vec3{local.x, local.z, 1.0f - local.y};
+                case BlockAttachState::West:
+                    return Vec3{local.y, local.z, local.x};
+                case BlockAttachState::East:
+                    return Vec3{1.0f - local.y, local.z, 1.0f - local.x};
+                case BlockAttachState::Bottom:
+                default:
+                    return local;
+                }
+            };
+
+            auto normalFace = [](const std::array<SlabVertex, 4>& quad)
+            {
+                const Vec3 a = quad[0].local;
+                const Vec3 b = quad[1].local;
+                const Vec3 c = quad[2].local;
+                const float ux = b.x - a.x;
+                const float uy = b.y - a.y;
+                const float uz = b.z - a.z;
+                const float vx = c.x - a.x;
+                const float vy = c.y - a.y;
+                const float vz = c.z - a.z;
+                const float nx = uy * vz - uz * vy;
+                const float ny = uz * vx - ux * vz;
+                const float nz = ux * vy - uy * vx;
+                if (std::abs(ny) >= std::abs(nx) && std::abs(ny) >= std::abs(nz))
+                {
+                    return ny >= 0.0f ? 0 : 1;
+                }
+                if (std::abs(nx) >= std::abs(nz))
+                {
+                    return nx >= 0.0f ? 2 : 3;
+                }
+                return nz >= 0.0f ? 4 : 5;
+            };
+
+            auto onBoundary = [](const std::array<SlabVertex, 4>& quad, int face)
+            {
+                constexpr float Epsilon = 0.0001f;
+                auto nearValue = [=](float value, float target)
+                {
+                    return std::abs(value - target) <= Epsilon;
+                };
+
+                for (const SlabVertex& vertex : quad)
+                {
+                    if ((face == 0 && !nearValue(vertex.local.y, 1.0f)) ||
+                        (face == 1 && !nearValue(vertex.local.y, 0.0f)) ||
+                        (face == 2 && !nearValue(vertex.local.x, 1.0f)) ||
+                        (face == 3 && !nearValue(vertex.local.x, 0.0f)) ||
+                        (face == 4 && !nearValue(vertex.local.z, 1.0f)) ||
+                        (face == 5 && !nearValue(vertex.local.z, 0.0f)))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            };
+
+            auto neighborForFace = [&](int face)
+            {
+                const int localX = x - worldXStart;
+                const int localZ = z - worldZStart;
+                switch (face)
+                {
+                case 0: return blockAt(localX, y + 1, localZ);
+                case 1: return blockAt(localX, y - 1, localZ);
+                case 2: return blockAt(localX + 1, y, localZ);
+                case 3: return blockAt(localX - 1, y, localZ);
+                case 4: return blockAt(localX, y, localZ + 1);
+                case 5: return blockAt(localX, y, localZ - 1);
+                default: return BlockAir;
+                }
+            };
+
+            auto appendQuad = [&](std::array<SlabVertex, 4> quad, uint32_t textureLayer)
+            {
+                for (SlabVertex& vertex : quad)
+                {
+                    vertex.local = transformLocal(vertex.local);
+                }
+
+                const int face = normalFace(quad);
+                if (onBoundary(quad, face) && neighborCullsFace(block, neighborForFace(face)))
+                {
+                    return;
+                }
+
+                std::array<TerrainVertex, 4> terrainQuad{};
+                for (size_t i = 0; i < quad.size(); ++i)
+                {
+                    TerrainVertex& vertex = terrainQuad[i];
+                    vertex.x = static_cast<float>(x) - 0.5f + quad[i].local.x;
+                    vertex.y = static_cast<float>(y) + quad[i].local.y;
+                    vertex.z = static_cast<float>(z) - 0.5f + quad[i].local.z;
+                    vertex.u = quad[i].u;
+                    vertex.v = quad[i].v;
                     vertex.ao = 1.0f;
                     vertex.textureLayer = static_cast<float>(textureLayer);
                     vertex.mipDistanceScale = mipDistanceScale;
                     vertex.alphaBlend = alphaBlend;
-                    vertex.packedLight = packedLight;
+                    vertex.packedLight = faceLight(x, y, z, face);
+                }
+
+                const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
+                buildData.vertices.push_back(terrainQuad[0]);
+                buildData.vertices.push_back(terrainQuad[1]);
+                buildData.vertices.push_back(terrainQuad[2]);
+                buildData.vertices.push_back(terrainQuad[3]);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 1);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex + 3);
+            };
+
+            constexpr float TopY = 0.5f;
+            constexpr float SideTopV = 0.5f;
+            constexpr float SideBottomV = 1.0f;
+            appendQuad({{
+                    SlabVertex{Vec3{0.0f, TopY, 0.0f}, 0.0f, 0.0f},
+                    SlabVertex{Vec3{0.0f, TopY, 1.0f}, 1.0f, 0.0f},
+                    SlabVertex{Vec3{1.0f, TopY, 1.0f}, 1.0f, 1.0f},
+                    SlabVertex{Vec3{1.0f, TopY, 0.0f}, 0.0f, 1.0f}
+                }},
+                blockFaceTextureLayer(block, 0));
+            appendQuad({{
+                    SlabVertex{Vec3{0.0f, 0.0f, 1.0f}, 0.0f, 0.0f},
+                    SlabVertex{Vec3{0.0f, 0.0f, 0.0f}, 1.0f, 0.0f},
+                    SlabVertex{Vec3{1.0f, 0.0f, 0.0f}, 1.0f, 1.0f},
+                    SlabVertex{Vec3{1.0f, 0.0f, 1.0f}, 0.0f, 1.0f}
+                }},
+                blockFaceTextureLayer(block, 1));
+            appendQuad({{
+                    SlabVertex{Vec3{1.0f, 0.0f, 0.0f}, 0.0f, SideBottomV},
+                    SlabVertex{Vec3{1.0f, TopY, 0.0f}, 0.0f, SideTopV},
+                    SlabVertex{Vec3{1.0f, TopY, 1.0f}, 1.0f, SideTopV},
+                    SlabVertex{Vec3{1.0f, 0.0f, 1.0f}, 1.0f, SideBottomV}
+                }},
+                blockFaceTextureLayer(block, 2));
+            appendQuad({{
+                    SlabVertex{Vec3{0.0f, 0.0f, 1.0f}, 0.0f, SideBottomV},
+                    SlabVertex{Vec3{0.0f, TopY, 1.0f}, 0.0f, SideTopV},
+                    SlabVertex{Vec3{0.0f, TopY, 0.0f}, 1.0f, SideTopV},
+                    SlabVertex{Vec3{0.0f, 0.0f, 0.0f}, 1.0f, SideBottomV}
+                }},
+                blockFaceTextureLayer(block, 3));
+            appendQuad({{
+                    SlabVertex{Vec3{1.0f, 0.0f, 1.0f}, 0.0f, SideBottomV},
+                    SlabVertex{Vec3{1.0f, TopY, 1.0f}, 0.0f, SideTopV},
+                    SlabVertex{Vec3{0.0f, TopY, 1.0f}, 1.0f, SideTopV},
+                    SlabVertex{Vec3{0.0f, 0.0f, 1.0f}, 1.0f, SideBottomV}
+                }},
+                blockFaceTextureLayer(block, 4));
+            appendQuad({{
+                    SlabVertex{Vec3{0.0f, 0.0f, 0.0f}, 0.0f, SideBottomV},
+                    SlabVertex{Vec3{0.0f, TopY, 0.0f}, 0.0f, SideTopV},
+                    SlabVertex{Vec3{1.0f, TopY, 0.0f}, 1.0f, SideTopV},
+                    SlabVertex{Vec3{1.0f, 0.0f, 0.0f}, 1.0f, SideBottomV}
+                }},
+                blockFaceTextureLayer(block, 5));
+        };
+
+        auto appendHalfSlabBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block, uint16_t blockState)
+        {
+            const float mipDistanceScale = blockDefinition(block).mipDistanceScale;
+            const float alphaBlend = blockAlphaBlend(block);
+            const world::block_visual::AttachFaceBasis basis = world::block_visual::attachFaceBasis(
+                world::block_visual::attachGridFace(blockState));
+            const int grid = world::block_visual::attachGridCommand(blockState);
+            const bool corner = grid == 1 || grid == 3 || grid == 7 || grid == 9;
+
+            enum class HalfSlabAxisSemantic
+            {
+                Height,
+                Cut,
+                Long
+            };
+
+            struct ModelAxisRange
+            {
+                world::block_visual::LocalAxis axis{};
+                float min = 0.0f;
+                float max = 1.0f;
+                float materialMin = 0.0f;
+                float materialMax = 1.0f;
+                HalfSlabAxisSemantic semantic = HalfSlabAxisSemantic::Long;
+            };
+
+            auto faceForAxis = [](world::block_visual::LocalAxis axis, int semanticSign)
+            {
+                const int sign = axis.sign * semanticSign;
+                if (axis.axis == 0)
+                {
+                    return sign >= 0 ? 2 : 3;
+                }
+                if (axis.axis == 1)
+                {
+                    return sign >= 0 ? 0 : 1;
+                }
+                return sign >= 0 ? 4 : 5;
+            };
+
+            auto axisValue = [](world::block_visual::LocalAxis axis, float value)
+            {
+                return axis.sign >= 0 ? value : 1.0f - value;
+            };
+
+            auto setAxisValue = [](Vec3& point, int axis, float value)
+            {
+                if (axis == 0)
+                {
+                    point.x = value;
+                }
+                else if (axis == 1)
+                {
+                    point.y = value;
+                }
+                else
+                {
+                    point.z = value;
+                }
+            };
+
+            ModelAxisRange axisA{};
+            ModelAxisRange axisB{};
+            ModelAxisRange axisL{};
+            if (corner)
+            {
+                const float uMin = (grid == 3 || grid == 9) ? 0.5f : 0.0f;
+                const float vMin = (grid == 7 || grid == 9) ? 0.5f : 0.0f;
+                axisA = ModelAxisRange{basis.u, uMin, uMin + 0.5f, uMin, uMin + 0.5f, HalfSlabAxisSemantic::Cut};
+                axisB = ModelAxisRange{basis.v, vMin, vMin + 0.5f, 0.0f, 0.5f, HalfSlabAxisSemantic::Height};
+                axisL = ModelAxisRange{basis.normal, 0.0f, 1.0f, 0.0f, 1.0f, HalfSlabAxisSemantic::Long};
+            }
+            else if (grid == 2 || grid == 8)
+            {
+                const float vMin = grid == 8 ? 0.5f : 0.0f;
+                axisA = ModelAxisRange{basis.v, vMin, vMin + 0.5f, vMin, vMin + 0.5f, HalfSlabAxisSemantic::Cut};
+                axisB = ModelAxisRange{basis.normal, 0.0f, 0.5f, 0.0f, 0.5f, HalfSlabAxisSemantic::Height};
+                axisL = ModelAxisRange{basis.u, 0.0f, 1.0f, 0.0f, 1.0f, HalfSlabAxisSemantic::Long};
+            }
+            else
+            {
+                const float uMin = grid == 6 ? 0.5f : 0.0f;
+                axisA = ModelAxisRange{basis.u, uMin, uMin + 0.5f, uMin, uMin + 0.5f, HalfSlabAxisSemantic::Cut};
+                axisB = ModelAxisRange{basis.normal, 0.0f, 0.5f, 0.0f, 0.5f, HalfSlabAxisSemantic::Height};
+                axisL = ModelAxisRange{basis.v, 0.0f, 1.0f, 0.0f, 1.0f, HalfSlabAxisSemantic::Long};
+            }
+
+            auto point = [&](float a, float b, float length)
+            {
+                Vec3 result{};
+                setAxisValue(result, axisA.axis.axis, axisValue(axisA.axis, a));
+                setAxisValue(result, axisB.axis.axis, axisValue(axisB.axis, b));
+                setAxisValue(result, axisL.axis.axis, axisValue(axisL.axis, length));
+                return result;
+            };
+
+            auto normalized = [](float value, float minValue, float maxValue)
+            {
+                const float extent = std::max(0.0001f, maxValue - minValue);
+                return std::clamp((value - minValue) / extent, 0.0f, 1.0f);
+            };
+
+            auto modelVertex = [&](float a, float b, float length, float u, float v)
+            {
+                TerrainVertex vertex{};
+                const Vec3 local = point(a, b, length);
+                vertex.x = static_cast<float>(x) - 0.5f + local.x;
+                vertex.y = static_cast<float>(y) + local.y;
+                vertex.z = static_cast<float>(z) - 0.5f + local.z;
+                vertex.u = u;
+                vertex.v = v;
+                vertex.ao = 1.0f;
+                vertex.mipDistanceScale = mipDistanceScale;
+                vertex.alphaBlend = alphaBlend;
+                return vertex;
+            };
+
+            auto normalFace = [](const std::array<TerrainVertex, 4>& quad)
+            {
+                const Vec3 a{quad[0].x, quad[0].y, quad[0].z};
+                const Vec3 b{quad[1].x, quad[1].y, quad[1].z};
+                const Vec3 c{quad[2].x, quad[2].y, quad[2].z};
+                const float ux = b.x - a.x;
+                const float uy = b.y - a.y;
+                const float uz = b.z - a.z;
+                const float vx = c.x - a.x;
+                const float vy = c.y - a.y;
+                const float vz = c.z - a.z;
+                const float nx = uy * vz - uz * vy;
+                const float ny = uz * vx - ux * vz;
+                const float nz = ux * vy - uy * vx;
+                if (std::abs(ny) >= std::abs(nx) && std::abs(ny) >= std::abs(nz))
+                {
+                    return ny >= 0.0f ? 0 : 1;
+                }
+                if (std::abs(nx) >= std::abs(nz))
+                {
+                    return nx >= 0.0f ? 2 : 3;
+                }
+                return nz >= 0.0f ? 4 : 5;
+            };
+
+            auto onBoundary = [&](const std::array<TerrainVertex, 4>& quad, int face)
+            {
+                constexpr float Epsilon = 0.0001f;
+                for (const TerrainVertex& vertex : quad)
+                {
+                    const float localX = vertex.x - static_cast<float>(x) + 0.5f;
+                    const float localY = vertex.y - static_cast<float>(y);
+                    const float localZ = vertex.z - static_cast<float>(z) + 0.5f;
+                    if ((face == 0 && std::abs(localY - 1.0f) > Epsilon) ||
+                        (face == 1 && std::abs(localY) > Epsilon) ||
+                        (face == 2 && std::abs(localX - 1.0f) > Epsilon) ||
+                        (face == 3 && std::abs(localX) > Epsilon) ||
+                        (face == 4 && std::abs(localZ - 1.0f) > Epsilon) ||
+                        (face == 5 && std::abs(localZ) > Epsilon))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            };
+
+            auto neighborForFace = [&](int face)
+            {
+                const int localX = x - worldXStart;
+                const int localZ = z - worldZStart;
+                switch (face)
+                {
+                case 0: return blockAt(localX, y + 1, localZ);
+                case 1: return blockAt(localX, y - 1, localZ);
+                case 2: return blockAt(localX + 1, y, localZ);
+                case 3: return blockAt(localX - 1, y, localZ);
+                case 4: return blockAt(localX, y, localZ + 1);
+                case 5: return blockAt(localX, y, localZ - 1);
+                default: return BlockAir;
+                }
+            };
+
+            auto appendQuad = [&](std::array<TerrainVertex, 4> quad, int desiredFace, uint32_t textureLayer)
+            {
+                if (normalFace(quad) != desiredFace)
+                {
+                    std::swap(quad[1], quad[3]);
+                }
+                if (onBoundary(quad, desiredFace) && neighborCullsFace(block, neighborForFace(desiredFace)))
+                {
+                    return;
+                }
+                for (TerrainVertex& vertex : quad)
+                {
+                    vertex.textureLayer = static_cast<float>(textureLayer);
+                    vertex.packedLight = faceLight(x, y, z, desiredFace);
                 }
 
                 const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
@@ -566,55 +926,139 @@ namespace dolbuto
                 buildData.indices.push_back(baseIndex + 3);
             };
 
-            const float x0 = aabb.min.x;
-            const float x1 = aabb.max.x;
-            const float y0 = aabb.min.y;
-            const float y1 = aabb.max.y;
-            const float z0 = aabb.min.z;
-            const float z1 = aabb.max.z;
-            const float lx0 = localAabb.min.x;
-            const float lx1 = localAabb.max.x;
-            const float ly0 = localAabb.min.y;
-            const float ly1 = localAabb.max.y;
-            const float lz0 = localAabb.min.z;
-            const float lz1 = localAabb.max.z;
+            const uint32_t topBottomLayer = blockFaceTextureLayer(block, 0);
+            const uint32_t sideLayer = blockFaceTextureLayer(block, 4);
+            const uint32_t sectionLayer = static_cast<size_t>(block) < blockTextureLayers_.size()
+                ? blockTextureLayers_[block].verticalSection
+                : sideLayer;
+            const auto isSectionFace = [](const ModelAxisRange& range, bool minFace)
+            {
+                return range.semantic == HalfSlabAxisSemantic::Cut &&
+                    ((minFace && range.min > 0.0f) || (!minFace && range.max < 1.0f));
+            };
+            const auto layerForFace = [&](const ModelAxisRange& range, bool minFace)
+            {
+                if (range.semantic == HalfSlabAxisSemantic::Height)
+                {
+                    return topBottomLayer;
+                }
+                return isSectionFace(range, minFace) ? sectionLayer : sideLayer;
+            };
 
-            if (!(localAabb.max.y >= 1.0f && neighborCullsFace(block, blockAt(x - worldXStart, y + 1, z - worldZStart))))
+            const float a0 = axisA.min;
+            const float a1 = axisA.max;
+            const float b0 = axisB.min;
+            const float b1 = axisB.max;
+            const float l0 = axisL.min;
+            const float l1 = axisL.max;
+            const auto materialValue = [&](const ModelAxisRange& range, float value)
             {
-                appendQuad({{{x0, y1, z0, lz0, lx0}, {x0, y1, z1, lz1, lx0}, {x1, y1, z1, lz1, lx1}, {x1, y1, z0, lz0, lx1}}},
-                    topTextureLayer,
-                    faceLight(x, y, z, 0));
-            }
-            if (!(localAabb.min.y <= 0.0f && neighborCullsFace(block, blockAt(x - worldXStart, y - 1, z - worldZStart))))
+                return range.materialMin + normalized(value, range.min, range.max) * (range.materialMax - range.materialMin);
+            };
+            const auto semanticValue = [&](HalfSlabAxisSemantic semantic, float a, float b, float length)
             {
-                appendQuad({{{x0, y0, z1, 1.0f - lz1, lx0}, {x0, y0, z0, 1.0f - lz0, lx0}, {x1, y0, z0, 1.0f - lz0, lx1}, {x1, y0, z1, 1.0f - lz1, lx1}}},
-                    bottomTextureLayer,
-                    faceLight(x, y, z, 1));
-            }
-            if (!(localAabb.max.x >= 1.0f && neighborCullsFace(block, blockAt(x - worldXStart + 1, y, z - worldZStart))))
+                if (axisA.semantic == semantic)
+                {
+                    return materialValue(axisA, a);
+                }
+                if (axisB.semantic == semantic)
+                {
+                    return materialValue(axisB, b);
+                }
+                return materialValue(axisL, length);
+            };
+            const auto faceUv = [&](const ModelAxisRange& faceRange, bool minFace, float a, float b, float length)
             {
-                appendQuad({{{x1, y0, z0, lz0, 1.0f - ly0}, {x1, y1, z0, lz0, 1.0f - ly1}, {x1, y1, z1, lz1, 1.0f - ly1}, {x1, y0, z1, lz1, 1.0f - ly0}}},
-                    blockFaceTextureLayer(block, 2),
-                    faceLight(x, y, z, 2));
-            }
-            if (!(localAabb.min.x <= 0.0f && neighborCullsFace(block, blockAt(x - worldXStart - 1, y, z - worldZStart))))
-            {
-                appendQuad({{{x0, y0, z1, 1.0f - lz1, 1.0f - ly0}, {x0, y1, z1, 1.0f - lz1, 1.0f - ly1}, {x0, y1, z0, 1.0f - lz0, 1.0f - ly1}, {x0, y0, z0, 1.0f - lz0, 1.0f - ly0}}},
-                    blockFaceTextureLayer(block, 3),
-                    faceLight(x, y, z, 3));
-            }
-            if (!(localAabb.max.z >= 1.0f && neighborCullsFace(block, blockAt(x - worldXStart, y, z - worldZStart + 1))))
-            {
-                appendQuad({{{x1, y0, z1, 1.0f - lx1, 1.0f - ly0}, {x1, y1, z1, 1.0f - lx1, 1.0f - ly1}, {x0, y1, z1, 1.0f - lx0, 1.0f - ly1}, {x0, y0, z1, 1.0f - lx0, 1.0f - ly0}}},
-                    blockFaceTextureLayer(block, 4),
-                    faceLight(x, y, z, 4));
-            }
-            if (!(localAabb.min.z <= 0.0f && neighborCullsFace(block, blockAt(x - worldXStart, y, z - worldZStart - 1))))
-            {
-                appendQuad({{{x0, y0, z0, lx0, 1.0f - ly0}, {x0, y1, z0, lx0, 1.0f - ly1}, {x1, y1, z0, lx1, 1.0f - ly1}, {x1, y0, z0, lx1, 1.0f - ly0}}},
-                    blockFaceTextureLayer(block, 5),
-                    faceLight(x, y, z, 5));
-            }
+                const float heightValue = semanticValue(HalfSlabAxisSemantic::Height, a, b, length);
+                const float cutValue = semanticValue(HalfSlabAxisSemantic::Cut, a, b, length);
+                const float longValue = semanticValue(HalfSlabAxisSemantic::Long, a, b, length);
+                if (faceRange.semantic == HalfSlabAxisSemantic::Height)
+                {
+                    return std::array<float, 2>{cutValue, longValue};
+                }
+                if (isSectionFace(faceRange, minFace))
+                {
+                    return std::array<float, 2>{longValue, 1.0f - normalized(heightValue, 0.0f, 0.5f)};
+                }
+                if (faceRange.semantic == HalfSlabAxisSemantic::Cut)
+                {
+                    return std::array<float, 2>{longValue, 1.0f - heightValue};
+                }
+                return std::array<float, 2>{cutValue, 1.0f - heightValue};
+            };
+
+            const std::array<float, 2> longMinUv0 = faceUv(axisL, true, a0, b0, l0);
+            const std::array<float, 2> longMinUv1 = faceUv(axisL, true, a1, b0, l0);
+            const std::array<float, 2> longMinUv2 = faceUv(axisL, true, a1, b1, l0);
+            const std::array<float, 2> longMinUv3 = faceUv(axisL, true, a0, b1, l0);
+            appendQuad({{
+                    modelVertex(a0, b0, l0, longMinUv0[0], longMinUv0[1]),
+                    modelVertex(a1, b0, l0, longMinUv1[0], longMinUv1[1]),
+                    modelVertex(a1, b1, l0, longMinUv2[0], longMinUv2[1]),
+                    modelVertex(a0, b1, l0, longMinUv3[0], longMinUv3[1])
+                }},
+                faceForAxis(axisL.axis, -1),
+                layerForFace(axisL, true));
+            const std::array<float, 2> longMaxUv0 = faceUv(axisL, false, a0, b1, l1);
+            const std::array<float, 2> longMaxUv1 = faceUv(axisL, false, a1, b1, l1);
+            const std::array<float, 2> longMaxUv2 = faceUv(axisL, false, a1, b0, l1);
+            const std::array<float, 2> longMaxUv3 = faceUv(axisL, false, a0, b0, l1);
+            appendQuad({{
+                    modelVertex(a0, b1, l1, longMaxUv0[0], longMaxUv0[1]),
+                    modelVertex(a1, b1, l1, longMaxUv1[0], longMaxUv1[1]),
+                    modelVertex(a1, b0, l1, longMaxUv2[0], longMaxUv2[1]),
+                    modelVertex(a0, b0, l1, longMaxUv3[0], longMaxUv3[1])
+                }},
+                faceForAxis(axisL.axis, 1),
+                layerForFace(axisL, false));
+            const std::array<float, 2> axisAMinUv0 = faceUv(axisA, true, a0, b0, l1);
+            const std::array<float, 2> axisAMinUv1 = faceUv(axisA, true, a0, b1, l1);
+            const std::array<float, 2> axisAMinUv2 = faceUv(axisA, true, a0, b1, l0);
+            const std::array<float, 2> axisAMinUv3 = faceUv(axisA, true, a0, b0, l0);
+            appendQuad({{
+                    modelVertex(a0, b0, l1, axisAMinUv0[0], axisAMinUv0[1]),
+                    modelVertex(a0, b1, l1, axisAMinUv1[0], axisAMinUv1[1]),
+                    modelVertex(a0, b1, l0, axisAMinUv2[0], axisAMinUv2[1]),
+                    modelVertex(a0, b0, l0, axisAMinUv3[0], axisAMinUv3[1])
+                }},
+                faceForAxis(axisA.axis, -1),
+                layerForFace(axisA, true));
+            const std::array<float, 2> axisAMaxUv0 = faceUv(axisA, false, a1, b0, l0);
+            const std::array<float, 2> axisAMaxUv1 = faceUv(axisA, false, a1, b1, l0);
+            const std::array<float, 2> axisAMaxUv2 = faceUv(axisA, false, a1, b1, l1);
+            const std::array<float, 2> axisAMaxUv3 = faceUv(axisA, false, a1, b0, l1);
+            appendQuad({{
+                    modelVertex(a1, b0, l0, axisAMaxUv0[0], axisAMaxUv0[1]),
+                    modelVertex(a1, b1, l0, axisAMaxUv1[0], axisAMaxUv1[1]),
+                    modelVertex(a1, b1, l1, axisAMaxUv2[0], axisAMaxUv2[1]),
+                    modelVertex(a1, b0, l1, axisAMaxUv3[0], axisAMaxUv3[1])
+                }},
+                faceForAxis(axisA.axis, 1),
+                layerForFace(axisA, false));
+            const std::array<float, 2> axisBMinUv0 = faceUv(axisB, true, a0, b0, l0);
+            const std::array<float, 2> axisBMinUv1 = faceUv(axisB, true, a1, b0, l0);
+            const std::array<float, 2> axisBMinUv2 = faceUv(axisB, true, a1, b0, l1);
+            const std::array<float, 2> axisBMinUv3 = faceUv(axisB, true, a0, b0, l1);
+            appendQuad({{
+                    modelVertex(a0, b0, l0, axisBMinUv0[0], axisBMinUv0[1]),
+                    modelVertex(a1, b0, l0, axisBMinUv1[0], axisBMinUv1[1]),
+                    modelVertex(a1, b0, l1, axisBMinUv2[0], axisBMinUv2[1]),
+                    modelVertex(a0, b0, l1, axisBMinUv3[0], axisBMinUv3[1])
+                }},
+                faceForAxis(axisB.axis, -1),
+                layerForFace(axisB, true));
+            const std::array<float, 2> axisBMaxUv0 = faceUv(axisB, false, a0, b1, l1);
+            const std::array<float, 2> axisBMaxUv1 = faceUv(axisB, false, a1, b1, l1);
+            const std::array<float, 2> axisBMaxUv2 = faceUv(axisB, false, a1, b1, l0);
+            const std::array<float, 2> axisBMaxUv3 = faceUv(axisB, false, a0, b1, l0);
+            appendQuad({{
+                    modelVertex(a0, b1, l1, axisBMaxUv0[0], axisBMaxUv0[1]),
+                    modelVertex(a1, b1, l1, axisBMaxUv1[0], axisBMaxUv1[1]),
+                    modelVertex(a1, b1, l0, axisBMaxUv2[0], axisBMaxUv2[1]),
+                    modelVertex(a0, b1, l0, axisBMaxUv3[0], axisBMaxUv3[1])
+                }},
+                faceForAxis(axisB.axis, 1),
+                layerForFace(axisB, false));
         };
 
         auto appendPropBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block)
@@ -914,6 +1358,10 @@ namespace dolbuto
                     else if (blockDefinition(block).renderType == BlockRenderType::Slab)
                     {
                         appendSlabBlock(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, block, blockStateAt(localX, y, localZ));
+                    }
+                    else if (blockDefinition(block).renderType == BlockRenderType::HalfSlab)
+                    {
+                        appendHalfSlabBlock(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, block, blockStateAt(localX, y, localZ));
                     }
                 }
             }

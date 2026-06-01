@@ -689,7 +689,7 @@ namespace dolbuto::world
         const std::vector<ItemDefinition>& itemDefinitions,
         Vec3 playerPosition,
         float dt,
-        const TerrainCollisionPredicate& terrainCellBlocksPlayer,
+        const TerrainAabbCollisionPredicate& terrainCellBlocksPlayer,
         const InventoryInsertCallback& addToPlayerInventory,
         const PickupSoundCallback& playPickupSound,
         const DirtyChunkCallback& markDirty,
@@ -699,20 +699,55 @@ namespace dolbuto::world
         {
             return;
         }
-        (void)itemDefinitions;
 
         constexpr float GroundProbeEpsilon = 0.01f;
-        constexpr float WallProbeHeight = 0.08f;
+        constexpr float VerticalCollisionStep = 0.05f;
         const float drag = std::pow(DroppedItemDrag, dt * 60.0f);
 
-        auto solidAt = [&](float x, float y, float z)
+        auto itemAabb = [](Vec3 position, Bounds bounds)
         {
-            return terrainCellBlocksPlayer &&
-                terrainCellBlocksPlayer(blockCoordinateXz(x), blockCoordinateY(y), blockCoordinateXz(z));
+            return std::pair<DVec3, DVec3>{
+                DVec3{
+                    static_cast<double>(position.x - bounds.halfWidth),
+                    static_cast<double>(position.y),
+                    static_cast<double>(position.z - bounds.halfWidth)
+                },
+                DVec3{
+                    static_cast<double>(position.x + bounds.halfWidth),
+                    static_cast<double>(position.y + bounds.height),
+                    static_cast<double>(position.z + bounds.halfWidth)
+                }
+            };
+        };
+        auto itemAabbBlocked = [&](Vec3 position, Bounds bounds)
+        {
+            if (!terrainCellBlocksPlayer)
+            {
+                return false;
+            }
+
+            const auto [min, max] = itemAabb(position, bounds);
+            return terrainCellBlocksPlayer(min, max);
         };
         auto supportedByGround = [&](const WorldEntity& item)
         {
-            return solidAt(item.position.x, item.position.y - GroundProbeEpsilon, item.position.z);
+            if (!terrainCellBlocksPlayer)
+            {
+                return false;
+            }
+
+            const Bounds bounds = boundsForStack(item.droppedItem.stack, itemDefinitions);
+            return terrainCellBlocksPlayer(
+                DVec3{
+                    static_cast<double>(item.position.x - bounds.halfWidth),
+                    static_cast<double>(item.position.y - GroundProbeEpsilon),
+                    static_cast<double>(item.position.z - bounds.halfWidth)
+                },
+                DVec3{
+                    static_cast<double>(item.position.x + bounds.halfWidth),
+                    static_cast<double>(item.position.y),
+                    static_cast<double>(item.position.z + bounds.halfWidth)
+                });
         };
         auto supportedByDroppedItem = [&](const WorldEntity& item)
         {
@@ -752,9 +787,9 @@ namespace dolbuto::world
             }
             return false;
         };
-        auto sideBlocked = [&](float x, float y, float z)
+        auto sideBlocked = [&](Vec3 position, Bounds bounds)
         {
-            return solidAt(x, y + WallProbeHeight, z);
+            return itemAabbBlocked(position, bounds);
         };
 
         struct EntityMove
@@ -889,8 +924,7 @@ namespace dolbuto::world
                         if (item.velocity.x != 0.0f)
                         {
                             const float nextX = item.position.x + item.velocity.x * dt;
-                            const float probeX = nextX + (item.velocity.x > 0.0f ? itemBounds.halfWidth : -itemBounds.halfWidth);
-                            if (sideBlocked(probeX, item.position.y, item.position.z))
+                            if (sideBlocked(Vec3{nextX, item.position.y, item.position.z}, itemBounds))
                             {
                                 item.velocity.x = -item.velocity.x * DroppedItemWallBounce;
                                 item.velocity.z *= DroppedItemWallFriction;
@@ -904,8 +938,7 @@ namespace dolbuto::world
                         if (item.velocity.z != 0.0f)
                         {
                             const float nextZ = item.position.z + item.velocity.z * dt;
-                            const float probeZ = nextZ + (item.velocity.z > 0.0f ? itemBounds.halfWidth : -itemBounds.halfWidth);
-                            if (sideBlocked(item.position.x, item.position.y, probeZ))
+                            if (sideBlocked(Vec3{item.position.x, item.position.y, nextZ}, itemBounds))
                             {
                                 item.velocity.z = -item.velocity.z * DroppedItemWallBounce;
                                 item.velocity.x *= DroppedItemWallFriction;
@@ -921,17 +954,34 @@ namespace dolbuto::world
                         bool landed = false;
                         if (item.velocity.y < 0.0f)
                         {
-                            const int startY = blockCoordinateY(currentY - GroundProbeEpsilon);
-                            const int endY = blockCoordinateY(nextY - GroundProbeEpsilon);
-                            for (int groundY = startY; groundY >= endY; --groundY)
+                            const float deltaY = nextY - currentY;
+                            const int steps = std::max(1, static_cast<int>(std::ceil(std::abs(deltaY) / VerticalCollisionStep)));
+                            float safeY = currentY;
+                            for (int step = 1; step <= steps; ++step)
                             {
-                                if (!terrainCellBlocksPlayer ||
-                                    !terrainCellBlocksPlayer(blockCoordinateXz(item.position.x), groundY, blockCoordinateXz(item.position.z)))
+                                const float candidateY = currentY + deltaY * (static_cast<float>(step) / static_cast<float>(steps));
+                                if (!itemAabbBlocked(Vec3{item.position.x, candidateY, item.position.z}, itemBounds))
                                 {
+                                    safeY = candidateY;
                                     continue;
                                 }
 
-                                item.position.y = static_cast<float>(groundY + 1);
+                                float low = candidateY;
+                                float high = safeY;
+                                for (int iteration = 0; iteration < 8; ++iteration)
+                                {
+                                    const float mid = (low + high) * 0.5f;
+                                    if (itemAabbBlocked(Vec3{item.position.x, mid, item.position.z}, itemBounds))
+                                    {
+                                        low = mid;
+                                    }
+                                    else
+                                    {
+                                        high = mid;
+                                    }
+                                }
+
+                                item.position.y = high;
                                 item.velocity = {};
                                 item.renderRotationX = 0.0f;
                                 item.renderRotation = std::fmod(item.renderRotation, 6.2831853f);

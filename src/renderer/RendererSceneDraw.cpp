@@ -324,9 +324,9 @@ namespace dolbuto
             push,
             overlay,
             now,
-            [this](int x, int y, int z)
+            [this](DVec3 min, DVec3 max)
             {
-                return gameplayBridge_->terrainCellBlocksPlayer(x, y, z);
+                return gameplayBridge_->terrainAabbIntersects(min, max);
             },
             [this](int x, int y, int z)
             {
@@ -408,6 +408,31 @@ namespace dolbuto
         {
             constexpr float Expand = 0.003f;
             const world::block_visual::LocalAabb aabb = world::block_visual::slabWorldAabb(
+                selectedX,
+                selectedY,
+                selectedZ,
+                client_.worldRuntime.blockStateAtWorld(selectedX, selectedY, selectedZ));
+            const float minX = aabb.min.x - Expand;
+            const float maxX = aabb.max.x + Expand;
+            const float minY = aabb.min.y - Expand;
+            const float maxY = aabb.max.y + Expand;
+            const float minZ = aabb.min.z - Expand;
+            const float maxZ = aabb.max.z + Expand;
+            appendBoxLines(vertices, {{
+                Vec3{minX, minY, minZ},
+                Vec3{maxX, minY, minZ},
+                Vec3{minX, minY, maxZ},
+                Vec3{maxX, minY, maxZ},
+                Vec3{minX, maxY, minZ},
+                Vec3{maxX, maxY, minZ},
+                Vec3{minX, maxY, maxZ},
+                Vec3{maxX, maxY, maxZ}
+            }});
+        }
+        else if (selectedDefinition.renderType == BlockRenderType::HalfSlab)
+        {
+            constexpr float Expand = 0.003f;
+            const world::block_visual::LocalAabb aabb = world::block_visual::halfSlabWorldAabb(
                 selectedX,
                 selectedY,
                 selectedZ,

@@ -2,6 +2,7 @@
 
 #include "renderer/ItemSpriteMeshBuilder.h"
 
+#include <algorithm>
 #include <array>
 #include <limits>
 #include <string>
@@ -11,7 +12,18 @@ namespace dolbuto
 {
     namespace
     {
-        DroppedItemRenderPath::ItemSpriteMesh buildBlockModelItemMesh(const BlockTextureLayers& layers, BlockRenderType renderType)
+        float blockModelExtent(float explicitExtent, float fallback)
+        {
+            return std::clamp(explicitExtent > 0.0f ? explicitExtent : fallback, 0.0625f, 1.0f);
+        }
+
+        DroppedItemRenderPath::ItemSpriteMesh buildBlockModelItemMesh(
+            const BlockTextureLayers& layers,
+            BlockRenderType renderType,
+            float explicitWidth,
+            float explicitHeight,
+            float explicitDepth,
+            bool useVerticalSection)
         {
             DroppedItemRenderPath::ItemSpriteMesh mesh{};
             auto addQuad = [&](std::array<Vec3, 4> positions, std::array<std::array<float, 2>, 4> uvs, uint32_t textureLayer, float ao)
@@ -24,40 +36,49 @@ namespace dolbuto
                 mesh.quads.push_back(quad);
             };
 
+            const float width = blockModelExtent(explicitWidth, 1.0f);
+            const float height = blockModelExtent(explicitHeight, renderType == BlockRenderType::Slab ? 0.5f : 1.0f);
+            const float depth = blockModelExtent(explicitDepth, 1.0f);
+            const float minX = -0.5f * width;
+            const float maxX = 0.5f * width;
             const float minY = -0.5f;
-            const float maxY = renderType == BlockRenderType::Slab ? 0.0f : 0.5f;
+            const float maxY = minY + height;
+            const float minZ = -0.5f * depth;
+            const float maxZ = 0.5f * depth;
             const float minLocalY = 0.0f;
-            const float maxLocalY = renderType == BlockRenderType::Slab ? 0.5f : 1.0f;
+            const float maxLocalY = height;
             const float sideTopV = 1.0f - maxLocalY;
             const float sideBottomV = 1.0f - minLocalY;
             addQuad(
-                {{{-0.5f, maxY, -0.5f}, {-0.5f, maxY, 0.5f}, {0.5f, maxY, 0.5f}, {0.5f, maxY, -0.5f}}},
-                {{{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}}},
+                {{{minX, maxY, minZ}, {minX, maxY, maxZ}, {maxX, maxY, maxZ}, {maxX, maxY, minZ}}},
+                {{{0.0f, 0.0f}, {0.0f, depth}, {width, depth}, {width, 0.0f}}},
                 layers.faces[0],
                 1.0f);
             addQuad(
-                {{{-0.5f, minY, 0.5f}, {-0.5f, minY, -0.5f}, {0.5f, minY, -0.5f}, {0.5f, minY, 0.5f}}},
-                {{{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}}},
+                {{{minX, minY, maxZ}, {minX, minY, minZ}, {maxX, minY, minZ}, {maxX, minY, maxZ}}},
+                {{{0.0f, depth}, {0.0f, 0.0f}, {width, 0.0f}, {width, depth}}},
                 layers.faces[1],
                 0.82f);
             addQuad(
-                {{{0.5f, minY, -0.5f}, {0.5f, maxY, -0.5f}, {0.5f, maxY, 0.5f}, {0.5f, minY, 0.5f}}},
-                {{{0.0f, sideBottomV}, {0.0f, sideTopV}, {1.0f, sideTopV}, {1.0f, sideBottomV}}},
-                layers.faces[2],
+                {{{maxX, minY, minZ}, {maxX, maxY, minZ}, {maxX, maxY, maxZ}, {maxX, minY, maxZ}}},
+                useVerticalSection
+                    ? std::array<std::array<float, 2>, 4>{{{{0.0f, 1.0f}}, {{0.0f, 0.0f}}, {{1.0f, 0.0f}}, {{1.0f, 1.0f}}}}
+                    : std::array<std::array<float, 2>, 4>{{{{0.0f, sideBottomV}}, {{0.0f, sideTopV}}, {{depth, sideTopV}}, {{depth, sideBottomV}}}},
+                useVerticalSection ? layers.verticalSection : layers.faces[2],
                 0.86f);
             addQuad(
-                {{{-0.5f, minY, 0.5f}, {-0.5f, maxY, 0.5f}, {-0.5f, maxY, -0.5f}, {-0.5f, minY, -0.5f}}},
-                {{{0.0f, sideBottomV}, {0.0f, sideTopV}, {1.0f, sideTopV}, {1.0f, sideBottomV}}},
+                {{{minX, minY, maxZ}, {minX, maxY, maxZ}, {minX, maxY, minZ}, {minX, minY, minZ}}},
+                {{{0.0f, sideBottomV}, {0.0f, sideTopV}, {depth, sideTopV}, {depth, sideBottomV}}},
                 layers.faces[3],
                 0.78f);
             addQuad(
-                {{{0.5f, minY, 0.5f}, {0.5f, maxY, 0.5f}, {-0.5f, maxY, 0.5f}, {-0.5f, minY, 0.5f}}},
-                {{{0.0f, sideBottomV}, {0.0f, sideTopV}, {1.0f, sideTopV}, {1.0f, sideBottomV}}},
+                {{{maxX, minY, maxZ}, {maxX, maxY, maxZ}, {minX, maxY, maxZ}, {minX, minY, maxZ}}},
+                {{{0.0f, sideBottomV}, {0.0f, sideTopV}, {width, sideTopV}, {width, sideBottomV}}},
                 layers.faces[4],
                 0.88f);
             addQuad(
-                {{{-0.5f, minY, -0.5f}, {-0.5f, maxY, -0.5f}, {0.5f, maxY, -0.5f}, {0.5f, minY, -0.5f}}},
-                {{{0.0f, sideBottomV}, {0.0f, sideTopV}, {1.0f, sideTopV}, {1.0f, sideBottomV}}},
+                {{{minX, minY, minZ}, {minX, maxY, minZ}, {maxX, maxY, minZ}, {maxX, minY, minZ}}},
+                {{{0.0f, sideBottomV}, {0.0f, sideTopV}, {width, sideTopV}, {width, sideBottomV}}},
                 layers.faces[5],
                 0.74f);
             return mesh;
@@ -123,13 +144,17 @@ namespace dolbuto
             if (definition.droppedRender == ItemRenderType::BlockModel ||
                 definition.heldRender == ItemRenderType::BlockModel)
             {
-                if (definition.placeBlockId != 0 &&
-                    static_cast<size_t>(definition.placeBlockId) < content.blockTextureLayers().size())
+                if (definition.modelBlockId != 0 &&
+                    static_cast<size_t>(definition.modelBlockId) < content.blockTextureLayers().size())
                 {
-                    const BlockDefinition& blockDefinition = content.blockDefinitions()[definition.placeBlockId];
+                    const BlockDefinition& blockDefinition = content.blockDefinitions()[definition.modelBlockId];
                     store.itemSpriteMeshes[itemId] = buildBlockModelItemMesh(
-                        content.blockTextureLayers()[definition.placeBlockId],
-                        blockDefinition.renderType);
+                        content.blockTextureLayers()[definition.modelBlockId],
+                        blockDefinition.renderType,
+                        definition.blockModelWidth,
+                        definition.blockModelHeight,
+                        definition.blockModelDepth,
+                        definition.useBlockModelVerticalSection);
                 }
                 continue;
             }

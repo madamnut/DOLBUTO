@@ -19,6 +19,7 @@ namespace dolbuto::gameplay
         int previousBlockX = 0;
         int previousBlockY = 0;
         int previousBlockZ = 0;
+        DVec3 hitPosition{};
     };
 
     struct BlockBreakingState
@@ -56,7 +57,6 @@ namespace dolbuto::gameplay
         using FluidSampler = std::function<uint16_t(int, int, int)>;
         using BlockDefinitionProvider = std::function<const BlockDefinition&(uint16_t)>;
         using PropMeshProvider = std::function<const assets::PropMesh*(uint16_t)>;
-        using TerrainCollisionPredicate = std::function<bool(int, int, int)>;
         using TerrainAabbCollisionPredicate = std::function<bool(int, int, int, DVec3, DVec3)>;
 
         static constexpr double MaxInteractionDistance = 8.0;

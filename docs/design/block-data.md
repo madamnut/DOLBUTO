@@ -17,7 +17,8 @@ assets/data/blocks.json
 상태가 필요 없는 블록은 `0`을 사용한다.
 블록 정의의 `stateKind`는 해당 블록이 상태값을 어떤 의미로 해석하는지 정한다.
 
-현재 지원하는 상태 범주는 `stateKind: "attach"`이며, `renderType: "slab"`에서 사용한다.
+현재 지원하는 상태 범주는 `stateKind: "attach"`와 `stateKind: "attach_grid"`다.
+`attach`는 `renderType: "slab"`에서 사용한다.
 
 ```text
 0 bottom
@@ -28,12 +29,28 @@ assets/data/blocks.json
 5 east
 ```
 
-`dirt_slab`은 `renderType: "slab"`, `stateKind: "attach"`를 사용한다.
-텍스처는 `dirt` 블록의 `all` 텍스처를 재사용하며, 설치한 면에 따라 위/아래/동서남북 반칸 AABB로 렌더링, 레이캐스트, 선택 아웃라인, 배치 충돌, 플레이어 이동 충돌, 발밑 지지 판정을 처리한다.
-드랍 아이템 지형 충돌처럼 셀 단위 terrain collision callback을 쓰는 경로는 아직 블록 셀 단위 판정을 유지한다.
+`attach_grid`는 `renderType: "half_slab"`에서 사용한다.
+상태값은 `face * 9 + (grid - 1)`이며, `face`는 위 `attach`의 6방향 값이고 `grid`는 배치 면 기준 `7 8 9 / 4 5 6 / 1 2 3` 키패드 위치다.
+현재 배치에서는 `5`를 저장하지 않고 플레이어가 보는 방향의 `2/4/6/8` 모서리로 바꿔 저장한다.
+
+`dirt_slab`과 `half_stripped_log`는 `renderType: "slab"`, `stateKind: "attach"`를 사용한다.
+`dirt_slab`은 `dirt` 텍스처를 재사용하고, `half_stripped_log`는 껍질벗긴 통나무 텍스처를 재사용한다. 설치한 면에 따라 위/아래/동서남북 반칸 AABB로 렌더링, 레이캐스트, 선택 아웃라인, 배치 충돌, 플레이어 이동 충돌, 발밑 지지 판정을 처리한다.
+렌더링 텍스처는 bottom 상태의 기준 반칸 cuboid를 먼저 만들고, 배치 상태에 따라 그 모델 전체를 회전/이동한 것처럼 유지한다.
+플레이어, 드랍 아이템, 파티클 지형 충돌은 블록의 `collision`, `renderType`, `blockStates`를 읽어 같은 반블럭 AABB 기준으로 처리한다.
 슬랩 조명 감쇄는 셀 전체에 적용하지 않고 붙은 면 방향에만 적용한다.
 예를 들어 bottom 슬랩은 아래 방향 전파만 `lightAttenuation`을 사용하고, 위/동서남북 방향은 공기처럼 통과한다.
 top/north/south/west/east 슬랩도 각각 붙은 면 방향 하나만 감쇄한다.
+
+슬랩 설치는 레이캐스트 충돌 지점을 기준으로 클릭한 면을 `7 8 9 / 4 5 6 / 1 2 3` 키패드형 3x3 구역으로 나누어 판정한다.
+`5`는 기존처럼 클릭한 면에 붙는 반블럭을 배치한다.
+`2`, `4`, `6`, `8`은 해당 면 위의 아래/왼쪽/오른쪽/위 구역 방향으로 세워진 반블럭을 배치한다.
+`1`, `3`, `7`, `9` 모서리는 플레이어 시선이 해당 면 위에서 더 평행한 축을 골라 인접한 직선 구역 중 하나로 해석한다.
+
+`quarter_stripped_log`는 테스트용 `renderType: "half_slab"`, `stateKind: "attach_grid"` 블록이다.
+배치 면 기준 `1/3/7/9`는 해당 꼭짓점에 세우고, `2/4/6/8`은 해당 모서리에 눕힌다.
+`5`는 플레이어가 보는 방향의 모서리로 눕힌다.
+텍스처는 기준 slab을 수직으로 반 자른 `0.5 x 0.5 x 1.0` 조각에서 slab의 위/아래였던 면에 `topBottom`, 원래 외곽 옆면에 `side`, 새로 잘린 수직 절단면에 `verticalSection`을 사용하고, 배치 상태는 이 기준 배치를 회전/이동만 한다.
+UV는 현재 배치된 AABB에 맞춰 다시 늘리지 않고 기준 조각의 재질 좌표를 유지한다.
 
 ## 블록 드랍
 
@@ -108,6 +125,8 @@ primal_workbench 4.0
 wooden_box 2.5
 fire      0.0
 dirt_slab 0.8
+half_stripped_log 2.0
+quarter_stripped_log 1.0
 rock      5.0
 coal_ore, copper_ore, iron_ore, tin_ore, zinc_ore, silver_ore, gold_ore 5.0
 ```
@@ -118,7 +137,7 @@ coal_ore, copper_ore, iron_ore, tin_ore, zinc_ore, silver_ore, gold_ore 5.0
 rock, sandstone, *_ore          breakLevel 2 / smash
 grass, dirt, sand, mud, clay, gravel  breakLevel 1 / dig
 dirt_slab                       breakLevel 1 / dig
-log, stripped_log, primal_workbench breakLevel 2 / chop
+log, stripped_log, half_stripped_log, quarter_stripped_log, primal_workbench breakLevel 2 / chop
 wooden_box                      breakLevel 1 / chop
 fire                            breakLevel 0 / none
 branch prop                     breakLevel 0 / chop
@@ -133,7 +152,8 @@ air, bedrock                    breakLevel 0 / none
 현재 `dirt`는 파괴되면 `dirt_pile` 4개를 확정 드랍한다.
 현재 `grass`는 파괴되면 `dirt_pile` 4개와 `grass_scrap` 2~4개를 확정 드랍하며, `seed`는 낮은 확률 드랍을 유지한다.
 현재 `log`는 파괴되면 `log` 아이템 1개를 드랍한다.
-`log`, `stripped_log`, `primal_workbench`, `wooden_box`는 `block_model` 아이템으로, 각 아이템의 `placeBlock` 대상 블록 텍스처를 작은 블록 모델로 렌더링한다.
+`log`, `stripped_log`, `half_stripped_log`, `primal_workbench`, `wooden_box`는 `block_model` 아이템으로, 각 아이템의 `modelBlock` 또는 `placeBlock` 대상 블록 텍스처를 작은 블록 모델로 렌더링한다.
+`quarter_stripped_log`도 `block_model` 설치 아이템이며, `modelBlock = stripped_log`, `modelShape = quarter_log`, `placeBlock = quarter_stripped_log`를 사용한다.
 
 블록 파괴 오버레이 텍스처는 블록 렌더링 에셋으로 저장한다.
 
@@ -174,7 +194,7 @@ assets/textures/block/breaking/destroy_stage_9.png
 일반 블록 셀에 유체가 있으면 `max(block.lightAttenuation, fluid.lightAttenuation)`을 사용한다.
 유체량은 조명 감쇠량에 영향을 주지 않는다.
 따라서 유체 흐름 중 물량만 바뀌는 경우에는 조명을 다시 계산하지 않고, 유체가 없던 셀에 생기거나 있던 유체가 사라지는 경우처럼 유체 존재/종류가 바뀔 때만 조명 dirty로 본다.
-`renderType = "slab"`과 `stateKind = "attach"`를 가진 블록은 방향별 감쇄를 사용한다.
+`renderType = "slab"`과 `stateKind = "attach"`를 가진 블록, `renderType = "half_slab"`과 `stateKind = "attach_grid"`를 가진 블록은 방향별 감쇄를 사용한다.
 빛이 한 셀에서 이웃 셀로 전파될 때 현재 셀의 출구 방향 감쇄와 다음 셀의 입구 방향 감쇄 중 큰 값을 사용한다.
 슬랩은 붙은 면 방향에서만 블록의 `lightAttenuation`을 적용하고, 나머지 방향은 공기와 같은 기본 감쇄를 사용한다. 해당 셀에 유체가 있으면 이 방향별 블록 감쇄와 유체 감쇄 중 큰 값을 쓴다.
 
@@ -207,14 +227,19 @@ block entity는 청크 로컬 X/Z, 월드 Y, 타입, 타입별 상태 값을 가
 
 `fire` 블록은 설치되거나 로드될 때 같은 좌표에 fire block entity를 가진다.
 초기 남은 연소 시간은 `200`틱이다.
-매 world tick마다 남은 연소 시간이 1씩 줄고, 0이 되면 fire 셀의 `1 x 1 x 1` 영역 안에 있는 드랍 아이템 중 연료 아이템 1개를 무작위로 소비한다.
+fire block entity는 일반 불 `normal`과 열분해 불 `pyrolysis` 모드를 가진다.
+블록 변화가 발생하면 변화 좌표 자신은 `SelfBlockChanged`, 동서남북/상하 6방향 이웃은 `BlockNeighborChanged` 이유로 block tick에 등록된다.
+fire는 주변 블록 변화 이벤트를 받았을 때만 동서남북/상하 6방향 밀폐 여부를 다시 검사하고, 모두 `collision = true`이면 `pyrolysis`, 하나라도 아니면 `normal`로 전환한다.
+남은 연소 시간 감소는 별도 `FireBurn` tick으로 진행하며, fire가 계속 존재하면 자기 자신을 다시 `FireBurn`으로 등록한다.
+연소 시간이 0이 되면 fire 셀의 `1 x 1 x 1` 영역 안에 있는 드랍 아이템 중 연료 아이템 1개를 무작위로 소비한다.
 단, `charcoal`은 같은 영역에 다른 연료가 하나도 없을 때만 소비 후보로 사용한다.
-밀폐된 fire는 pit kiln 결과물이 바로 다시 타지 않도록 `charcoal`을 연료 후보에서 제외한다.
+`pyrolysis` fire는 `charcoal`을 연료 후보에서 제외한다.
 연료를 소비하면 해당 아이템의 `burnTimeTicks`만큼 남은 연소 시간이 늘어난다.
-연료 소비 시점에 fire의 동서남북/상하 6방향이 모두 `collision = true`인 블록으로 막혀 있으면 pit kiln 후보로 본다.
-현재 pit kiln 레시피는 `log -> charcoal x4`, `stripped_log -> charcoal x4`다.
-후보 연료의 연소 시간이 끝났을 때 다시 6방향이 막혀 있으면 예약된 숯을 fire 위치에 드랍하고, 숯을 드랍한 tick에는 다음 연료를 소비하지 않는다.
-시작 또는 종료 시점 중 하나라도 막혀 있지 않으면 해당 연료는 일반 연료처럼 타고 결과물은 나오지 않는다.
+연료 소비 시점의 fire mode가 `pyrolysis`이면 pit kiln 후보로 본다.
+현재 pit kiln 레시피는 `log -> charcoal x4`, `stripped_log -> charcoal x4`, `half_stripped_log -> charcoal x3`, `quarter_stripped_log -> charcoal x2`다.
+후보 연료의 연소 시간이 끝나면 예약된 숯을 fire 위치에 드랍하고, 숯을 드랍한 tick에는 다음 연료를 소비하지 않는다.
+열분해 중 주변 한 면이라도 뚫려 `normal`로 내려가면 예약된 숯 결과는 폐기하고, 현재 남은 연소 시간은 유지한다.
+`normal` fire가 나중에 `pyrolysis`로 올라가더라도 이미 타고 있던 연료는 일반 연소로 유지되고, 다음 연료 소비부터 열분해가 적용된다.
 스택이 2개 이상이면 count만 1 줄이고, 1개짜리 스택이면 드랍 엔티티를 제거한다.
 소비할 연료가 없으면 fire 블록은 `air`로 바뀌고 일반 블록 파괴와 같은 갱신 경로로 메쉬, 파티클, 사운드 이벤트를 발생시킨다.
 fire block entity만 남고 실제 블록이 fire가 아니면 stale 상태로 보고 제거한다.
@@ -309,6 +334,9 @@ fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 bounds 박스
 20    zinc_ore
 21    silver_ore
 22    gold_ore
+23    dirt_slab
+24    half_stripped_log
+25    quarter_stripped_log
 10000 plant
 20000 stone
 20001 branch
@@ -317,7 +345,7 @@ fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 bounds 박스
 
 ## 주요 속성
 
-- `renderType`: `none`, `cube`, `cross`, `prop`, `fire`
+- `renderType`: `none`, `cube`, `cross`, `prop`, `fire`, `slab`, `half_slab`
 - `directional`: 방향성을 가지는지 여부
 - `collision`: 플레이어 충돌 여부
 - `ao`: 메싱 AO 적용 여부
@@ -376,6 +404,8 @@ blend 블록은 terrain texture array를 그대로 사용하며, `alphaBlend` �
 - `bottom`
 - `side`
 - `topBottom`
+- `verticalSection`
+- `horizontalSection`
 
 텍스처 파일은 `assets/textures/block/{texture}.png`에서 찾는다.
 텍스처 이름에 `/`가 포함되면 `assets/textures/block/fire/fire_00.png`처럼 하위 폴더를 가리킬 수 있다.
@@ -398,6 +428,24 @@ blend 블록은 terrain texture array를 그대로 사용하며, `alphaBlend` �
 객체 텍스처는 로드 시점에 `assets/textures/block/{base}.png` 위에 `assets/textures/block/{mask}.png`를 알파 기준으로 합성한다.
 결과 PNG는 `assets/textures/block/generated/` 아래에 생성하고, 기존 블록 texture array에는 생성된 텍스처 이름을 등록한다.
 현재 광물 블록은 이 방식으로 `rock` 텍스처 위에 `assets/textures/block/mask/`의 광물 마스크를 올린다.
+
+단면 텍스처는 블록을 가공한 아이템 모델에서 사용하는 재질 레이어다.
+기본값은 `verticalSection = left`, `horizontalSection = up`이며, 별도로 지정하지 않으면 기존 6면 중 해당 면의 레이어를 사용한다.
+단면 키는 문자열만 지원한다.
+값이 예약된 면 이름이면 기존 6면 중 해당 면의 레이어를 참조하고, 그 외 문자열이면 `assets/textures/block/{value}.png` 텍스처를 직접 사용한다.
+면 이름은 `up/top`, `down/bottom`, `left/west`, `right/east`, `front/south`, `back/north`를 지원한다.
+
+```json
+{
+  "textures": {
+    "topBottom": "stripped_log_topbottom",
+    "side": "stripped_log_side",
+    "verticalSection": "stripped_log_section_vertical"
+  }
+}
+```
+
+현재 `stripped_log`는 `verticalSection`에 `stripped_log_section_vertical`을 사용하고, `horizontalSection`은 기본값인 위쪽 면을 사용한다.
 
 ## 블록 저장 타입
 

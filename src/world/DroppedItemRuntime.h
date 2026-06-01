@@ -17,7 +17,7 @@ namespace dolbuto::world
     {
     public:
         using MarkDirtyFn = std::function<void(RuntimeChunk&)>;
-        using TerrainCollisionFn = std::function<bool(int, int, int)>;
+        using TerrainCollisionFn = std::function<bool(DVec3, DVec3)>;
         using AddInventoryFn = std::function<uint16_t(ItemStack)>;
         using PickupSoundFn = std::function<void()>;
 
@@ -95,6 +95,8 @@ namespace dolbuto::world
             int blockX,
             int blockY,
             int blockZ,
+            const BlockDefinition& placedDefinition,
+            uint16_t placedBlockState,
             const TerrainCollisionFn& terrainCellBlocksItem,
             const MarkDirtyFn& markDirty);
 

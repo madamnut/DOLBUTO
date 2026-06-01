@@ -45,13 +45,24 @@ namespace dolbuto::world::block_light
         }
     }
 
-    inline bool isDirectionalSlab(const LightAttenuationTables* tables, uint16_t block)
+    inline Direction attachGridDirection(uint16_t blockState)
     {
-        return tables != nullptr &&
-            static_cast<std::size_t>(block) < tables->blockRenderTypes.size() &&
-            static_cast<std::size_t>(block) < tables->blockStateKinds.size() &&
-            tables->blockRenderTypes[block] == BlockRenderType::Slab &&
-            tables->blockStateKinds[block] == BlockStateKind::Attach;
+        return attachDirection(static_cast<uint16_t>(blockState / 9u));
+    }
+
+    inline bool isDirectionalAttachBlock(const LightAttenuationTables* tables, uint16_t block)
+    {
+        if (tables == nullptr ||
+            static_cast<std::size_t>(block) >= tables->blockRenderTypes.size() ||
+            static_cast<std::size_t>(block) >= tables->blockStateKinds.size())
+        {
+            return false;
+        }
+
+        return (tables->blockRenderTypes[block] == BlockRenderType::Slab &&
+                tables->blockStateKinds[block] == BlockStateKind::Attach) ||
+            (tables->blockRenderTypes[block] == BlockRenderType::HalfSlab &&
+                tables->blockStateKinds[block] == BlockStateKind::AttachGrid);
     }
 
     inline uint8_t directionalAttenuation(
@@ -61,9 +72,12 @@ namespace dolbuto::world::block_light
         Direction direction,
         uint8_t baseAttenuation)
     {
-        if (isDirectionalSlab(tables, block))
+        if (isDirectionalAttachBlock(tables, block))
         {
-            return direction == attachDirection(blockState) ? baseAttenuation : 1;
+            const Direction attach = tables->blockStateKinds[block] == BlockStateKind::AttachGrid
+                ? attachGridDirection(blockState)
+                : attachDirection(blockState);
+            return direction == attach ? baseAttenuation : 1;
         }
         return baseAttenuation;
     }

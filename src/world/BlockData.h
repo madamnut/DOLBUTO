@@ -11,6 +11,8 @@ namespace dolbuto
     struct BlockTextureLayers
     {
         std::array<uint32_t, 6> faces{};
+        uint32_t verticalSection = 0;
+        uint32_t horizontalSection = 0;
     };
 
     struct BlockDrop
@@ -28,7 +30,8 @@ namespace dolbuto
         Cross,
         Prop,
         Fire,
-        Slab
+        Slab,
+        HalfSlab
     };
 
     enum class BlockFaceOcclusion : uint8_t
@@ -54,7 +57,8 @@ namespace dolbuto
     enum class BlockStateKind : uint8_t
     {
         None,
-        Attach
+        Attach,
+        AttachGrid
     };
 
     enum class BlockAttachState : uint16_t

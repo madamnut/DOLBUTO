@@ -648,15 +648,22 @@ namespace dolbuto
                     {
                         continue;
                     }
-                    particleRenderPath_.registerFireEmitter(
-                        chunkX * ChunkSizeX + localX,
+                    const int worldX = chunkX * ChunkSizeX + localX;
+                    const int worldZ = chunkZ * ChunkSizeZ + localZ;
+                    particleRenderPath_.registerFireEmitter(worldX, y, worldZ);
+                    const BlockEntity* entity = client_.worldRuntime.ensureFireBlockEntityAtWorld(
+                        worldX,
                         y,
-                        chunkZ * ChunkSizeZ + localZ);
-                    client_.worldRuntime.ensureFireBlockEntityAtWorld(
-                        chunkX * ChunkSizeX + localX,
-                        y,
-                        chunkZ * ChunkSizeZ + localZ,
+                        worldZ,
                         InitialFireBurnTicks);
+                    if (entity != nullptr)
+                    {
+                        particleRenderPath_.setFireEmitterSmokeMultiplier(
+                            worldX,
+                            y,
+                            worldZ,
+                            entity->fireMode == FireMode::Pyrolysis ? 3.0f : 1.0f);
+                    }
                 }
             }
         }

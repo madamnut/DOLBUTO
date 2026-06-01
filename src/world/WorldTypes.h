@@ -80,6 +80,12 @@ namespace dolbuto
         Fire = 1
     };
 
+    enum class FireMode : uint8_t
+    {
+        Normal = 0,
+        Pyrolysis = 1
+    };
+
     struct BlockEntity
     {
         BlockEntityType type = BlockEntityType::None;
@@ -87,8 +93,9 @@ namespace dolbuto
         uint8_t localZ = 0;
         uint16_t y = 0;
         uint32_t remainingBurnTicks = 0;
-        uint16_t pendingOutputItemId = 0;
-        uint16_t pendingOutputCount = 0;
+        FireMode fireMode = FireMode::Normal;
+        uint16_t carbonizingOutputItemId = 0;
+        uint16_t carbonizingOutputCount = 0;
     };
 
     struct ChunkBlockData

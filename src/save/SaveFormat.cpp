@@ -435,8 +435,10 @@ namespace dolbuto::save
             writeU8(payload, entity.localZ);
             writeU16(payload, entity.y);
             writeU32(payload, entity.remainingBurnTicks);
-            writeU16(payload, entity.pendingOutputItemId);
-            writeU16(payload, entity.pendingOutputCount);
+            writeU8(payload, static_cast<uint8_t>(entity.fireMode));
+            writeU8(payload, 0);
+            writeU16(payload, entity.carbonizingOutputItemId);
+            writeU16(payload, entity.carbonizingOutputCount);
             ++writtenBlockEntities;
         }
         payload[blockEntityCountOffset] = static_cast<uint8_t>(writtenBlockEntities & 0xFFu);
@@ -622,12 +624,9 @@ namespace dolbuto::save
             if (offset + 8 != payload.size() && offset + 2 <= payload.size())
             {
                 const uint16_t blockEntityCount = readU16(payload, offset);
-                constexpr size_t LegacyBlockEntityBytes = 10;
-                constexpr size_t CurrentBlockEntityBytes = 14;
+                constexpr size_t CurrentBlockEntityBytes = 16;
                 const size_t currentEndOffset = offset + static_cast<size_t>(blockEntityCount) * CurrentBlockEntityBytes;
-                const size_t legacyEndOffset = offset + static_cast<size_t>(blockEntityCount) * LegacyBlockEntityBytes;
-                const bool hasPendingOutputFields = currentEndOffset <= payload.size() && blockStateSectionFits(payload, currentEndOffset);
-                if (!hasPendingOutputFields && (legacyEndOffset > payload.size() || !blockStateSectionFits(payload, legacyEndOffset)))
+                if (currentEndOffset > payload.size() || !blockStateSectionFits(payload, currentEndOffset))
                 {
                     return std::nullopt;
                 }
@@ -640,11 +639,12 @@ namespace dolbuto::save
                     entity.localZ = readU8(payload, offset);
                     entity.y = readU16(payload, offset);
                     entity.remainingBurnTicks = readU32(payload, offset);
-                    if (hasPendingOutputFields)
-                    {
-                        entity.pendingOutputItemId = readU16(payload, offset);
-                        entity.pendingOutputCount = readU16(payload, offset);
-                    }
+                    entity.fireMode = readU8(payload, offset) == static_cast<uint8_t>(FireMode::Pyrolysis)
+                        ? FireMode::Pyrolysis
+                        : FireMode::Normal;
+                    (void)readU8(payload, offset);
+                    entity.carbonizingOutputItemId = readU16(payload, offset);
+                    entity.carbonizingOutputCount = readU16(payload, offset);
                     if (entity.type != BlockEntityType::None &&
                         entity.localX < ChunkSizeX &&
                         entity.localZ < ChunkSizeZ &&

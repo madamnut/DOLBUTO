@@ -63,9 +63,9 @@ namespace dolbuto
                 {
                     return hooks_.setBlockAtWorld && hooks_.setBlockAtWorld(x, y, z, block);
                 },
-                [this](int x, int y, int z)
+                [this](DVec3 min, DVec3 max)
                 {
-                    return terrainCellBlocksPlayer(x, y, z);
+                    return terrainAabbIntersects(min, max);
                 },
                 [this](RuntimeChunk& chunk)
                 {
@@ -203,6 +203,11 @@ namespace dolbuto
                 }
             });
 
+        for (const gameplay::FireSmokeRateUpdate& update : result.fireSmokeRateUpdates)
+        {
+            particleRenderPath_.setFireEmitterSmokeMultiplier(update.x, update.y, update.z, update.multiplier);
+        }
+
         for (const gameplay::BlockBreakEvent& broken : result.brokenBlocks)
         {
             spawnBlockBreakParticles(broken.x, broken.y, broken.z, broken.block);
@@ -324,6 +329,41 @@ namespace dolbuto
             y,
             z,
             [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); });
+    }
+
+    bool RendererGameplayBridge::terrainAabbIntersects(DVec3 min, DVec3 max) const
+    {
+        constexpr double Epsilon = 0.000001;
+        const int minX = world::WorldRuntime::blockCoordinateXz(min.x);
+        const int maxX = world::WorldRuntime::blockCoordinateXz(max.x - Epsilon);
+        const int minY = world::WorldRuntime::blockCoordinateY(min.y);
+        const int maxY = world::WorldRuntime::blockCoordinateY(max.y - Epsilon);
+        const int minZ = world::WorldRuntime::blockCoordinateXz(min.z);
+        const int maxZ = world::WorldRuntime::blockCoordinateXz(max.z - Epsilon);
+
+        for (int y = minY; y <= maxY; ++y)
+        {
+            for (int z = minZ; z <= maxZ; ++z)
+            {
+                for (int x = minX; x <= maxX; ++x)
+                {
+                    if (client_.worldRuntime.terrainCellIntersectsAabb(
+                            x,
+                            y,
+                            z,
+                            min,
+                            max,
+                            [this](uint16_t block) -> const BlockDefinition&
+                            {
+                                return blockDefinition(block);
+                            }))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     uint32_t RendererGameplayBridge::blockFaceTextureLayer(uint16_t block, int face) const

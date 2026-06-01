@@ -44,7 +44,7 @@ namespace dolbuto
             int previousBlockZ = 0;
         };
 
-        using TerrainCollisionFn = std::function<bool(int, int, int)>;
+        using TerrainCollisionFn = std::function<bool(DVec3, DVec3)>;
         using LightSamplerFn = std::function<uint8_t(int, int, int)>;
 
         ParticleRenderPath() = default;
@@ -59,6 +59,7 @@ namespace dolbuto
         void registerFireEmitter(int x, int y, int z);
         void unregisterFireEmitter(int x, int y, int z);
         void removeFireEmittersForChunk(int chunkX, int chunkZ);
+        void setFireEmitterSmokeMultiplier(int x, int y, int z, float multiplier);
         void handleBlockChanged(int x, int y, int z, uint16_t previousBlock, uint16_t nextBlock, uint16_t fireBlock);
         void spawnBlockBreak(int x, int y, int z, uint16_t block, uint32_t textureLayer);
         void spawnMiningParticle(const MiningHit& hit, uint32_t textureLayer);
@@ -109,6 +110,7 @@ namespace dolbuto
             int y = 0;
             int z = 0;
             float spawnTimer = 0.0f;
+            float smokeMultiplier = 1.0f;
             uint32_t randomState = 0;
         };
 
