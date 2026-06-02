@@ -195,7 +195,14 @@
         "textures": {
             "all": "clay"
         },
-        "drops": [],
+        "drops": [
+            {
+                "item": "clay_pile",
+                "min": 4,
+                "max": 4,
+                "chance": 1
+            }
+        ],
         "lightAttenuation": 15,
         "breakLevel": 1,
         "breakAction": "dig"

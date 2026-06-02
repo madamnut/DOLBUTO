@@ -53,7 +53,8 @@ assets/textures/item/*.png
   },
   "tags": [],
   "useActions": [],
-  "burnTimeTicks": 0
+  "burnTimeTicks": 0,
+  "heatLevel": 0
 }
 ```
 
@@ -77,6 +78,7 @@ assets/textures/item/*.png
 - `modelBlock`: `block_model` 아이템 렌더링에 사용할 블록 이름. 생략하면 `placeBlock`을 사용한다.
 - `modelShape`: `block_model` 아이템 렌더링 형상. 현재 `source`, `cube`, `slab`, `quarter_log`를 사용한다.
 - `burnTimeTicks`: 불이 연료로 소비했을 때 더해지는 연소 tick 수. 생략하거나 `0`이면 타지 않는 아이템이다.
+- `heatLevel`: 연료의 처리 온도 단계. `burnTimeTicks > 0`이고 생략하면 1로 처리한다.
 
 `id = 0`은 `none`용으로 예약한다.
 실제 아이템은 `id = 1`부터 시작하며, 구체적으로 빈 구간을 남길 이유가 없으면 순차적으로 배정한다.
@@ -98,31 +100,34 @@ assets/textures/item/*.png
 ## 연료 아이템
 
 `burnTimeTicks`는 아이템 1개가 불에 소모될 때 fire 블록 엔티티의 남은 연소 시간에 더해지는 값이다.
+`heatLevel`은 해당 연료가 낼 수 있는 처리 온도 단계다. `burnTimeTicks > 0`이고 `heatLevel`을 생략하면 런타임에서 1로 처리한다.
+현재는 0레벨 연료를 구분하지 않으며, 실제 연료 단계는 1부터 시작한다.
+`heatLevel = 1`은 일반 연료, `heatLevel = 2`는 도기 소성이 가능한 고열 연료로 사용한다.
 현재 게임 시간은 초당 20틱 기준이며, 연료로 쓰는 아이템은 최소 100틱 이상을 사용한다.
 가공 아이템은 원재료 합보다 조금 낮은 값을 가진다.
 불은 같은 셀 영역에 있는 연료 아이템 중 하나를 무작위로 소비한다.
 `charcoal`은 하드코딩된 후순위 연료이며, 다른 연료가 없을 때만 무작위 소비 후보에 들어간다.
-`pyrolysis` fire는 pit kiln 결과 숯을 보호하기 위해 `charcoal`을 연료 후보로 보지 않는다.
 
 현재 연료 값:
 
 ```text
-plant, plant_fiber, grass_scrap, leaf, bark_strip  100
-short_plant_twine                                  100
-plant_twine                                        160
-long_plant_twine                                   256
-branch                                             300
-short_wooden_stick                                 120
-wooden_stick                                       240
-long_wooden_stick                                  800
-bough                                              1000
-log                                                2000
-stripped_log                                       1800
-half_stripped_log                                  900
-quarter_stripped_log                               450
-wooden_plank                                       225
-wooden_peg                                         100
-charcoal, coal                                     2400
+item                                               burnTimeTicks  heatLevel
+plant, plant_fiber, grass_scrap, leaf, bark_strip  100            1
+short_plant_twine                                  100            1
+plant_twine                                        160            1
+long_plant_twine                                   256            1
+branch                                             300            1
+short_wooden_stick                                 120            1
+wooden_stick                                       240            1
+long_wooden_stick                                  800            1
+bough                                              1000           1
+log                                                2000           1
+stripped_log                                       1800           1
+half_stripped_log                                  900            1
+quarter_stripped_log                               450            1
+wooden_plank                                       225            1
+wooden_peg                                         100            1
+charcoal, coal                                     2400           2
 ```
 
 ## Pit Kiln 숯화
@@ -133,7 +138,7 @@ fire는 주변 6방향 block change event를 받았을 때 밀폐 여부를 재�
 반블럭도 `collision = true`이면 밀폐 판정에 사용할 수 있다.
 결과 숯은 fire 위치에 드랍되며, 생성된 tick에는 같은 fire가 다음 연료를 바로 소비하지 않는다.
 열분해 중 밀폐가 깨지면 fire mode는 `normal`로 내려가고 예약된 숯 결과는 폐기된다.
-`pyrolysis` fire는 `charcoal`을 연료로 소비하지 않으므로, 남은 일반 연료가 없으면 결과 숯을 남기고 꺼진다.
+`firing`은 위가 열린 5면 구조와 `heatLevel >= 2` 연료를 요구하므로, 6면이 모두 막힌 구조와 분리된다.
 
 ## 드랍 아이템 물리와 렌더링
 
@@ -188,8 +193,13 @@ bark_strip.png
 bough.png
 branch.png
 charcoal.png
+ash.png
+clay_brick.png
+clay_pile.png
+clay_pot.png
 coal.png
 dirt_pile.png
+grog.png
 grass_scrap.png
 leaf.png
 long_wooden_stick.png
@@ -200,6 +210,8 @@ plant.png
 raw_copper.png
 raw_gold.png
 raw_iron.png
+refractory_clay_brick.png
+refractory_clay_pile.png
 raw_silver.png
 raw_tin.png
 raw_zinc.png
@@ -210,9 +222,32 @@ short_plant_twine.png
 short_wooden_stick.png
 stone_pounder.png
 stone_shard.png
+tar.png
+unfired_clay_brick.png
+unfired_clay_pot.png
+unfired_refractory_clay_brick.png
+wood_shavings.png
 wooden_peg.png
 wooden_plank.png
 wooden_stick.png
+```
+
+현재 점토/가공 재료 계열 신규 아이템은 모두 `extruded_sprite` 렌더 타입과 `stackSize = 99`를 사용한다.
+아직 제작 레시피, 블록 드랍, 설치 블록 연결은 추가하지 않았다.
+
+```text
+clay_pile                              id 43
+unfired_clay_brick                     id 44
+clay_brick                             id 45
+unfired_clay_pot                       id 46
+clay_pot                               id 47
+grog                                   id 48
+refractory_clay_pile                   id 49
+unfired_refractory_clay_brick          id 50
+refractory_clay_brick                  id 51
+ash                                    id 52
+tar                                    id 53
+wood_shavings                          id 54
 ```
 
 ## 초기 아이템 초안
@@ -273,7 +308,7 @@ wooden_stick.png
 월드 상호작용 후보 초안은 다음 파일에 둔다.
 
 ```text
-assets/data/interactions.json
+assets/data/recipes/interactions.json
 ```
 
 이 파일은 손에 든 아이템의 `useActions`와 땅에 떨어진 대상 아이템을 기준으로 후보 아이템 목록을 제공한다.
@@ -507,13 +542,15 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 아이템은 플레이어 높이 절반의 플레이어 콜라이더 중심을 향해 가속한다.
 드랍 아이템 bounds가 플레이어 콜라이더에 닿으면, 공간이 있을 때 런타임 플레이어 인벤토리에 삽입된다.
 삽입에 실패하면 드랍 아이템은 월드에 남는다.
-드랍 아이템 엔티티는 소유 청크 payload에 `entityId`, 로컬 위치, 속도, 접지 플래그, `itemId`, `count`를 저장한다.
+드랍 아이템 엔티티는 소유 청크 payload에 `entityId`, 로컬 위치, 속도, 접지 플래그, `itemId`, `count`, `durability`, `processingTicks`를 저장한다.
+`processingTicks`는 [[recipe/processings]]의 시간 기반 처리 진행도이며, 같은 아이템이라도 진행도가 다른 드랍 스택은 병합하지 않는다.
 획득 진행 상태와 렌더 전용 회전/스핀은 저장하지 않는다.
 
 ## 런타임 인벤토리
 
 현재 런타임 플레이어 인벤토리는 50개 슬롯을 가진다.
 슬롯 인덱스 `0`부터 `9`까지는 핫바 슬롯이다.
+왼손 슬롯은 50개 슬롯과 분리된 단일 슬롯이며, 인벤토리 화면에는 표시하지 않고 HUD 핫바 왼쪽에만 표시한다.
 인벤토리 화면은 50개 슬롯을 10열 5행으로 표시한다.
 맨 아래 줄은 슬롯 `0`부터 `9`이고, 그 위의 줄들은 `10`부터 `19`, `20`부터 `29`, `30`부터 `39`, `40`부터 `49`다.
 
@@ -521,7 +558,8 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 
 - 인벤토리 한 슬롯은 내구도 없는 아이템을 최대 99개까지 담고, 내구도 있는 아이템은 1개만 담는다.
 - 슬롯 인덱스 `0`부터 `49` 순서로 빈 슬롯을 채운다.
-- 50개 런타임 슬롯은 `saves/<world-name>/player.dat`에 저장한다.
+- 50개 런타임 슬롯과 왼손 슬롯은 `saves/<world-name>/player.dat`에 저장한다.
+- `R`을 누르면 현재 선택된 핫바 슬롯과 왼손 슬롯을 교환한다.
 - `Q`를 누르면 `ClientGameplayRuntime`이 현재 선택된 핫바 슬롯에서 아이템 1개를 드랍 아이템 엔티티로 버린다.
 - `Ctrl + Q`를 누르면 현재 선택된 핫바 슬롯의 전체 스택을 드랍 아이템 엔티티로 버린다.
 - 버린 아이템은 카메라 위치에서 시선 방향으로 0.5블록 앞에 생성되고, 시선 방향 속도와 약한 위쪽 속도를 받아 앞으로 튀어나간다.
@@ -578,7 +616,9 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
   ],
   "sandstone": [],
   "mud": [],
-  "clay": [],
+  "clay": [
+    { "item": "clay_pile", "min": 4, "max": 4, "chance": 1.0 }
+  ],
   "log": [
     { "item": "log", "min": 1, "max": 1, "chance": 1.0 }
   ],
@@ -610,7 +650,7 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 아이템의 우클릭 드랍 아이템 상호작용 액션은 `useActions`에 저장한다.
 좌클릭 블록 파괴 액션은 `breakActions`에 저장한다.
 우클릭 블록/오브젝트 설치 액션은 `placeActions`에 저장하고, 실제 설치할 블록은 `placeBlock`으로 지정한다.
-우클릭 시 바라보는 드랍 아이템이 `assets/data/interactions.json`의 `target`으로 등장하면 `useActions`가 `placeActions`보다 우선한다.
+우클릭 시 바라보는 드랍 아이템이 `assets/data/recipes/interactions.json`의 `target`으로 등장하면 `useActions`가 `placeActions`보다 우선한다.
 이때 손 아이템으로 실행 가능한 후보가 없어도 설치는 시도하지 않는다.
 블록에 `interactActions`가 있으면 블록 액션이 기본 우클릭 상호작용으로 우선한다. `Shift + 우클릭`은 손에 든 아이템의 블록 대상 `useActions`를 우선해, 예를 들어 `bow_drill`의 `ignite`로 대상 블록 윗칸에 `fire`를 만들 수 있다.
 `breakLevel`은 아이템 자체의 파괴 레벨이며, 블록의 `breakLevel`보다 낮으면 해당 블록을 파괴하지 못한다.

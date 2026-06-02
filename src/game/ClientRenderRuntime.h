@@ -49,6 +49,8 @@ namespace dolbuto
             void tickFluidSimulation();
 
             void setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots);
+            void setOffhandSlot(ItemStack stack);
+            bool swapSelectedHotbarWithOffhand();
             void uiMouseMove(double x, double y);
             void uiMouseButton(int button, bool pressed, int modifiers);
             void uiMouseWheel(double yOffset);

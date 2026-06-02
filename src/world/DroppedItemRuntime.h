@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -33,6 +34,7 @@ namespace dolbuto::world
         {
             uint32_t burnTimeTicks = 0;
             uint16_t itemId = 0;
+            uint16_t heatLevel = 0;
         };
 
         DroppedItemRuntime() = default;
@@ -71,6 +73,17 @@ namespace dolbuto::world
             float maxY,
             float maxZ,
             bool allowCharcoal,
+            const MarkDirtyFn& markDirty);
+        bool processItemsInAabb(
+            float minX,
+            float minY,
+            float minZ,
+            float maxX,
+            float maxY,
+            float maxZ,
+            const std::vector<ItemProcessingRecipe>& recipes,
+            const std::string& type,
+            uint32_t elapsedTicks,
             const MarkDirtyFn& markDirty);
         uint16_t replaceTargetItems(
             const WorldEntityHandle& itemHandle,

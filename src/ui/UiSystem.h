@@ -68,7 +68,7 @@ namespace dolbuto::ui
         void setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst);
         void setHotbarScopeClass(int selectedSlot);
         void setInventoryDebugSlots(std::string_view hotbarRml, std::string_view inventoryRml, bool visible);
-        void setInventoryItems(std::string_view hotbarRml, std::string_view inventoryRml);
+        void setInventoryItems(std::string_view hotbarRml, std::string_view inventoryRml, std::string_view offhandRml);
         void setInventoryCursorItem(std::string_view rml, bool visible);
         void setRadialMenu(std::string_view centerRml, std::string_view actionsRml, std::string_view candidatesRml, bool visible);
         void hideItemTooltip();

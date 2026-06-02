@@ -360,6 +360,49 @@ namespace dolbuto::config
             return objects;
         }
 
+        std::vector<std::string> jsonStringArrayValues(const std::string& text)
+        {
+            std::vector<std::string> values;
+            bool inString = false;
+            bool escaped = false;
+            std::string current;
+
+            for (size_t i = 0; i < text.size(); ++i)
+            {
+                const char c = text[i];
+                if (inString)
+                {
+                    if (escaped)
+                    {
+                        current.push_back(c);
+                        escaped = false;
+                    }
+                    else if (c == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (c == '"')
+                    {
+                        values.push_back(current);
+                        current.clear();
+                        inString = false;
+                    }
+                    else
+                    {
+                        current.push_back(c);
+                    }
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inString = true;
+                }
+            }
+
+            return values;
+        }
+
         std::optional<std::string> readTextFile(const std::filesystem::path& path)
         {
             std::ifstream file(path);
@@ -587,6 +630,21 @@ namespace dolbuto::config
                     config.oreFeatures.push_back(std::move(ore));
                 }
             }
+        }
+        if (const std::optional<std::string> clayDisks = jsonObjectField(features, "clayDisks"); clayDisks.has_value())
+        {
+            WorldClayDiskFeatureConfig clay = config.clayDiskFeature;
+            clay.enabled = jsonBoolField(*clayDisks, "enabled").value_or(clay.enabled);
+            clay.block = jsonStringField(*clayDisks, "block").value_or(clay.block);
+            clay.chancePerChunk = std::clamp(jsonFloatField(*clayDisks, "chancePerChunk").value_or(clay.chancePerChunk), 0.0f, 1.0f);
+            clay.radiusMin = std::clamp(jsonIntField(*clayDisks, "radiusMin").value_or(clay.radiusMin), 0, 8);
+            clay.radiusMax = std::clamp(jsonIntField(*clayDisks, "radiusMax").value_or(clay.radiusMax), clay.radiusMin, 8);
+            clay.halfHeight = std::clamp(jsonIntField(*clayDisks, "halfHeight").value_or(clay.halfHeight), 0, 8);
+            if (const std::optional<std::string> replace = jsonArrayField(*clayDisks, "replace"); replace.has_value())
+            {
+                clay.replace = jsonStringArrayValues(*replace);
+            }
+            config.clayDiskFeature = std::move(clay);
         }
 
         return config;

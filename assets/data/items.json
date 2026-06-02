@@ -53,7 +53,8 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 2400
+        "burnTimeTicks": 2400,
+        "heatLevel": 2
     },
     {
         "id": 38,
@@ -71,7 +72,8 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 2400
+        "burnTimeTicks": 2400,
+        "heatLevel": 2
     },
     {
         "id": 32,
@@ -846,5 +848,209 @@
             "ignite"
         ],
         "maxDurability": 4
+    },
+    {
+        "id": 43,
+        "key": "clay_pile",
+        "name": "Clay Pile",
+        "stackSize": 99,
+        "slotTexture": "clay_pile",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "clay_pile"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "clay_pile"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 44,
+        "key": "unfired_clay_brick",
+        "name": "Unfired Clay Brick",
+        "stackSize": 99,
+        "slotTexture": "unfired_clay_brick",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_clay_brick"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_clay_brick"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 45,
+        "key": "clay_brick",
+        "name": "Clay Brick",
+        "stackSize": 99,
+        "slotTexture": "clay_brick",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "clay_brick"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "clay_brick"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 46,
+        "key": "unfired_clay_pot",
+        "name": "Unfired Clay Pot",
+        "stackSize": 99,
+        "slotTexture": "unfired_clay_pot",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_clay_pot"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_clay_pot"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 47,
+        "key": "clay_pot",
+        "name": "Clay Pot",
+        "stackSize": 99,
+        "slotTexture": "clay_pot",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "clay_pot"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "clay_pot"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 48,
+        "key": "grog",
+        "name": "Grog",
+        "stackSize": 99,
+        "slotTexture": "grog",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "grog"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "grog"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 49,
+        "key": "refractory_clay_pile",
+        "name": "Refractory Clay Pile",
+        "stackSize": 99,
+        "slotTexture": "refractory_clay_pile",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "refractory_clay_pile"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "refractory_clay_pile"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 50,
+        "key": "unfired_refractory_clay_brick",
+        "name": "Unfired Refractory Clay Brick",
+        "stackSize": 99,
+        "slotTexture": "unfired_refractory_clay_brick",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_refractory_clay_brick"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_refractory_clay_brick"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 51,
+        "key": "refractory_clay_brick",
+        "name": "Refractory Clay Brick",
+        "stackSize": 99,
+        "slotTexture": "refractory_clay_brick",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "refractory_clay_brick"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "refractory_clay_brick"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 52,
+        "key": "ash",
+        "name": "Ash",
+        "stackSize": 99,
+        "slotTexture": "ash",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "ash"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "ash"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 53,
+        "key": "tar",
+        "name": "Tar",
+        "stackSize": 99,
+        "slotTexture": "tar",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "tar"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "tar"
+        },
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 54,
+        "key": "wood_shavings",
+        "name": "Wood Shavings",
+        "stackSize": 99,
+        "slotTexture": "wood_shavings",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "wood_shavings"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "wood_shavings"
+        },
+        "tags": [],
+        "useActions": []
     }
 ]

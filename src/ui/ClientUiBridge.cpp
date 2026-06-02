@@ -263,6 +263,7 @@ namespace dolbuto::ui
         {
             hotbarRml += itemSlotImageRml(i, false, inventoryItemView(gameplayRuntime().inventorySlot(i)));
         }
+        const std::string offhandRml = offhandSlotRml(inventoryItemView(gameplayRuntime().offhandSlot()));
 
         std::string inventoryRml;
         for (std::size_t i = 0; i < gameplayRuntime().inventorySlotCount(); ++i)
@@ -270,7 +271,7 @@ namespace dolbuto::ui
             inventoryRml += itemSlotImageRml(i, true, inventoryItemView(gameplayRuntime().inventorySlot(i)));
         }
 
-        uiSystem().setInventoryItems(hotbarRml, inventoryRml);
+        uiSystem().setInventoryItems(hotbarRml, inventoryRml, offhandRml);
         updateInventoryCursorUi();
     }
 
@@ -564,6 +565,7 @@ namespace dolbuto::ui
         item.maxDurability = definition.maxDurability;
         item.breakLevel = definition.breakLevel;
         item.burnTimeTicks = definition.burnTimeTicks;
+        item.heatLevel = definition.heatLevel;
         item.name = definition.name;
         item.key = definition.key;
         item.slotTexture = definition.slotTexture;

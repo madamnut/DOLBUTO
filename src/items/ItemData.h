@@ -41,6 +41,7 @@ namespace dolbuto
         uint16_t placeBlockId = 0;
         uint16_t modelBlockId = 0;
         uint32_t burnTimeTicks = 0;
+        uint16_t heatLevel = 0;
         uint32_t droppedTextureLayer = 0;
         uint32_t heldTextureLayer = 0;
         float blockModelWidth = 0.0f;
@@ -85,5 +86,13 @@ namespace dolbuto
         uint16_t targetCount = 1;
         std::vector<ItemInteractionIngredient> ingredients;
         std::vector<ItemInteractionCandidate> candidates;
+    };
+
+    struct ItemProcessingRecipe
+    {
+        std::string type;
+        uint16_t inputItemId = 0;
+        uint16_t outputItemId = 0;
+        uint32_t requiredTicks = 0;
     };
 }

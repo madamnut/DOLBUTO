@@ -74,7 +74,10 @@ namespace dolbuto::game
             void tickBlockUpdates();
             void tickFluidSimulation();
             std::array<ItemStack, gameplay::PlayerInventory::SlotCount> inventorySnapshot() const;
+            ItemStack offhandSlot() const;
             void setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots);
+            void setOffhandSlot(ItemStack stack);
+            bool swapSelectedHotbarWithOffhand();
 
         private:
             ClientRuntime& owner_;

@@ -150,6 +150,7 @@ repeat entityCount:
     uint16 itemId
     uint16 count
     uint16 durability
+    uint32 processingTicks
 uint16 blockEntityCount
 repeat blockEntityCount:
   uint16 type          // 1 = Fire
@@ -157,7 +158,7 @@ repeat blockEntityCount:
   uint8 localZ
   uint16 y
   uint32 remainingBurnTicks
-  uint8 fireMode      // 0 = normal, 1 = pyrolysis
+  uint8 fireMode      // 0 = normal, 1 = pyrolysis, 2 = firing
   uint8 reserved
   uint16 carbonizingOutputItemId
   uint16 carbonizingOutputCount
@@ -170,13 +171,14 @@ uint64 revision
 
 엔티티 위치는 청크 로컬 X/Z와 월드 Y로 저장한다.
 드랍 아이템 `durability`는 내구도 있는 아이템의 현재 내구도다.
+`processingTicks`는 [[recipe/processings]]의 시간 기반 처리 진행도다.
 기존 `itemId/count`만 있는 청크 엔티티 payload도 읽을 수 있으며, 로드 후 내구도 있는 드랍 아이템의 `durability = 0`은 최대 내구도로 정규화한다.
 드랍 아이템의 회전, 스핀, 나이, 획득 진행 상태는 런타임 전용이며 저장하지 않는다.
 엔티티만 바뀐 경우에는 terrain revision을 올리지 않고 런타임 dirty serial을 사용한다. terrain revision은 mesh validity에도 사용되기 때문이다.
 
 block entity는 블록 ID만으로 표현하지 않는 셀별 상태를 저장한다.
 현재 저장 타입은 fire뿐이며, `remainingBurnTicks`는 해당 fire 블록이 꺼지기까지 남은 tick 수다.
-`fireMode`는 주변 block change event로 갱신된 fire의 현재 모드이며, `0`은 일반 불, `1`은 열분해 불이다.
+`fireMode`는 주변 block change event와 연료 소비 시점으로 결정된 fire의 현재 모드이며, `0`은 일반 불, `1`은 열분해 불, `2`는 도기 소성 불이다.
 `carbonizingOutputItemId/count`는 열분해 연료가 다 탔을 때 드랍할 예약 결과물이며, 예약 결과물이 없으면 둘 다 `0`이다.
 로드된 fire 블록에 block entity가 없으면 렌더/런타임 갱신 시 초기값으로 보강하고, block entity만 남고 실제 블록이 fire가 아니면 런타임에서 제거한다.
 현재 block entity payload는 기존 저장 호환을 지원하지 않고 새 fire mode/열분해 결과 포맷을 기준으로 읽는다.
@@ -193,7 +195,8 @@ saves/<world-name>/player.dat
 
 파일은 버전 필드가 없는 고정 바이너리 레이아웃이다.
 현재 레이아웃은 인벤토리 슬롯마다 `itemId`, `count`, `durability`를 저장한다.
-기존 `itemId/count`만 저장한 플레이어 파일도 읽을 수 있으며, 로드 시 내구도 있는 아이템의 `durability = 0`은 최대 내구도로 정규화한다.
+현재 저장 포맷은 50개 인벤토리 슬롯 뒤에 왼손 슬롯 1개를 같은 `itemId/count/durability` 형식으로 덧붙인다.
+왼손 슬롯이 없는 기존 `itemId/count/durability` 플레이어 파일과 `itemId/count`만 저장한 플레이어 파일도 읽을 수 있으며, 로드 시 내구도 있는 아이템의 `durability = 0`은 최대 내구도로 정규화한다.
 
 ```text
 double x
@@ -213,12 +216,18 @@ uint16 maxThirst
 repeat 50:
   uint16 itemId
   uint16 count
+  uint16 durability
+offhand:
+  uint16 itemId
+  uint16 count
+  uint16 durability
 ```
 
-전체 크기는 254바이트다. X/Z는 래핑된 월드 좌표로 저장한다.
+전체 크기는 360바이트다. X/Z는 래핑된 월드 좌표로 저장한다.
 인벤토리 슬롯 `0~49`는 이동 상태 뒤에 저장한다.
+왼손 슬롯은 인벤토리 슬롯 50개 뒤에 저장한다.
 임시 인벤토리 커서 스택은 저장하지 않는다.
-현재 포맷은 레거시 `player.dat` 호환을 제공하지 않으며, 파일 크기가 부족하면 기본 플레이어 상태를 사용한다.
+지원하지 않는 파일 크기이면 기본 플레이어 상태를 사용한다.
 
 ## 게임 씬 저장 경계
 

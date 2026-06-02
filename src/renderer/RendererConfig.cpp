@@ -60,6 +60,10 @@ namespace dolbuto
         constexpr float DefaultPrecipitationNoiseLacunarity = 2.0f;
         constexpr float DefaultPrecipitationNoiseGain = 0.5f;
         constexpr float DefaultPrecipitationNoiseSimplexScale = 1.0f;
+        constexpr float DefaultClayDiskChancePerChunk = 0.20f;
+        constexpr int DefaultClayDiskRadiusMin = 4;
+        constexpr int DefaultClayDiskRadiusMax = 6;
+        constexpr int DefaultClayDiskHalfHeight = 1;
         constexpr float DefaultFluidWaterAlpha = 0.8f;
         constexpr bool DefaultFluidWaterScreenBlurEnabled = true;
         constexpr float DefaultFluidWaterScreenBlurSpread = 1.0f;
@@ -142,6 +146,13 @@ namespace dolbuto
         defaults.precipitationNoiseGain = DefaultPrecipitationNoiseGain;
         defaults.precipitationNoiseSimplexScale = DefaultPrecipitationNoiseSimplexScale;
         defaults.seaLevel = DefaultSeaLevel;
+        defaults.clayDiskFeature.enabled = true;
+        defaults.clayDiskFeature.block = "clay";
+        defaults.clayDiskFeature.replace = {"dirt", "mud", "sand", "clay"};
+        defaults.clayDiskFeature.chancePerChunk = DefaultClayDiskChancePerChunk;
+        defaults.clayDiskFeature.radiusMin = DefaultClayDiskRadiusMin;
+        defaults.clayDiskFeature.radiusMax = DefaultClayDiskRadiusMax;
+        defaults.clayDiskFeature.halfHeight = DefaultClayDiskHalfHeight;
 
         const config::WorldConfig worldConfig = config::loadWorldConfig(configDirectory / "world.json", defaults, ChunkSizeY - 1);
         client_.worldConfig.loadGridScale = worldConfig.loadGridScale;
@@ -188,6 +199,7 @@ namespace dolbuto
         client_.worldConfig.precipitationNoiseSimplexScale = worldConfig.precipitationNoiseSimplexScale;
         client_.worldConfig.seaLevel = worldConfig.seaLevel;
         client_.worldConfig.oreFeatures = worldConfig.oreFeatures;
+        client_.worldConfig.clayDiskFeature = worldConfig.clayDiskFeature;
     }
 
     void RendererConfigBridge::loadRenderConfig(const std::filesystem::path& configDirectory)

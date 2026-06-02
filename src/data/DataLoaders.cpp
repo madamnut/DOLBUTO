@@ -899,6 +899,10 @@ namespace dolbuto::data
             {
                 definition.burnTimeTicks = static_cast<uint32_t>(std::max(*burnTimeTicks, 0));
             }
+            if (const std::optional<int> heatLevel = jsonIntField(object, "heatLevel"); heatLevel.has_value())
+            {
+                definition.heatLevel = static_cast<uint16_t>(std::clamp(*heatLevel, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
+            }
             if (const std::optional<std::string> placeBlock = jsonStringField(object, "placeBlock"); placeBlock.has_value())
             {
                 definition.placeBlock = *placeBlock;
@@ -1173,6 +1177,41 @@ namespace dolbuto::data
             if (!definition.action.empty() &&
                 (!definition.target.empty() || !definition.targetBlock.empty()) &&
                 !definition.candidates.empty())
+            {
+                definitions.push_back(std::move(definition));
+            }
+        }
+
+        return definitions;
+    }
+
+    std::vector<ParsedProcessingDefinition> parseProcessingDefinitions(const std::string& text)
+    {
+        std::vector<ParsedProcessingDefinition> definitions;
+
+        for (const std::string& object : jsonTopLevelObjects(text))
+        {
+            ParsedProcessingDefinition definition{};
+            if (const std::optional<std::string> type = jsonStringField(object, "type"); type.has_value())
+            {
+                definition.type = *type;
+            }
+            if (const std::optional<std::string> input = jsonStringField(object, "input"); input.has_value())
+            {
+                definition.input = *input;
+            }
+            if (const std::optional<std::string> output = jsonStringField(object, "output"); output.has_value())
+            {
+                definition.output = *output;
+            }
+            if (const std::optional<int> requiredTicks = jsonIntField(object, "requiredTicks"); requiredTicks.has_value())
+            {
+                definition.requiredTicks = static_cast<uint32_t>(std::max(*requiredTicks, 0));
+            }
+            if (!definition.type.empty() &&
+                !definition.input.empty() &&
+                !definition.output.empty() &&
+                definition.requiredTicks > 0)
             {
                 definitions.push_back(std::move(definition));
             }

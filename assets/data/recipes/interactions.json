@@ -199,6 +199,48 @@
         ]
     },
     {
+        "action": "handcraft",
+        "target": "clay_pile",
+        "targetCount": 1,
+        "candidates": [
+            "unfired_clay_brick"
+        ]
+    },
+    {
+        "action": "handcraft",
+        "target": "clay_pile",
+        "targetCount": 2,
+        "candidates": [
+            "unfired_clay_pot"
+        ]
+    },
+    {
+        "action": "craft",
+        "target": "clay_pile",
+        "targetCount": 1,
+        "ingredients": [
+            {
+                "item": "grog",
+                "count": 1
+            },
+            {
+                "item": "sand_pile",
+                "count": 1
+            }
+        ],
+        "candidates": [
+            "refractory_clay_pile"
+        ]
+    },
+    {
+        "action": "handcraft",
+        "target": "refractory_clay_pile",
+        "targetCount": 1,
+        "candidates": [
+            "unfired_refractory_clay_brick"
+        ]
+    },
+    {
         "action": "pound",
         "target": "wooden_plank",
         "targetCount": 2,

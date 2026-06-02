@@ -26,6 +26,18 @@ namespace dolbuto::world
             uint32_t salt = 0;
         };
 
+        struct ClayDiskFeature
+        {
+            bool enabled = false;
+            uint16_t block = 0;
+            std::vector<uint16_t> replace;
+            float chancePerChunk = 0.0f;
+            int radiusMin = 0;
+            int radiusMax = 0;
+            int halfHeight = 0;
+            uint32_t salt = 0;
+        };
+
         std::array<float, TerrainSplineLutCount> heightLut{};
         std::array<float, TerrainSplineLutCount> groundnessBaselineLut{};
         std::array<float, TerrainSplineLutCount> groundnessInfluenceLut{};
@@ -80,6 +92,7 @@ namespace dolbuto::world
         float precipitationNoiseGain = 0.5f;
         float precipitationNoiseSimplexScale = 1.0f;
         std::vector<OreFeature> oreFeatures;
+        ClayDiskFeature clayDiskFeature;
     };
 
     struct TerrainDebugSample

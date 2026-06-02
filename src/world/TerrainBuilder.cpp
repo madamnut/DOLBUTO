@@ -67,6 +67,7 @@ namespace dolbuto::world
         constexpr uint8_t TreePlacementMin = 168;
         constexpr uint8_t TreePlacementMax = 170;
         constexpr uint32_t OrePlacementSalt = 0x0EED5EEDu;
+        constexpr uint32_t ClayDiskPlacementSalt = 0xC1A7D15Cu;
 
         struct FeatureNeighborOffset
         {
@@ -1378,6 +1379,118 @@ namespace dolbuto::world
             }
         };
 
+        auto canReplaceWithClayDisk = [](const TerrainBuilderConfig::ClayDiskFeature& clay, uint16_t existing)
+        {
+            return std::find(clay.replace.begin(), clay.replace.end(), existing) != clay.replace.end();
+        };
+
+        auto setCenterClayDisk = [&](int worldX, int y, int worldZ, const TerrainBuilderConfig::ClayDiskFeature& clay)
+        {
+            if (y < 0 || y >= ChunkSizeY)
+            {
+                return;
+            }
+            const int targetChunkX = floorDiv(worldX, ChunkSizeX);
+            const int targetChunkZ = floorDiv(worldZ, ChunkSizeZ);
+            if (targetChunkX != center->chunkX || targetChunkZ != center->chunkZ)
+            {
+                return;
+            }
+
+            const int localX = positiveModulo(worldX, ChunkSizeX);
+            const int localZ = positiveModulo(worldZ, ChunkSizeZ);
+            const size_t index = static_cast<size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+            uint16_t& existing = result->blocks[index];
+            if (canReplaceWithClayDisk(clay, existing))
+            {
+                existing = clay.block;
+                result->emptySubchunks[static_cast<size_t>(y / SubchunkSize)] = false;
+            }
+        };
+
+        auto emitClayDisk = [&](const TerrainBuilderConfig::ClayDiskFeature& clay, const std::shared_ptr<ChunkData>& source)
+        {
+            if (!clay.enabled || clay.block == 0 || clay.replace.empty() || clay.chancePerChunk <= 0.0f || clay.radiusMax <= 0)
+            {
+                return;
+            }
+            if (!source || source->blocks.size() != ChunkBlockCount || source->fluids.size() != ChunkBlockCount)
+            {
+                return;
+            }
+
+            constexpr int WrappedChunkPeriod = WorldSizeBlocks / ChunkSizeX;
+            const int wrappedChunkX = positiveModulo(source->chunkX, WrappedChunkPeriod);
+            const int wrappedChunkZ = positiveModulo(source->chunkZ, WrappedChunkPeriod);
+            auto randomUnit = [&](uint32_t salt)
+            {
+                return hashUnitFloat(worldRandomHash(
+                    wrappedChunkX,
+                    config_.activeWorldSeedSalt,
+                    wrappedChunkZ,
+                    ClayDiskPlacementSalt + clay.salt + salt));
+            };
+
+            if (randomUnit(0x11u) >= clay.chancePerChunk)
+            {
+                return;
+            }
+
+            const int radiusMin = std::max(0, std::min(clay.radiusMin, clay.radiusMax));
+            const int radiusMax = std::max(radiusMin, clay.radiusMax);
+            if (radiusMax <= 0)
+            {
+                return;
+            }
+
+            const int localX = std::clamp(static_cast<int>(randomUnit(0x22u) * ChunkSizeX), 0, ChunkSizeX - 1);
+            const int localZ = std::clamp(static_cast<int>(randomUnit(0x33u) * ChunkSizeZ), 0, ChunkSizeZ - 1);
+            const size_t column = static_cast<size_t>(localZ * ChunkSizeX + localX);
+            int floorY = -1;
+            if (source->terrainSourceCacheValid)
+            {
+                floorY = static_cast<int>(source->terrainSurfaceY[column]);
+            }
+            else
+            {
+                const std::array<int, ChunkColumnCount> fallbackHeights = buildChunkHeightmap(source->chunkX, source->chunkZ);
+                floorY = fallbackHeights[column] > 0 ? std::min(fallbackHeights[column] - 1, ChunkSizeY - 1) : -1;
+            }
+            const int waterY = floorY + 1;
+            if (floorY < 0 || waterY < 0 || waterY >= ChunkSizeY)
+            {
+                return;
+            }
+
+            const size_t waterIndex = static_cast<size_t>((waterY * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+            if (fluidId(source->fluids[waterIndex]) != FluidWater || fluidAmount(source->fluids[waterIndex]) == 0)
+            {
+                return;
+            }
+
+            const int radiusSpan = radiusMax - radiusMin + 1;
+            const int radius = radiusMin + std::clamp(static_cast<int>(randomUnit(0x44u) * static_cast<float>(radiusSpan)), 0, radiusSpan - 1);
+            const int halfHeight = std::max(0, clay.halfHeight);
+            const int worldX = source->chunkX * ChunkSizeX + localX;
+            const int worldZ = source->chunkZ * ChunkSizeZ + localZ;
+            const int radiusSquared = radius * radius;
+
+            for (int dz = -radius; dz <= radius; ++dz)
+            {
+                for (int dx = -radius; dx <= radius; ++dx)
+                {
+                    if (dx * dx + dz * dz > radiusSquared)
+                    {
+                        continue;
+                    }
+                    for (int dy = -halfHeight; dy <= halfHeight; ++dy)
+                    {
+                        setCenterClayDisk(worldX + dx, floorY + dy, worldZ + dz, clay);
+                    }
+                }
+            }
+        };
+
         auto canPlaceTrunk = [](uint16_t existing)
         {
             return existing == BlockAir || existing == BlockPlant || existing == BlockLeaves;
@@ -1463,6 +1576,11 @@ namespace dolbuto::world
                     emitOreBlob(ore, source->chunkX, source->chunkZ, attempt);
                 }
             }
+        }
+
+        for (const std::shared_ptr<ChunkData>& source : sourceChunks)
+        {
+            emitClayDisk(config_.clayDiskFeature, source);
         }
 
         for (const std::shared_ptr<ChunkData>& source : sourceChunks)

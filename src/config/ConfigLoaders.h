@@ -20,6 +20,17 @@ namespace dolbuto::config
         int size = 0;
     };
 
+    struct WorldClayDiskFeatureConfig
+    {
+        bool enabled = false;
+        std::string block;
+        std::vector<std::string> replace;
+        float chancePerChunk = 0.0f;
+        int radiusMin = 0;
+        int radiusMax = 0;
+        int halfHeight = 0;
+    };
+
     struct WorldConfig
     {
         int loadGridScale = 0;
@@ -66,6 +77,7 @@ namespace dolbuto::config
         float precipitationNoiseSimplexScale = 1.0f;
         int seaLevel = 256;
         std::vector<WorldOreFeatureConfig> oreFeatures;
+        WorldClayDiskFeatureConfig clayDiskFeature;
     };
 
     struct RenderConfig

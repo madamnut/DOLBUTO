@@ -18,6 +18,7 @@ namespace dolbuto::ui
         uint16_t maxDurability = 0;
         uint16_t breakLevel = 0;
         uint32_t burnTimeTicks = 0;
+        uint16_t heatLevel = 0;
         std::string name;
         std::string key;
         std::string slotTexture;
@@ -45,5 +46,6 @@ namespace dolbuto::ui
     std::string itemStackContentRml(const InventoryItemView& item, int itemLeft, int itemTop);
     std::string itemTooltipRml(const InventoryItemView& item);
     std::string itemSlotImageRml(size_t slotIndex, bool inventorySlot, const InventoryItemView& item);
+    std::string offhandSlotRml(const InventoryItemView& item);
     std::optional<TooltipLayout> itemTooltipLayout(const InventoryItemView& item, double mouseX, double mouseY, uint32_t screenWidth, uint32_t screenHeight);
 }

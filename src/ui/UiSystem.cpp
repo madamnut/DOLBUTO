@@ -525,13 +525,17 @@ namespace dolbuto::ui
         }
     }
 
-    void UiSystem::setInventoryItems(std::string_view hotbarRml, std::string_view inventoryRml)
+    void UiSystem::setInventoryItems(std::string_view hotbarRml, std::string_view inventoryRml, std::string_view offhandRml)
     {
         if (hudDocument_ != nullptr)
         {
             if (Rml::Element* hotbarItems = hudDocument_->GetElementById("hotbar-items"))
             {
                 hotbarItems->SetInnerRML(std::string(hotbarRml));
+            }
+            if (Rml::Element* offhandItems = hudDocument_->GetElementById("offhand-items"))
+            {
+                offhandItems->SetInnerRML(std::string(offhandRml));
             }
         }
 

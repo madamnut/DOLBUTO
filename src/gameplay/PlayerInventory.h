@@ -23,10 +23,12 @@ namespace dolbuto::gameplay
 
         size_t slotCount() const;
         const ItemStack& slot(size_t index) const;
+        const ItemStack& offhandSlot() const;
         const ItemStack& cursorStack() const;
 
         void clear();
         void setSlots(const std::array<ItemStack, SlotCount>& slots, const std::vector<ItemDefinition>& itemDefinitions);
+        void setOffhandSlot(ItemStack stack, const std::vector<ItemDefinition>& itemDefinitions);
         std::array<ItemStack, SlotCount> snapshot() const;
 
         uint16_t add(ItemStack stack, const std::vector<ItemDefinition>& itemDefinitions);
@@ -37,6 +39,7 @@ namespace dolbuto::gameplay
 
         bool handleSlotClick(size_t slotIndex, InventoryClickButton button, bool shift, const std::vector<ItemDefinition>& itemDefinitions);
         bool swapHotbarWithSlot(size_t slotIndex, size_t hotbarSlot);
+        bool swapOffhandWithHotbar(size_t hotbarSlot);
         bool closeCursor(const std::vector<ItemDefinition>& itemDefinitions);
 
     private:
@@ -44,6 +47,7 @@ namespace dolbuto::gameplay
         static ItemStack normalizedStack(ItemStack stack, const std::vector<ItemDefinition>& itemDefinitions);
 
         std::array<ItemStack, SlotCount> slots_{};
+        ItemStack offhandSlot_{};
         ItemStack cursorStack_{};
     };
 }

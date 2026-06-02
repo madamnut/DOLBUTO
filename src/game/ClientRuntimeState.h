@@ -75,6 +75,7 @@ namespace dolbuto::game
         float precipitationNoiseSimplexScale = 1.0f;
         int seaLevel = 0;
         std::vector<config::WorldOreFeatureConfig> oreFeatures;
+        config::WorldClayDiskFeatureConfig clayDiskFeature;
     };
 
     struct ClientRenderConfigState

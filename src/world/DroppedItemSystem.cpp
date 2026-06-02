@@ -393,6 +393,7 @@ namespace dolbuto::world
                     uint16_t otherMaxStack = 0;
                     if (!canMergeDroppedItem(b, itemDefinitions, otherMaxStack) ||
                         a.droppedItem.stack.itemId != b.droppedItem.stack.itemId ||
+                        a.droppedItem.processingTicks != b.droppedItem.processingTicks ||
                         maxStack != otherMaxStack ||
                         !closeEnoughToMerge(a, b))
                     {

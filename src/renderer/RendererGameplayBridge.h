@@ -48,6 +48,8 @@ namespace dolbuto
         bool executePendingItemInteraction(std::size_t actionIndex, std::size_t candidateIndex, bool repeat);
         void cancelPendingItemInteraction();
         void setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots);
+        void setOffhandSlot(ItemStack stack);
+        bool swapSelectedHotbarWithOffhand();
         void tickBlockUpdates();
 
         const BlockDefinition& blockDefinition(uint16_t block) const;

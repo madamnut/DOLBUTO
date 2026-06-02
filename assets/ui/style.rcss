@@ -64,6 +64,23 @@ body {
     margin-left: -354px;
 }
 
+.offhand-items {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 96px;
+    height: 96px;
+    margin-left: -466px;
+}
+
+.offhand-slot-image {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 96px;
+    height: 96px;
+}
+
 .slot-debug {
     position: absolute;
     width: 64px;

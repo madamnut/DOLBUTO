@@ -4,6 +4,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -409,6 +410,7 @@ namespace dolbuto::save
             writeU16(payload, entity.droppedItem.stack.itemId);
             writeU16(payload, entity.droppedItem.stack.count);
             writeU16(payload, entity.droppedItem.stack.durability);
+            writeU32(payload, entity.droppedItem.processingTicks);
             ++writtenEntities;
         }
         payload[entityCountOffset] = static_cast<uint8_t>(writtenEntities & 0xFFu);
@@ -577,13 +579,38 @@ namespace dolbuto::save
                 const float worldZStart = static_cast<float>(chunkZ * ChunkSizeZ);
                 constexpr size_t DroppedItemEntityLegacyBytes = 39;
                 constexpr size_t DroppedItemEntityBytes = 41;
-                const size_t entityBytesWithRevision = payload.size() >= offset + 8 ? payload.size() - offset - 8 : 0;
-                const size_t legacyEntityBytes = static_cast<size_t>(entityCount) * DroppedItemEntityLegacyBytes;
-                const size_t durableEntityBytes = static_cast<size_t>(entityCount) * DroppedItemEntityBytes;
-                const bool hasEntityDurability = entityBytesWithRevision == durableEntityBytes ||
-                    entityBytesWithRevision >= durableEntityBytes + 2u;
-                if (entityBytesWithRevision != legacyEntityBytes &&
-                    entityBytesWithRevision < durableEntityBytes)
+                constexpr size_t DroppedItemEntityProcessingBytes = 45;
+                auto peekU16At = [&](size_t readOffset) -> std::optional<uint16_t>
+                {
+                    if (readOffset + 2 > payload.size())
+                    {
+                        return std::optional<uint16_t>{};
+                    }
+                    return std::optional<uint16_t>{static_cast<uint16_t>(
+                        static_cast<uint16_t>(payload[readOffset]) |
+                        static_cast<uint16_t>(payload[readOffset + 1]) << 8u)};
+                };
+                auto payloadFitsAfterEntities = [&](size_t entityBytes)
+                {
+                    const size_t afterEntities = offset + static_cast<size_t>(entityCount) * entityBytes;
+                    if (afterEntities + 8 == payload.size())
+                    {
+                        return true;
+                    }
+                    const std::optional<uint16_t> blockEntityCount = peekU16At(afterEntities);
+                    if (!blockEntityCount.has_value())
+                    {
+                        return false;
+                    }
+                    const size_t afterBlockEntities = afterEntities + 2u + static_cast<size_t>(*blockEntityCount) * 16u;
+                    return afterBlockEntities <= payload.size() && blockStateSectionFits(payload, afterBlockEntities);
+                };
+
+                const bool hasEntityProcessing = payloadFitsAfterEntities(DroppedItemEntityProcessingBytes);
+                const bool hasEntityDurability = hasEntityProcessing || payloadFitsAfterEntities(DroppedItemEntityBytes);
+                if (!hasEntityProcessing &&
+                    !hasEntityDurability &&
+                    !payloadFitsAfterEntities(DroppedItemEntityLegacyBytes))
                 {
                     return std::nullopt;
                 }
@@ -613,6 +640,7 @@ namespace dolbuto::save
                     entity.droppedItem.stack.itemId = readU16(payload, offset);
                     entity.droppedItem.stack.count = readU16(payload, offset);
                     entity.droppedItem.stack.durability = hasEntityDurability ? readU16(payload, offset) : 0;
+                    entity.droppedItem.processingTicks = hasEntityProcessing ? readU32(payload, offset) : 0;
                     if (entity.entityId != 0 &&
                         entity.droppedItem.stack.itemId != 0 &&
                         entity.droppedItem.stack.count != 0)
@@ -639,9 +667,12 @@ namespace dolbuto::save
                     entity.localZ = readU8(payload, offset);
                     entity.y = readU16(payload, offset);
                     entity.remainingBurnTicks = readU32(payload, offset);
-                    entity.fireMode = readU8(payload, offset) == static_cast<uint8_t>(FireMode::Pyrolysis)
-                        ? FireMode::Pyrolysis
-                        : FireMode::Normal;
+                    const uint8_t savedFireMode = readU8(payload, offset);
+                    entity.fireMode = savedFireMode == static_cast<uint8_t>(FireMode::Firing)
+                        ? FireMode::Firing
+                        : (savedFireMode == static_cast<uint8_t>(FireMode::Pyrolysis)
+                            ? FireMode::Pyrolysis
+                            : FireMode::Normal);
                     (void)readU8(payload, offset);
                     entity.carbonizingOutputItemId = readU16(payload, offset);
                     entity.carbonizingOutputCount = readU16(payload, offset);

@@ -1,0 +1,20 @@
+[
+    {
+        "type": "firing",
+        "input": "unfired_clay_brick",
+        "output": "clay_brick",
+        "requiredTicks": 1200
+    },
+    {
+        "type": "firing",
+        "input": "unfired_clay_pot",
+        "output": "clay_pot",
+        "requiredTicks": 1200
+    },
+    {
+        "type": "firing",
+        "input": "unfired_refractory_clay_brick",
+        "output": "refractory_clay_brick",
+        "requiredTicks": 1200
+    }
+]

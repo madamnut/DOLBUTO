@@ -21,6 +21,7 @@
             <div id="thirst-bar-fill" class="stat-bar-fill thirst-bar-fill"></div>
         </div>
         <img class="hotbar-image" src="../textures/ui/player/Hotbar.png"/>
+        <div id="offhand-items" class="offhand-items"></div>
         <div id="hotbar-items" class="hotbar-items"></div>
         <div id="hotbar-debug-slots" class="hotbar-items"></div>
         <img id="hotbar-scope" class="hotbar-scope hotbar-slot-0" src="../textures/ui/player/Hotbarscope.png"/>

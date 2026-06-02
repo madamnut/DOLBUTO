@@ -227,19 +227,27 @@ block entity는 청크 로컬 X/Z, 월드 Y, 타입, 타입별 상태 값을 가
 
 `fire` 블록은 설치되거나 로드될 때 같은 좌표에 fire block entity를 가진다.
 초기 남은 연소 시간은 `200`틱이다.
-fire block entity는 일반 불 `normal`과 열분해 불 `pyrolysis` 모드를 가진다.
+fire block entity는 일반 불 `normal`, 열분해 불 `pyrolysis`, 도기 소성 불 `firing` 모드를 가진다.
 블록 변화가 발생하면 변화 좌표 자신은 `SelfBlockChanged`, 동서남북/상하 6방향 이웃은 `BlockNeighborChanged` 이유로 block tick에 등록된다.
-fire는 주변 블록 변화 이벤트를 받았을 때만 동서남북/상하 6방향 밀폐 여부를 다시 검사하고, 모두 `collision = true`이면 `pyrolysis`, 하나라도 아니면 `normal`로 전환한다.
+fire는 주변 블록 변화 이벤트를 받았을 때만 현재 모드에 필요한 구조가 유지되는지 다시 검사한다.
+`pyrolysis`는 동서남북/상하 6방향이 모두 `collision = true`인 6면 밀폐 구조를 요구한다.
+`firing`은 아래와 동서남북 5방향이 `collision = true`이고 위쪽이 열린 구조를 요구한다.
+현재 모드에 필요한 구조가 깨지면 즉시 `normal`로 전환하고 예약된 열분해 결과를 폐기한다.
+구조가 새로 생겨도 현재 타고 있는 연료의 모드는 유지하며, 다음 연료 소비 시점에 새 모드를 결정한다.
 남은 연소 시간 감소는 별도 `FireBurn` tick으로 진행하며, fire가 계속 존재하면 자기 자신을 다시 `FireBurn`으로 등록한다.
 연소 시간이 0이 되면 fire 셀의 `1 x 1 x 1` 영역 안에 있는 드랍 아이템 중 연료 아이템 1개를 무작위로 소비한다.
 단, `charcoal`은 같은 영역에 다른 연료가 하나도 없을 때만 소비 후보로 사용한다.
-`pyrolysis` fire는 `charcoal`을 연료 후보에서 제외한다.
 연료를 소비하면 해당 아이템의 `burnTimeTicks`만큼 남은 연소 시간이 늘어난다.
-연료 소비 시점의 fire mode가 `pyrolysis`이면 pit kiln 후보로 본다.
+연료 소비 시점에 5면 `firing` 구조이고 소비한 연료의 `heatLevel >= 2`이면 `firing` 모드가 된다.
+연료 소비 시점에 6면 밀폐 구조이면 `pyrolysis` 모드가 된다.
+둘 다 아니면 `normal` 모드가 된다.
+연료 소비로 결정된 fire mode가 `pyrolysis`이면 pit kiln 후보로 본다.
 현재 pit kiln 레시피는 `log -> charcoal x4`, `stripped_log -> charcoal x4`, `half_stripped_log -> charcoal x3`, `quarter_stripped_log -> charcoal x2`다.
 후보 연료의 연소 시간이 끝나면 예약된 숯을 fire 위치에 드랍하고, 숯을 드랍한 tick에는 다음 연료를 소비하지 않는다.
 열분해 중 주변 한 면이라도 뚫려 `normal`로 내려가면 예약된 숯 결과는 폐기하고, 현재 남은 연소 시간은 유지한다.
-`normal` fire가 나중에 `pyrolysis`로 올라가더라도 이미 타고 있던 연료는 일반 연소로 유지되고, 다음 연료 소비부터 열분해가 적용된다.
+`normal` fire가 나중에 밀폐되더라도 이미 타고 있던 연료는 일반 연소로 유지되고, 다음 연료 소비부터 `pyrolysis` 또는 `firing`이 적용된다.
+`firing` fire는 5틱마다 fire 셀의 `1 x 1 x 1` 영역 안에 있는 드랍 아이템을 확인하고, [[recipe/processings]]의 `firing` 레시피 대상이면 해당 드랍 아이템의 `processingTicks`를 5틱씩 증가시킨다.
+요구 tick에 도달한 드랍 아이템 스택은 같은 count를 유지한 채 결과 아이템으로 변환된다.
 스택이 2개 이상이면 count만 1 줄이고, 1개짜리 스택이면 드랍 엔티티를 제거한다.
 소비할 연료가 없으면 fire 블록은 `air`로 바뀌고 일반 블록 파괴와 같은 갱신 경로로 메쉬, 파티클, 사운드 이벤트를 발생시킨다.
 fire block entity만 남고 실제 블록이 fire가 아니면 stale 상태로 보고 제거한다.

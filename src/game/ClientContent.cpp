@@ -447,6 +447,9 @@ namespace dolbuto::game
             itemDefinition.breakLevel = definition.breakLevel;
             itemDefinition.maxDurability = definition.maxDurability;
             itemDefinition.burnTimeTicks = definition.burnTimeTicks;
+            itemDefinition.heatLevel = definition.heatLevel != 0 || definition.burnTimeTicks == 0
+                ? definition.heatLevel
+                : 1;
             const ItemBlockModelSize blockModelSize = parseItemBlockModelSize(definition.modelShape);
             itemDefinition.blockModelWidth = blockModelSize.width;
             itemDefinition.blockModelHeight = blockModelSize.height;
@@ -677,7 +680,7 @@ namespace dolbuto::game
             }
         }
 
-        const std::filesystem::path interactionPath = assetDirectory / "data" / "interactions.json";
+        const std::filesystem::path interactionPath = assetDirectory / "data" / "recipes" / "interactions.json";
         if (std::filesystem::exists(interactionPath))
         {
             const std::vector<char> interactionData = readContentFile(interactionPath);
@@ -782,6 +785,37 @@ namespace dolbuto::game
                 {
                     content.itemInteractionRecipes_.push_back(std::move(recipe));
                 }
+            }
+        }
+
+        const std::filesystem::path processingPath = assetDirectory / "data" / "recipes" / "processings.json";
+        if (std::filesystem::exists(processingPath))
+        {
+            const std::vector<char> processingData = readContentFile(processingPath);
+            const std::string processingText(processingData.begin(), processingData.end());
+            const std::vector<data::ParsedProcessingDefinition> parsedProcessings = data::parseProcessingDefinitions(processingText);
+            for (const data::ParsedProcessingDefinition& definition : parsedProcessings)
+            {
+                const auto inputIt = content.itemIdByKey_.find(definition.input);
+                if (inputIt == content.itemIdByKey_.end())
+                {
+                    log::warn("Processing recipe references unknown input item key: " + definition.type + " -> " + definition.input);
+                    continue;
+                }
+
+                const auto outputIt = content.itemIdByKey_.find(definition.output);
+                if (outputIt == content.itemIdByKey_.end())
+                {
+                    log::warn("Processing recipe references unknown output item key: " + definition.type + " -> " + definition.output);
+                    continue;
+                }
+
+                ItemProcessingRecipe recipe{};
+                recipe.type = definition.type;
+                recipe.inputItemId = inputIt->second;
+                recipe.outputItemId = outputIt->second;
+                recipe.requiredTicks = definition.requiredTicks;
+                content.itemProcessingRecipes_.push_back(std::move(recipe));
             }
         }
 
@@ -912,6 +946,11 @@ namespace dolbuto::game
     const std::vector<ItemInteractionRecipe>& ClientContent::itemInteractionRecipes() const
     {
         return itemInteractionRecipes_;
+    }
+
+    const std::vector<ItemProcessingRecipe>& ClientContent::itemProcessingRecipes() const
+    {
+        return itemProcessingRecipes_;
     }
 
     const std::vector<std::string>& ClientContent::blockTextureNames() const

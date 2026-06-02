@@ -28,6 +28,7 @@ namespace dolbuto
     struct DroppedItemEntityData
     {
         ItemStack stack{};
+        uint32_t processingTicks = 0;
     };
 
     struct WorldEntity
@@ -83,7 +84,8 @@ namespace dolbuto
     enum class FireMode : uint8_t
     {
         Normal = 0,
-        Pyrolysis = 1
+        Pyrolysis = 1,
+        Firing = 2
     };
 
     struct BlockEntity

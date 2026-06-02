@@ -74,6 +74,7 @@ namespace dolbuto::data
         uint16_t breakLevel = 0;
         uint16_t maxDurability = 0;
         uint32_t burnTimeTicks = 0;
+        uint16_t heatLevel = 0;
         std::string placeBlock;
         std::string modelBlock;
         std::string modelShape;
@@ -111,8 +112,17 @@ namespace dolbuto::data
         uint16_t resultCountMax = 1;
     };
 
+    struct ParsedProcessingDefinition
+    {
+        std::string type;
+        std::string input;
+        std::string output;
+        uint32_t requiredTicks = 0;
+    };
+
     std::vector<ParsedItemDefinition> parseItemDefinitions(const std::string& text);
     std::vector<ParsedBlockDefinition> parseBlockDefinitions(const std::string& text);
     std::vector<ParsedFluidDefinition> parseFluidDefinitions(const std::string& text);
     std::vector<ParsedInteractionDefinition> parseInteractionDefinitions(const std::string& text);
+    std::vector<ParsedProcessingDefinition> parseProcessingDefinitions(const std::string& text);
 }

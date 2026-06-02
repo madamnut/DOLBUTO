@@ -67,8 +67,10 @@ namespace dolbuto
         constexpr size_t PlayerStateBaseFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t) * 2u + PlayerStatsFileSize;
         constexpr size_t PlayerInventoryLegacyFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 2u;
         constexpr size_t PlayerInventoryFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 3u;
+        constexpr size_t PlayerOffhandFileSize = sizeof(uint16_t) * 3u;
         constexpr size_t PlayerStateLegacyFileSize = PlayerStateBaseFileSize + PlayerInventoryLegacyFileSize;
-        constexpr size_t PlayerStateFileSize = PlayerStateBaseFileSize + PlayerInventoryFileSize;
+        constexpr size_t PlayerStateInventoryFileSize = PlayerStateBaseFileSize + PlayerInventoryFileSize;
+        constexpr size_t PlayerStateFileSize = PlayerStateInventoryFileSize + PlayerOffhandFileSize;
         constexpr size_t WorldStateFileSize = sizeof(uint64_t) * 4u;
         constexpr uint64_t TicksPerMinute = 20;
         constexpr uint64_t MinutesPerHour = 60;
@@ -1165,7 +1167,7 @@ namespace dolbuto
             else if (key == GLFW_KEY_R && action == GLFW_PRESS && app != nullptr && app->runtime_ != nullptr &&
                 !app->chatOpen_ && (app->screen_ == GameClient::AppScreen::Game || app->screen_ == GameClient::AppScreen::Inventory))
             {
-                app->runtime_->diagnostics().resetPerformanceMax();
+                app->runtime_->gameplay().swapSelectedHotbarWithOffhand();
             }
             else if (key == GLFW_KEY_F1 && action == GLFW_PRESS && app != nullptr)
             {
@@ -2553,6 +2555,7 @@ namespace dolbuto
         const std::streamoff fileSize = file.tellg();
         file.seekg(0, std::ios::beg);
         if (fileSize != static_cast<std::streamoff>(PlayerStateFileSize) &&
+            fileSize != static_cast<std::streamoff>(PlayerStateInventoryFileSize) &&
             fileSize != static_cast<std::streamoff>(PlayerStateLegacyFileSize))
         {
             log::warn("Player state file has unsupported size, using default player state.");
@@ -2589,12 +2592,20 @@ namespace dolbuto
             stats.maxThirst = readU16(bytes, offset);
             stats.clamp();
             std::array<ItemStack, PlayerInventorySlotCount> inventorySlots{};
-            const bool hasDurability = bytes.size() == PlayerStateFileSize;
+            const bool hasDurability = bytes.size() == PlayerStateFileSize || bytes.size() == PlayerStateInventoryFileSize;
+            const bool hasOffhandSlot = bytes.size() == PlayerStateFileSize;
             for (ItemStack& slot : inventorySlots)
             {
                 slot.itemId = readU16(bytes, offset);
                 slot.count = readU16(bytes, offset);
                 slot.durability = hasDurability ? readU16(bytes, offset) : 0;
+            }
+            ItemStack offhandSlot{};
+            if (hasOffhandSlot)
+            {
+                offhandSlot.itemId = readU16(bytes, offset);
+                offhandSlot.count = readU16(bytes, offset);
+                offhandSlot.durability = readU16(bytes, offset);
             }
 
             if (!std::isfinite(x) ||
@@ -2654,6 +2665,7 @@ namespace dolbuto
             if (runtime_ != nullptr)
             {
                 runtime_->gameplay().setInventorySnapshot(inventorySlots);
+                runtime_->gameplay().setOffhandSlot(offhandSlot);
             }
             log::info("Player state loaded.");
         }
@@ -2702,6 +2714,10 @@ namespace dolbuto
                 writeU16(bytes, slot.count);
                 writeU16(bytes, slot.durability);
             }
+            const ItemStack offhandSlot = runtime_ != nullptr ? runtime_->gameplay().offhandSlot() : ItemStack{};
+            writeU16(bytes, offhandSlot.itemId);
+            writeU16(bytes, offhandSlot.count);
+            writeU16(bytes, offhandSlot.durability);
 
             std::ofstream file(playerStatePath(), std::ios::binary | std::ios::trunc);
             if (!file.is_open())

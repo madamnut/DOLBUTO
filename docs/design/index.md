@@ -17,6 +17,7 @@
 - [[block-data]]
 - [[item-data]]
 - [[item-interactions]]
+- [[recipe/index]]
 - [[audio]]
 - [[ui]]
 - [[debug-profiling]]

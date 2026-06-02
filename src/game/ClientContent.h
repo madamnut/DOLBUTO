@@ -36,6 +36,7 @@ namespace dolbuto::game
         const std::unordered_map<std::string, uint16_t>& itemIdByKey() const;
         const std::unordered_map<std::string, uint16_t>& blockIdByName() const;
         const std::vector<ItemInteractionRecipe>& itemInteractionRecipes() const;
+        const std::vector<ItemProcessingRecipe>& itemProcessingRecipes() const;
         const std::vector<std::string>& blockTextureNames() const;
         const std::vector<std::string>& itemTextureNames() const;
         const std::vector<PropModelBinding>& propModelBindings() const;
@@ -52,6 +53,7 @@ namespace dolbuto::game
         std::unordered_map<std::string, uint16_t> itemIdByKey_;
         std::unordered_map<std::string, uint16_t> blockIdByName_;
         std::vector<ItemInteractionRecipe> itemInteractionRecipes_;
+        std::vector<ItemProcessingRecipe> itemProcessingRecipes_;
         std::vector<std::string> blockTextureNames_;
         std::vector<std::string> itemTextureNames_;
         std::vector<PropModelBinding> propModelBindings_;

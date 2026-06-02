@@ -16,6 +16,11 @@ namespace dolbuto::gameplay
         return index < slots_.size() ? slots_[index] : EmptyStack;
     }
 
+    const ItemStack& PlayerInventory::offhandSlot() const
+    {
+        return offhandSlot_;
+    }
+
     const ItemStack& PlayerInventory::cursorStack() const
     {
         return cursorStack_;
@@ -24,6 +29,7 @@ namespace dolbuto::gameplay
     void PlayerInventory::clear()
     {
         slots_.fill(ItemStack{});
+        offhandSlot_ = {};
         cursorStack_ = {};
     }
 
@@ -41,6 +47,11 @@ namespace dolbuto::gameplay
             slots_[i] = normalizedStack(source, itemDefinitions);
         }
         cursorStack_ = {};
+    }
+
+    void PlayerInventory::setOffhandSlot(ItemStack stack, const std::vector<ItemDefinition>& itemDefinitions)
+    {
+        offhandSlot_ = validStack(stack, itemDefinitions) ? normalizedStack(stack, itemDefinitions) : ItemStack{};
     }
 
     std::array<ItemStack, PlayerInventory::SlotCount> PlayerInventory::snapshot() const
@@ -281,6 +292,17 @@ namespace dolbuto::gameplay
         }
 
         std::swap(slots_[slotIndex], slots_[hotbarSlot]);
+        return true;
+    }
+
+    bool PlayerInventory::swapOffhandWithHotbar(size_t hotbarSlot)
+    {
+        if (hotbarSlot >= HotbarSlotCount || cursorStack_.itemId != 0 || cursorStack_.count != 0)
+        {
+            return false;
+        }
+
+        std::swap(offhandSlot_, slots_[hotbarSlot]);
         return true;
     }
 

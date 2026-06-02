@@ -191,6 +191,7 @@ namespace dolbuto
         const gameplay::BlockTickResult result = client_.gameplayRuntime.tickBlockUpdates(
             MaxBlockTickCells,
             [this](uint16_t block) -> const BlockDefinition& { return blockDefinition(block); },
+            client_.content.itemProcessingRecipes(),
             [this](int x, int y, int z, uint16_t block)
             {
                 return hooks_.setBlockAtWorld && hooks_.setBlockAtWorld(x, y, z, block);
@@ -232,6 +233,34 @@ namespace dolbuto
         client_.uiBridge.updateInventoryDebugSlots();
         client_.uiBridge.updateInventoryCursorUi();
         client_.uiBridge.updateItemTooltipUi(vulkan_.swapchainExtent.width, vulkan_.swapchainExtent.height);
+    }
+
+    void RendererGameplayBridge::setOffhandSlot(ItemStack stack)
+    {
+        client_.gameplayRuntime.setOffhandSlot(stack);
+        if (hooks_.updateInventoryUi)
+        {
+            hooks_.updateInventoryUi();
+        }
+        client_.uiBridge.updateInventoryDebugSlots();
+        client_.uiBridge.updateInventoryCursorUi();
+        client_.uiBridge.updateItemTooltipUi(vulkan_.swapchainExtent.width, vulkan_.swapchainExtent.height);
+    }
+
+    bool RendererGameplayBridge::swapSelectedHotbarWithOffhand()
+    {
+        if (!client_.gameplayRuntime.swapSelectedHotbarWithOffhand())
+        {
+            return false;
+        }
+        if (hooks_.updateInventoryUi)
+        {
+            hooks_.updateInventoryUi();
+        }
+        client_.uiBridge.updateInventoryDebugSlots();
+        client_.uiBridge.updateInventoryCursorUi();
+        client_.uiBridge.updateItemTooltipUi(vulkan_.swapchainExtent.width, vulkan_.swapchainExtent.height);
+        return true;
     }
 
     const BlockDefinition& RendererGameplayBridge::blockDefinition(uint16_t block) const

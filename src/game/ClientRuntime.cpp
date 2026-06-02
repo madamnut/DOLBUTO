@@ -14,6 +14,7 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <utility>
 
 namespace dolbuto::game
 {
@@ -180,6 +181,34 @@ namespace dolbuto::game
                 feature.size = ore.size;
                 feature.salt = stableStringHash(ore.name.empty() ? ore.block : ore.name);
                 config.oreFeatures.push_back(feature);
+            }
+            const config::WorldClayDiskFeatureConfig& clay = state.worldConfig.clayDiskFeature;
+            if (clay.enabled && !clay.block.empty() && !clay.replace.empty() && clay.chancePerChunk > 0.0f && clay.radiusMax > 0)
+            {
+                const auto blockIt = state.content.blockIdByName().find(clay.block);
+                if (blockIt != state.content.blockIdByName().end())
+                {
+                    world::TerrainBuilderConfig::ClayDiskFeature feature{};
+                    feature.enabled = true;
+                    feature.block = blockIt->second;
+                    feature.chancePerChunk = clay.chancePerChunk;
+                    feature.radiusMin = clay.radiusMin;
+                    feature.radiusMax = clay.radiusMax;
+                    feature.halfHeight = clay.halfHeight;
+                    feature.salt = stableStringHash("clay_disk:" + clay.block);
+                    for (const std::string& replace : clay.replace)
+                    {
+                        const auto replaceIt = state.content.blockIdByName().find(replace);
+                        if (replaceIt != state.content.blockIdByName().end())
+                        {
+                            feature.replace.push_back(replaceIt->second);
+                        }
+                    }
+                    if (!feature.replace.empty())
+                    {
+                        config.clayDiskFeature = std::move(feature);
+                    }
+                }
             }
             return config;
         }
@@ -389,9 +418,24 @@ namespace dolbuto::game
         return owner_.state_->gameplayRuntime.inventorySnapshot();
     }
 
+    ItemStack ClientRuntime::GameplayAccess::offhandSlot() const
+    {
+        return owner_.state_->gameplayRuntime.offhandSlot();
+    }
+
     void ClientRuntime::GameplayAccess::setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots)
     {
         owner_.renderRuntime_->setInventorySnapshot(slots);
+    }
+
+    void ClientRuntime::GameplayAccess::setOffhandSlot(ItemStack stack)
+    {
+        owner_.renderRuntime_->setOffhandSlot(stack);
+    }
+
+    bool ClientRuntime::GameplayAccess::swapSelectedHotbarWithOffhand()
+    {
+        return owner_.renderRuntime_->swapSelectedHotbarWithOffhand();
     }
 
     ClientRuntime::UiAccess::UiAccess(ClientRuntime& owner) :

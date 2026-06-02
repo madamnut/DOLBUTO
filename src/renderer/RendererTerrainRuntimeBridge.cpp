@@ -376,6 +376,34 @@ namespace dolbuto
             feature.salt = stableStringHash(ore.name.empty() ? ore.block : ore.name);
             config.oreFeatures.push_back(feature);
         }
+        const config::WorldClayDiskFeatureConfig& clay = client_.worldConfig.clayDiskFeature;
+        if (clay.enabled && !clay.block.empty() && !clay.replace.empty() && clay.chancePerChunk > 0.0f && clay.radiusMax > 0)
+        {
+            const auto blockIt = client_.content.blockIdByName().find(clay.block);
+            if (blockIt != client_.content.blockIdByName().end())
+            {
+                world::TerrainBuilderConfig::ClayDiskFeature feature{};
+                feature.enabled = true;
+                feature.block = blockIt->second;
+                feature.chancePerChunk = clay.chancePerChunk;
+                feature.radiusMin = clay.radiusMin;
+                feature.radiusMax = clay.radiusMax;
+                feature.halfHeight = clay.halfHeight;
+                feature.salt = stableStringHash("clay_disk:" + clay.block);
+                for (const std::string& replace : clay.replace)
+                {
+                    const auto replaceIt = client_.content.blockIdByName().find(replace);
+                    if (replaceIt != client_.content.blockIdByName().end())
+                    {
+                        feature.replace.push_back(replaceIt->second);
+                    }
+                }
+                if (!feature.replace.empty())
+                {
+                    config.clayDiskFeature = std::move(feature);
+                }
+            }
+        }
         return config;
     }
 

@@ -399,6 +399,7 @@ namespace dolbuto::gameplay
     BlockTickResult ClientGameplayRuntime::tickBlockUpdates(
         uint32_t maxCells,
         const BlockDefinitionProvider& blockDefinition,
+        const std::vector<ItemProcessingRecipe>& processingRecipes,
         const SetBlockFn& setBlockAtWorld,
         const MarkDirtyFn& markDirty)
     {
@@ -455,7 +456,12 @@ namespace dolbuto::gameplay
             }
             return {};
         };
-        auto fireSealed = [&](int x, int y, int z) -> bool
+        auto blockSealsFire = [&](int x, int y, int z)
+        {
+            const uint16_t block = worldRuntime_->blockAtWorld(x, y, z);
+            return block != BlockAir && blockDefinition(block).collision;
+        };
+        auto firePyrolysisSealed = [&](int x, int y, int z) -> bool
         {
             constexpr int Directions[6][3] = {
                 {1, 0, 0},
@@ -467,13 +473,73 @@ namespace dolbuto::gameplay
             };
             for (const auto& direction : Directions)
             {
-                const uint16_t neighbor = worldRuntime_->blockAtWorld(x + direction[0], y + direction[1], z + direction[2]);
-                if (neighbor == BlockAir || !blockDefinition(neighbor).collision)
+                if (!blockSealsFire(x + direction[0], y + direction[1], z + direction[2]))
                 {
                     return false;
                 }
             }
             return true;
+        };
+        auto fireFiringStructure = [&](int x, int y, int z) -> bool
+        {
+            constexpr int SealedDirections[5][3] = {
+                {1, 0, 0},
+                {-1, 0, 0},
+                {0, -1, 0},
+                {0, 0, 1},
+                {0, 0, -1}
+            };
+            for (const auto& direction : SealedDirections)
+            {
+                if (!blockSealsFire(x + direction[0], y + direction[1], z + direction[2]))
+                {
+                    return false;
+                }
+            }
+            return !blockSealsFire(x, y + 1, z);
+        };
+        auto fireSmokeMultiplier = [](FireMode mode)
+        {
+            return mode == FireMode::Pyrolysis ? 3.0f : 1.0f;
+        };
+        auto fireModeForFuel = [&](int x, int y, int z, uint16_t heatLevel)
+        {
+            if (fireFiringStructure(x, y, z) && heatLevel >= 2)
+            {
+                return FireMode::Firing;
+            }
+            if (firePyrolysisSealed(x, y, z))
+            {
+                return FireMode::Pyrolysis;
+            }
+            return FireMode::Normal;
+        };
+        auto setFireMode = [&](int x, int y, int z, BlockEntity& entity, FireMode nextMode, bool forceNotify)
+        {
+            if (entity.fireMode == nextMode && !forceNotify)
+            {
+                return;
+            }
+
+            const FireMode previousMode = entity.fireMode;
+            entity.fireMode = nextMode;
+            bool changed = previousMode != nextMode;
+            if (nextMode == FireMode::Normal)
+            {
+                changed = changed || entity.carbonizingOutputItemId != 0 || entity.carbonizingOutputCount != 0;
+                entity.carbonizingOutputItemId = 0;
+                entity.carbonizingOutputCount = 0;
+            }
+            if (changed)
+            {
+                markBlockEntityDirty(x, z);
+            }
+            result.fireSmokeRateUpdates.push_back(FireSmokeRateUpdate{
+                x,
+                y,
+                z,
+                fireSmokeMultiplier(nextMode)
+            });
         };
         auto spawnKilnOutput = [&](int x, int y, int z, ItemStack stack)
         {
@@ -502,31 +568,24 @@ namespace dolbuto::gameplay
 
         auto updateFireMode = [&](int x, int y, int z, BlockEntity& entity, bool forceNotify)
         {
-            const FireMode nextMode = fireSealed(x, y, z) ? FireMode::Pyrolysis : FireMode::Normal;
-            if (entity.fireMode == nextMode && !forceNotify)
+            const bool modeStructureValid =
+                (entity.fireMode == FireMode::Pyrolysis && firePyrolysisSealed(x, y, z)) ||
+                (entity.fireMode == FireMode::Firing && fireFiringStructure(x, y, z));
+            if (entity.fireMode == FireMode::Normal || modeStructureValid)
             {
+                if (forceNotify)
+                {
+                    result.fireSmokeRateUpdates.push_back(FireSmokeRateUpdate{
+                        x,
+                        y,
+                        z,
+                        fireSmokeMultiplier(entity.fireMode)
+                    });
+                }
                 return;
             }
 
-            const FireMode previousMode = entity.fireMode;
-            entity.fireMode = nextMode;
-            bool changed = previousMode != nextMode;
-            if (nextMode == FireMode::Normal)
-            {
-                changed = changed || entity.carbonizingOutputItemId != 0 || entity.carbonizingOutputCount != 0;
-                entity.carbonizingOutputItemId = 0;
-                entity.carbonizingOutputCount = 0;
-            }
-            if (changed)
-            {
-                markBlockEntityDirty(x, z);
-            }
-            result.fireSmokeRateUpdates.push_back(FireSmokeRateUpdate{
-                x,
-                y,
-                z,
-                nextMode == FireMode::Pyrolysis ? 3.0f : 1.0f
-            });
+            setFireMode(x, y, z, entity, FireMode::Normal, forceNotify);
         };
 
         auto processFireBurn = [&](const world::WorldRuntime::BlockTickCell& cell, uint16_t block)
@@ -559,6 +618,22 @@ namespace dolbuto::gameplay
                 markBlockEntityDirty(cell.x, cell.z);
                 if (entity->remainingBurnTicks > 0)
                 {
+                    constexpr uint32_t ProcessingIntervalTicks = 5;
+                    if (entity->fireMode == FireMode::Firing &&
+                        entity->remainingBurnTicks % ProcessingIntervalTicks == 0)
+                    {
+                        droppedItemRuntime_.processItemsInAabb(
+                            static_cast<float>(cell.x) - 0.5f,
+                            static_cast<float>(cell.y),
+                            static_cast<float>(cell.z) - 0.5f,
+                            static_cast<float>(cell.x) + 0.5f,
+                            static_cast<float>(cell.y + 1),
+                            static_cast<float>(cell.z) + 0.5f,
+                            processingRecipes,
+                            "firing",
+                            ProcessingIntervalTicks,
+                            markDirty);
+                    }
                     worldRuntime_->scheduleBlockTickAtWorld(
                         cell.x,
                         cell.y,
@@ -585,7 +660,6 @@ namespace dolbuto::gameplay
                 }
             }
 
-            const bool pyrolysis = entity->fireMode == FireMode::Pyrolysis;
             const world::DroppedItemRuntime::BurnableConsumptionResult consumedFuel = droppedItemRuntime_.consumeRandomBurnableInAabb(
                 static_cast<float>(cell.x) - 0.5f,
                 static_cast<float>(cell.y),
@@ -593,7 +667,7 @@ namespace dolbuto::gameplay
                 static_cast<float>(cell.x) + 0.5f,
                 static_cast<float>(cell.y + 1),
                 static_cast<float>(cell.z) + 0.5f,
-                !pyrolysis,
+                true,
                 markDirty);
             if (consumedFuel.burnTimeTicks > 0)
             {
@@ -601,7 +675,9 @@ namespace dolbuto::gameplay
                 if (entity != nullptr && entity->type == BlockEntityType::Fire)
                 {
                     entity->remainingBurnTicks += consumedFuel.burnTimeTicks;
-                    const ItemStack kilnOutput = pyrolysis
+                    const FireMode consumedFuelMode = fireModeForFuel(cell.x, cell.y, cell.z, consumedFuel.heatLevel);
+                    setFireMode(cell.x, cell.y, cell.z, *entity, consumedFuelMode, false);
+                    const ItemStack kilnOutput = consumedFuelMode == FireMode::Pyrolysis
                         ? kilnOutputForFuel(consumedFuel.itemId)
                         : ItemStack{};
                     entity->carbonizingOutputItemId = kilnOutput.itemId;
@@ -1410,6 +1486,11 @@ namespace dolbuto::gameplay
         return playerInventory_.slot(index);
     }
 
+    const ItemStack& ClientGameplayRuntime::offhandSlot() const
+    {
+        return playerInventory_.offhandSlot();
+    }
+
     const ItemStack& ClientGameplayRuntime::inventoryCursorStack() const
     {
         return playerInventory_.cursorStack();
@@ -1428,6 +1509,11 @@ namespace dolbuto::gameplay
     void ClientGameplayRuntime::setInventorySnapshot(const std::array<ItemStack, PlayerInventory::SlotCount>& slots)
     {
         playerInventory_.setSlots(slots, itemDefinitions());
+    }
+
+    void ClientGameplayRuntime::setOffhandSlot(ItemStack stack)
+    {
+        playerInventory_.setOffhandSlot(stack, itemDefinitions());
     }
 
     uint16_t ClientGameplayRuntime::addItemToPlayerInventory(ItemStack stack)
@@ -1455,6 +1541,12 @@ namespace dolbuto::gameplay
     bool ClientGameplayRuntime::swapHotbarWithSlot(std::size_t slotIndex, std::size_t hotbarSlot)
     {
         return playerInventory_.swapHotbarWithSlot(slotIndex, hotbarSlot);
+    }
+
+    bool ClientGameplayRuntime::swapSelectedHotbarWithOffhand()
+    {
+        const std::size_t slotIndex = static_cast<std::size_t>(std::clamp(hotbarSelectedSlot_, 0, 9));
+        return playerInventory_.swapOffhandWithHotbar(slotIndex);
     }
 
     bool ClientGameplayRuntime::closeInventoryCursor()

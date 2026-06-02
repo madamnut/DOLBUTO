@@ -130,6 +130,7 @@ namespace dolbuto::gameplay
         BlockTickResult tickBlockUpdates(
             uint32_t maxCells,
             const BlockDefinitionProvider& blockDefinition,
+            const std::vector<ItemProcessingRecipe>& processingRecipes,
             const SetBlockFn& setBlockAtWorld,
             const MarkDirtyFn& markDirty);
         void resetBlockBreaking();
@@ -185,13 +186,16 @@ namespace dolbuto::gameplay
         int hotbarSelectedSlot() const;
         std::size_t inventorySlotCount() const;
         const ItemStack& inventorySlot(std::size_t index) const;
+        const ItemStack& offhandSlot() const;
         const ItemStack& inventoryCursorStack() const;
         void clearInventory();
         std::array<ItemStack, PlayerInventory::SlotCount> inventorySnapshot() const;
         void setInventorySnapshot(const std::array<ItemStack, PlayerInventory::SlotCount>& slots);
+        void setOffhandSlot(ItemStack stack);
         uint16_t addItemToPlayerInventory(ItemStack stack);
         bool handleInventorySlotClick(std::size_t slotIndex, InventoryClickButton button, bool shift);
         bool swapHotbarWithSlot(std::size_t slotIndex, std::size_t hotbarSlot);
+        bool swapSelectedHotbarWithOffhand();
         bool closeInventoryCursor();
 
     private:

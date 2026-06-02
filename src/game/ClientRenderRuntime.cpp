@@ -122,6 +122,16 @@ namespace dolbuto::game
         renderer_->gameplayBridge_->setInventorySnapshot(slots);
     }
 
+    void ClientRenderRuntime::setOffhandSlot(ItemStack stack)
+    {
+        renderer_->gameplayBridge_->setOffhandSlot(stack);
+    }
+
+    bool ClientRenderRuntime::swapSelectedHotbarWithOffhand()
+    {
+        return renderer_->gameplayBridge_->swapSelectedHotbarWithOffhand();
+    }
+
     void ClientRenderRuntime::uiMouseMove(double x, double y)
     {
         renderer_->uiRuntimeBridge_->mouseMove(x, y);

@@ -76,6 +76,15 @@
     }
   },
   "features": {
+    "clayDisks": {
+      "enabled": true,
+      "block": "clay",
+      "replace": ["dirt", "mud", "sand", "clay"],
+      "chancePerChunk": 0.20,
+      "radiusMin": 4,
+      "radiusMax": 6,
+      "halfHeight": 1
+    },
     "ores": [
       {
         "name": "coal_ore",

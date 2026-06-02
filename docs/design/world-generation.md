@@ -247,7 +247,7 @@ PV 자체 범위는 `-1.0 ~ +1.0`으로 보고, `pv_weight_lut.*`도 이 입력 
 2. 기본 블록 모양은 `air`, `rock`, `bedrock`으로 만들고, 해수면 이하 빈 공간은 유체 `water`로 채운다.
 3. 각 칼럼의 지형 최상단 위가 `air`이면 표면은 `grass`, 아래 4칸은 `dirt`로 바꾼다.
 4. 각 칼럼의 지형 최상단 위가 `water`이면 표면과 아래 4칸은 `sand`로 바꾼다.
-5. 광물 blob, 식생, 나무 feature를 생성한다.
+5. 광물 blob, 점토 디스크, 식생, 나무 feature를 생성한다.
 
 `BuildTerrainSource`는 이 과정에서 column별 `terrainHeight`, `terrainSurfaceY`, deterministic tree 후보를 함께 저장한다.
 이 source checkpoint는 이후 `ResolveFeatures`가 3x3 입력 view를 읽을 때 높이맵을 다시 샘플링하지 않고 사용할 수 있는 재사용 지점이다.
@@ -284,7 +284,7 @@ tree는 grass 위에 log와 leaves를 배치한다.
 - log는 leaves/plant보다 우선한다.
 - worker는 주변 청크를 수정하지 않고 center 청크 복사본만 반환한다.
 
-일반 광물은 저장 후보 목록을 만들지 않고, `ResolveFeatures`가 3x3 source chunk 좌표에서 결정적 난수로 배치 시도를 다시 계산한다.
+일반 광물과 점토 디스크는 저장 후보 목록을 만들지 않고, `ResolveFeatures`가 3x3 source chunk 좌표에서 결정적 난수로 배치 시도를 다시 계산한다.
 광물 feature 목록은 `config/world.json`의 `features.ores`에서 읽는다.
 
 ```json
@@ -304,11 +304,30 @@ tree는 grass 위에 log와 leaves를 배치한다.
 }
 ```
 
-현재 설정 파일에는 `coal_ore`, `copper_ore`, `tin_ore`, `gold_ore`, `iron_ore`가 등록되어 있으며, 기본으로 켜진 것은 `coal_ore`뿐이다.
+현재 설정 파일에는 `coal_ore`, `copper_ore`, `tin_ore`, `gold_ore`, `iron_ore`가 등록되어 있다.
 각 시도는 source chunk 안에서 anchor 좌표를 하나 뽑고, 짧은 선분을 따라 여러 타원 샘플을 겹치는 blob 형태로 만든다.
 center chunk에 닿은 후보 칸 중 현재 블록이 `replace`와 같은 칸만 `block`으로 치환한다.
 지형 표면 위 공기, 물, 표층 블록, bedrock에 걸친 시도는 자연스럽게 불발되거나 일부만 생성된다.
-광물 blob을 먼저 적용하고, 이후 나무 feature를 적용한다.
+점토 디스크는 `features.clayDisks`에서 읽는다.
+
+```json
+"clayDisks": {
+  "enabled": true,
+  "block": "clay",
+  "replace": ["dirt", "mud", "sand", "clay"],
+  "chancePerChunk": 0.20,
+  "radiusMin": 4,
+  "radiusMax": 6,
+  "halfHeight": 1
+}
+```
+
+점토 디스크는 source chunk마다 확률 판정으로 최대 1회 시도한다.
+시도 좌표는 source chunk 내부의 X/Z만 랜덤으로 고르고, Y는 해당 column의 수중 바닥 `terrainSurfaceY`를 사용한다.
+바닥 바로 위 칸에 물 유체가 있어야 하며, `replace` 목록에 포함된 블록만 `block`으로 바꾼다.
+디스크 반지름은 `radiusMin..radiusMax`, 세로 범위는 중심 바닥 Y 기준 `-halfHeight..+halfHeight`다.
+3x3 source view에서 각 source chunk의 후보를 재현하고 center chunk에 닿은 칸만 쓰므로, 청크 경계에 걸친 디스크도 생성 순서와 무관하게 이어진다.
+광물 blob을 먼저 적용하고, 이후 점토 디스크, 나무 feature를 적용한다.
 
 ## 생성 파이프라인
 

@@ -19,7 +19,7 @@
 ## 데이터
 
 아이템이 수행 가능한 우클릭 작업은 아이템의 `useActions`에 둔다.
-실제 조합은 `assets/data/interactions.json`에서 정의한다.
+실제 조합은 `assets/data/recipes/interactions.json`에서 정의한다.
 좌클릭 블록 파괴 동작은 `breakActions`로 분리한다.
 
 ```json

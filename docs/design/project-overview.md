@@ -135,7 +135,7 @@ terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 �
 `Renderer`는 GPU mesh 설치, 렌더 데이터 detach 같은 렌더러 의존 작업만 수행한다.
 `BlockInteractionSystem`은 블록 좌표 변환, 플레이어 충돌 범위 판정, 블록 레이캐스트, 블록 파괴 진행 상태를 담당한다.
 `ClientGameplayRuntime`은 클라이언트 gameplay 전환 계층이며 `PlayerInventory`, `DroppedItemRuntime`, block breaking 상태를 소유하고 블록 상호작용, 드랍 아이템, 인벤토리 조작을 Renderer/Vulkan 타입 없이 조율한다.
-`PlayerInventory`는 플레이어 인벤토리 슬롯, 임시 커서 스택, 클릭/Shift-click/핫바 교환 규칙을 담당한다.
+`PlayerInventory`는 플레이어 인벤토리 슬롯, 왼손 슬롯, 임시 커서 스택, 클릭/Shift-click/핫바 교환 규칙을 담당한다.
 `AudioSystem`은 OpenAL device/context, 효과음 buffer/source pool, 음악 source와 OGG/WAV 재생 상태를 소유한다.
 `ClientUiBridge`는 `UiSystem`과 `ClientGameplayRuntime` 사이에서 hotbar/inventory RML 조립, tooltip/cursor 갱신, slot hit test, world list 표시 변환, UI 입력 기반 인벤토리 조작을 담당한다.
 `UiSystem`은 RmlUi 초기화/종료, context, 문서, 버튼 이벤트 수신, 문서 표시 상태, 문서 element 갱신을 소유한다.

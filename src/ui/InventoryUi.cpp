@@ -154,6 +154,9 @@ namespace dolbuto::ui
             lines.push_back({"BURN_TIME", item.burnTimeTicks > 0
                 ? std::to_string(item.burnTimeTicks) + " ticks"
                 : "none"});
+            lines.push_back({"HEAT_LEVEL", item.heatLevel > 0
+                ? std::to_string(item.heatLevel)
+                : "none"});
             lines.push_back({"STACK_SIZE", std::to_string(item.stackSize)});
             lines.push_back({"SLOT_RENDER", item.slotRender});
             lines.push_back({"SLOT_TEXTURE", item.slotTexture});
@@ -281,6 +284,14 @@ namespace dolbuto::ui
         {
             rml += "</div>";
         }
+        return rml;
+    }
+
+    std::string offhandSlotRml(const InventoryItemView& item)
+    {
+        std::string rml;
+        rml += "<img class=\"offhand-slot-image\" src=\"../textures/ui/player/slot.png\"/>";
+        rml += itemStackContentRml(item, 16, 16);
         return rml;
     }
 
