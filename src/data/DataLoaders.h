@@ -35,6 +35,8 @@ namespace dolbuto::data
         uint8_t lightEmission = 0;
         bool randomOffset = false;
         bool breakEffectParticles = true;
+        bool leafDecayable = false;
+        bool leafDecaySupport = false;
         std::string stateKind = "none";
         std::string attachmentFace = "none";
         std::unordered_map<std::string, ParsedBlockTextureDefinition> textures;
@@ -75,9 +77,12 @@ namespace dolbuto::data
         uint16_t maxDurability = 0;
         uint32_t burnTimeTicks = 0;
         uint16_t heatLevel = 0;
+        std::string burnRemainderItem;
+        uint16_t burnRemainderCount = 0;
         std::string placeBlock;
         std::string modelBlock;
         std::string modelShape;
+        std::string modelTexture;
     };
 
     struct ParsedInteractionOutput
@@ -117,6 +122,7 @@ namespace dolbuto::data
         std::string type;
         std::string input;
         std::string output;
+        uint16_t outputCount = 1;
         uint32_t requiredTicks = 0;
     };
 

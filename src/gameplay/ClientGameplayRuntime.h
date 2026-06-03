@@ -39,6 +39,7 @@ namespace dolbuto::gameplay
         int y = 0;
         int z = 0;
         uint16_t block = 0;
+        bool playSound = true;
     };
 
     struct FireSmokeRateUpdate
@@ -47,6 +48,7 @@ namespace dolbuto::gameplay
         int y = 0;
         int z = 0;
         float multiplier = 1.0f;
+        uint32_t textureSet = 0;
     };
 
     struct BlockTickResult

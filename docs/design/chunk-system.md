@@ -153,7 +153,12 @@ GPU 리소스 폐기는 한 프레임에 몰리지 않도록 budget을 둔다.
 packed light의 상위 4비트는 skylight, 하위 4비트는 block light이다.
 `ResolveFeatures`는 청크별 local light를 한 번만 계산하고, `ResolveLight`는 center 청크와 4방향 이웃 face만 읽어 center 내부 경계 전파를 수행한다. block light는 블록 정의의 `lightEmission`을 원천값으로 사용하고 skyLight와 같은 packed light 배열에 저장한다.
 skyLight/blockLight 전파는 청크별 `lightAttenuation` cache를 먼저 만든 뒤 `block index + light` 큐와 `index +/- 1/16/256` 이웃 offset을 사용한다.
-블록 편집 경로는 생성 파이프라인 전체를 다시 태우지 않는다. `setBlockAtWorld`는 block 배열을 수정한 뒤 해당 청크의 `localLight` cache를 갱신하고, edited mesh rebuild 직전에 `WorldRuntime::resolveEditedSkyLightAtWorld`가 편집된 subchunk에서 시작해 6방향 인접 subchunk의 boundary light를 seed로 읽어 해당 subchunk의 resolved light를 다시 계산한다. 계산된 subchunk face 값이 바뀌면 맞닿은 subchunk를 dirty queue에 넣어 변화가 멈출 때까지 전파하고, 바뀐 subchunk만 edited mesh rebuild 대상에 추가한다.
+블록 편집 경로는 생성 파이프라인 전체를 다시 태우지 않는다. `setBlockAtWorld`는 block 배열을 수정한 뒤 청크 전체 `localLight`를 다시 계산하지 않고, 변경 좌표와 6방향 이웃을 local light update queue에 등록한다.
+`WorldRuntime::tickLocalLightUpdates`는 제한된 예산 안에서 큐의 셀별 기대 sky/block light를 주변 localLight, 직접 skylight, 블록 emission 기준으로 다시 계산하고, 값이 바뀐 셀의 6방향 이웃을 다시 큐에 넣는다.
+블록 편집으로 edited mesh rebuild를 즉시 수행하는 경로는 메쉬를 만들기 전에 local light update queue를 끝까지 비운다. 따라서 블록 배치/파괴로 생긴 조명 변화는 중간 전파 상태를 렌더링하지 않고, 최종 localLight 상태를 기준으로 한 번에 반영한다.
+런타임 block tick에서 여러 블록이 같은 tick 결과로 사라질 때는 변경 좌표를 모아 edited mesh rebuild를 배치로 요청한다. 이 경로는 좌표별 중복 subchunk를 제거하고, local light queue drain과 resolved light 전파를 한 번만 수행한 뒤 고유 affected subchunk만 다시 메싱한다.
+유체 tick 경로는 프레임 부하를 제한하기 위해 local light update queue를 예산 단위로 처리한다.
+localLight가 바뀐 subchunk는 edited mesh rebuild 전에 `WorldRuntime::resolveEditedSkyLightAtWorld`를 통해 resolved light를 다시 계산한다. 계산된 subchunk face 값이 바뀌면 맞닿은 subchunk를 dirty queue에 넣어 변화가 멈출 때까지 전파하고, 바뀐 subchunk만 edited mesh rebuild 대상에 추가한다.
 로드된 청크의 light 배열이 없거나 크기가 맞지 않으면 현재 저장 포맷에서는 legacy save로 보고 사용하지 않는다.
 유체 mesh 생성은 count가 `0`인 subchunk를 건너뛴다.
 

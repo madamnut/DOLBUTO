@@ -21,6 +21,28 @@ namespace dolbuto::world::block_visual
         Vec3 max{};
     };
 
+    template <typename Callback>
+    void forEachCrucibleLocalAabb(Callback callback)
+    {
+        callback(LocalAabb{Vec3{0.0f, 0.0f, 0.0f}, Vec3{1.0f, 0.2f, 1.0f}});
+        callback(LocalAabb{Vec3{0.0f, 0.2f, 0.0f}, Vec3{1.0f, 1.0f, 0.2f}});
+        callback(LocalAabb{Vec3{0.0f, 0.2f, 0.8f}, Vec3{1.0f, 1.0f, 1.0f}});
+        callback(LocalAabb{Vec3{0.0f, 0.2f, 0.2f}, Vec3{0.2f, 1.0f, 0.8f}});
+        callback(LocalAabb{Vec3{0.8f, 0.2f, 0.2f}, Vec3{1.0f, 1.0f, 0.8f}});
+    }
+
+    template <typename Callback>
+    void forEachCrucibleWorldAabb(int x, int y, int z, Callback callback)
+    {
+        forEachCrucibleLocalAabb([&](const LocalAabb& local)
+        {
+            callback(LocalAabb{
+                Vec3{static_cast<float>(x) - 0.5f + local.min.x, static_cast<float>(y) + local.min.y, static_cast<float>(z) - 0.5f + local.min.z},
+                Vec3{static_cast<float>(x) - 0.5f + local.max.x, static_cast<float>(y) + local.max.y, static_cast<float>(z) - 0.5f + local.max.z}
+            });
+        });
+    }
+
     inline int wrapBlockCoordinate(int coordinate)
     {
         int wrapped = coordinate % TerrainTilePeriod;

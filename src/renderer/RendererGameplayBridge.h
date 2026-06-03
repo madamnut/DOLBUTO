@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <vector>
 
 namespace dolbuto
 {
@@ -29,6 +30,7 @@ namespace dolbuto
             std::function<void(RuntimeChunk&)> markRuntimeChunkDataDirty;
             std::function<bool(int, int, int, uint16_t)> setBlockAtWorld;
             std::function<void(int, int, int)> rebuildEditedChunkMeshes;
+            std::function<void(const std::vector<std::array<int, 3>>&)> rebuildEditedChunkMeshesBatch;
             std::function<void(int, int, int)> playBlockBreakSound;
             std::function<void(int, int, int)> playBlockPlaceSound;
         };

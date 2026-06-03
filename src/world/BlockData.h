@@ -31,7 +31,8 @@ namespace dolbuto
         Prop,
         Fire,
         Slab,
-        HalfSlab
+        HalfSlab,
+        Crucible
     };
 
     enum class BlockFaceOcclusion : uint8_t
@@ -91,6 +92,8 @@ namespace dolbuto
         uint8_t lightEmission = 0;
         bool randomOffset = false;
         bool breakEffectParticles = true;
+        bool leafDecayable = false;
+        bool leafDecaySupport = false;
         BlockStateKind stateKind = BlockStateKind::None;
         BlockAttachmentFace attachmentFace = BlockAttachmentFace::None;
         std::vector<std::string> interactActions;

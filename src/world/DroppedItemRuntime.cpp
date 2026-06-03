@@ -64,6 +64,30 @@ namespace dolbuto::world
                 itemMinZ < maxZ &&
                 itemMaxZ > minZ;
         }
+
+        uint8_t processingTypeId(const std::string& type)
+        {
+            if (type == "pyrolysis")
+            {
+                return 1;
+            }
+            if (type == "firing")
+            {
+                return 2;
+            }
+            return 0;
+        }
+
+        void bounceProcessedItem(WorldEntity& item)
+        {
+            constexpr float ProcessingBounceVelocity = 1.6f;
+            constexpr float ProcessingSpin = 4.0f;
+            item.velocity.y = std::max(item.velocity.y, ProcessingBounceVelocity);
+            item.renderSpinX = ProcessingSpin;
+            item.renderSpin = ProcessingSpin;
+            item.renderSpinZ = ProcessingSpin;
+            DroppedItemSystem::setGrounded(item, false);
+        }
     }
 
     DroppedItemRuntime::DroppedItemRuntime(WorldRuntime* worldRuntime, const std::vector<ItemDefinition>* itemDefinitions)
@@ -171,6 +195,11 @@ namespace dolbuto::world
             entity.droppedItem.stack.durability = maxDurability == 0
                 ? 0
                 : (entity.droppedItem.stack.durability == 0 ? maxDurability : std::min(entity.droppedItem.stack.durability, maxDurability));
+            if (entity.droppedItem.processingType > 2)
+            {
+                entity.droppedItem.processingType = 0;
+                entity.droppedItem.processingTicks = 0;
+            }
         }
         if (DroppedItemSystem::grounded(entity))
         {
@@ -478,6 +507,8 @@ namespace dolbuto::world
             uint16_t itemId = 0;
             uint32_t burnTimeTicks = 0;
             uint16_t heatLevel = 0;
+            uint16_t remainderItemId = 0;
+            uint16_t remainderCount = 0;
         };
 
         const std::vector<ItemDefinition>& definitions = itemDefinitions();
@@ -504,6 +535,8 @@ namespace dolbuto::world
             candidate.itemId = target.stack.itemId;
             candidate.burnTimeTicks = burnTime;
             candidate.heatLevel = definitions[target.stack.itemId].heatLevel;
+            candidate.remainderItemId = definitions[target.stack.itemId].burnRemainderItemId;
+            candidate.remainderCount = definitions[target.stack.itemId].burnRemainderCount;
             if (definitions[target.stack.itemId].key == "charcoal")
             {
                 if (allowCharcoal)
@@ -545,7 +578,9 @@ namespace dolbuto::world
             static_cast<std::size_t>(item.droppedItem.stack.itemId) >= definitions.size() ||
             item.droppedItem.stack.itemId != selected.itemId ||
             definitions[item.droppedItem.stack.itemId].burnTimeTicks != selected.burnTimeTicks ||
-            definitions[item.droppedItem.stack.itemId].heatLevel != selected.heatLevel)
+            definitions[item.droppedItem.stack.itemId].heatLevel != selected.heatLevel ||
+            definitions[item.droppedItem.stack.itemId].burnRemainderItemId != selected.remainderItemId ||
+            definitions[item.droppedItem.stack.itemId].burnRemainderCount != selected.remainderCount)
         {
             return {};
         }
@@ -563,7 +598,13 @@ namespace dolbuto::world
         {
             markDirty(*chunk);
         }
-        return BurnableConsumptionResult{selected.burnTimeTicks, selected.itemId, selected.heatLevel};
+        return BurnableConsumptionResult{
+            selected.burnTimeTicks,
+            selected.itemId,
+            selected.heatLevel,
+            selected.remainderItemId,
+            selected.remainderCount
+        };
     }
 
     bool DroppedItemRuntime::processItemsInAabb(
@@ -578,7 +619,8 @@ namespace dolbuto::world
         uint32_t elapsedTicks,
         const MarkDirtyFn& markDirty)
     {
-        if (recipes.empty() || type.empty() || elapsedTicks == 0)
+        const uint8_t typeId = processingTypeId(type);
+        if (recipes.empty() || type.empty() || typeId == 0 || elapsedTicks == 0)
         {
             return false;
         }
@@ -594,6 +636,7 @@ namespace dolbuto::world
             }
 
             bool chunkChanged = false;
+            std::vector<WorldEntity> completedOutputs;
             for (WorldEntity& item : chunk.data->entities)
             {
                 if (item.type != WorldEntityType::DroppedItem ||
@@ -624,28 +667,185 @@ namespace dolbuto::world
                     continue;
                 }
 
+                if (item.droppedItem.processingType != typeId)
+                {
+                    item.droppedItem.processingType = typeId;
+                    item.droppedItem.processingTicks = 0;
+                }
                 item.droppedItem.processingTicks = std::min<uint32_t>(
                     item.droppedItem.processingTicks + elapsedTicks,
                     recipe->requiredTicks);
                 if (item.droppedItem.processingTicks >= recipe->requiredTicks)
                 {
-                    item.droppedItem.stack.itemId = recipe->outputItemId;
-                    item.droppedItem.stack.durability = definitions[recipe->outputItemId].maxDurability;
-                    item.droppedItem.processingTicks = 0;
-                    constexpr float ProcessingBounceVelocity = 1.6f;
-                    constexpr float ProcessingSpin = 4.0f;
-                    item.velocity.y = std::max(item.velocity.y, ProcessingBounceVelocity);
-                    item.renderSpinX = ProcessingSpin;
-                    item.renderSpin = ProcessingSpin;
-                    item.renderSpinZ = ProcessingSpin;
-                    DroppedItemSystem::setGrounded(item, false);
+                    const ItemStack outputStack{
+                        recipe->outputItemId,
+                        recipe->outputCount == 0 ? static_cast<uint16_t>(1) : recipe->outputCount,
+                        definitions[recipe->outputItemId].maxDurability
+                    };
+                    if (item.droppedItem.stack.count <= 1)
+                    {
+                        item.droppedItem.stack = outputStack;
+                        item.droppedItem.processingTicks = 0;
+                        item.droppedItem.processingType = 0;
+                        bounceProcessedItem(item);
+                    }
+                    else
+                    {
+                        --item.droppedItem.stack.count;
+                        item.droppedItem.processingTicks = 0;
+                        item.droppedItem.processingType = 0;
+                        WorldEntity output = item;
+                        output.entityId = allocateEntityId();
+                        output.droppedItem.stack = outputStack;
+                        output.droppedItem.processingTicks = 0;
+                        output.droppedItem.processingType = 0;
+                        bounceProcessedItem(output);
+                        completedOutputs.push_back(output);
+                    }
                 }
                 chunkChanged = true;
+            }
+            for (WorldEntity& output : completedOutputs)
+            {
+                chunk.data->entities.push_back(std::move(output));
             }
 
             if (chunkChanged)
             {
                 changed = true;
+                refreshChunkTracking(entry.first);
+                if (markDirty)
+                {
+                    markDirty(chunk);
+                }
+            }
+        }
+
+        return changed;
+    }
+
+    bool DroppedItemRuntime::processItemsInCells(
+        const std::vector<std::array<int, 3>>& cells,
+        const std::vector<ItemProcessingRecipe>& recipes,
+        const std::string& type,
+        uint32_t elapsedTicks,
+        const MarkDirtyFn& markDirty)
+    {
+        const uint8_t typeId = processingTypeId(type);
+        if (cells.empty() || recipes.empty() || type.empty() || typeId == 0 || elapsedTicks == 0)
+        {
+            return false;
+        }
+
+        const std::vector<ItemDefinition>& definitions = itemDefinitions();
+        auto overlapsAnyCell = [&](const WorldEntity& item)
+        {
+            for (const std::array<int, 3>& cell : cells)
+            {
+                if (droppedItemOverlapsAabb(
+                    item,
+                    definitions,
+                    static_cast<float>(cell[0]) - 0.5f,
+                    static_cast<float>(cell[1]),
+                    static_cast<float>(cell[2]) - 0.5f,
+                    static_cast<float>(cell[0]) + 0.5f,
+                    static_cast<float>(cell[1] + 1),
+                    static_cast<float>(cell[2]) + 0.5f))
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        bool changed = false;
+        for (auto& entry : worldRuntime().chunks())
+        {
+            RuntimeChunk& chunk = entry.second;
+            if (!chunk.data)
+            {
+                continue;
+            }
+
+            bool chunkChanged = false;
+            std::vector<WorldEntity> completedOutputs;
+            for (WorldEntity& item : chunk.data->entities)
+            {
+                if (item.type != WorldEntityType::DroppedItem ||
+                    item.droppedItem.stack.itemId == 0 ||
+                    item.droppedItem.stack.count == 0 ||
+                    item.collecting ||
+                    static_cast<std::size_t>(item.droppedItem.stack.itemId) >= definitions.size() ||
+                    !overlapsAnyCell(item))
+                {
+                    continue;
+                }
+
+                const ItemProcessingRecipe* recipe = nullptr;
+                for (const ItemProcessingRecipe& candidate : recipes)
+                {
+                    if (candidate.type == type &&
+                        candidate.inputItemId == item.droppedItem.stack.itemId &&
+                        candidate.outputItemId != 0 &&
+                        static_cast<std::size_t>(candidate.outputItemId) < definitions.size() &&
+                        candidate.requiredTicks > 0)
+                    {
+                        recipe = &candidate;
+                        break;
+                    }
+                }
+                if (recipe == nullptr)
+                {
+                    continue;
+                }
+
+                if (item.droppedItem.processingType != typeId)
+                {
+                    item.droppedItem.processingType = typeId;
+                    item.droppedItem.processingTicks = 0;
+                }
+                item.droppedItem.processingTicks = std::min<uint32_t>(
+                    item.droppedItem.processingTicks + elapsedTicks,
+                    recipe->requiredTicks);
+                if (item.droppedItem.processingTicks >= recipe->requiredTicks)
+                {
+                    const ItemStack outputStack{
+                        recipe->outputItemId,
+                        recipe->outputCount == 0 ? static_cast<uint16_t>(1) : recipe->outputCount,
+                        definitions[recipe->outputItemId].maxDurability
+                    };
+                    if (item.droppedItem.stack.count <= 1)
+                    {
+                        item.droppedItem.stack = outputStack;
+                        item.droppedItem.processingTicks = 0;
+                        item.droppedItem.processingType = 0;
+                        bounceProcessedItem(item);
+                    }
+                    else
+                    {
+                        --item.droppedItem.stack.count;
+                        item.droppedItem.processingTicks = 0;
+                        item.droppedItem.processingType = 0;
+                        WorldEntity output = item;
+                        output.entityId = allocateEntityId();
+                        output.droppedItem.stack = outputStack;
+                        output.droppedItem.processingTicks = 0;
+                        output.droppedItem.processingType = 0;
+                        bounceProcessedItem(output);
+                        completedOutputs.push_back(output);
+                    }
+                }
+                chunkChanged = true;
+            }
+            for (WorldEntity& output : completedOutputs)
+            {
+                chunk.data->entities.push_back(std::move(output));
+            }
+
+            if (chunkChanged)
+            {
+                changed = true;
+                refreshChunkTracking(entry.first);
                 if (markDirty)
                 {
                     markDirty(chunk);
@@ -842,6 +1042,7 @@ namespace dolbuto::world
             target.velocity.y = std::max(target.velocity.y, InteractionBounceVelocity);
             target.droppedItem.stack = ItemStack{primaryOutput.itemId, primaryOutput.count, primaryOutput.durability};
             target.droppedItem.processingTicks = 0;
+            target.droppedItem.processingType = 0;
             target.renderSpinX = InteractionSpin;
             target.renderSpin = InteractionSpin;
             target.renderSpinZ = InteractionSpin;

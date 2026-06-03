@@ -216,6 +216,23 @@ namespace dolbuto::gameplay
             return rayIntersectsAabb(origin, direction, aabb.min, aabb.max, distance);
         }
 
+        bool rayIntersectsCrucibleBlock(DVec3 origin, Vec3 direction, int x, int y, int z, double& distance)
+        {
+            bool hit = false;
+            double bestDistance = std::numeric_limits<double>::infinity();
+            world::block_visual::forEachCrucibleWorldAabb(x, y, z, [&](const world::block_visual::LocalAabb& aabb)
+            {
+                double aabbDistance = 0.0;
+                if (rayIntersectsAabb(origin, direction, aabb.min, aabb.max, aabbDistance))
+                {
+                    bestDistance = std::min(bestDistance, aabbDistance);
+                    hit = true;
+                }
+            });
+            distance = bestDistance;
+            return hit;
+        }
+
         bool rayIntersectsCrossBlock(DVec3 origin, Vec3 direction, int x, int y, int z, const BlockDefinition& definition, double& distance)
         {
             bool hit = false;
@@ -317,6 +334,10 @@ namespace dolbuto::gameplay
             if (definition.renderType == BlockRenderType::HalfSlab)
             {
                 return rayIntersectsHalfSlabBlock(origin, direction, x, y, z, blockState, distance);
+            }
+            if (definition.renderType == BlockRenderType::Crucible)
+            {
+                return rayIntersectsCrucibleBlock(origin, direction, x, y, z, distance);
             }
             return false;
         }

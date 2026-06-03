@@ -48,6 +48,20 @@ namespace dolbuto::world::block_collision
             return false;
         }
 
+        if (definition.renderType == BlockRenderType::Crucible)
+        {
+            bool intersects = false;
+            block_visual::forEachCrucibleWorldAabb(x, y, z, [&](const block_visual::LocalAabb& aabb)
+            {
+                intersects = intersects || aabbIntersects(
+                    min,
+                    max,
+                    DVec3{static_cast<double>(aabb.min.x), static_cast<double>(aabb.min.y), static_cast<double>(aabb.min.z)},
+                    DVec3{static_cast<double>(aabb.max.x), static_cast<double>(aabb.max.y), static_cast<double>(aabb.max.z)});
+            });
+            return intersects;
+        }
+
         const block_visual::LocalAabb aabb = blockWorldAabb(x, y, z, definition, blockState);
         return aabbIntersects(
             min,

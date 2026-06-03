@@ -71,6 +71,13 @@ namespace dolbuto::world
             uint32_t processedCells = 0;
         };
 
+        struct LocalLightTickResult
+        {
+            std::vector<EditedSubchunk> changedSubchunks;
+            uint32_t processedCells = 0;
+            uint32_t remainingCells = 0;
+        };
+
         struct RuntimeChunkLoadState
         {
             uint64_t renderTicket = 0;
@@ -143,6 +150,9 @@ namespace dolbuto::world
         void scheduleBlockTickAtWorld(int x, int y, int z, uint32_t reasons);
         void scheduleBlockTickNeighborhood(int x, int y, int z);
         std::vector<BlockTickCell> takeScheduledBlockTicks(uint32_t maxCells);
+        void scheduleLocalLightTickAtWorld(int x, int y, int z);
+        void scheduleLocalLightTickNeighborhood(int x, int y, int z);
+        LocalLightTickResult tickLocalLightUpdates(uint32_t maxCells);
         void scheduleFluidTickAtWorld(int x, int y, int z);
         void scheduleFluidTickNeighborhood(int x, int y, int z);
         FluidTickResult tickFluidSimulation(uint32_t maxCells);
@@ -157,6 +167,7 @@ namespace dolbuto::world
         RuntimeChunkMap chunks_;
         LightAttenuationTablesPtr lightAttenuationTables_;
         std::unordered_map<BlockTickCell, uint32_t, BlockTickCellHash> nextBlockTicks_;
+        std::unordered_set<FluidTickCell, FluidTickCellHash> nextLocalLightTicks_;
         std::unordered_set<FluidTickCell, FluidTickCellHash> nextFluidTicks_;
     };
 }

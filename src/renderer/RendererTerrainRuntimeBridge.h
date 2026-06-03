@@ -4,7 +4,9 @@
 #include "world/TerrainJobSystem.h"
 #include "world/WorldTypes.h"
 
+#include <array>
 #include <cstdint>
+#include <vector>
 
 namespace dolbuto
 {
@@ -39,6 +41,7 @@ namespace dolbuto
         void tickFluidSimulation();
         void rebuildSubchunkMeshNow(int chunkX, int chunkZ, int subchunkY);
         void rebuildEditedChunkMeshes(int blockX, int blockY, int blockZ);
+        void rebuildEditedChunkMeshesBatch(const std::vector<std::array<int, 3>>& blocks);
         bool chunkMeshReady(uint64_t key) const;
         void destroyAllTerrainChunks();
         void updateTerrainStats();

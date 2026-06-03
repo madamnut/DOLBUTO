@@ -11,6 +11,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -44,6 +45,35 @@ namespace dolbuto
         constexpr int SubchunksPerChunk = ChunkSizeY / SubchunkSize;
         constexpr int LoadGridUnitChunks = 16;
         constexpr int CenterGroupChunks = 2;
+
+        struct AffectedSubchunk
+        {
+            int chunkX = 0;
+            int chunkZ = 0;
+            int subchunkY = 0;
+        };
+
+        void addAffectedSubchunk(
+            std::vector<AffectedSubchunk>& affectedSubchunks,
+            int affectedChunkX,
+            int affectedChunkZ,
+            int affectedSubchunkY)
+        {
+            if (affectedSubchunkY < 0 || affectedSubchunkY >= SubchunksPerChunk)
+            {
+                return;
+            }
+            for (const AffectedSubchunk& existing : affectedSubchunks)
+            {
+                if (existing.chunkX == affectedChunkX &&
+                    existing.chunkZ == affectedChunkZ &&
+                    existing.subchunkY == affectedSubchunkY)
+                {
+                    return;
+                }
+            }
+            affectedSubchunks.push_back({affectedChunkX, affectedChunkZ, affectedSubchunkY});
+        }
 
         int positiveModulo(int value, int divisor)
         {
@@ -415,47 +445,33 @@ namespace dolbuto
     void RendererTerrainRuntimeBridge::tickFluidSimulation()
     {
         constexpr uint32_t MaxFluidTickCells = 256;
+        constexpr uint32_t MaxLocalLightTickCells = 4096;
         const world::WorldRuntime::FluidTickResult result = client_.worldRuntime.tickFluidSimulation(MaxFluidTickCells);
-        if (result.changedSubchunks.empty() && result.changedCells.empty())
-        {
-            return;
-        }
+        const world::WorldRuntime::LocalLightTickResult lightResult = client_.worldRuntime.tickLocalLightUpdates(MaxLocalLightTickCells);
 
-        struct AffectedSubchunk
-        {
-            int chunkX = 0;
-            int chunkZ = 0;
-            int subchunkY = 0;
-        };
         std::vector<AffectedSubchunk> affectedSubchunks;
-        auto addAffectedSubchunk = [&](int affectedChunkX, int affectedChunkZ, int affectedSubchunkY)
-        {
-            if (affectedSubchunkY < 0 || affectedSubchunkY >= SubchunksPerChunk)
-            {
-                return;
-            }
-            for (const AffectedSubchunk& existing : affectedSubchunks)
-            {
-                if (existing.chunkX == affectedChunkX && existing.chunkZ == affectedChunkZ && existing.subchunkY == affectedSubchunkY)
-                {
-                    return;
-                }
-            }
-            affectedSubchunks.push_back({affectedChunkX, affectedChunkZ, affectedSubchunkY});
-        };
 
         for (const world::WorldRuntime::EditedSubchunk& changed : result.changedSubchunks)
         {
-            addAffectedSubchunk(changed.chunkX, changed.chunkZ, changed.subchunkY);
+            addAffectedSubchunk(affectedSubchunks, changed.chunkX, changed.chunkZ, changed.subchunkY);
         }
-        for (const world::WorldRuntime::FluidTickCell& cell : result.lightChangedCells)
+        for (const world::WorldRuntime::EditedSubchunk& changed : lightResult.changedSubchunks)
         {
+            addAffectedSubchunk(affectedSubchunks, changed.chunkX, changed.chunkZ, changed.subchunkY);
             const std::vector<world::WorldRuntime::EditedSubchunk> lightChangedSubchunks =
-                client_.worldRuntime.resolveEditedSkyLightAtWorld(cell.x, cell.y, cell.z);
-            for (const world::WorldRuntime::EditedSubchunk& changed : lightChangedSubchunks)
+                client_.worldRuntime.resolveEditedSkyLightAtWorld(
+                    changed.chunkX * ChunkSizeX,
+                    changed.subchunkY * SubchunkSize,
+                    changed.chunkZ * ChunkSizeZ);
+            for (const world::WorldRuntime::EditedSubchunk& resolvedChanged : lightChangedSubchunks)
             {
-                addAffectedSubchunk(changed.chunkX, changed.chunkZ, changed.subchunkY);
+                addAffectedSubchunk(affectedSubchunks, resolvedChanged.chunkX, resolvedChanged.chunkZ, resolvedChanged.subchunkY);
             }
+        }
+
+        if (affectedSubchunks.empty() && result.changedCells.empty())
+        {
+            return;
         }
 
         for (const AffectedSubchunk& affected : affectedSubchunks)
@@ -536,81 +552,114 @@ namespace dolbuto
 
     void RendererTerrainRuntimeBridge::rebuildEditedChunkMeshes(int blockX, int blockY, int blockZ)
     {
-        if (blockY < 0 || blockY >= ChunkSizeY)
+        rebuildEditedChunkMeshesBatch({std::array<int, 3>{blockX, blockY, blockZ}});
+    }
+
+    void RendererTerrainRuntimeBridge::rebuildEditedChunkMeshesBatch(const std::vector<std::array<int, 3>>& blocks)
+    {
+        constexpr uint32_t MaxLocalLightTickCells = 8192;
+        constexpr uint32_t MaxLocalLightDrainPasses = 1024;
+        if (blocks.empty())
         {
             return;
         }
 
-        const int chunkX = floorDiv(blockX, ChunkSizeX);
-        const int chunkZ = floorDiv(blockZ, ChunkSizeZ);
-        const int subchunkY = blockY / SubchunkSize;
-        std::vector<int> chunkOffsetsX = {0};
-        std::vector<int> chunkOffsetsZ = {0};
-        std::vector<int> subchunkYs = {subchunkY};
-        if (positiveModulo(blockX, ChunkSizeX) == 0)
-        {
-            chunkOffsetsX.push_back(-1);
-        }
-        if (positiveModulo(blockX, ChunkSizeX) == ChunkSizeX - 1)
-        {
-            chunkOffsetsX.push_back(1);
-        }
-        if (positiveModulo(blockZ, ChunkSizeZ) == 0)
-        {
-            chunkOffsetsZ.push_back(-1);
-        }
-        if (positiveModulo(blockZ, ChunkSizeZ) == ChunkSizeZ - 1)
-        {
-            chunkOffsetsZ.push_back(1);
-        }
-        if (positiveModulo(blockY, SubchunkSize) == 0)
-        {
-            subchunkYs.push_back(subchunkY - 1);
-        }
-        if (positiveModulo(blockY, SubchunkSize) == SubchunkSize - 1)
-        {
-            subchunkYs.push_back(subchunkY + 1);
-        }
-
-        struct AffectedSubchunk
-        {
-            int chunkX = 0;
-            int chunkZ = 0;
-            int subchunkY = 0;
-        };
         std::vector<AffectedSubchunk> affectedSubchunks;
-        auto addAffectedSubchunk = [&](int affectedChunkX, int affectedChunkZ, int affectedSubchunkY)
-        {
-            if (affectedSubchunkY < 0 || affectedSubchunkY >= SubchunksPerChunk)
-            {
-                return;
-            }
-            for (const AffectedSubchunk& existing : affectedSubchunks)
-            {
-                if (existing.chunkX == affectedChunkX && existing.chunkZ == affectedChunkZ && existing.subchunkY == affectedSubchunkY)
-                {
-                    return;
-                }
-            }
-            affectedSubchunks.push_back({affectedChunkX, affectedChunkZ, affectedSubchunkY});
-        };
+        std::vector<AffectedSubchunk> resolveSeedSubchunks;
 
-        for (int offsetZ : chunkOffsetsZ)
+        for (const std::array<int, 3>& block : blocks)
         {
-            for (int offsetX : chunkOffsetsX)
+            const int blockX = block[0];
+            const int blockY = block[1];
+            const int blockZ = block[2];
+            if (blockY < 0 || blockY >= ChunkSizeY)
             {
-                for (int affectedSubchunkY : subchunkYs)
+                continue;
+            }
+
+            const int chunkX = floorDiv(blockX, ChunkSizeX);
+            const int chunkZ = floorDiv(blockZ, ChunkSizeZ);
+            const int subchunkY = blockY / SubchunkSize;
+            addAffectedSubchunk(resolveSeedSubchunks, chunkX, chunkZ, subchunkY);
+
+            std::array<int, 2> chunkOffsetsX = {0, 0};
+            std::array<int, 2> chunkOffsetsZ = {0, 0};
+            std::array<int, 3> subchunkYs = {subchunkY, 0, 0};
+            std::size_t chunkOffsetXCount = 1;
+            std::size_t chunkOffsetZCount = 1;
+            std::size_t subchunkYCount = 1;
+            if (positiveModulo(blockX, ChunkSizeX) == 0)
+            {
+                chunkOffsetsX[chunkOffsetXCount++] = -1;
+            }
+            if (positiveModulo(blockX, ChunkSizeX) == ChunkSizeX - 1)
+            {
+                chunkOffsetsX[chunkOffsetXCount++] = 1;
+            }
+            if (positiveModulo(blockZ, ChunkSizeZ) == 0)
+            {
+                chunkOffsetsZ[chunkOffsetZCount++] = -1;
+            }
+            if (positiveModulo(blockZ, ChunkSizeZ) == ChunkSizeZ - 1)
+            {
+                chunkOffsetsZ[chunkOffsetZCount++] = 1;
+            }
+            if (positiveModulo(blockY, SubchunkSize) == 0)
+            {
+                subchunkYs[subchunkYCount++] = subchunkY - 1;
+            }
+            if (positiveModulo(blockY, SubchunkSize) == SubchunkSize - 1)
+            {
+                subchunkYs[subchunkYCount++] = subchunkY + 1;
+            }
+
+            for (std::size_t offsetZIndex = 0; offsetZIndex < chunkOffsetZCount; ++offsetZIndex)
+            {
+                for (std::size_t offsetXIndex = 0; offsetXIndex < chunkOffsetXCount; ++offsetXIndex)
                 {
-                    addAffectedSubchunk(chunkX + offsetX, chunkZ + offsetZ, affectedSubchunkY);
+                    for (std::size_t subchunkYIndex = 0; subchunkYIndex < subchunkYCount; ++subchunkYIndex)
+                    {
+                        addAffectedSubchunk(
+                            affectedSubchunks,
+                            chunkX + chunkOffsetsX[offsetXIndex],
+                            chunkZ + chunkOffsetsZ[offsetZIndex],
+                            subchunkYs[subchunkYIndex]);
+                    }
                 }
             }
         }
 
-        const std::vector<world::WorldRuntime::EditedSubchunk> lightChangedSubchunks =
-            client_.worldRuntime.resolveEditedSkyLightAtWorld(blockX, blockY, blockZ);
-        for (const world::WorldRuntime::EditedSubchunk& changed : lightChangedSubchunks)
+        for (uint32_t pass = 0; pass < MaxLocalLightDrainPasses; ++pass)
         {
-            addAffectedSubchunk(changed.chunkX, changed.chunkZ, changed.subchunkY);
+            const world::WorldRuntime::LocalLightTickResult lightResult =
+                client_.worldRuntime.tickLocalLightUpdates(MaxLocalLightTickCells);
+            for (const world::WorldRuntime::EditedSubchunk& changed : lightResult.changedSubchunks)
+            {
+                addAffectedSubchunk(affectedSubchunks, changed.chunkX, changed.chunkZ, changed.subchunkY);
+                addAffectedSubchunk(resolveSeedSubchunks, changed.chunkX, changed.chunkZ, changed.subchunkY);
+            }
+
+            if (lightResult.remainingCells == 0)
+            {
+                break;
+            }
+            if (lightResult.processedCells == 0)
+            {
+                break;
+            }
+        }
+
+        for (const AffectedSubchunk& changed : resolveSeedSubchunks)
+        {
+            const std::vector<world::WorldRuntime::EditedSubchunk> resolvedLightChangedSubchunks =
+                client_.worldRuntime.resolveEditedSkyLightAtWorld(
+                    changed.chunkX * ChunkSizeX,
+                    changed.subchunkY * SubchunkSize,
+                    changed.chunkZ * ChunkSizeZ);
+            for (const world::WorldRuntime::EditedSubchunk& resolvedChanged : resolvedLightChangedSubchunks)
+            {
+                addAffectedSubchunk(affectedSubchunks, resolvedChanged.chunkX, resolvedChanged.chunkZ, resolvedChanged.subchunkY);
+            }
         }
 
         for (const AffectedSubchunk& affected : affectedSubchunks)
@@ -618,8 +667,11 @@ namespace dolbuto
             rebuildSubchunkMeshNow(affected.chunkX, affected.chunkZ, affected.subchunkY);
         }
 
-        updateTerrainStats();
-        debugOverlayText_.markDirty();
+        if (!affectedSubchunks.empty())
+        {
+            updateTerrainStats();
+            debugOverlayText_.markDirty();
+        }
     }
 
     bool RendererTerrainRuntimeBridge::chunkMeshReady(uint64_t key) const
@@ -686,11 +738,16 @@ namespace dolbuto
                         InitialFireBurnTicks);
                     if (entity != nullptr)
                     {
-                        particleRenderPath_.setFireEmitterSmokeMultiplier(
+                        const float smokeMultiplier = entity->fireMode == FireMode::Pyrolysis ? 3.0f : 1.0f;
+                        const uint32_t smokeTextureSet = entity->fireMode == FireMode::Pyrolysis
+                            ? 1u
+                            : (entity->fireMode == FireMode::Firing ? 2u : 0u);
+                        particleRenderPath_.setFireEmitterSmokeStyle(
                             worldX,
                             y,
                             worldZ,
-                            entity->fireMode == FireMode::Pyrolysis ? 3.0f : 1.0f);
+                            smokeMultiplier,
+                            smokeTextureSet);
                     }
                 }
             }

@@ -4,6 +4,7 @@
 #include "world/BlockVisualShape.h"
 #include "world/DroppedItemSystem.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iterator>
 #include <stdexcept>
@@ -419,49 +420,17 @@ namespace dolbuto::gameplay
                 markDirty(*chunk);
             }
         };
-        auto itemIdByKey = [&](const char* key) -> uint16_t
-        {
-            const std::vector<ItemDefinition>& definitions = itemDefinitions();
-            for (std::size_t i = 0; i < definitions.size(); ++i)
-            {
-                if (definitions[i].key == key)
-                {
-                    return static_cast<uint16_t>(i);
-                }
-            }
-            return 0;
-        };
-        const uint16_t logItemId = itemIdByKey("log");
-        const uint16_t strippedLogItemId = itemIdByKey("stripped_log");
-        const uint16_t halfStrippedLogItemId = itemIdByKey("half_stripped_log");
-        const uint16_t quarterStrippedLogItemId = itemIdByKey("quarter_stripped_log");
-        const uint16_t charcoalItemId = itemIdByKey("charcoal");
-        auto kilnOutputForFuel = [&](uint16_t itemId) -> ItemStack
-        {
-            if (charcoalItemId == 0)
-            {
-                return {};
-            }
-            if (itemId == logItemId || itemId == strippedLogItemId)
-            {
-                return ItemStack{charcoalItemId, 4, 0};
-            }
-            if (itemId == halfStrippedLogItemId)
-            {
-                return ItemStack{charcoalItemId, 3, 0};
-            }
-            if (itemId == quarterStrippedLogItemId)
-            {
-                return ItemStack{charcoalItemId, 2, 0};
-            }
-            return {};
-        };
         auto blockSealsFire = [&](int x, int y, int z)
         {
             const uint16_t block = worldRuntime_->blockAtWorld(x, y, z);
             return block != BlockAir && blockDefinition(block).collision;
         };
-        auto firePyrolysisSealed = [&](int x, int y, int z) -> bool
+        struct FireWorkVolume
+        {
+            std::vector<std::array<int, 3>> processingCells;
+            uint32_t leakCount = 0;
+        };
+        auto fireWorkVolume = [&](int x, int y, int z) -> FireWorkVolume
         {
             constexpr int Directions[6][3] = {
                 {1, 0, 0},
@@ -471,48 +440,127 @@ namespace dolbuto::gameplay
                 {0, 0, 1},
                 {0, 0, -1}
             };
-            for (const auto& direction : Directions)
+            auto insideWorkBounds = [&](int cellX, int cellY, int cellZ)
             {
-                if (!blockSealsFire(x + direction[0], y + direction[1], z + direction[2]))
-                {
-                    return false;
-                }
-            }
-            return true;
-        };
-        auto fireFiringStructure = [&](int x, int y, int z) -> bool
-        {
-            constexpr int SealedDirections[5][3] = {
-                {1, 0, 0},
-                {-1, 0, 0},
-                {0, -1, 0},
-                {0, 0, 1},
-                {0, 0, -1}
+                return std::abs(cellX - x) <= 1 &&
+                    cellY == y &&
+                    std::abs(cellZ - z) <= 1;
             };
-            for (const auto& direction : SealedDirections)
+            auto containsCell = [](const std::vector<std::array<int, 3>>& cells, int cellX, int cellY, int cellZ)
             {
-                if (!blockSealsFire(x + direction[0], y + direction[1], z + direction[2]))
+                return std::find_if(cells.begin(), cells.end(), [&](const std::array<int, 3>& cell)
                 {
-                    return false;
+                    return cell[0] == cellX && cell[1] == cellY && cell[2] == cellZ;
+                }) != cells.end();
+            };
+
+            std::vector<std::array<int, 3>> visited;
+            std::vector<std::array<int, 3>> leaks;
+            visited.push_back({x, y, z});
+            for (std::size_t index = 0; index < visited.size(); ++index)
+            {
+                const std::array<int, 3> current = visited[index];
+                for (const auto& direction : Directions)
+                {
+                    const int nextX = current[0] + direction[0];
+                    const int nextY = current[1] + direction[1];
+                    const int nextZ = current[2] + direction[2];
+                    if (blockSealsFire(nextX, nextY, nextZ))
+                    {
+                        continue;
+                    }
+                    if (insideWorkBounds(nextX, nextY, nextZ))
+                    {
+                        if (!containsCell(visited, nextX, nextY, nextZ))
+                        {
+                            visited.push_back({nextX, nextY, nextZ});
+                        }
+                        continue;
+                    }
+                    if (!containsCell(leaks, nextX, nextY, nextZ))
+                    {
+                        leaks.push_back({nextX, nextY, nextZ});
+                    }
                 }
             }
-            return !blockSealsFire(x, y + 1, z);
+
+            FireWorkVolume volume{};
+            volume.leakCount = static_cast<uint32_t>(leaks.size());
+            for (const std::array<int, 3>& cell : visited)
+            {
+                if (cell[0] == x && cell[1] == y && cell[2] == z)
+                {
+                    continue;
+                }
+                volume.processingCells.push_back(cell);
+            }
+            return volume;
         };
         auto fireSmokeMultiplier = [](FireMode mode)
         {
             return mode == FireMode::Pyrolysis ? 3.0f : 1.0f;
         };
+        auto fireSmokeTextureSet = [](FireMode mode)
+        {
+            switch (mode)
+            {
+            case FireMode::Pyrolysis:
+                return 1u;
+            case FireMode::Firing:
+                return 2u;
+            default:
+                return 0u;
+            }
+        };
+        auto spawnFireOutput = [&](int x, int y, int z, ItemStack stack)
+        {
+            if (stack.itemId == 0 || stack.count == 0)
+            {
+                return false;
+            }
+
+            WorldEntity output{};
+            output.entityId = droppedItemRuntime_.allocateEntityId();
+            output.type = WorldEntityType::DroppedItem;
+            output.position = Vec3{
+                static_cast<float>(x),
+                static_cast<float>(y) + 0.08f,
+                static_cast<float>(z)
+            };
+            output.previousPosition = output.position;
+            output.velocity = Vec3{0.0f, 2.0f, 0.0f};
+            output.droppedItem.stack = stack;
+            output.renderSpinX = 5.0f;
+            output.renderSpin = 5.0f;
+            output.renderSpinZ = 5.0f;
+            world::DroppedItemSystem::setGrounded(output, false);
+            return droppedItemRuntime_.addWorldEntity(std::move(output), markDirty);
+        };
         auto fireModeForFuel = [&](int x, int y, int z, uint16_t heatLevel)
         {
-            if (fireFiringStructure(x, y, z) && heatLevel >= 2)
-            {
-                return FireMode::Firing;
-            }
-            if (firePyrolysisSealed(x, y, z))
+            const FireWorkVolume volume = fireWorkVolume(x, y, z);
+            if (volume.leakCount == 0)
             {
                 return FireMode::Pyrolysis;
             }
+            if (volume.leakCount == 1 && heatLevel >= 2)
+            {
+                return FireMode::Firing;
+            }
             return FireMode::Normal;
+        };
+        auto fireModeStructureValid = [&](int x, int y, int z, FireMode mode)
+        {
+            const FireWorkVolume volume = fireWorkVolume(x, y, z);
+            if (mode == FireMode::Pyrolysis)
+            {
+                return volume.leakCount == 0;
+            }
+            if (mode == FireMode::Firing)
+            {
+                return volume.leakCount == 1;
+            }
+            return true;
         };
         auto setFireMode = [&](int x, int y, int z, BlockEntity& entity, FireMode nextMode, bool forceNotify)
         {
@@ -523,14 +571,7 @@ namespace dolbuto::gameplay
 
             const FireMode previousMode = entity.fireMode;
             entity.fireMode = nextMode;
-            bool changed = previousMode != nextMode;
-            if (nextMode == FireMode::Normal)
-            {
-                changed = changed || entity.carbonizingOutputItemId != 0 || entity.carbonizingOutputCount != 0;
-                entity.carbonizingOutputItemId = 0;
-                entity.carbonizingOutputCount = 0;
-            }
-            if (changed)
+            if (previousMode != nextMode)
             {
                 markBlockEntityDirty(x, z);
             }
@@ -538,39 +579,95 @@ namespace dolbuto::gameplay
                 x,
                 y,
                 z,
-                fireSmokeMultiplier(nextMode)
+                fireSmokeMultiplier(nextMode),
+                fireSmokeTextureSet(nextMode)
             });
         };
-        auto spawnKilnOutput = [&](int x, int y, int z, ItemStack stack)
+        auto breakTickBlock = [&](const world::WorldRuntime::BlockTickCell& cell, uint16_t block, const BlockDefinition& definition, bool playSound)
         {
-            if (stack.itemId == 0 || stack.count == 0)
+            if (!setBlockAtWorld(cell.x, cell.y, cell.z, BlockAir))
             {
                 return false;
             }
 
-            WorldEntity output{};
-            output.entityId = droppedItemRuntime_.allocateEntityId();
-            output.type = WorldEntityType::DroppedItem;
-            output.position = {
-                static_cast<float>(x),
-                static_cast<float>(y) + 0.08f,
-                static_cast<float>(z)
+            droppedItemRuntime_.spawnBlockDrops(cell.x, cell.y, cell.z, definition, markDirty);
+            result.brokenBlocks.push_back(BlockBreakEvent{
+                cell.x,
+                cell.y,
+                cell.z,
+                block,
+                playSound
+            });
+            return true;
+        };
+        auto leafHasDecaySupport = [&](int x, int y, int z)
+        {
+            constexpr int LeafDecayDepth = 4;
+            constexpr int Directions[6][3] = {
+                {1, 0, 0},
+                {-1, 0, 0},
+                {0, 1, 0},
+                {0, -1, 0},
+                {0, 0, 1},
+                {0, 0, -1}
             };
-            output.previousPosition = output.position;
-            output.velocity = {0.0f, 2.0f, 0.0f};
-            output.droppedItem.stack = stack;
-            output.renderSpinX = 5.0f;
-            output.renderSpin = 5.0f;
-            output.renderSpinZ = 5.0f;
-            world::DroppedItemSystem::setGrounded(output, false);
-            return droppedItemRuntime_.addWorldEntity(std::move(output), markDirty);
+            struct LeafSearchNode
+            {
+                int x = 0;
+                int y = 0;
+                int z = 0;
+                int depth = 0;
+            };
+
+            std::vector<LeafSearchNode> frontier;
+            std::vector<LeafSearchNode> visited;
+            frontier.push_back(LeafSearchNode{x, y, z, 0});
+            visited.push_back(LeafSearchNode{x, y, z, 0});
+            for (std::size_t index = 0; index < frontier.size(); ++index)
+            {
+                const LeafSearchNode current = frontier[index];
+                if (current.depth >= LeafDecayDepth)
+                {
+                    continue;
+                }
+
+                for (const auto& direction : Directions)
+                {
+                    const int nextX = current.x + direction[0];
+                    const int nextY = current.y + direction[1];
+                    const int nextZ = current.z + direction[2];
+                    const uint16_t neighbor = worldRuntime_->blockAtWorld(nextX, nextY, nextZ);
+                    const BlockDefinition& neighborDefinition = blockDefinition(neighbor);
+                    if (neighborDefinition.leafDecaySupport)
+                    {
+                        return true;
+                    }
+                    if (!neighborDefinition.leafDecayable)
+                    {
+                        continue;
+                    }
+
+                    const bool alreadyVisited = std::find_if(visited.begin(), visited.end(), [&](const LeafSearchNode& node)
+                    {
+                        return node.x == nextX && node.y == nextY && node.z == nextZ;
+                    }) != visited.end();
+                    if (alreadyVisited)
+                    {
+                        continue;
+                    }
+
+                    const LeafSearchNode next{nextX, nextY, nextZ, current.depth + 1};
+                    frontier.push_back(next);
+                    visited.push_back(next);
+                }
+            }
+            return false;
         };
 
         auto updateFireMode = [&](int x, int y, int z, BlockEntity& entity, bool forceNotify)
         {
             const bool modeStructureValid =
-                (entity.fireMode == FireMode::Pyrolysis && firePyrolysisSealed(x, y, z)) ||
-                (entity.fireMode == FireMode::Firing && fireFiringStructure(x, y, z));
+                fireModeStructureValid(x, y, z, entity.fireMode);
             if (entity.fireMode == FireMode::Normal || modeStructureValid)
             {
                 if (forceNotify)
@@ -579,7 +676,8 @@ namespace dolbuto::gameplay
                         x,
                         y,
                         z,
-                        fireSmokeMultiplier(entity.fireMode)
+                        fireSmokeMultiplier(entity.fireMode),
+                        fireSmokeTextureSet(entity.fireMode)
                     });
                 }
                 return;
@@ -612,6 +710,8 @@ namespace dolbuto::gameplay
                 return;
             }
 
+            updateFireMode(cell.x, cell.y, cell.z, *entity, false);
+
             if (entity->remainingBurnTicks > 0)
             {
                 --entity->remainingBurnTicks;
@@ -619,20 +719,25 @@ namespace dolbuto::gameplay
                 if (entity->remainingBurnTicks > 0)
                 {
                     constexpr uint32_t ProcessingIntervalTicks = 5;
-                    if (entity->fireMode == FireMode::Firing &&
+                    if ((entity->fireMode == FireMode::Pyrolysis || entity->fireMode == FireMode::Firing) &&
                         entity->remainingBurnTicks % ProcessingIntervalTicks == 0)
                     {
-                        droppedItemRuntime_.processItemsInAabb(
-                            static_cast<float>(cell.x) - 0.5f,
-                            static_cast<float>(cell.y),
-                            static_cast<float>(cell.z) - 0.5f,
-                            static_cast<float>(cell.x) + 0.5f,
-                            static_cast<float>(cell.y + 1),
-                            static_cast<float>(cell.z) + 0.5f,
-                            processingRecipes,
-                            "firing",
-                            ProcessingIntervalTicks,
-                            markDirty);
+                        const FireWorkVolume volume = fireWorkVolume(cell.x, cell.y, cell.z);
+                        const bool validProcessingMode =
+                            (entity->fireMode == FireMode::Pyrolysis && volume.leakCount == 0) ||
+                            (entity->fireMode == FireMode::Firing && volume.leakCount == 1);
+                        const char* processingType = entity->fireMode == FireMode::Pyrolysis
+                            ? "pyrolysis"
+                            : "firing";
+                        if (validProcessingMode)
+                        {
+                            droppedItemRuntime_.processItemsInCells(
+                                volume.processingCells,
+                                processingRecipes,
+                                processingType,
+                                ProcessingIntervalTicks,
+                                markDirty);
+                        }
                     }
                     worldRuntime_->scheduleBlockTickAtWorld(
                         cell.x,
@@ -641,22 +746,23 @@ namespace dolbuto::gameplay
                         world::WorldRuntime::BlockTickReasonFireBurn);
                     return;
                 }
-            }
 
-            if (entity->carbonizingOutputItemId != 0 && entity->carbonizingOutputCount != 0)
-            {
-                const ItemStack output{entity->carbonizingOutputItemId, entity->carbonizingOutputCount, 0};
-                entity->carbonizingOutputItemId = 0;
-                entity->carbonizingOutputCount = 0;
-                markBlockEntityDirty(cell.x, cell.z);
-                if (spawnKilnOutput(cell.x, cell.y, cell.z, output))
+                if (entity->burnRemainderItemId != 0 && entity->burnRemainderCount != 0)
                 {
-                    worldRuntime_->scheduleBlockTickAtWorld(
-                        cell.x,
-                        cell.y,
-                        cell.z,
-                        world::WorldRuntime::BlockTickReasonFireBurn);
-                    return;
+                    const ItemStack remainder{
+                        entity->burnRemainderItemId,
+                        entity->burnRemainderCount,
+                        0
+                    };
+                    entity->burnRemainderItemId = 0;
+                    entity->burnRemainderCount = 0;
+                    markBlockEntityDirty(cell.x, cell.z);
+                    spawnFireOutput(cell.x, cell.y, cell.z, remainder);
+                    entity = worldRuntime_->blockEntityAtWorld(cell.x, cell.y, cell.z);
+                    if (entity == nullptr || entity->type != BlockEntityType::Fire)
+                    {
+                        return;
+                    }
                 }
             }
 
@@ -675,13 +781,10 @@ namespace dolbuto::gameplay
                 if (entity != nullptr && entity->type == BlockEntityType::Fire)
                 {
                     entity->remainingBurnTicks += consumedFuel.burnTimeTicks;
+                    entity->burnRemainderItemId = consumedFuel.remainderItemId;
+                    entity->burnRemainderCount = consumedFuel.remainderCount;
                     const FireMode consumedFuelMode = fireModeForFuel(cell.x, cell.y, cell.z, consumedFuel.heatLevel);
                     setFireMode(cell.x, cell.y, cell.z, *entity, consumedFuelMode, false);
-                    const ItemStack kilnOutput = consumedFuelMode == FireMode::Pyrolysis
-                        ? kilnOutputForFuel(consumedFuel.itemId)
-                        : ItemStack{};
-                    entity->carbonizingOutputItemId = kilnOutput.itemId;
-                    entity->carbonizingOutputCount = kilnOutput.count;
                     markBlockEntityDirty(cell.x, cell.z);
                     worldRuntime_->scheduleBlockTickAtWorld(
                         cell.x,
@@ -724,6 +827,17 @@ namespace dolbuto::gameplay
             }
 
             const BlockDefinition& definition = blockDefinition(block);
+            if (definition.leafDecayable)
+            {
+                if (leafHasDecaySupport(cell.x, cell.y, cell.z))
+                {
+                    continue;
+                }
+
+                breakTickBlock(cell, block, definition, false);
+                continue;
+            }
+
             if (definition.attachmentFace == BlockAttachmentFace::None)
             {
                 continue;
@@ -740,18 +854,7 @@ namespace dolbuto::gameplay
                 continue;
             }
 
-            if (!setBlockAtWorld(cell.x, cell.y, cell.z, BlockAir))
-            {
-                continue;
-            }
-
-            droppedItemRuntime_.spawnBlockDrops(cell.x, cell.y, cell.z, definition, markDirty);
-            result.brokenBlocks.push_back(BlockBreakEvent{
-                cell.x,
-                cell.y,
-                cell.z,
-                block
-            });
+            breakTickBlock(cell, block, definition, true);
         }
 
         return result;

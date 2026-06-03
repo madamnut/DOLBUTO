@@ -72,12 +72,11 @@ namespace dolbuto::world::block_light
         Direction direction,
         uint8_t baseAttenuation)
     {
+        (void)blockState;
+        (void)direction;
         if (isDirectionalAttachBlock(tables, block))
         {
-            const Direction attach = tables->blockStateKinds[block] == BlockStateKind::AttachGrid
-                ? attachGridDirection(blockState)
-                : attachDirection(blockState);
-            return direction == attach ? baseAttenuation : 1;
+            return 1;
         }
         return baseAttenuation;
     }

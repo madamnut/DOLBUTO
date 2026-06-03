@@ -29,6 +29,7 @@ namespace dolbuto
     {
         ItemStack stack{};
         uint32_t processingTicks = 0;
+        uint8_t processingType = 0;
     };
 
     struct WorldEntity
@@ -96,8 +97,8 @@ namespace dolbuto
         uint16_t y = 0;
         uint32_t remainingBurnTicks = 0;
         FireMode fireMode = FireMode::Normal;
-        uint16_t carbonizingOutputItemId = 0;
-        uint16_t carbonizingOutputCount = 0;
+        uint16_t burnRemainderItemId = 0;
+        uint16_t burnRemainderCount = 0;
     };
 
     struct ChunkBlockData

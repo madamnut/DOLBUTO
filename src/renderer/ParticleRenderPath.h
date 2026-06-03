@@ -59,7 +59,7 @@ namespace dolbuto
         void registerFireEmitter(int x, int y, int z);
         void unregisterFireEmitter(int x, int y, int z);
         void removeFireEmittersForChunk(int chunkX, int chunkZ);
-        void setFireEmitterSmokeMultiplier(int x, int y, int z, float multiplier);
+        void setFireEmitterSmokeStyle(int x, int y, int z, float multiplier, uint32_t textureSet);
         void handleBlockChanged(int x, int y, int z, uint16_t previousBlock, uint16_t nextBlock, uint16_t fireBlock);
         void spawnBlockBreak(int x, int y, int z, uint16_t block, uint32_t textureLayer);
         void spawnMiningParticle(const MiningHit& hit, uint32_t textureLayer);
@@ -102,6 +102,7 @@ namespace dolbuto
             float age = 0.0f;
             float lifetime = 0.0f;
             float size = 0.0f;
+            uint32_t textureSet = 0;
         };
 
         struct FireEmitter
@@ -111,6 +112,7 @@ namespace dolbuto
             int z = 0;
             float spawnTimer = 0.0f;
             float smokeMultiplier = 1.0f;
+            uint32_t smokeTextureSet = 0;
             uint32_t randomState = 0;
         };
 
@@ -124,12 +126,16 @@ namespace dolbuto
         VulkanResourceManager* gpuResources_ = nullptr;
         VkBuffer vertexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory vertexMemory_ = VK_NULL_HANDLE;
+        void* vertexMapped_ = nullptr;
         VkBuffer indexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory indexMemory_ = VK_NULL_HANDLE;
         VkBuffer smokeVertexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory smokeVertexMemory_ = VK_NULL_HANDLE;
+        void* smokeVertexMapped_ = nullptr;
         VkBuffer smokeIndexBuffer_ = VK_NULL_HANDLE;
         VkDeviceMemory smokeIndexMemory_ = VK_NULL_HANDLE;
+        std::vector<TerrainVertex> vertexScratch_;
+        std::vector<TerrainVertex> smokeVertexScratch_;
         std::vector<BlockBreakParticle> particles_;
         std::vector<SmokeParticle> smokeParticles_;
         std::vector<FireEmitter> fireEmitters_;

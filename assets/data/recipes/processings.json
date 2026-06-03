@@ -3,18 +3,52 @@
         "type": "firing",
         "input": "unfired_clay_brick",
         "output": "clay_brick",
-        "requiredTicks": 1200
+        "requiredTicks": 600
     },
     {
         "type": "firing",
         "input": "unfired_clay_pot",
         "output": "clay_pot",
-        "requiredTicks": 1200
+        "requiredTicks": 600
     },
     {
         "type": "firing",
         "input": "unfired_refractory_clay_brick",
         "output": "refractory_clay_brick",
-        "requiredTicks": 1200
+        "requiredTicks": 600
+    },
+    {
+        "type": "firing",
+        "input": "unfired_refractory_clay_crucible",
+        "output": "refractory_clay_crucible",
+        "requiredTicks": 600
+    },
+    {
+        "type": "pyrolysis",
+        "input": "log",
+        "output": "charcoal",
+        "outputCount": 4,
+        "requiredTicks": 600
+    },
+    {
+        "type": "pyrolysis",
+        "input": "stripped_log",
+        "output": "charcoal",
+        "outputCount": 4,
+        "requiredTicks": 600
+    },
+    {
+        "type": "pyrolysis",
+        "input": "half_stripped_log",
+        "output": "charcoal",
+        "outputCount": 3,
+        "requiredTicks": 600
+    },
+    {
+        "type": "pyrolysis",
+        "input": "quarter_stripped_log",
+        "output": "charcoal",
+        "outputCount": 2,
+        "requiredTicks": 600
     }
 ]

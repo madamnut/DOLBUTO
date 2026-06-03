@@ -250,6 +250,61 @@ namespace dolbuto::assets
             Vec2{1.0f, 1.0f},
             Vec2{0.0f, 1.0f}
         };
+        if (renderType == BlockRenderType::Crucible)
+        {
+            auto topPoint = [&](float u, float v)
+            {
+                return Vec2{
+                    top0.x * (1.0f - u) * (1.0f - v) +
+                        top1.x * u * (1.0f - v) +
+                        top2.x * u * v +
+                        top3.x * (1.0f - u) * v,
+                    top0.y * (1.0f - u) * (1.0f - v) +
+                        top1.y * u * (1.0f - v) +
+                        top2.y * u * v +
+                        top3.y * (1.0f - u) * v
+                };
+            };
+            auto topUv = [](float u, float v)
+            {
+                return Vec2{u, v};
+            };
+            auto drawTopRegion = [&](float u0, float v0, float u1, float v1)
+            {
+                drawQuad(
+                    output,
+                    *top,
+                    std::array<Vec2, 4>{
+                        topPoint(u0, v0),
+                        topPoint(u1, v0),
+                        topPoint(u1, v1),
+                        topPoint(u0, v1)
+                    },
+                    std::array<Vec2, 4>{
+                        topUv(u0, v0),
+                        topUv(u1, v0),
+                        topUv(u1, v1),
+                        topUv(u0, v1)
+                    },
+                    1.0f);
+            };
+
+            drawQuad(output, *left, leftPositions, sideUvs, 0.70f);
+            drawQuad(output, *right, rightPositions, sideUvs, 0.86f);
+            drawTopRegion(0.0f, 0.0f, 1.0f, 0.2f);
+            drawTopRegion(0.0f, 0.8f, 1.0f, 1.0f);
+            drawTopRegion(0.0f, 0.2f, 0.2f, 0.8f);
+            drawTopRegion(0.8f, 0.2f, 1.0f, 0.8f);
+
+            std::error_code error;
+            std::filesystem::create_directories(outputPath.parent_path(), error);
+            if (error)
+            {
+                return false;
+            }
+
+            return stbi_write_png(outputPath.string().c_str(), IconSize, IconSize, 4, output.data(), IconSize * 4) != 0;
+        }
         drawQuad(
             output,
             *left,

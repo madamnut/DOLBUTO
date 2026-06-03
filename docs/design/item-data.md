@@ -54,7 +54,11 @@ assets/textures/item/*.png
   "tags": [],
   "useActions": [],
   "burnTimeTicks": 0,
-  "heatLevel": 0
+  "heatLevel": 0,
+  "burnRemainder": {
+    "item": "ash",
+    "count": 1
+  }
 }
 ```
 
@@ -76,9 +80,11 @@ assets/textures/item/*.png
 - `placeActions`: 손에 들었을 때 수행 가능한 블록/오브젝트 설치 액션 키 목록
 - `placeBlock`: `place` 액션으로 설치할 블록 이름
 - `modelBlock`: `block_model` 아이템 렌더링에 사용할 블록 이름. 생략하면 `placeBlock`을 사용한다.
-- `modelShape`: `block_model` 아이템 렌더링 형상. 현재 `source`, `cube`, `slab`, `quarter_log`를 사용한다.
+- `modelShape`: `block_model` 아이템 렌더링 형상. 현재 `source`, `cube`, `slab`, `quarter_log`, `crucible`을 사용한다.
+- `modelTexture`: `block_model` 아이템이 블록 ID 대신 재질 텍스처만 직접 사용할 때 참조하는 block texture 이름
 - `burnTimeTicks`: 불이 연료로 소비했을 때 더해지는 연소 tick 수. 생략하거나 `0`이면 타지 않는 아이템이다.
 - `heatLevel`: 연료의 처리 온도 단계. `burnTimeTicks > 0`이고 생략하면 1로 처리한다.
+- `burnRemainder`: 연료 1개가 다 탄 뒤 드랍할 부산물. 현재는 `{ "item": "ash", "count": n }` 형태를 사용한다.
 
 `id = 0`은 `none`용으로 예약한다.
 실제 아이템은 `id = 1`부터 시작하며, 구체적으로 빈 구간을 남길 이유가 없으면 순차적으로 배정한다.
@@ -90,6 +96,7 @@ assets/textures/item/*.png
 `modelShape`가 `source`이거나 생략된 상태에서 표시 대상 블록이 `renderType: "slab"`이면 슬롯/든 아이템/드랍 아이템의 블록 모델도 기본 bottom 반블럭 형태로 만든다.
 `modelShape = "slab"`은 표시 대상 블록을 `1.0 x 0.5 x 1.0` 크기로 렌더링한다.
 `modelShape = "quarter_log"`는 반통나무를 수직으로 한 번 더 자른 `0.5 x 0.5 x 1.0` 크기로 렌더링한다.
+`modelShape = "crucible"`은 바닥과 네 벽으로 구성된 위가 열린 도가니 형상으로 렌더링한다.
 설치된 `quarter_stripped_log` 블록은 `renderType: "half_slab"`과 `stateKind: "attach_grid"`를 사용해 같은 크기의 배치 가능 조각으로 처리한다.
 `quarter_log`의 새로 생긴 수직 절단면 한쪽은 `modelBlock` 블록 재질의 `verticalSection` 레이어를 전체 UV로 사용하고, 나머지 바깥 옆면은 기존 side 텍스처의 아래 절반을 사용한다.
 
@@ -103,6 +110,8 @@ assets/textures/item/*.png
 `heatLevel`은 해당 연료가 낼 수 있는 처리 온도 단계다. `burnTimeTicks > 0`이고 `heatLevel`을 생략하면 런타임에서 1로 처리한다.
 현재는 0레벨 연료를 구분하지 않으며, 실제 연료 단계는 1부터 시작한다.
 `heatLevel = 1`은 일반 연료, `heatLevel = 2`는 도기 소성이 가능한 고열 연료로 사용한다.
+`burnRemainder`는 해당 연료로 추가된 연소 시간이 끝나는 시점에 드랍되는 부산물이다.
+재 생성량은 런타임 계산식이 아니라 아이템 데이터에 명시한다.
 현재 게임 시간은 초당 20틱 기준이며, 연료로 쓰는 아이템은 최소 100틱 이상을 사용한다.
 가공 아이템은 원재료 합보다 조금 낮은 값을 가진다.
 불은 같은 셀 영역에 있는 연료 아이템 중 하나를 무작위로 소비한다.
@@ -111,34 +120,32 @@ assets/textures/item/*.png
 현재 연료 값:
 
 ```text
-item                                               burnTimeTicks  heatLevel
-plant, plant_fiber, grass_scrap, leaf, bark_strip  100            1
-short_plant_twine                                  100            1
-plant_twine                                        160            1
-long_plant_twine                                   256            1
-branch                                             300            1
-short_wooden_stick                                 120            1
-wooden_stick                                       240            1
-long_wooden_stick                                  800            1
-bough                                              1000           1
-log                                                2000           1
-stripped_log                                       1800           1
-half_stripped_log                                  900            1
-quarter_stripped_log                               450            1
-wooden_plank                                       225            1
-wooden_peg                                         100            1
-charcoal, coal                                     2400           2
+item                                               burnTimeTicks  heatLevel  burnRemainder
+plant, plant_fiber, grass_scrap, leaf, bark_strip  100            1          ash x1
+short_plant_twine                                  100            1          ash x1
+plant_twine                                        160            1          ash x1
+long_plant_twine                                   256            1          ash x1
+branch                                             300            1          ash x1
+short_wooden_stick                                 120            1          ash x1
+wooden_stick                                       240            1          ash x1
+long_wooden_stick                                  800            1          ash x2
+bough                                              1000           1          ash x2
+log                                                2000           1          ash x4
+stripped_log                                       1800           1          ash x3
+half_stripped_log                                  900            1          ash x2
+quarter_stripped_log                               450            1          ash x1
+wooden_plank                                       225            1          ash x1
+wooden_peg                                         100            1          ash x1
+charcoal, coal                                     2400           2          ash x4
 ```
 
-## Pit Kiln 숯화
+## Fire Processing
 
-fire는 주변 6방향 block change event를 받았을 때 밀폐 여부를 재검사하며, 6방향이 모두 `collision = true`이면 `pyrolysis` mode가 된다.
-연료 소비 시점에 fire mode가 `pyrolysis`이면 pit kiln 결과물을 예약한다.
-현재 레시피는 `log -> charcoal x4`, `stripped_log -> charcoal x4`, `half_stripped_log -> charcoal x3`, `quarter_stripped_log -> charcoal x2`다.
-반블럭도 `collision = true`이면 밀폐 판정에 사용할 수 있다.
-결과 숯은 fire 위치에 드랍되며, 생성된 tick에는 같은 fire가 다음 연료를 바로 소비하지 않는다.
-열분해 중 밀폐가 깨지면 fire mode는 `normal`로 내려가고 예약된 숯 결과는 폐기된다.
-`firing`은 위가 열린 5면 구조와 `heatLevel >= 2` 연료를 요구하므로, 6면이 모두 막힌 구조와 분리된다.
+fire 셀에 있는 아이템은 연료로 소비될 수 있고, fire 중심 같은 Y층 `3 x 3` 작업 공간 안에서 fire 셀을 제외한 BFS 내부 셀의 아이템은 [[recipe/processings]] 대상이 될 수 있다.
+`pyrolysis`는 leak이 없는 밀폐 작업 공간에서 진행되며, 현재 `log`, `stripped_log`, `half_stripped_log`, `quarter_stripped_log`를 `charcoal`로 변환한다.
+`firing`은 leak이 정확히 1개인 작업 공간에서 `heatLevel >= 2` 연료를 소비했을 때 진행되며, 현재 굽기 전 점토 아이템을 구운 결과물로 변환한다.
+둘 다 처리 시간은 600틱이다.
+`grog`는 구운 점토를 잘게 부순 내화 보강재이며, `clay_brick`을 `smash`하면 4개, `clay_pot`을 `smash`하면 8개를 얻는다.
 
 ## 드랍 아이템 물리와 렌더링
 
@@ -232,8 +239,8 @@ wooden_plank.png
 wooden_stick.png
 ```
 
-현재 점토/가공 재료 계열 신규 아이템은 모두 `extruded_sprite` 렌더 타입과 `stackSize = 99`를 사용한다.
-아직 제작 레시피, 블록 드랍, 설치 블록 연결은 추가하지 않았다.
+점토/가공 재료 계열 일반 아이템은 `extruded_sprite` 렌더 타입과 `stackSize = 99`를 사용한다.
+도가니 아이템은 `block_model`, `modelShape = "crucible"`, `modelTexture`를 사용해 재질만 바꾼 도가니 형상으로 표시한다.
 
 ```text
 clay_pile                              id 43
@@ -248,6 +255,8 @@ refractory_clay_brick                  id 51
 ash                                    id 52
 tar                                    id 53
 wood_shavings                          id 54
+unfired_refractory_clay_crucible       id 55
+refractory_clay_crucible               id 56
 ```
 
 ## 초기 아이템 초안
@@ -523,6 +532,7 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 - `droppedRender.type`, `heldRender.type`은 유효한 아이템 렌더 타입이어야 한다.
 - `block_model` 렌더 타입은 `modelBlock`으로 렌더 대상 블록을 찾고, 생략 시 `placeBlock`을 사용한다.
 - `slotRender.type = "block_model"`은 같은 표시 대상 블록으로 슬롯 아이콘 대상 블록을 찾는다.
+- `modelTexture`가 있으면 `modelBlock/placeBlock` 대신 해당 block texture를 모든 면의 재질로 사용한다.
 - `burnTimeTicks`는 생략 가능하며 음수 입력은 `0`으로 정규화한다.
 
 ## 블록 드랍
@@ -542,8 +552,8 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 아이템은 플레이어 높이 절반의 플레이어 콜라이더 중심을 향해 가속한다.
 드랍 아이템 bounds가 플레이어 콜라이더에 닿으면, 공간이 있을 때 런타임 플레이어 인벤토리에 삽입된다.
 삽입에 실패하면 드랍 아이템은 월드에 남는다.
-드랍 아이템 엔티티는 소유 청크 payload에 `entityId`, 로컬 위치, 속도, 접지 플래그, `itemId`, `count`, `durability`, `processingTicks`를 저장한다.
-`processingTicks`는 [[recipe/processings]]의 시간 기반 처리 진행도이며, 같은 아이템이라도 진행도가 다른 드랍 스택은 병합하지 않는다.
+드랍 아이템 엔티티는 소유 청크 payload에 `entityId`, 로컬 위치, 속도, 접지 플래그, `itemId`, `count`, `durability`, `processingTicks`, `processingType`을 저장한다.
+`processingTicks`와 `processingType`은 [[recipe/processings]]의 시간 기반 처리 진행도이며, 같은 아이템이라도 진행도나 처리 종류가 다른 드랍 스택은 병합하지 않는다.
 획득 진행 상태와 렌더 전용 회전/스핀은 저장하지 않는다.
 
 ## 런타임 인벤토리

@@ -80,6 +80,7 @@ namespace dolbuto::game
             float height = 0.0f;
             float depth = 0.0f;
             bool useVerticalSection = false;
+            bool useCrucibleShape = false;
         };
 
         ItemBlockModelSize parseItemBlockModelSize(const std::string& value)
@@ -99,6 +100,10 @@ namespace dolbuto::game
             if (value == "quarter_log" || value == "quarter")
             {
                 return {0.5f, 0.5f, 1.0f, true};
+            }
+            if (value == "crucible")
+            {
+                return {1.0f, 1.0f, 1.0f, false, true};
             }
             throw std::runtime_error("Unknown item block model shape: " + value);
         }
@@ -157,6 +162,10 @@ namespace dolbuto::game
             if (value == "half_slab")
             {
                 return BlockRenderType::HalfSlab;
+            }
+            if (value == "crucible")
+            {
+                return BlockRenderType::Crucible;
             }
             return BlockRenderType::None;
         }
@@ -455,6 +464,7 @@ namespace dolbuto::game
             itemDefinition.blockModelHeight = blockModelSize.height;
             itemDefinition.blockModelDepth = blockModelSize.depth;
             itemDefinition.useBlockModelVerticalSection = blockModelSize.useVerticalSection;
+            itemDefinition.useBlockModelCrucibleShape = blockModelSize.useCrucibleShape;
             itemDefinition.slotRender = parseItemSlotRenderType(definition.slotRender);
             itemDefinition.droppedRender = parseItemRenderType(definition.droppedRender);
             itemDefinition.heldRender = parseItemRenderType(definition.heldRender);
@@ -471,6 +481,24 @@ namespace dolbuto::game
             {
                 content.itemIdByKey_[definition.key] = definition.id;
             }
+        }
+        for (const data::ParsedItemDefinition& definition : parsedItems)
+        {
+            if (definition.id >= content.itemDefinitions_.size() ||
+                definition.burnRemainderItem.empty() ||
+                definition.burnRemainderCount == 0)
+            {
+                continue;
+            }
+
+            const auto itemIt = content.itemIdByKey_.find(definition.burnRemainderItem);
+            if (itemIt == content.itemIdByKey_.end())
+            {
+                log::warn("Item '" + definition.key + "' references unknown burn remainder item '" + definition.burnRemainderItem + "'");
+                continue;
+            }
+            content.itemDefinitions_[definition.id].burnRemainderItemId = itemIt->second;
+            content.itemDefinitions_[definition.id].burnRemainderCount = definition.burnRemainderCount;
         }
 
         const std::vector<char> blockDefinitionData = readContentFile(assetDirectory / "data" / "blocks.json");
@@ -532,6 +560,8 @@ namespace dolbuto::game
             blockDefinition.lightEmission = definition.lightEmission;
             blockDefinition.randomOffset = definition.randomOffset;
             blockDefinition.breakEffectParticles = definition.breakEffectParticles;
+            blockDefinition.leafDecayable = definition.leafDecayable;
+            blockDefinition.leafDecaySupport = definition.leafDecaySupport;
             blockDefinition.stateKind = parseStateKind(definition.stateKind);
             blockDefinition.attachmentFace = parseAttachmentFace(definition.attachmentFace);
             blockDefinition.interactActions = definition.interactActions;
@@ -678,6 +708,11 @@ namespace dolbuto::game
             {
                 item.modelBlockId = item.placeBlockId;
             }
+            if (!definition.modelTexture.empty())
+            {
+                item.modelTextureLayer = layerForTexture(definition.modelTexture);
+                item.hasModelTexture = true;
+            }
         }
 
         const std::filesystem::path interactionPath = assetDirectory / "data" / "recipes" / "interactions.json";
@@ -814,6 +849,7 @@ namespace dolbuto::game
                 recipe.type = definition.type;
                 recipe.inputItemId = inputIt->second;
                 recipe.outputItemId = outputIt->second;
+                recipe.outputCount = definition.outputCount == 0 ? 1 : definition.outputCount;
                 recipe.requiredTicks = definition.requiredTicks;
                 content.itemProcessingRecipes_.push_back(std::move(recipe));
             }
@@ -831,11 +867,27 @@ namespace dolbuto::game
             {
                 continue;
             }
-            if (item.modelBlockId == 0 ||
-                static_cast<size_t>(item.modelBlockId) >= content.blockTextureLayers_.size())
+            const bool usesModelTexture = item.hasModelTexture;
+            if (!usesModelTexture &&
+                (item.modelBlockId == 0 ||
+                    static_cast<size_t>(item.modelBlockId) >= content.blockTextureLayers_.size()))
             {
                 log::warn("Block model slot item has no valid modelBlock/placeBlock: " + item.key);
                 continue;
+            }
+            BlockTextureLayers iconLayers{};
+            BlockRenderType iconRenderType = BlockRenderType::Cube;
+            if (usesModelTexture)
+            {
+                iconLayers.faces.fill(item.modelTextureLayer);
+                iconLayers.verticalSection = item.modelTextureLayer;
+                iconLayers.horizontalSection = item.modelTextureLayer;
+                iconRenderType = item.useBlockModelCrucibleShape ? BlockRenderType::Crucible : BlockRenderType::Cube;
+            }
+            else
+            {
+                iconLayers = content.blockTextureLayers_[item.modelBlockId];
+                iconRenderType = content.blockDefinitions_[item.modelBlockId].renderType;
             }
 
             const std::string generatedTexture = "generated/" + item.key + "_slot";
@@ -843,8 +895,8 @@ namespace dolbuto::game
             if (assets::writeBlockItemIcon(
                 blockTextureDir,
                 content.blockTextureNames_,
-                content.blockTextureLayers_[item.modelBlockId],
-                content.blockDefinitions_[item.modelBlockId].renderType,
+                iconLayers,
+                iconRenderType,
                 item.blockModelWidth,
                 item.blockModelHeight,
                 item.blockModelDepth,

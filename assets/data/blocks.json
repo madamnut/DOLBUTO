@@ -216,6 +216,7 @@
         "mipDistanceScale": 1,
         "collision": true,
         "ao": true,
+        "leafDecaySupport": true,
         "faceOcclusion": "opaque",
         "sameBlockFaceCulling": true,
         "alphaMode": "opaque",
@@ -244,6 +245,7 @@
         "mipDistanceScale": 1,
         "collision": true,
         "ao": true,
+        "leafDecayable": true,
         "faceOcclusion": "cutout",
         "sameBlockFaceCulling": false,
         "alphaMode": "cutout",
@@ -313,6 +315,7 @@
         "mipDistanceScale": 1,
         "collision": true,
         "ao": true,
+        "leafDecaySupport": true,
         "faceOcclusion": "opaque",
         "sameBlockFaceCulling": true,
         "alphaMode": "opaque",
@@ -759,6 +762,33 @@
         "lightAttenuation": 15,
         "breakLevel": 2,
         "breakAction": "chop"
+    },
+    {
+        "id": 26,
+        "name": "refractory_clay_crucible",
+        "renderType": "crucible",
+        "hardness": 1.2,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": true,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "opaque",
+        "textures": {
+            "all": "fired_refractory_clay"
+        },
+        "drops": [
+            {
+                "item": "refractory_clay_crucible",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 15,
+        "breakLevel": 1,
+        "breakAction": "smash"
     },
     {
         "id": 10000,

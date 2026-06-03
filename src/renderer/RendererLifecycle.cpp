@@ -10,10 +10,12 @@
 #include "renderer/RendererTerrainRuntimeBridge.h"
 #include "renderer/RendererUiRuntimeBridge.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <stdexcept>
+#include <vector>
 
 namespace dolbuto
 {
@@ -102,6 +104,10 @@ namespace dolbuto
                 [this](int x, int y, int z)
                 {
                     terrainRuntimeBridge_->rebuildEditedChunkMeshes(x, y, z);
+                },
+                [this](const std::vector<std::array<int, 3>>& blocks)
+                {
+                    terrainRuntimeBridge_->rebuildEditedChunkMeshesBatch(blocks);
                 },
                 [this](int x, int y, int z)
                 {

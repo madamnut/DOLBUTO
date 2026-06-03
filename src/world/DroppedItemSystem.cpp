@@ -394,6 +394,7 @@ namespace dolbuto::world
                     if (!canMergeDroppedItem(b, itemDefinitions, otherMaxStack) ||
                         a.droppedItem.stack.itemId != b.droppedItem.stack.itemId ||
                         a.droppedItem.processingTicks != b.droppedItem.processingTicks ||
+                        a.droppedItem.processingType != b.droppedItem.processingType ||
                         maxStack != otherMaxStack ||
                         !closeEnoughToMerge(a, b))
                     {

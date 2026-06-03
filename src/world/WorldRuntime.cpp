@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <deque>
+#include <limits>
 #include <utility>
 
 namespace dolbuto::world
@@ -136,6 +137,15 @@ namespace dolbuto::world
             return fluid == FluidNone ? 0 : 2;
         }
 
+        uint8_t blockLightEmission(const LightAttenuationTables* lightAttenuation, uint16_t block)
+        {
+            if (lightAttenuation != nullptr && static_cast<size_t>(block) < lightAttenuation->blockEmission.size())
+            {
+                return lightAttenuation->blockEmission[block];
+            }
+            return 0;
+        }
+
         uint16_t blockStateAt(const ChunkData& chunk, size_t index)
         {
             return index < chunk.blockStates.size() ? chunk.blockStates[index] : 0;
@@ -213,6 +223,16 @@ namespace dolbuto::world
             return std::any_of(subchunks.begin(), subchunks.end(), [&](const SubchunkKey& subchunk)
             {
                 return sameSubchunk(subchunk, target);
+            });
+        }
+
+        bool containsEditedSubchunk(const std::vector<WorldRuntime::EditedSubchunk>& subchunks, const WorldRuntime::EditedSubchunk& target)
+        {
+            return std::any_of(subchunks.begin(), subchunks.end(), [&](const WorldRuntime::EditedSubchunk& subchunk)
+            {
+                return subchunk.chunkX == target.chunkX &&
+                    subchunk.chunkZ == target.chunkZ &&
+                    subchunk.subchunkY == target.subchunkY;
             });
         }
     }
@@ -411,6 +431,7 @@ namespace dolbuto::world
     {
         chunks_.clear();
         nextBlockTicks_.clear();
+        nextLocalLightTicks_.clear();
         nextFluidTicks_.clear();
     }
 
@@ -684,8 +705,8 @@ namespace dolbuto::world
                 {
                     entity.type = BlockEntityType::Fire;
                     entity.fireMode = FireMode::Normal;
-                    entity.carbonizingOutputItemId = 0;
-                    entity.carbonizingOutputCount = 0;
+                    entity.burnRemainderItemId = 0;
+                    entity.burnRemainderCount = 0;
                     if (entity.remainingBurnTicks == 0)
                     {
                         entity.remainingBurnTicks = remainingBurnTicks;
@@ -898,7 +919,10 @@ namespace dolbuto::world
             runtimeChunk->data->fluids[index] = FluidNone;
             adjustFluidSubchunkCount(runtimeChunk->data, y, previousFluid, FluidNone);
         }
-        runtimeChunk->data->localLight = computeLocalSkyLight(*runtimeChunk->data, lightAttenuationTables_.get());
+        if (runtimeChunk->data->localLight.size() != ChunkBlockCount)
+        {
+            runtimeChunk->data->localLight = computeLocalSkyLight(*runtimeChunk->data, lightAttenuationTables_.get());
+        }
         if (runtimeChunk->data->light.size() != ChunkBlockCount)
         {
             runtimeChunk->data->light = runtimeChunk->data->localLight;
@@ -906,6 +930,7 @@ namespace dolbuto::world
         ++runtimeChunk->data->revision;
         markDataDirty(*runtimeChunk);
         updateChunkEmptySubchunk(runtimeChunk->data, y / SubchunkSize);
+        scheduleLocalLightTickNeighborhood(x, y, z);
         scheduleBlockTickNeighborhood(x, y, z);
         scheduleFluidTickNeighborhood(x, y, z);
         return true;
@@ -1013,6 +1038,272 @@ namespace dolbuto::world
             cells.push_back(cell);
         }
         return cells;
+    }
+
+    void WorldRuntime::scheduleLocalLightTickAtWorld(int x, int y, int z)
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return;
+        }
+
+        nextLocalLightTicks_.insert(FluidTickCell{x, y, z});
+    }
+
+    void WorldRuntime::scheduleLocalLightTickNeighborhood(int x, int y, int z)
+    {
+        scheduleLocalLightTickAtWorld(x, y, z);
+        scheduleLocalLightTickAtWorld(x + 1, y, z);
+        scheduleLocalLightTickAtWorld(x - 1, y, z);
+        scheduleLocalLightTickAtWorld(x, y + 1, z);
+        scheduleLocalLightTickAtWorld(x, y - 1, z);
+        scheduleLocalLightTickAtWorld(x, y, z + 1);
+        scheduleLocalLightTickAtWorld(x, y, z - 1);
+    }
+
+    WorldRuntime::LocalLightTickResult WorldRuntime::tickLocalLightUpdates(uint32_t maxCells)
+    {
+        LocalLightTickResult result{};
+        if (maxCells == 0 || nextLocalLightTicks_.empty())
+        {
+            return result;
+        }
+
+        std::unordered_set<FluidTickCell, FluidTickCellHash> processing;
+        processing.swap(nextLocalLightTicks_);
+        std::vector<uint64_t> markedDirtyChunks;
+        auto localLightAtWorld = [&](int worldX, int worldY, int worldZ) -> uint8_t
+        {
+            if (worldY >= ChunkSizeY)
+            {
+                return packLight(MaxSkyLight, 0);
+            }
+            if (worldY < 0)
+            {
+                return 0;
+            }
+
+            const int sampleChunkX = floorDiv(worldX, ChunkSizeX);
+            const int sampleChunkZ = floorDiv(worldZ, ChunkSizeZ);
+            const RuntimeChunk* sampleChunk = findChunk(sampleChunkX, sampleChunkZ);
+            if (sampleChunk == nullptr || !sampleChunk->data || sampleChunk->data->localLight.size() != ChunkBlockCount)
+            {
+                return 0;
+            }
+
+            const int localX = positiveModulo(worldX, ChunkSizeX);
+            const int localZ = positiveModulo(worldZ, ChunkSizeZ);
+            return sampleChunk->data->localLight[blockIndex(localX, worldY, localZ)];
+        };
+        auto directionalAttenuationAtWorld = [&](int worldX, int worldY, int worldZ, block_light::Direction direction) -> uint8_t
+        {
+            if (worldY >= ChunkSizeY)
+            {
+                return 1;
+            }
+            if (worldY < 0)
+            {
+                return MaxSkyLight;
+            }
+
+            const int sampleChunkX = floorDiv(worldX, ChunkSizeX);
+            const int sampleChunkZ = floorDiv(worldZ, ChunkSizeZ);
+            const RuntimeChunk* sampleChunk = findChunk(sampleChunkX, sampleChunkZ);
+            if (sampleChunk == nullptr || !sampleChunk->data)
+            {
+                return MaxSkyLight;
+            }
+
+            const int localX = positiveModulo(worldX, ChunkSizeX);
+            const int localZ = positiveModulo(worldZ, ChunkSizeZ);
+            return directionalAttenuationForCell(
+                *sampleChunk->data,
+                blockIndex(localX, worldY, localZ),
+                direction,
+                lightAttenuationTables_.get());
+        };
+        auto transitionAttenuationAtWorld = [&](int fromX, int fromY, int fromZ, int toX, int toY, int toZ, block_light::Direction directionFromSource) -> uint8_t
+        {
+            return std::max<uint8_t>(
+                directionalAttenuationAtWorld(fromX, fromY, fromZ, directionFromSource),
+                directionalAttenuationAtWorld(toX, toY, toZ, block_light::opposite(directionFromSource)));
+        };
+        auto addChangedSubchunk = [&](int chunkX, int chunkZ, int subchunkY)
+        {
+            if (subchunkY < 0 || subchunkY >= SubchunksPerChunk)
+            {
+                return;
+            }
+
+            const EditedSubchunk changed{chunkX, chunkZ, subchunkY};
+            if (!containsEditedSubchunk(result.changedSubchunks, changed))
+            {
+                result.changedSubchunks.push_back(changed);
+            }
+        };
+        auto markChunkDirtyOnce = [&](RuntimeChunk& chunk)
+        {
+            const uint64_t key = chunkKey(chunk.chunkX, chunk.chunkZ);
+            if (std::find(markedDirtyChunks.begin(), markedDirtyChunks.end(), key) != markedDirtyChunks.end())
+            {
+                return;
+            }
+
+            if (chunk.data)
+            {
+                ++chunk.data->revision;
+            }
+            markDataDirty(chunk);
+            markedDirtyChunks.push_back(key);
+        };
+        auto enqueueNeighbor = [&](int x, int y, int z)
+        {
+            if (y < 0 || y >= ChunkSizeY)
+            {
+                return;
+            }
+            nextLocalLightTicks_.insert(FluidTickCell{x, y, z});
+        };
+
+        constexpr int Directions[6][3] = {
+            {1, 0, 0},
+            {-1, 0, 0},
+            {0, 1, 0},
+            {0, -1, 0},
+            {0, 0, 1},
+            {0, 0, -1}
+        };
+        constexpr block_light::Direction DirectionFromNeighbor[6] = {
+            block_light::Direction::NegX,
+            block_light::Direction::PosX,
+            block_light::Direction::NegY,
+            block_light::Direction::PosY,
+            block_light::Direction::NegZ,
+            block_light::Direction::PosZ
+        };
+
+        for (const FluidTickCell& cell : processing)
+        {
+            if (result.processedCells >= maxCells)
+            {
+                nextLocalLightTicks_.insert(cell);
+                continue;
+            }
+            ++result.processedCells;
+            if (cell.y < 0 || cell.y >= ChunkSizeY)
+            {
+                continue;
+            }
+
+            const int chunkX = floorDiv(cell.x, ChunkSizeX);
+            const int chunkZ = floorDiv(cell.z, ChunkSizeZ);
+            RuntimeChunk* runtimeChunk = findChunk(chunkX, chunkZ);
+            if (runtimeChunk == nullptr || !runtimeChunk->data ||
+                (runtimeChunk->genState != ChunkGenState::LocalLightReady &&
+                    runtimeChunk->genState != ChunkGenState::LightResolved &&
+                    runtimeChunk->genState != ChunkGenState::Meshed))
+            {
+                continue;
+            }
+
+            ChunkData& chunk = *runtimeChunk->data;
+            if (chunk.blocks.size() != ChunkBlockCount)
+            {
+                continue;
+            }
+            if (chunk.fluids.size() != ChunkBlockCount)
+            {
+                chunk.fluids.assign(ChunkBlockCount, FluidNone);
+            }
+            if (chunk.localLight.size() != ChunkBlockCount)
+            {
+                chunk.localLight = computeLocalSkyLight(chunk, lightAttenuationTables_.get());
+            }
+            if (chunk.light.size() != ChunkBlockCount)
+            {
+                chunk.light = chunk.localLight;
+            }
+
+            const int localX = positiveModulo(cell.x, ChunkSizeX);
+            const int localZ = positiveModulo(cell.z, ChunkSizeZ);
+            const size_t index = blockIndex(localX, cell.y, localZ);
+            const uint16_t block = chunk.blocks[index];
+            uint8_t expectedSky = 0;
+            uint8_t expectedBlock = blockLightEmission(lightAttenuationTables_.get(), block);
+
+            if (cell.y == ChunkSizeY - 1)
+            {
+                if (directionalAttenuationAtWorld(cell.x, cell.y, cell.z, block_light::Direction::PosY) < MaxSkyLight)
+                {
+                    expectedSky = MaxSkyLight;
+                }
+            }
+            else
+            {
+                const uint8_t aboveSky = skyLightFromPacked(localLightAtWorld(cell.x, cell.y + 1, cell.z));
+                const uint8_t verticalAttenuation = transitionAttenuationAtWorld(
+                    cell.x,
+                    cell.y + 1,
+                    cell.z,
+                    cell.x,
+                    cell.y,
+                    cell.z,
+                    block_light::Direction::NegY);
+                if (aboveSky == MaxSkyLight && verticalAttenuation < MaxSkyLight)
+                {
+                    expectedSky = MaxSkyLight;
+                }
+            }
+
+            for (int directionIndex = 0; directionIndex < 6; ++directionIndex)
+            {
+                const int neighborX = cell.x + Directions[directionIndex][0];
+                const int neighborY = cell.y + Directions[directionIndex][1];
+                const int neighborZ = cell.z + Directions[directionIndex][2];
+                const uint8_t neighborPackedLight = localLightAtWorld(neighborX, neighborY, neighborZ);
+                const uint8_t attenuation = transitionAttenuationAtWorld(
+                    neighborX,
+                    neighborY,
+                    neighborZ,
+                    cell.x,
+                    cell.y,
+                    cell.z,
+                    DirectionFromNeighbor[directionIndex]);
+                const uint8_t neighborSky = skyLightFromPacked(neighborPackedLight);
+                const uint8_t neighborBlock = blockLightFromPacked(neighborPackedLight);
+                if (attenuation < neighborSky)
+                {
+                    expectedSky = std::max<uint8_t>(expectedSky, static_cast<uint8_t>(neighborSky - attenuation));
+                }
+                if (attenuation < neighborBlock)
+                {
+                    expectedBlock = std::max<uint8_t>(expectedBlock, static_cast<uint8_t>(neighborBlock - attenuation));
+                }
+            }
+
+            const uint8_t expected = packLight(expectedSky, expectedBlock);
+            if (chunk.localLight[index] == expected)
+            {
+                continue;
+            }
+
+            chunk.localLight[index] = expected;
+            if (chunk.light.size() == ChunkBlockCount)
+            {
+                chunk.light[index] = expected;
+            }
+            markChunkDirtyOnce(*runtimeChunk);
+            addChangedSubchunk(chunkX, chunkZ, cell.y / SubchunkSize);
+            for (const auto& direction : Directions)
+            {
+                enqueueNeighbor(cell.x + direction[0], cell.y + direction[1], cell.z + direction[2]);
+            }
+        }
+
+        result.remainingCells = static_cast<uint32_t>(std::min<std::size_t>(
+            nextLocalLightTicks_.size(),
+            static_cast<std::size_t>(std::numeric_limits<uint32_t>::max())));
+        return result;
     }
 
     void WorldRuntime::scheduleFluidTickAtWorld(int x, int y, int z)
@@ -1204,6 +1495,7 @@ namespace dolbuto::world
         if (previousLightFluid != nextLightFluid)
         {
             addLightChangedFluidCell(x, y, z, result);
+            scheduleLocalLightTickNeighborhood(x, y, z);
         }
         scheduleFluidTickNeighborhood(x, y, z);
         return true;
@@ -1308,30 +1600,6 @@ namespace dolbuto::world
                 }
                 setFluidAtWorld(horizontal[i].x, cell.y, horizontal[i].z, packFluid(FluidWater, targetAmount), result);
             }
-        }
-
-        std::vector<uint64_t> updatedLightChunks;
-        for (const FluidTickCell& cell : result.lightChangedCells)
-        {
-            const int chunkX = floorDiv(cell.x, ChunkSizeX);
-            const int chunkZ = floorDiv(cell.z, ChunkSizeZ);
-            const uint64_t key = chunkKey(chunkX, chunkZ);
-            if (std::find(updatedLightChunks.begin(), updatedLightChunks.end(), key) != updatedLightChunks.end())
-            {
-                continue;
-            }
-
-            RuntimeChunk* chunk = find(key);
-            if (chunk == nullptr || !chunk->data)
-            {
-                continue;
-            }
-            chunk->data->localLight = computeLocalSkyLight(*chunk->data, lightAttenuationTables_.get());
-            if (chunk->data->light.size() != ChunkBlockCount)
-            {
-                chunk->data->light = chunk->data->localLight;
-            }
-            updatedLightChunks.push_back(key);
         }
 
         return result;

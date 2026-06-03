@@ -411,6 +411,7 @@ namespace dolbuto::save
             writeU16(payload, entity.droppedItem.stack.count);
             writeU16(payload, entity.droppedItem.stack.durability);
             writeU32(payload, entity.droppedItem.processingTicks);
+            writeU8(payload, entity.droppedItem.processingType);
             ++writtenEntities;
         }
         payload[entityCountOffset] = static_cast<uint8_t>(writtenEntities & 0xFFu);
@@ -439,8 +440,8 @@ namespace dolbuto::save
             writeU32(payload, entity.remainingBurnTicks);
             writeU8(payload, static_cast<uint8_t>(entity.fireMode));
             writeU8(payload, 0);
-            writeU16(payload, entity.carbonizingOutputItemId);
-            writeU16(payload, entity.carbonizingOutputCount);
+            writeU16(payload, entity.burnRemainderItemId);
+            writeU16(payload, entity.burnRemainderCount);
             ++writtenBlockEntities;
         }
         payload[blockEntityCountOffset] = static_cast<uint8_t>(writtenBlockEntities & 0xFFu);
@@ -580,6 +581,8 @@ namespace dolbuto::save
                 constexpr size_t DroppedItemEntityLegacyBytes = 39;
                 constexpr size_t DroppedItemEntityBytes = 41;
                 constexpr size_t DroppedItemEntityProcessingBytes = 45;
+                constexpr size_t DroppedItemEntityProcessingTypeBytes = 46;
+                constexpr size_t CurrentBlockEntityBytes = 16;
                 auto peekU16At = [&](size_t readOffset) -> std::optional<uint16_t>
                 {
                     if (readOffset + 2 > payload.size())
@@ -602,11 +605,12 @@ namespace dolbuto::save
                     {
                         return false;
                     }
-                    const size_t afterBlockEntities = afterEntities + 2u + static_cast<size_t>(*blockEntityCount) * 16u;
+                    const size_t afterBlockEntities = afterEntities + 2u + static_cast<size_t>(*blockEntityCount) * CurrentBlockEntityBytes;
                     return afterBlockEntities <= payload.size() && blockStateSectionFits(payload, afterBlockEntities);
                 };
 
-                const bool hasEntityProcessing = payloadFitsAfterEntities(DroppedItemEntityProcessingBytes);
+                const bool hasEntityProcessingType = payloadFitsAfterEntities(DroppedItemEntityProcessingTypeBytes);
+                const bool hasEntityProcessing = hasEntityProcessingType || payloadFitsAfterEntities(DroppedItemEntityProcessingBytes);
                 const bool hasEntityDurability = hasEntityProcessing || payloadFitsAfterEntities(DroppedItemEntityBytes);
                 if (!hasEntityProcessing &&
                     !hasEntityDurability &&
@@ -641,6 +645,7 @@ namespace dolbuto::save
                     entity.droppedItem.stack.count = readU16(payload, offset);
                     entity.droppedItem.stack.durability = hasEntityDurability ? readU16(payload, offset) : 0;
                     entity.droppedItem.processingTicks = hasEntityProcessing ? readU32(payload, offset) : 0;
+                    entity.droppedItem.processingType = hasEntityProcessingType ? readU8(payload, offset) : 0;
                     if (entity.entityId != 0 &&
                         entity.droppedItem.stack.itemId != 0 &&
                         entity.droppedItem.stack.count != 0)
@@ -674,8 +679,8 @@ namespace dolbuto::save
                             ? FireMode::Pyrolysis
                             : FireMode::Normal);
                     (void)readU8(payload, offset);
-                    entity.carbonizingOutputItemId = readU16(payload, offset);
-                    entity.carbonizingOutputCount = readU16(payload, offset);
+                    entity.burnRemainderItemId = readU16(payload, offset);
+                    entity.burnRemainderCount = readU16(payload, offset);
                     if (entity.type != BlockEntityType::None &&
                         entity.localX < ChunkSizeX &&
                         entity.localZ < ChunkSizeZ &&

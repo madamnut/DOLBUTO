@@ -454,6 +454,29 @@ namespace dolbuto
                 Vec3{maxX, maxY, maxZ}
             }});
         }
+        else if (selectedDefinition.renderType == BlockRenderType::Crucible)
+        {
+            constexpr float Expand = 0.003f;
+            world::block_visual::forEachCrucibleWorldAabb(selectedX, selectedY, selectedZ, [&](const world::block_visual::LocalAabb& aabb)
+            {
+                const float minX = aabb.min.x - Expand;
+                const float maxX = aabb.max.x + Expand;
+                const float minY = aabb.min.y - Expand;
+                const float maxY = aabb.max.y + Expand;
+                const float minZ = aabb.min.z - Expand;
+                const float maxZ = aabb.max.z + Expand;
+                appendBoxLines(vertices, {{
+                    Vec3{minX, minY, minZ},
+                    Vec3{maxX, minY, minZ},
+                    Vec3{minX, minY, maxZ},
+                    Vec3{maxX, minY, maxZ},
+                    Vec3{minX, maxY, minZ},
+                    Vec3{maxX, maxY, minZ},
+                    Vec3{minX, maxY, maxZ},
+                    Vec3{maxX, maxY, maxZ}
+                }});
+            });
+        }
         if (vertices.empty())
         {
             constexpr float Expand = 0.003f;

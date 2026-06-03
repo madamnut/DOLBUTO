@@ -30,6 +30,15 @@ clay_pile x1 + grog x1 + sand_pile x1 + craft
 
 refractory_clay_pile x1 + handcraft/craft
 -> unfired_refractory_clay_brick
+
+refractory_clay_pile x4 + handcraft/craft
+-> unfired_refractory_clay_crucible
+
+clay_brick x1 + smash
+-> grog x4
+
+clay_pot x1 + smash
+-> grog x8
 ```
 
 관련 문서: [[processings]], [[../item-interactions]], [[../item-data]]

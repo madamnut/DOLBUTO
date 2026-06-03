@@ -24,7 +24,7 @@
 - `fire` 렌더 타입은 바닥 불꽃용 컷아웃 쿼드 묶음으로 만든다.
 - `slab` 렌더 타입은 `blockStates`의 attach 상태를 읽어 셀 안의 반칸 cuboid를 별도 메쉬로 만들고, `half_slab`은 attach_grid 상태를 읽어 `0.5 x 0.5 x 1.0` 조각 메쉬를 만든다.
 - 청크 메싱은 주변 8청크 정보를 사용해 경계면을 처리한다.
-- 조명 전파는 슬랩의 attach 상태를 읽어 붙은 면 방향으로만 블록 감쇄를 적용한다.
+- 슬랩과 half slab은 렌더링/충돌에서는 배치 상태 AABB를 사용하지만 조명 전파에서는 공기처럼 감쇄 없이 통과시킨다.
 
 ## GPU 데이터
 
@@ -79,7 +79,9 @@
 밤하늘은 낮보다 낮은 RGB ramp를 사용하고, 어두운 계조에서 줄무늬가 보이지 않도록 screen-space hash noise 기반의 약한 dither를 적용한다.
 하늘색 디버그를 위해 게임 화면에서 `[`를 누르고 있으면 하루 안의 시간이 해가 뜨는 방향으로 되감기고, `]`를 누르고 있으면 해가 지는 방향으로 빨리 진행된다. 이 입력은 `worldTicks`만 조정하므로 sky shader와 sun/moon sprite 위치가 같은 기준으로 움직인다.
 `src/renderer/RendererGameplayBridge.h/.cpp`는 block selection/edit/breaking, pickup/drop, inventory snapshot, block lookup/collision helper, gameplay 결과의 mesh/particle/audio 반영을 담당하는 `RendererGameplayBridge`를 담는다.
+block tick 결과로 여러 블록이 제거되는 경우 `RendererGameplayBridge`는 파티클과 사운드는 이벤트별로 처리하되, edited mesh rebuild는 좌표 목록으로 모아 `RendererTerrainRuntimeBridge`에 배치 요청한다.
 `src/renderer/RendererTerrainRuntimeBridge.h/.cpp`는 loaded chunk 갱신, terrain load request, terrain job completion, pending unload, retired terrain chunk 처리, edited mesh rebuild, terrain stats 갱신을 담당하는 `RendererTerrainRuntimeBridge` 객체를 담는다.
+`RendererTerrainRuntimeBridge`의 배치 edited mesh rebuild는 변경 좌표와 조명 변경 결과에서 중복 affected subchunk를 제거한 뒤 한 번씩만 CPU 메싱과 GPU 교체를 수행한다.
 `src/renderer/RendererSceneLifecycleBridge.h/.cpp`는 scene load/unload hook 조립과 renderer-specific scene lifecycle callback 연결을 담당하는 `RendererSceneLifecycleBridge` 객체를 담는다.
 `src/renderer/RendererConfigBridge.h/.cpp`는 content/GPU asset load, world/render config load, height LUT load를 담당하는 `RendererConfigBridge` 객체를 담는다.
 `src/renderer/RendererAudioBridge.h/.cpp`는 audio init/shutdown, listener update, music scene selection, gameplay sound trigger를 담당하는 `RendererAudioBridge` 객체를 담는다.
@@ -228,7 +230,7 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 - `half_slab` 배치에서 grid `1/3/7/9`는 꼭짓점에 세운 조각이고, `2/4/6/8`은 모서리에 눕힌 조각이다. grid `5`는 설치 시 플레이어가 보는 방향의 `2/4/6/8`로 변환한다.
 - `half_slab` 텍스처도 기준 slab을 수직으로 반 자른 `0.5 x 0.5 x 1.0` 조각 모델을 먼저 정의한다. slab의 위/아래였던 면은 `topBottom`, 원래 외곽 옆면은 `side`, 새로 잘린 수직 절단면은 `verticalSection`을 사용하고, attach_grid 상태는 이 기준 배치를 회전/이동만 한다.
 - `half_slab` UV는 현재 배치된 AABB에 맞춰 다시 0~1로 펴지 않는다. 배치 좌표와 재질 좌표를 분리해, 조각을 다른 위치나 방향으로 놓아도 slab을 자른 기준의 위/아래/외곽/절단면 관계가 유지된다.
-- 조명은 셀 전체 차단이 아니라 붙은 면 방향 차단으로 계산한다. bottom 슬랩은 아래 방향만 막고, top/side 슬랩도 각각 붙은 면 방향 하나만 막는다.
+- 조명 전파에서 슬랩과 half slab은 현재 공기처럼 취급한다.
 - 선택 레이캐스트와 선택 아웃라인은 같은 슬랩 AABB를 사용한다.
 - 아이템 슬롯/든 아이템/드랍 아이템의 `block_model`은 기본 bottom 슬랩 모양을 사용하고, 옆면도 아래 절반 UV를 사용한다.
 
@@ -244,12 +246,18 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 - `ClientContent`는 `fire/fire_00`부터 `fire/fire_13`까지 14프레임을 block texture array에 연속 등록한다.
 - 지형 메쉬에는 `fire/fire_00` layer만 저장하고, terrain fragment shader가 프레임 시간으로 현재 fire layer를 선택한다.
 - 모든 불은 같은 프레임 값을 사용하므로 초당 12프레임의 동기화된 단순 애니메이션으로 표시된다.
-- 불 블록은 활성 fire emitter로 등록되어 `assets/textures/particle/smoke/smoke_0.png`부터 `smoke_7.png`까지의 연기 파티클을 주기적으로 생성한다.
+- 불 블록은 활성 fire emitter로 등록되어 `assets/textures/particle/smoke/` 아래 smoke texture set으로 연기 파티클을 주기적으로 생성한다.
+- 연기 texture set은 `smoke_0~7` normal, `smoke_darker_0~7` pyrolysis, `smoke_lighter_0~7` firing 순서로 하나의 texture array에 로드한다.
 - fire emitter는 블록 설치/제거와 청크 로드/언로드 시점에 갱신하며, 매 프레임 전체 월드를 스캔하지 않는다.
 - fire block entity가 `pyrolysis` mode이면 해당 emitter의 연기 생성 간격을 1/3로 줄여 일반 불보다 3배 많은 연기를 만든다.
-- 연기 파티클은 위로 천천히 상승하고 X/Z 방향으로 약하게 흔들리며, 생성 시점에 `0.8~1.0`블록 크기로 정해진 값을 유지한다.
+- fire block entity가 `firing` mode이면 normal과 같은 생성량을 유지하되 lighter smoke texture set을 사용한다.
+- 연기 파티클 생성 위치는 fire 중심 기준 X/Z `-0.40~0.40`, fire 바닥 기준 Y `0.70~0.95` 범위에서 무작위로 정한다.
+- 연기 파티클 초기 속도는 X/Z `-0.875~0.875`, Y `0.35~0.55` 범위에서 무작위로 정한다.
+- 연기 파티클은 위로 천천히 상승 가속하고 X/Z 방향으로 약한 초기 속도를 가진다. X/Z 이동량은 생성 후 2초 동안 선형으로 줄어 0이 된다.
+- 연기 파티클은 생성 시점에 `0.8~1.0`블록 크기로 정해진 값을 유지한다.
+- 연기 파티클은 X/Z 축 이동을 먼저 처리한 뒤 Y 축 이동을 처리한다. 따라서 위쪽 충돌 중이어도 수평 이동으로 충돌이 해제되면 같은 tick 또는 다음 tick에 다시 위로 올라갈 수 있다.
 - 연기 파티클은 중심점 기준으로 지형 충돌 형상과 충돌하면 해당 축 이동을 막고 튕기지는 않는다.
-- 연기 애니메이션 프레임은 파티클 수명 비율로 `smoke_0`에서 `smoke_7`까지 1회 진행하고, alpha는 생성 직후 fade-in 후 수명 끝으로 갈수록 fade-out한다.
+- 연기 애니메이션 프레임은 파티클 수명 비율로 각 texture set의 0번에서 7번 프레임까지 1회 진행하고, alpha는 생성 직후 fade-in 후 수명 끝으로 갈수록 fade-out한다.
 
 ## 컬링
 
@@ -329,6 +337,8 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 - 불 연기 파티클은 별도 smoke particle texture array를 같은 particle pipeline에 바인딩해 그린다.
 - Depth test는 켜고 depth write는 끈다.
 - 파티클 vertex는 파티클 위치에서 `WorldRuntime::lightAtWorld`를 샘플링한 packed light를 담고, 프레임 전역 `skyBrightness`와 같은 light curve를 통해 밝아지거나 어두워진다.
+- 파티클 index buffer는 quad 패턴이 고정이므로 buffer 생성 시 한 번 채우고 매 프레임 다시 업로드하지 않는다.
+- 파티클 vertex buffer는 persistent mapping 상태로 유지하며, 매 프레임 `ParticleRenderPath`의 재사용 scratch vector에 vertex를 다시 구성한 뒤 mapped pointer로 복사한다.
 
 씬 그리기 순서는 solid 블록, blend 블록, 유체, 3인칭 플레이어, 블록 파괴 파티클, 드랍 아이템, 선택 외곽선, 1인칭 viewmodel 순서다.
 1인칭 viewmodel은 마지막에 그리기 직전 scene depth를 clear하고, viewmodel끼리는 depth test/write를 사용한다.

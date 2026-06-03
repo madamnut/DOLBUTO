@@ -397,6 +397,124 @@ namespace dolbuto
             buildData.indices.push_back(baseIndex + 3);
         };
 
+        auto appendModelQuad = [&](
+            TerrainBuildData& buildData,
+            std::array<TerrainVertex, 4> quad,
+            uint32_t textureLayer,
+            float mipDistanceScale,
+            float alphaBlend,
+            uint8_t packedLight)
+        {
+            for (TerrainVertex& vertex : quad)
+            {
+                vertex.textureLayer = static_cast<float>(textureLayer);
+                vertex.mipDistanceScale = mipDistanceScale;
+                vertex.alphaBlend = alphaBlend;
+                vertex.packedLight = packedLight;
+            }
+            const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
+            buildData.vertices.push_back(quad[0]);
+            buildData.vertices.push_back(quad[1]);
+            buildData.vertices.push_back(quad[2]);
+            buildData.vertices.push_back(quad[3]);
+            buildData.indices.push_back(baseIndex);
+            buildData.indices.push_back(baseIndex + 1);
+            buildData.indices.push_back(baseIndex + 2);
+            buildData.indices.push_back(baseIndex);
+            buildData.indices.push_back(baseIndex + 2);
+            buildData.indices.push_back(baseIndex + 3);
+        };
+
+        auto appendCuboid = [&](
+            TerrainBuildData& buildData,
+            int x,
+            int y,
+            int z,
+            uint16_t block,
+            float minX,
+            float minY,
+            float minZ,
+            float maxX,
+            float maxY,
+            float maxZ)
+        {
+            const uint32_t textureLayer = blockFaceTextureLayer(block, 0);
+            const float mipDistanceScale = blockDefinition(block).mipDistanceScale;
+            const float alphaBlend = blockAlphaBlend(block);
+            const float width = maxX - minX;
+            const float height = maxY - minY;
+            const float depth = maxZ - minZ;
+            const float worldMinX = static_cast<float>(x) - 0.5f + minX;
+            const float worldMaxX = static_cast<float>(x) - 0.5f + maxX;
+            const float worldMinY = static_cast<float>(y) + minY;
+            const float worldMaxY = static_cast<float>(y) + maxY;
+            const float worldMinZ = static_cast<float>(z) - 0.5f + minZ;
+            const float worldMaxZ = static_cast<float>(z) - 0.5f + maxZ;
+            const auto setAo = [](TerrainVertex& vertex)
+            {
+                vertex.ao = 1.0f;
+            };
+            auto quad = [&](std::array<TerrainVertex, 4> vertices, int face)
+            {
+                for (TerrainVertex& vertex : vertices)
+                {
+                    setAo(vertex);
+                }
+                appendModelQuad(
+                    buildData,
+                    vertices,
+                    textureLayer,
+                    mipDistanceScale,
+                    alphaBlend,
+                    faceLight(x, y, z, face));
+            };
+            quad({{
+                TerrainVertex{worldMinX, worldMaxY, worldMinZ, 0.0f, 0.0f},
+                TerrainVertex{worldMinX, worldMaxY, worldMaxZ, 0.0f, depth},
+                TerrainVertex{worldMaxX, worldMaxY, worldMaxZ, width, depth},
+                TerrainVertex{worldMaxX, worldMaxY, worldMinZ, width, 0.0f}
+            }}, 0);
+            quad({{
+                TerrainVertex{worldMinX, worldMinY, worldMaxZ, 0.0f, depth},
+                TerrainVertex{worldMinX, worldMinY, worldMinZ, 0.0f, 0.0f},
+                TerrainVertex{worldMaxX, worldMinY, worldMinZ, width, 0.0f},
+                TerrainVertex{worldMaxX, worldMinY, worldMaxZ, width, depth}
+            }}, 1);
+            quad({{
+                TerrainVertex{worldMaxX, worldMinY, worldMinZ, 0.0f, 1.0f},
+                TerrainVertex{worldMaxX, worldMaxY, worldMinZ, 0.0f, 1.0f - height},
+                TerrainVertex{worldMaxX, worldMaxY, worldMaxZ, depth, 1.0f - height},
+                TerrainVertex{worldMaxX, worldMinY, worldMaxZ, depth, 1.0f}
+            }}, 2);
+            quad({{
+                TerrainVertex{worldMinX, worldMinY, worldMaxZ, 0.0f, 1.0f},
+                TerrainVertex{worldMinX, worldMaxY, worldMaxZ, 0.0f, 1.0f - height},
+                TerrainVertex{worldMinX, worldMaxY, worldMinZ, depth, 1.0f - height},
+                TerrainVertex{worldMinX, worldMinY, worldMinZ, depth, 1.0f}
+            }}, 3);
+            quad({{
+                TerrainVertex{worldMaxX, worldMinY, worldMaxZ, 0.0f, 1.0f},
+                TerrainVertex{worldMaxX, worldMaxY, worldMaxZ, 0.0f, 1.0f - height},
+                TerrainVertex{worldMinX, worldMaxY, worldMaxZ, width, 1.0f - height},
+                TerrainVertex{worldMinX, worldMinY, worldMaxZ, width, 1.0f}
+            }}, 4);
+            quad({{
+                TerrainVertex{worldMinX, worldMinY, worldMinZ, 0.0f, 1.0f},
+                TerrainVertex{worldMinX, worldMaxY, worldMinZ, 0.0f, 1.0f - height},
+                TerrainVertex{worldMaxX, worldMaxY, worldMinZ, width, 1.0f - height},
+                TerrainVertex{worldMaxX, worldMinY, worldMinZ, width, 1.0f}
+            }}, 5);
+        };
+
+        auto appendCrucibleBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block)
+        {
+            appendCuboid(buildData, x, y, z, block, 0.0f, 0.0f, 0.0f, 1.0f, 0.2f, 1.0f);
+            appendCuboid(buildData, x, y, z, block, 0.0f, 0.2f, 0.0f, 1.0f, 1.0f, 0.2f);
+            appendCuboid(buildData, x, y, z, block, 0.0f, 0.2f, 0.8f, 1.0f, 1.0f, 1.0f);
+            appendCuboid(buildData, x, y, z, block, 0.0f, 0.2f, 0.2f, 0.2f, 1.0f, 0.8f);
+            appendCuboid(buildData, x, y, z, block, 0.8f, 0.2f, 0.2f, 1.0f, 1.0f, 0.8f);
+        };
+
         auto appendCrossBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block, uint32_t textureLayer, float mipDistanceScale, float alphaBlend)
         {
             const std::array<float, 2> offset = randomBlockOffset(block, x, y, z);
@@ -1362,6 +1480,10 @@ namespace dolbuto
                     else if (blockDefinition(block).renderType == BlockRenderType::HalfSlab)
                     {
                         appendHalfSlabBlock(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, block, blockStateAt(localX, y, localZ));
+                    }
+                    else if (blockDefinition(block).renderType == BlockRenderType::Crucible)
+                    {
+                        appendCrucibleBlock(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, block);
                     }
                 }
             }

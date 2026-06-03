@@ -5,8 +5,10 @@
 #include "game/ClientRuntimeState.h"
 #include "renderer/RendererVulkanState.h"
 
+#include <array>
 #include <cstddef>
 #include <utility>
+#include <vector>
 
 namespace dolbuto
 {
@@ -206,19 +208,32 @@ namespace dolbuto
 
         for (const gameplay::FireSmokeRateUpdate& update : result.fireSmokeRateUpdates)
         {
-            particleRenderPath_.setFireEmitterSmokeMultiplier(update.x, update.y, update.z, update.multiplier);
+            particleRenderPath_.setFireEmitterSmokeStyle(update.x, update.y, update.z, update.multiplier, update.textureSet);
         }
 
+        std::vector<std::array<int, 3>> rebuildBlocks;
+        rebuildBlocks.reserve(result.brokenBlocks.size());
         for (const gameplay::BlockBreakEvent& broken : result.brokenBlocks)
         {
             spawnBlockBreakParticles(broken.x, broken.y, broken.z, broken.block);
-            if (hooks_.playBlockBreakSound)
+            if (broken.playSound && hooks_.playBlockBreakSound)
             {
                 hooks_.playBlockBreakSound(broken.x, broken.y, broken.z);
             }
-            if (hooks_.rebuildEditedChunkMeshes)
+            rebuildBlocks.push_back({broken.x, broken.y, broken.z});
+        }
+        if (!rebuildBlocks.empty())
+        {
+            if (hooks_.rebuildEditedChunkMeshesBatch)
             {
-                hooks_.rebuildEditedChunkMeshes(broken.x, broken.y, broken.z);
+                hooks_.rebuildEditedChunkMeshesBatch(rebuildBlocks);
+            }
+            else if (hooks_.rebuildEditedChunkMeshes)
+            {
+                for (const std::array<int, 3>& block : rebuildBlocks)
+                {
+                    hooks_.rebuildEditedChunkMeshes(block[0], block[1], block[2]);
+                }
             }
         }
     }

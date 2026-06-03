@@ -5,6 +5,7 @@
 #include "world/WorldRuntime.h"
 #include "world/WorldTypes.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -35,6 +36,8 @@ namespace dolbuto::world
             uint32_t burnTimeTicks = 0;
             uint16_t itemId = 0;
             uint16_t heatLevel = 0;
+            uint16_t remainderItemId = 0;
+            uint16_t remainderCount = 0;
         };
 
         DroppedItemRuntime() = default;
@@ -81,6 +84,12 @@ namespace dolbuto::world
             float maxX,
             float maxY,
             float maxZ,
+            const std::vector<ItemProcessingRecipe>& recipes,
+            const std::string& type,
+            uint32_t elapsedTicks,
+            const MarkDirtyFn& markDirty);
+        bool processItemsInCells(
+            const std::vector<std::array<int, 3>>& cells,
             const std::vector<ItemProcessingRecipe>& recipes,
             const std::string& type,
             uint32_t elapsedTicks,

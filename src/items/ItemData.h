@@ -40,14 +40,19 @@ namespace dolbuto
         uint16_t maxDurability = 0;
         uint16_t placeBlockId = 0;
         uint16_t modelBlockId = 0;
+        uint32_t modelTextureLayer = 0;
         uint32_t burnTimeTicks = 0;
         uint16_t heatLevel = 0;
+        uint16_t burnRemainderItemId = 0;
+        uint16_t burnRemainderCount = 0;
         uint32_t droppedTextureLayer = 0;
         uint32_t heldTextureLayer = 0;
         float blockModelWidth = 0.0f;
         float blockModelHeight = 0.0f;
         float blockModelDepth = 0.0f;
         bool useBlockModelVerticalSection = false;
+        bool useBlockModelCrucibleShape = false;
+        bool hasModelTexture = false;
         ItemSlotRenderType slotRender = ItemSlotRenderType::Sprite;
         ItemRenderType droppedRender = ItemRenderType::ExtrudedSprite;
         ItemRenderType heldRender = ItemRenderType::ExtrudedSprite;
@@ -93,6 +98,7 @@ namespace dolbuto
         std::string type;
         uint16_t inputItemId = 0;
         uint16_t outputItemId = 0;
+        uint16_t outputCount = 1;
         uint32_t requiredTicks = 0;
     };
 }

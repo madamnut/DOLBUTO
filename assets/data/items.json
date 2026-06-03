@@ -54,7 +54,11 @@
         "tags": [],
         "useActions": [],
         "burnTimeTicks": 2400,
-        "heatLevel": 2
+        "heatLevel": 2,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 4
+        }
     },
     {
         "id": 38,
@@ -73,7 +77,11 @@
         "tags": [],
         "useActions": [],
         "burnTimeTicks": 2400,
-        "heatLevel": 2
+        "heatLevel": 2,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 4
+        }
     },
     {
         "id": 32,
@@ -277,7 +285,11 @@
             "place"
         ],
         "placeBlock": "plant",
-        "burnTimeTicks": 100
+        "burnTimeTicks": 100,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 5,
@@ -295,7 +307,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 100
+        "burnTimeTicks": 100,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 6,
@@ -313,7 +329,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 160
+        "burnTimeTicks": 160,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 24,
@@ -331,7 +351,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 100
+        "burnTimeTicks": 100,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 25,
@@ -349,7 +373,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 256
+        "burnTimeTicks": 256,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 7,
@@ -384,7 +412,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 100
+        "burnTimeTicks": 100,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 9,
@@ -406,7 +438,11 @@
             "place"
         ],
         "placeBlock": "branch",
-        "burnTimeTicks": 300
+        "burnTimeTicks": 300,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 10,
@@ -424,7 +460,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 1000
+        "burnTimeTicks": 1000,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 2
+        }
     },
     {
         "id": 11,
@@ -442,7 +482,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 100
+        "burnTimeTicks": 100,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 12,
@@ -460,7 +504,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 100
+        "burnTimeTicks": 100,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 13,
@@ -625,7 +673,11 @@
             "place"
         ],
         "placeBlock": "log",
-        "burnTimeTicks": 2000
+        "burnTimeTicks": 2000,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 4
+        }
     },
     {
         "id": 19,
@@ -647,7 +699,11 @@
             "place"
         ],
         "placeBlock": "stripped_log",
-        "burnTimeTicks": 1800
+        "burnTimeTicks": 1800,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 3
+        }
     },
     {
         "id": 41,
@@ -671,7 +727,11 @@
             "place"
         ],
         "placeBlock": "half_stripped_log",
-        "burnTimeTicks": 900
+        "burnTimeTicks": 900,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 2
+        }
     },
     {
         "id": 42,
@@ -695,7 +755,11 @@
             "place"
         ],
         "placeBlock": "quarter_stripped_log",
-        "burnTimeTicks": 450
+        "burnTimeTicks": 450,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 20,
@@ -713,7 +777,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 225
+        "burnTimeTicks": 225,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 29,
@@ -773,7 +841,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 240
+        "burnTimeTicks": 240,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 22,
@@ -791,7 +863,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 120
+        "burnTimeTicks": 120,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 23,
@@ -809,7 +885,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 800
+        "burnTimeTicks": 800,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 2
+        }
     },
     {
         "id": 28,
@@ -827,7 +907,11 @@
         },
         "tags": [],
         "useActions": [],
-        "burnTimeTicks": 100
+        "burnTimeTicks": 100,
+        "burnRemainder": {
+            "item": "ash",
+            "count": 1
+        }
     },
     {
         "id": 30,
@@ -1001,6 +1085,48 @@
         },
         "tags": [],
         "useActions": []
+    },
+    {
+        "id": 55,
+        "key": "unfired_refractory_clay_crucible",
+        "name": "Unfired Refractory Clay Crucible",
+        "stackSize": 99,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "modelShape": "crucible",
+        "modelTexture": "refractory_clay",
+        "tags": [],
+        "useActions": []
+    },
+    {
+        "id": 56,
+        "key": "refractory_clay_crucible",
+        "name": "Refractory Clay Crucible",
+        "stackSize": 99,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "modelShape": "crucible",
+        "modelTexture": "fired_refractory_clay",
+        "tags": [],
+        "useActions": [],
+        "placeActions": [
+            "place"
+        ],
+        "placeBlock": "refractory_clay_crucible"
     },
     {
         "id": 52,

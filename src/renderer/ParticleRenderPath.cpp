@@ -60,6 +60,26 @@ namespace dolbuto
             return static_cast<float>(state & 0x00FFFFFFu) / static_cast<float>(0x00FFFFFFu);
         }
 
+        void uploadStaticQuadIndices(VkDevice device, VkDeviceMemory memory, std::size_t maxQuads)
+        {
+            const VkDeviceSize indexBytes = sizeof(uint32_t) * maxQuads * 6u;
+            void* indexData = nullptr;
+            vkMapMemory(device, memory, 0, indexBytes, 0, &indexData);
+            uint32_t* indices = static_cast<uint32_t*>(indexData);
+            for (std::size_t quad = 0; quad < maxQuads; ++quad)
+            {
+                const uint32_t baseIndex = static_cast<uint32_t>(quad * 4u);
+                const std::size_t indexOffset = quad * 6u;
+                indices[indexOffset] = baseIndex;
+                indices[indexOffset + 1u] = baseIndex + 1u;
+                indices[indexOffset + 2u] = baseIndex + 2u;
+                indices[indexOffset + 3u] = baseIndex;
+                indices[indexOffset + 4u] = baseIndex + 2u;
+                indices[indexOffset + 5u] = baseIndex + 3u;
+            }
+            vkUnmapMemory(device, memory);
+        }
+
     }
 
     ParticleRenderPath::ParticleRenderPath(const VkDevice* device, VulkanResourceManager* gpuResources)
@@ -99,8 +119,10 @@ namespace dolbuto
             return;
         }
 
+        const VkDeviceSize blockVertexBytes = sizeof(TerrainVertex) * MaxBlockBreakParticles * 4u;
+        const VkDeviceSize smokeVertexBytes = sizeof(TerrainVertex) * MaxSmokeParticles * 4u;
         gpuResources().createBuffer(
-            sizeof(TerrainVertex) * MaxBlockBreakParticles * 4u,
+            blockVertexBytes,
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             vertexBuffer_,
@@ -112,7 +134,7 @@ namespace dolbuto
             indexBuffer_,
             indexMemory_);
         gpuResources().createBuffer(
-            sizeof(TerrainVertex) * MaxSmokeParticles * 4u,
+            smokeVertexBytes,
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             smokeVertexBuffer_,
@@ -123,6 +145,12 @@ namespace dolbuto
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             smokeIndexBuffer_,
             smokeIndexMemory_);
+        uploadStaticQuadIndices(device(), indexMemory_, MaxBlockBreakParticles);
+        uploadStaticQuadIndices(device(), smokeIndexMemory_, MaxSmokeParticles);
+        vkMapMemory(device(), vertexMemory_, 0, blockVertexBytes, 0, &vertexMapped_);
+        vkMapMemory(device(), smokeVertexMemory_, 0, smokeVertexBytes, 0, &smokeVertexMapped_);
+        vertexScratch_.reserve(MaxBlockBreakParticles * 4u);
+        smokeVertexScratch_.reserve(MaxSmokeParticles * 4u);
     }
 
     void ParticleRenderPath::destroy()
@@ -131,19 +159,33 @@ namespace dolbuto
         {
             vertexBuffer_ = VK_NULL_HANDLE;
             vertexMemory_ = VK_NULL_HANDLE;
+            vertexMapped_ = nullptr;
             indexBuffer_ = VK_NULL_HANDLE;
             indexMemory_ = VK_NULL_HANDLE;
             smokeVertexBuffer_ = VK_NULL_HANDLE;
             smokeVertexMemory_ = VK_NULL_HANDLE;
+            smokeVertexMapped_ = nullptr;
             smokeIndexBuffer_ = VK_NULL_HANDLE;
             smokeIndexMemory_ = VK_NULL_HANDLE;
             particles_.clear();
             smokeParticles_.clear();
             fireEmitters_.clear();
+            vertexScratch_.clear();
+            smokeVertexScratch_.clear();
             return;
         }
 
         VkDevice currentDevice = *device_;
+        if (vertexMapped_ != nullptr && vertexMemory_ != VK_NULL_HANDLE)
+        {
+            vkUnmapMemory(currentDevice, vertexMemory_);
+            vertexMapped_ = nullptr;
+        }
+        if (smokeVertexMapped_ != nullptr && smokeVertexMemory_ != VK_NULL_HANDLE)
+        {
+            vkUnmapMemory(currentDevice, smokeVertexMemory_);
+            smokeVertexMapped_ = nullptr;
+        }
         if (vertexBuffer_ != VK_NULL_HANDLE)
         {
             vkDestroyBuffer(currentDevice, vertexBuffer_, nullptr);
@@ -187,6 +229,8 @@ namespace dolbuto
         particles_.clear();
         smokeParticles_.clear();
         fireEmitters_.clear();
+        vertexScratch_.clear();
+        smokeVertexScratch_.clear();
         lastUpdateTime_ = 0.0;
     }
 
@@ -239,9 +283,11 @@ namespace dolbuto
         }), fireEmitters_.end());
     }
 
-    void ParticleRenderPath::setFireEmitterSmokeMultiplier(int x, int y, int z, float multiplier)
+    void ParticleRenderPath::setFireEmitterSmokeStyle(int x, int y, int z, float multiplier, uint32_t textureSet)
     {
         const float clampedMultiplier = std::max(0.1f, multiplier);
+        constexpr uint32_t SmokeTextureSetCount = 3;
+        const uint32_t clampedTextureSet = std::min(textureSet, SmokeTextureSetCount - 1u);
         const auto it = std::find_if(fireEmitters_.begin(), fireEmitters_.end(), [&](const FireEmitter& emitter)
         {
             return emitter.x == x && emitter.y == y && emitter.z == z;
@@ -249,6 +295,7 @@ namespace dolbuto
         if (it != fireEmitters_.end())
         {
             it->smokeMultiplier = clampedMultiplier;
+            it->smokeTextureSet = clampedTextureSet;
             return;
         }
 
@@ -256,6 +303,7 @@ namespace dolbuto
         if (!fireEmitters_.empty())
         {
             fireEmitters_.back().smokeMultiplier = clampedMultiplier;
+            fireEmitters_.back().smokeTextureSet = clampedTextureSet;
         }
     }
 
@@ -308,17 +356,18 @@ namespace dolbuto
 
         SmokeParticle particle{};
         particle.position = {
-            static_cast<float>(emitter.x) + randomRange(-0.16f, 0.16f),
+            static_cast<float>(emitter.x) + randomRange(-0.40f, 0.40f),
             static_cast<float>(emitter.y) + randomRange(0.70f, 0.95f),
-            static_cast<float>(emitter.z) + randomRange(-0.16f, 0.16f)
+            static_cast<float>(emitter.z) + randomRange(-0.40f, 0.40f)
         };
         particle.velocity = {
-            randomRange(-0.035f, 0.035f),
+            randomRange(-0.875f, 0.875f),
             randomRange(0.35f, 0.55f),
-            randomRange(-0.035f, 0.035f)
+            randomRange(-0.875f, 0.875f)
         };
         particle.lifetime = randomRange(2.0f, 3.0f);
         particle.size = randomRange(0.8f, 1.0f);
+        particle.textureSet = emitter.smokeTextureSet;
         smokeParticles_.push_back(particle);
     }
 
@@ -503,7 +552,9 @@ namespace dolbuto
             return particle.age >= particle.lifetime;
         }), particles_.end());
 
-        const float smokeDrag = std::pow(0.985f, dt * 60.0f);
+        constexpr float SmokeRiseAcceleration = 0.18f;
+        constexpr float SmokeMaxRiseSpeed = 0.55f;
+        constexpr float SmokeHorizontalFadeDuration = 2.0f;
         auto smokeBlocked = [&](Vec3 position)
         {
             constexpr float SmokeCollisionHalfExtent = 0.001f;
@@ -523,8 +574,8 @@ namespace dolbuto
         for (SmokeParticle& particle : smokeParticles_)
         {
             particle.age += dt;
-            particle.velocity.x *= smokeDrag;
-            particle.velocity.z *= smokeDrag;
+            particle.velocity.y = std::min(particle.velocity.y + SmokeRiseAcceleration * dt, SmokeMaxRiseSpeed);
+            const float horizontalFade = std::clamp(1.0f - particle.age / SmokeHorizontalFadeDuration, 0.0f, 1.0f);
 
             auto tryMoveAxis = [&](float& coordinate, float delta, int axis)
             {
@@ -567,9 +618,9 @@ namespace dolbuto
                 coordinate = target;
             };
 
-            tryMoveAxis(particle.position.x, particle.velocity.x * dt, 0);
+            tryMoveAxis(particle.position.x, particle.velocity.x * horizontalFade * dt, 0);
+            tryMoveAxis(particle.position.z, particle.velocity.z * horizontalFade * dt, 2);
             tryMoveAxis(particle.position.y, particle.velocity.y * dt, 1);
-            tryMoveAxis(particle.position.z, particle.velocity.z * dt, 2);
         }
 
         smokeParticles_.erase(std::remove_if(smokeParticles_.begin(), smokeParticles_.end(), [](const SmokeParticle& particle)
@@ -608,6 +659,8 @@ namespace dolbuto
             indexBuffer_ == VK_NULL_HANDLE ||
             smokeVertexBuffer_ == VK_NULL_HANDLE ||
             smokeIndexBuffer_ == VK_NULL_HANDLE ||
+            (drawBlockParticles && vertexMapped_ == nullptr) ||
+            (drawSmokeParticles && smokeVertexMapped_ == nullptr) ||
             (drawBlockParticles && terrainTexture.descriptorSet == VK_NULL_HANDLE))
         {
             return;
@@ -627,12 +680,13 @@ namespace dolbuto
         scissor.extent = extent;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        std::vector<TerrainVertex> vertices;
-        std::vector<uint32_t> indices;
-        vertices.reserve(MaxBlockBreakParticles * 4u);
-        indices.reserve(MaxBlockBreakParticles * 6u);
+        vertexScratch_.clear();
+        if (vertexScratch_.capacity() < MaxBlockBreakParticles * 4u)
+        {
+            vertexScratch_.reserve(MaxBlockBreakParticles * 4u);
+        }
 
-        auto appendQuad = [&](std::vector<TerrainVertex>& targetVertices, std::vector<uint32_t>& targetIndices, std::size_t maxParticles, const std::array<Vec3, 4>& positions, float u0, float v0, float u1, float v1, float ao, uint32_t textureLayer, float mipDistanceScale, float alphaBlend, uint8_t packedLight)
+        auto appendQuad = [&](std::vector<TerrainVertex>& targetVertices, std::size_t maxParticles, const std::array<Vec3, 4>& positions, float u0, float v0, float u1, float v1, float ao, uint32_t textureLayer, float mipDistanceScale, float alphaBlend, uint8_t packedLight)
         {
             if (targetVertices.size() + 4u > maxParticles * 4u)
             {
@@ -653,12 +707,6 @@ namespace dolbuto
             targetVertices[baseIndex + 1u].packedLight = packedLight;
             targetVertices[baseIndex + 2u].packedLight = packedLight;
             targetVertices[baseIndex + 3u].packedLight = packedLight;
-            targetIndices.push_back(baseIndex);
-            targetIndices.push_back(baseIndex + 1u);
-            targetIndices.push_back(baseIndex + 2u);
-            targetIndices.push_back(baseIndex);
-            targetIndices.push_back(baseIndex + 2u);
-            targetIndices.push_back(baseIndex + 3u);
         };
 
         if (drawBreakingOverlay)
@@ -675,12 +723,12 @@ namespace dolbuto
             const float minZ = static_cast<float>(overlay.z) - 0.5f - Expand;
             const float maxZ = static_cast<float>(overlay.z) + 0.5f + Expand;
             const uint8_t overlayLight = lightAtWorld ? lightAtWorld(overlay.x, overlay.y + 1, overlay.z) : world::packLight(world::MaxSkyLight, 0);
-            appendQuad(vertices, indices, MaxBlockBreakParticles, {Vec3{minX, maxY, minZ}, Vec3{minX, maxY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, maxY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
-            appendQuad(vertices, indices, MaxBlockBreakParticles, {Vec3{minX, minY, maxZ}, Vec3{minX, minY, minZ}, Vec3{maxX, minY, minZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
-            appendQuad(vertices, indices, MaxBlockBreakParticles, {Vec3{minX, minY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, maxY, minZ}, Vec3{minX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
-            appendQuad(vertices, indices, MaxBlockBreakParticles, {Vec3{maxX, minY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
-            appendQuad(vertices, indices, MaxBlockBreakParticles, {Vec3{minX, minY, minZ}, Vec3{minX, maxY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
-            appendQuad(vertices, indices, MaxBlockBreakParticles, {Vec3{maxX, minY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{minX, maxY, minZ}, Vec3{minX, maxY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, maxY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{minX, minY, maxZ}, Vec3{minX, minY, minZ}, Vec3{maxX, minY, minZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{minX, minY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, maxY, minZ}, Vec3{minX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{maxX, minY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{minX, minY, minZ}, Vec3{minX, maxY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{maxX, minY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
         }
 
         const Vec3 cameraRight = camera.right();
@@ -688,7 +736,7 @@ namespace dolbuto
         const Vec3 forward = camera.forward();
         const Vec3 terrainForward{forward.x, -forward.y, forward.z};
         const Vec3 up = normalize(cross(terrainForward, right));
-        const std::size_t remainingQuads = MaxBlockBreakParticles - std::min(MaxBlockBreakParticles, vertices.size() / 4u);
+        const std::size_t remainingQuads = MaxBlockBreakParticles - std::min(MaxBlockBreakParticles, vertexScratch_.size() / 4u);
         const std::size_t particleCount = std::min(particles_.size(), remainingQuads);
         for (std::size_t i = 0; i < particleCount; ++i)
         {
@@ -700,7 +748,7 @@ namespace dolbuto
             const uint8_t particleLight = lightAtWorld
                 ? lightAtWorld(blockCoordinateXz(particle.position.x), blockCoordinateY(particle.position.y), blockCoordinateXz(particle.position.z))
                 : world::packLight(world::MaxSkyLight, 0);
-            appendQuad(vertices, indices, MaxBlockBreakParticles, {
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {
                 Vec3{particle.position.x - rightOffset.x - upOffset.x, particle.position.y - rightOffset.y - upOffset.y, particle.position.z - rightOffset.z - upOffset.z},
                 Vec3{particle.position.x - rightOffset.x + upOffset.x, particle.position.y - rightOffset.y + upOffset.y, particle.position.z - rightOffset.z + upOffset.z},
                 Vec3{particle.position.x + rightOffset.x + upOffset.x, particle.position.y + rightOffset.y + upOffset.y, particle.position.z + rightOffset.z + upOffset.z},
@@ -716,19 +764,10 @@ namespace dolbuto
                 particleLight);
         }
 
-        if (!indices.empty())
+        if (!vertexScratch_.empty())
         {
-            const VkDeviceSize vertexBytes = sizeof(TerrainVertex) * vertices.size();
-            const VkDeviceSize indexBytes = sizeof(uint32_t) * indices.size();
-            void* vertexData = nullptr;
-            vkMapMemory(device(), vertexMemory_, 0, vertexBytes, 0, &vertexData);
-            std::memcpy(vertexData, vertices.data(), static_cast<std::size_t>(vertexBytes));
-            vkUnmapMemory(device(), vertexMemory_);
-
-            void* indexData = nullptr;
-            vkMapMemory(device(), indexMemory_, 0, indexBytes, 0, &indexData);
-            std::memcpy(indexData, indices.data(), static_cast<std::size_t>(indexBytes));
-            vkUnmapMemory(device(), indexMemory_);
+            const VkDeviceSize vertexBytes = sizeof(TerrainVertex) * vertexScratch_.size();
+            std::memcpy(vertexMapped_, vertexScratch_.data(), static_cast<std::size_t>(vertexBytes));
 
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
             vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &push);
@@ -736,7 +775,7 @@ namespace dolbuto
             const VkDeviceSize vertexOffset = 0;
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer_, &vertexOffset);
             vkCmdBindIndexBuffer(commandBuffer, indexBuffer_, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>((vertexScratch_.size() / 4u) * 6u), 1, 0, 0, 0);
         }
 
         if (!drawSmokeParticles)
@@ -744,10 +783,11 @@ namespace dolbuto
             return;
         }
 
-        std::vector<TerrainVertex> smokeVertices;
-        std::vector<uint32_t> smokeIndices;
-        smokeVertices.reserve(MaxSmokeParticles * 4u);
-        smokeIndices.reserve(MaxSmokeParticles * 6u);
+        smokeVertexScratch_.clear();
+        if (smokeVertexScratch_.capacity() < MaxSmokeParticles * 4u)
+        {
+            smokeVertexScratch_.reserve(MaxSmokeParticles * 4u);
+        }
         const std::size_t smokeCount = std::min(smokeParticles_.size(), MaxSmokeParticles);
         for (std::size_t i = 0; i < smokeCount; ++i)
         {
@@ -762,13 +802,14 @@ namespace dolbuto
             }
 
             const uint32_t frame = std::min<uint32_t>(SmokeFrameCount - 1u, static_cast<uint32_t>(std::floor(lifeRatio * static_cast<float>(SmokeFrameCount))));
+            const uint32_t textureLayer = particle.textureSet * SmokeFrameCount + frame;
             const float half = particle.size * 0.5f;
             const Vec3 rightOffset{right.x * half, right.y * half, right.z * half};
             const Vec3 upOffset{up.x * half, up.y * half, up.z * half};
             const uint8_t particleLight = lightAtWorld
                 ? lightAtWorld(blockCoordinateXz(particle.position.x), blockCoordinateY(particle.position.y), blockCoordinateXz(particle.position.z))
                 : world::packLight(world::MaxSkyLight, 0);
-            appendQuad(smokeVertices, smokeIndices, MaxSmokeParticles, {
+            appendQuad(smokeVertexScratch_, MaxSmokeParticles, {
                 Vec3{particle.position.x - rightOffset.x - upOffset.x, particle.position.y - rightOffset.y - upOffset.y, particle.position.z - rightOffset.z - upOffset.z},
                 Vec3{particle.position.x - rightOffset.x + upOffset.x, particle.position.y - rightOffset.y + upOffset.y, particle.position.z - rightOffset.z + upOffset.z},
                 Vec3{particle.position.x + rightOffset.x + upOffset.x, particle.position.y + rightOffset.y + upOffset.y, particle.position.z + rightOffset.z + upOffset.z},
@@ -778,28 +819,19 @@ namespace dolbuto
                 1.0f,
                 1.0f,
                 1.0f,
-                frame,
+                textureLayer,
                 1.0f,
                 alpha,
                 particleLight);
         }
 
-        if (smokeIndices.empty())
+        if (smokeVertexScratch_.empty())
         {
             return;
         }
 
-        const VkDeviceSize smokeVertexBytes = sizeof(TerrainVertex) * smokeVertices.size();
-        const VkDeviceSize smokeIndexBytes = sizeof(uint32_t) * smokeIndices.size();
-        void* smokeVertexData = nullptr;
-        vkMapMemory(device(), smokeVertexMemory_, 0, smokeVertexBytes, 0, &smokeVertexData);
-        std::memcpy(smokeVertexData, smokeVertices.data(), static_cast<std::size_t>(smokeVertexBytes));
-        vkUnmapMemory(device(), smokeVertexMemory_);
-
-        void* smokeIndexData = nullptr;
-        vkMapMemory(device(), smokeIndexMemory_, 0, smokeIndexBytes, 0, &smokeIndexData);
-        std::memcpy(smokeIndexData, smokeIndices.data(), static_cast<std::size_t>(smokeIndexBytes));
-        vkUnmapMemory(device(), smokeIndexMemory_);
+        const VkDeviceSize smokeVertexBytes = sizeof(TerrainVertex) * smokeVertexScratch_.size();
+        std::memcpy(smokeVertexMapped_, smokeVertexScratch_.data(), static_cast<std::size_t>(smokeVertexBytes));
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
         vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &push);
@@ -807,6 +839,6 @@ namespace dolbuto
         const VkDeviceSize smokeVertexOffset = 0;
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &smokeVertexBuffer_, &smokeVertexOffset);
         vkCmdBindIndexBuffer(commandBuffer, smokeIndexBuffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(smokeIndices.size()), 1, 0, 0, 0);
+        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>((smokeVertexScratch_.size() / 4u) * 6u), 1, 0, 0, 0);
     }
 }

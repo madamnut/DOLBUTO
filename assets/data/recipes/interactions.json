@@ -241,6 +241,32 @@
         ]
     },
     {
+        "action": "handcraft",
+        "target": "refractory_clay_pile",
+        "targetCount": 4,
+        "candidates": [
+            "unfired_refractory_clay_crucible"
+        ]
+    },
+    {
+        "action": "smash",
+        "target": "clay_brick",
+        "min": 4,
+        "max": 4,
+        "candidates": [
+            "grog"
+        ]
+    },
+    {
+        "action": "smash",
+        "target": "clay_pot",
+        "min": 8,
+        "max": 8,
+        "candidates": [
+            "grog"
+        ]
+    },
+    {
         "action": "pound",
         "target": "wooden_plank",
         "targetCount": 2,

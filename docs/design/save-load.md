@@ -151,6 +151,7 @@ repeat entityCount:
     uint16 count
     uint16 durability
     uint32 processingTicks
+    uint8 processingType  // 0 = none, 1 = pyrolysis, 2 = firing
 uint16 blockEntityCount
 repeat blockEntityCount:
   uint16 type          // 1 = Fire
@@ -160,8 +161,8 @@ repeat blockEntityCount:
   uint32 remainingBurnTicks
   uint8 fireMode      // 0 = normal, 1 = pyrolysis, 2 = firing
   uint8 reserved
-  uint16 carbonizingOutputItemId
-  uint16 carbonizingOutputCount
+  uint16 burnRemainderItemId
+  uint16 burnRemainderCount
 uint32 blockStateRunCount
 repeat blockStateRunCount:
   uint32 state
@@ -171,7 +172,7 @@ uint64 revision
 
 엔티티 위치는 청크 로컬 X/Z와 월드 Y로 저장한다.
 드랍 아이템 `durability`는 내구도 있는 아이템의 현재 내구도다.
-`processingTicks`는 [[recipe/processings]]의 시간 기반 처리 진행도다.
+`processingTicks`와 `processingType`은 [[recipe/processings]]의 시간 기반 처리 진행도와 처리 종류다.
 기존 `itemId/count`만 있는 청크 엔티티 payload도 읽을 수 있으며, 로드 후 내구도 있는 드랍 아이템의 `durability = 0`은 최대 내구도로 정규화한다.
 드랍 아이템의 회전, 스핀, 나이, 획득 진행 상태는 런타임 전용이며 저장하지 않는다.
 엔티티만 바뀐 경우에는 terrain revision을 올리지 않고 런타임 dirty serial을 사용한다. terrain revision은 mesh validity에도 사용되기 때문이다.
@@ -179,9 +180,8 @@ uint64 revision
 block entity는 블록 ID만으로 표현하지 않는 셀별 상태를 저장한다.
 현재 저장 타입은 fire뿐이며, `remainingBurnTicks`는 해당 fire 블록이 꺼지기까지 남은 tick 수다.
 `fireMode`는 주변 block change event와 연료 소비 시점으로 결정된 fire의 현재 모드이며, `0`은 일반 불, `1`은 열분해 불, `2`는 도기 소성 불이다.
-`carbonizingOutputItemId/count`는 열분해 연료가 다 탔을 때 드랍할 예약 결과물이며, 예약 결과물이 없으면 둘 다 `0`이다.
+`burnRemainderItemId`와 `burnRemainderCount`는 현재 타고 있는 연료의 연소 종료 시점에 드랍할 부산물이다.
 로드된 fire 블록에 block entity가 없으면 렌더/런타임 갱신 시 초기값으로 보강하고, block entity만 남고 실제 블록이 fire가 아니면 런타임에서 제거한다.
-현재 block entity payload는 기존 저장 호환을 지원하지 않고 새 fire mode/열분해 결과 포맷을 기준으로 읽는다.
 block state RLE 섹션은 block entity 뒤, revision 앞에 붙는다.
 구버전 payload처럼 해당 섹션이 없으면 `revision`을 바로 읽고, 런타임 설치 시 `blockStates`를 0으로 채운다.
 

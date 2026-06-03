@@ -35,6 +35,63 @@ namespace dolbuto
                 quad.textureLayer = static_cast<float>(textureLayer);
                 mesh.quads.push_back(quad);
             };
+            auto addCuboid = [&](
+                float minX,
+                float minY,
+                float minZ,
+                float maxX,
+                float maxY,
+                float maxZ,
+                uint32_t textureLayer)
+            {
+                const float width = maxX - minX;
+                const float height = maxY - minY;
+                const float depth = maxZ - minZ;
+                const std::array<std::array<float, 2>, 4> topUvs{{{{0.0f, 0.0f}}, {{0.0f, depth}}, {{width, depth}}, {{width, 0.0f}}}};
+                const std::array<std::array<float, 2>, 4> xSideUvs{{{{0.0f, 1.0f}}, {{0.0f, 1.0f - height}}, {{depth, 1.0f - height}}, {{depth, 1.0f}}}};
+                const std::array<std::array<float, 2>, 4> zSideUvs{{{{0.0f, 1.0f}}, {{0.0f, 1.0f - height}}, {{width, 1.0f - height}}, {{width, 1.0f}}}};
+                addQuad(
+                    {{{minX, maxY, minZ}, {minX, maxY, maxZ}, {maxX, maxY, maxZ}, {maxX, maxY, minZ}}},
+                    topUvs,
+                    textureLayer,
+                    1.0f);
+                addQuad(
+                    {{{minX, minY, maxZ}, {minX, minY, minZ}, {maxX, minY, minZ}, {maxX, minY, maxZ}}},
+                    topUvs,
+                    textureLayer,
+                    0.82f);
+                addQuad(
+                    {{{maxX, minY, minZ}, {maxX, maxY, minZ}, {maxX, maxY, maxZ}, {maxX, minY, maxZ}}},
+                    xSideUvs,
+                    textureLayer,
+                    0.86f);
+                addQuad(
+                    {{{minX, minY, maxZ}, {minX, maxY, maxZ}, {minX, maxY, minZ}, {minX, minY, minZ}}},
+                    xSideUvs,
+                    textureLayer,
+                    0.78f);
+                addQuad(
+                    {{{maxX, minY, maxZ}, {maxX, maxY, maxZ}, {minX, maxY, maxZ}, {minX, minY, maxZ}}},
+                    zSideUvs,
+                    textureLayer,
+                    0.88f);
+                addQuad(
+                    {{{minX, minY, minZ}, {minX, maxY, minZ}, {maxX, maxY, minZ}, {maxX, minY, minZ}}},
+                    zSideUvs,
+                    textureLayer,
+                    0.74f);
+            };
+
+            if (renderType == BlockRenderType::Crucible)
+            {
+                const uint32_t textureLayer = layers.faces[0];
+                addCuboid(-0.5f, -0.5f, -0.5f, 0.5f, -0.3f, 0.5f, textureLayer);
+                addCuboid(-0.5f, -0.3f, -0.5f, 0.5f, 0.5f, -0.3f, textureLayer);
+                addCuboid(-0.5f, -0.3f, 0.3f, 0.5f, 0.5f, 0.5f, textureLayer);
+                addCuboid(-0.5f, -0.3f, -0.3f, -0.3f, 0.5f, 0.3f, textureLayer);
+                addCuboid(0.3f, -0.3f, -0.3f, 0.5f, 0.5f, 0.3f, textureLayer);
+                return mesh;
+            }
 
             const float width = blockModelExtent(explicitWidth, 1.0f);
             const float height = blockModelExtent(explicitHeight, renderType == BlockRenderType::Slab ? 0.5f : 1.0f);
@@ -122,7 +179,23 @@ namespace dolbuto
             (smokeTextureDir / "smoke_4.png").string(),
             (smokeTextureDir / "smoke_5.png").string(),
             (smokeTextureDir / "smoke_6.png").string(),
-            (smokeTextureDir / "smoke_7.png").string()
+            (smokeTextureDir / "smoke_7.png").string(),
+            (smokeTextureDir / "smoke_darker_0.png").string(),
+            (smokeTextureDir / "smoke_darker_1.png").string(),
+            (smokeTextureDir / "smoke_darker_2.png").string(),
+            (smokeTextureDir / "smoke_darker_3.png").string(),
+            (smokeTextureDir / "smoke_darker_4.png").string(),
+            (smokeTextureDir / "smoke_darker_5.png").string(),
+            (smokeTextureDir / "smoke_darker_6.png").string(),
+            (smokeTextureDir / "smoke_darker_7.png").string(),
+            (smokeTextureDir / "smoke_lighter_0.png").string(),
+            (smokeTextureDir / "smoke_lighter_1.png").string(),
+            (smokeTextureDir / "smoke_lighter_2.png").string(),
+            (smokeTextureDir / "smoke_lighter_3.png").string(),
+            (smokeTextureDir / "smoke_lighter_4.png").string(),
+            (smokeTextureDir / "smoke_lighter_5.png").string(),
+            (smokeTextureDir / "smoke_lighter_6.png").string(),
+            (smokeTextureDir / "smoke_lighter_7.png").string()
         });
 
         if (!content.itemTextureNames().empty())
@@ -144,13 +217,29 @@ namespace dolbuto
             if (definition.droppedRender == ItemRenderType::BlockModel ||
                 definition.heldRender == ItemRenderType::BlockModel)
             {
-                if (definition.modelBlockId != 0 &&
-                    static_cast<size_t>(definition.modelBlockId) < content.blockTextureLayers().size())
+                const bool usesModelTexture = definition.hasModelTexture;
+                if (usesModelTexture ||
+                    (definition.modelBlockId != 0 &&
+                        static_cast<size_t>(definition.modelBlockId) < content.blockTextureLayers().size()))
                 {
-                    const BlockDefinition& blockDefinition = content.blockDefinitions()[definition.modelBlockId];
+                    BlockTextureLayers itemLayers{};
+                    BlockRenderType itemRenderType = BlockRenderType::Cube;
+                    if (usesModelTexture)
+                    {
+                        itemLayers.faces.fill(definition.modelTextureLayer);
+                        itemLayers.verticalSection = definition.modelTextureLayer;
+                        itemLayers.horizontalSection = definition.modelTextureLayer;
+                        itemRenderType = definition.useBlockModelCrucibleShape ? BlockRenderType::Crucible : BlockRenderType::Cube;
+                    }
+                    else
+                    {
+                        const BlockDefinition& blockDefinition = content.blockDefinitions()[definition.modelBlockId];
+                        itemLayers = content.blockTextureLayers()[definition.modelBlockId];
+                        itemRenderType = definition.useBlockModelCrucibleShape ? BlockRenderType::Crucible : blockDefinition.renderType;
+                    }
                     store.itemSpriteMeshes[itemId] = buildBlockModelItemMesh(
-                        content.blockTextureLayers()[definition.modelBlockId],
-                        blockDefinition.renderType,
+                        itemLayers,
+                        itemRenderType,
                         definition.blockModelWidth,
                         definition.blockModelHeight,
                         definition.blockModelDepth,

@@ -903,6 +903,21 @@ namespace dolbuto::data
             {
                 definition.heatLevel = static_cast<uint16_t>(std::clamp(*heatLevel, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
             }
+            if (const std::optional<std::string> burnRemainder = jsonObjectField(object, "burnRemainder"); burnRemainder.has_value())
+            {
+                if (const std::optional<std::string> item = jsonStringField(*burnRemainder, "item"); item.has_value())
+                {
+                    definition.burnRemainderItem = *item;
+                }
+                if (const std::optional<int> count = jsonIntField(*burnRemainder, "count"); count.has_value())
+                {
+                    definition.burnRemainderCount = static_cast<uint16_t>(std::clamp(*count, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
+                }
+                else if (!definition.burnRemainderItem.empty())
+                {
+                    definition.burnRemainderCount = 1;
+                }
+            }
             if (const std::optional<std::string> placeBlock = jsonStringField(object, "placeBlock"); placeBlock.has_value())
             {
                 definition.placeBlock = *placeBlock;
@@ -914,6 +929,10 @@ namespace dolbuto::data
             if (const std::optional<std::string> modelShape = jsonStringField(object, "modelShape"); modelShape.has_value())
             {
                 definition.modelShape = *modelShape;
+            }
+            if (const std::optional<std::string> modelTexture = jsonStringField(object, "modelTexture"); modelTexture.has_value())
+            {
+                definition.modelTexture = *modelTexture;
             }
             definitions.push_back(std::move(definition));
         }
@@ -1011,6 +1030,14 @@ namespace dolbuto::data
             if (const std::optional<bool> randomOffset = jsonBoolField(object, "randomOffset"); randomOffset.has_value())
             {
                 definition.randomOffset = *randomOffset;
+            }
+            if (const std::optional<bool> leafDecayable = jsonBoolField(object, "leafDecayable"); leafDecayable.has_value())
+            {
+                definition.leafDecayable = *leafDecayable;
+            }
+            if (const std::optional<bool> leafDecaySupport = jsonBoolField(object, "leafDecaySupport"); leafDecaySupport.has_value())
+            {
+                definition.leafDecaySupport = *leafDecaySupport;
             }
             if (const std::optional<std::string> stateKind = jsonStringField(object, "stateKind"); stateKind.has_value())
             {
@@ -1203,6 +1230,10 @@ namespace dolbuto::data
             if (const std::optional<std::string> output = jsonStringField(object, "output"); output.has_value())
             {
                 definition.output = *output;
+            }
+            if (const std::optional<int> outputCount = jsonIntField(object, "outputCount"); outputCount.has_value())
+            {
+                definition.outputCount = static_cast<uint16_t>(std::clamp(*outputCount, 1, static_cast<int>(std::numeric_limits<uint16_t>::max())));
             }
             if (const std::optional<int> requiredTicks = jsonIntField(object, "requiredTicks"); requiredTicks.has_value())
             {
