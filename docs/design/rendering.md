@@ -37,6 +37,8 @@
 - terrain은 index buffer 없이 `vkCmdDraw`를 사용한다.
 - player는 별도 vertex/index 경로를 유지한다.
 - 플레이어 스킨, 1인칭 손, 손에 든 아이템, 드랍 아이템, 블록 파괴 파티클도 지형과 같은 packed light/`skyBrightness`/block light curve를 사용한다. 플레이어 관련 viewmodel은 플레이어 위치의 light를 사용하고, 드랍 아이템과 파티클은 각 렌더 위치의 light를 샘플링한다.
+- 선택 핫바 슬롯 또는 왼손 슬롯에 `portableLightEmission > 0`인 아이템이 있으면, 렌더 프레임은 1인칭 카메라 위치를 중심으로 하는 휴대 다이나믹 라이트를 추가한다.
+  이 값은 월드 조명 데이터에 쓰지 않고 shader push constant로만 전달한다.
 
 렌더링 지형 데이터 타입은 `src/renderer/TerrainTypes.h`에 둔다.
 현재 포함 타입은 `TerrainVertex`, `PackedTerrainQuad`, `TerrainMesh`, `TerrainBuildData`이다.
@@ -53,9 +55,9 @@
 `src/renderer/RendererTerrainMeshBridge.h/.cpp`는 `TerrainGeometryBuilder`와 `TerrainMesher`를 연결해 chunk mesh와 edited subchunk mesh의 CPU 조립을 담당한다.
 `src/renderer/TextRenderPath.h/.cpp`는 font atlas texture 생성, host-visible text vertex buffer, glyph layout, outline/fill text batch draw를 담당한다.
 `src/renderer/TerrainRenderPath.h/.cpp`는 terrain chunk render data, render chunk 설치/교체/retire 규칙, retired terrain mesh 수명, packed terrain quad 변환, terrain GPU buffer upload, terrain vertex descriptor set 생성, solid/blend/fluid terrain mesh draw 순회와 terrain frustum culling을 담당한다.
-`src/renderer/PlayerModelLoader.h/.cpp`는 `Character.glb`의 node/mesh primitive/vertex/index 데이터를 읽어 파트별 플레이어 모델 source data를 만든다.
-`src/renderer/PlayerMeshRenderPath.h/.cpp`는 player GLB 모델 로드, player vertex/index buffer 생성, GLB node transform 기반 매 프레임 player vertex 위치 갱신, player indexed draw와 buffer 수명을 담당한다.
-`PlayerMeshRenderPath`는 `Head` node에 렌더 프레임의 head yaw/pitch 추가 transform을 적용한다.
+`src/renderer/PlayerModelLoader.h/.cpp`는 player GLB의 node/mesh primitive/vertex/index/animation channel 데이터를 읽어 파트별 플레이어 모델 source data와 animation clip data를 만든다.
+`src/renderer/PlayerMeshRenderPath.h/.cpp`는 player GLB 모델 로드, player vertex/index buffer 생성, GLB node transform 기반 매 프레임 player transform buffer 갱신, player indexed draw와 buffer 수명을 담당한다.
+`PlayerMeshRenderPath`는 플레이어 상태에 맞는 `idle`/`walk`/`run`/`crouchidle`/`crouchwalk`/`proneidle`/`pronewalk` clip을 샘플링하고 `Head` 제어 node에 렌더 프레임의 head yaw/pitch 추가 transform을 적용한다.
 `src/renderer/ParticleRenderPath.h/.cpp`는 블록 파괴 파티클 상태, 파괴 오버레이 quad 생성, 불 연기 파티클, 파티클 수명/형상 기반 terrain 충돌 갱신, host-visible particle vertex/index buffer 업로드, particle draw path를 담당한다.
 `src/renderer/DroppedItemRenderCollector.h/.cpp`는 드랍 아이템 청크 frustum culling, 거리 culling, `DroppedItemRenderPath::RenderInstance` 목록 생성을 담당한다.
 `src/renderer/DroppedItemRenderPath.h/.cpp`는 드랍 아이템 로컬 스프라이트 mesh 타입, GPU static vertex/index buffer, persistent instance buffer, instance 업로드, item id별 batch draw를 담당한다.
@@ -108,10 +110,12 @@ Renderer/GPU가 필요 없는 collision query, block selection state, inventory 
 solid/blend/cross/prop/fire subchunk mesh 생성은 `TerrainGeometryBuilder`가 담당하고, render chunk storage 조작, Vulkan upload, terrain render data 수명, terrain mesh draw loop는 `TerrainRenderPath`가 담당한다.
 chunk mesh와 edited subchunk mesh의 CPU 조립은 `RendererTerrainMeshBridge`가 담당하고, `Renderer`는 결과를 `TerrainRenderPath` 설치 API로 전달한다.
 player mesh는 terrain chunk mesh와 별도 indexed vertex buffer 경로이며 `PlayerMeshRenderPath`가 소유한다.
-플레이어는 `assets/textures/character/Character.glb`를 직접 읽고, 별도 `Character.mesh` 런타임 캐시 파일은 사용하지 않는다.
-플레이어 전체 배치는 body yaw를 기준으로 하고, 머리 회전은 `Head` node local transform 뒤에 추가 yaw/pitch transform을 곱해 처리한다.
-보행 모션은 `ClientFrame`/`RendererFrame`의 `playerWalkPhase`와 `playerWalkAmount`로 전달되며, `GameClient`가 물리 tick 사이 값을 보간해 넘긴다.
-`PlayerMeshRenderPath`는 팔/다리 node에 추가 pitch transform을 적용하고, 팔꿈치/무릎 하위 node는 한 방향 bend와 각도 상한을 사용한다.
+플레이어는 우선 `assets/textures/character/Characterwithanim.glb`를 직접 읽고, 없으면 `assets/textures/character/Character.glb`로 되돌아가며, 별도 `Character.mesh` 런타임 캐시 파일은 사용하지 않는다.
+플레이어 전체 배치는 body yaw를 기준으로 하고, 머리 회전은 animation pose 적용 뒤 `Head` 제어 node local transform에 추가 yaw/pitch transform을 곱해 처리한다.
+보행 모션은 `ClientFrame`/`RendererFrame`의 `playerWalkPhase`, `playerWalkAmount`, `playerWalkReverse`, `playerCrouching`, `playerSprinting`, `playerProne`으로 전달되며, `GameClient`가 물리 tick 사이 값을 보간하고 실제 이동 방향이 body yaw 기준 후방이면 역재생 플래그를 넘긴다.
+`PlayerMeshRenderPath`는 정지 상태에서 자세별 idle clip을, 이동 상태에서 자세별 movement clip을 샘플링해 `walkAmount`로 블렌드하고, 자세 또는 movement clip 조합이 바뀌면 직전 렌더 pose snapshot에서 새 pose로 `0.4`초 동안 TRS 블렌딩한다.
+뒤로 이동 중에는 movement clip 샘플 시간을 역방향으로 사용한다.
+1인칭 손은 아직 GLB animation clip을 적용하지 않고 neutral pose 기반 transform만 사용한다.
 1인칭 손은 같은 GLB에서 오른팔 아래팔 node만 추출한 별도 vertex/index buffer를 사용한다.
 현재 선택 핫바 아이템은 `ClientFrame`/`RendererFrame`의 `heldItemId`로 전달되고, `RendererDroppedItems.cpp`가 기존 `DroppedItemRenderPath` item pipeline을 재사용해 1인칭 손 앞에 렌더링한다.
 1인칭 손과 든 아이템은 지형 depth에 묻히지 않도록 그리기 직전에 scene depth attachment를 clear한 뒤 viewmodel pipeline으로 그린다.
@@ -264,7 +268,8 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 - 프러스텀 컬링을 적용한다.
 - 지형 메쉬는 청크/서브청크 렌더 데이터 기준으로 draw한다.
 - 와이어프레임은 F4로 토글한다.
-- 지형/유체 조명은 메쉬에 패킹된 skylight와 block light를 분리해 읽는다. skylight는 프레임 전역 `skyBrightness`를 곱하고, block light는 시간대 영향을 받지 않는 절대 밝기로 둔 뒤 `max(skyLight * skyBrightness, blockLight)`를 연속 light curve `x*x*(0.667482 + 0.332518*x)`로 매핑해 적용한다.
+- 지형/유체 조명은 메쉬에 패킹된 skylight와 block light를 분리해 읽는다. skylight는 프레임 전역 `skyBrightness`를 곱하고, block light는 시간대 영향을 받지 않는 절대 밝기로 둔 뒤, 카메라 위치 중심의 휴대 다이나믹 라이트가 있으면 `max(skyLight * skyBrightness, blockLight, dynamicLight)`를 연속 light curve `x*x*(0.667482 + 0.332518*x)`로 매핑해 적용한다.
+- 휴대 다이나믹 라이트는 색 없이 밝기만 더한다. `lightEmission`을 0~15 블록 조명 스케일로 보고 카메라 상대 렌더 좌표의 거리만큼 선형 감쇠시킨다.
 
 ## 관련 문서
 

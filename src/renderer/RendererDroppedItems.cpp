@@ -99,7 +99,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::drawHeldItem(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, uint16_t heldItemId, float skyBrightness, uint8_t playerPackedLight)
+    void Renderer::drawHeldItem(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, uint16_t heldItemId, float skyBrightness, uint16_t heldPortableLightEmission, uint8_t playerPackedLight)
     {
         if (heldItemId == 0 ||
             static_cast<std::size_t>(heldItemId) >= client_.content.itemDefinitions().size() ||
@@ -168,6 +168,7 @@ namespace dolbuto
         push.cameraPosition[2] = 0.0f;
         push.cameraPosition[3] = static_cast<float>(glfwGetTime());
         push.fluidWaterParams[1] = skyBrightness;
+        push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
 
         std::vector<DroppedItemRenderPath::RenderInstance> renderInstances{heldItem};
         const std::size_t frameInstanceOffset = static_cast<std::size_t>(vulkan_.currentFrame) * ItemInstanceFrameStride;
@@ -182,7 +183,7 @@ namespace dolbuto
             frameInstanceOffset + world::DroppedItemSystem::MaxDroppedItemRenderInstances);
     }
 
-    void Renderer::drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, Vec3 playerPosition)
+    void Renderer::drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission, Vec3 playerPosition)
     {
         const bool inventoryChanged = client_.gameplayRuntime.updateDroppedItems(
             playerPosition,
@@ -255,6 +256,7 @@ namespace dolbuto
         push.cameraPosition[2] = cameraPosition.z;
         push.cameraPosition[3] = static_cast<float>(glfwGetTime());
         push.fluidWaterParams[1] = skyBrightness;
+        push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
 
         const std::size_t frameInstanceOffset = static_cast<std::size_t>(vulkan_.currentFrame) * ItemInstanceFrameStride;
         if (!spriteInstances.empty() && rendererAssets_.itemTextureArray.descriptorSet != VK_NULL_HANDLE)

@@ -1,5 +1,6 @@
 #include "renderer/PlayerModelLoader.h"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <cmath>
@@ -10,6 +11,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace dolbuto
@@ -55,6 +57,27 @@ namespace dolbuto
         struct GlbMesh
         {
             std::vector<GlbPrimitive> primitives;
+        };
+
+        struct GlbAnimationSampler
+        {
+            int input = -1;
+            int output = -1;
+            std::string interpolation;
+        };
+
+        struct GlbAnimationChannel
+        {
+            int sampler = -1;
+            int node = -1;
+            std::string path;
+        };
+
+        struct GlbAnimation
+        {
+            std::string name;
+            std::vector<GlbAnimationSampler> samplers;
+            std::vector<GlbAnimationChannel> channels;
         };
 
         std::vector<char> readFile(const std::filesystem::path& path)
@@ -654,6 +677,41 @@ namespace dolbuto
             return mesh;
         }
 
+        GlbAnimation parseAnimation(const std::string& object)
+        {
+            GlbAnimation animation{};
+            animation.name = jsonStringField(object, "name").value_or("");
+
+            if (const std::optional<std::string> samplers = jsonArrayField(object, "samplers"); samplers.has_value())
+            {
+                for (const std::string& samplerObject : jsonTopLevelObjects(*samplers))
+                {
+                    GlbAnimationSampler sampler{};
+                    sampler.input = jsonIntField(samplerObject, "input").value_or(-1);
+                    sampler.output = jsonIntField(samplerObject, "output").value_or(-1);
+                    sampler.interpolation = jsonStringField(samplerObject, "interpolation").value_or("LINEAR");
+                    animation.samplers.push_back(sampler);
+                }
+            }
+
+            if (const std::optional<std::string> channels = jsonArrayField(object, "channels"); channels.has_value())
+            {
+                for (const std::string& channelObject : jsonTopLevelObjects(*channels))
+                {
+                    GlbAnimationChannel channel{};
+                    channel.sampler = jsonIntField(channelObject, "sampler").value_or(-1);
+                    if (const std::optional<std::string> target = jsonObjectField(channelObject, "target"); target.has_value())
+                    {
+                        channel.node = jsonIntField(*target, "node").value_or(-1);
+                        channel.path = jsonStringField(*target, "path").value_or("");
+                    }
+                    animation.channels.push_back(channel);
+                }
+            }
+
+            return animation;
+        }
+
         std::array<float, 16> matrixFromTrs(
             std::array<float, 3> translation,
             std::array<float, 4> rotation,
@@ -736,6 +794,83 @@ namespace dolbuto
                 ? bin[offset + static_cast<size_t>(elementIndex)]
                 : 0u;
         }
+
+        int accessorComponentCount(const std::string& type)
+        {
+            if (type == "SCALAR")
+            {
+                return 1;
+            }
+            if (type == "VEC2")
+            {
+                return 2;
+            }
+            if (type == "VEC3")
+            {
+                return 3;
+            }
+            if (type == "VEC4")
+            {
+                return 4;
+            }
+            return 0;
+        }
+
+        std::array<float, 4> readFloatAccessorElement(
+            const std::vector<uint8_t>& bin,
+            const std::vector<GlbAccessor>& accessors,
+            const std::vector<GlbBufferView>& views,
+            int accessorIndex,
+            int elementIndex)
+        {
+            std::array<float, 4> value{0.0f, 0.0f, 0.0f, 1.0f};
+            if (accessorIndex < 0 || static_cast<size_t>(accessorIndex) >= accessors.size())
+            {
+                return value;
+            }
+
+            const GlbAccessor& accessor = accessors[static_cast<size_t>(accessorIndex)];
+            if (accessor.componentType != 5126 ||
+                accessor.bufferView < 0 ||
+                static_cast<size_t>(accessor.bufferView) >= views.size() ||
+                elementIndex < 0 ||
+                elementIndex >= accessor.count)
+            {
+                return value;
+            }
+
+            const GlbBufferView& view = views[static_cast<size_t>(accessor.bufferView)];
+            const int componentCount = accessorComponentCount(accessor.type);
+            if (componentCount <= 0)
+            {
+                return value;
+            }
+
+            const int stride = view.byteStride > 0 ? view.byteStride : componentCount * 4;
+            const size_t offset = static_cast<size_t>(view.byteOffset + accessor.byteOffset + elementIndex * stride);
+            for (int component = 0; component < componentCount && component < 4; ++component)
+            {
+                value[static_cast<size_t>(component)] = readF32At(bin, offset + static_cast<size_t>(component) * 4u);
+            }
+            return value;
+        }
+
+        std::optional<PlayerAnimationPath> playerAnimationPathFor(const std::string& path)
+        {
+            if (path == "translation")
+            {
+                return PlayerAnimationPath::Translation;
+            }
+            if (path == "rotation")
+            {
+                return PlayerAnimationPath::Rotation;
+            }
+            if (path == "scale")
+            {
+                return PlayerAnimationPath::Scale;
+            }
+            return std::nullopt;
+        }
     }
 
     PlayerModelData loadPlayerModelFromGlb(const std::filesystem::path& path)
@@ -759,6 +894,7 @@ namespace dolbuto
         std::vector<GlbBufferView> views;
         std::vector<GlbNode> glbNodes;
         std::vector<GlbMesh> meshes;
+        std::vector<GlbAnimation> glbAnimations;
         for (const std::string& object : jsonTopLevelObjects(jsonTopLevelArrayField(json, "accessors").value_or("[]")))
         {
             accessors.push_back(parseAccessor(object));
@@ -775,6 +911,10 @@ namespace dolbuto
         {
             meshes.push_back(parseMesh(object));
         }
+        for (const std::string& object : jsonTopLevelObjects(jsonTopLevelArrayField(json, "animations").value_or("[]")))
+        {
+            glbAnimations.push_back(parseAnimation(object));
+        }
 
         PlayerModelData model;
         model.nodes.resize(glbNodes.size());
@@ -784,6 +924,10 @@ namespace dolbuto
             const GlbNode& glbNode = glbNodes[i];
             node.name = glbNode.name;
             node.children = glbNode.children;
+            node.hasMesh = glbNode.mesh >= 0;
+            node.translation = glbNode.translation;
+            node.rotation = glbNode.rotation;
+            node.scale = glbNode.scale;
             node.localTransform = matrixFromTrs(glbNode.translation, glbNode.rotation, glbNode.scale);
         }
 
@@ -841,6 +985,68 @@ namespace dolbuto
                 {
                     model.indices.push_back(vertexBase + readIndex(bin, accessors, views, primitive.indices, i));
                 }
+            }
+        }
+
+        for (const GlbAnimation& glbAnimation : glbAnimations)
+        {
+            PlayerAnimationClip clip{};
+            clip.name = glbAnimation.name;
+            for (const GlbAnimationChannel& glbChannel : glbAnimation.channels)
+            {
+                if (glbChannel.node < 0 ||
+                    static_cast<size_t>(glbChannel.node) >= model.nodes.size() ||
+                    glbChannel.sampler < 0 ||
+                    static_cast<size_t>(glbChannel.sampler) >= glbAnimation.samplers.size())
+                {
+                    continue;
+                }
+
+                const std::optional<PlayerAnimationPath> path = playerAnimationPathFor(glbChannel.path);
+                if (!path)
+                {
+                    continue;
+                }
+
+                const GlbAnimationSampler& sampler = glbAnimation.samplers[static_cast<size_t>(glbChannel.sampler)];
+                if (sampler.input < 0 ||
+                    sampler.output < 0 ||
+                    static_cast<size_t>(sampler.input) >= accessors.size() ||
+                    static_cast<size_t>(sampler.output) >= accessors.size())
+                {
+                    continue;
+                }
+
+                const GlbAccessor& timeAccessor = accessors[static_cast<size_t>(sampler.input)];
+                const GlbAccessor& outputAccessor = accessors[static_cast<size_t>(sampler.output)];
+                const int keyframeCount = std::min(timeAccessor.count, outputAccessor.count);
+                if (timeAccessor.componentType != 5126 || keyframeCount <= 0)
+                {
+                    continue;
+                }
+
+                PlayerAnimationChannel channel{};
+                channel.nodeIndex = glbChannel.node;
+                channel.path = *path;
+                channel.keyframes.reserve(static_cast<size_t>(keyframeCount));
+                for (int frame = 0; frame < keyframeCount; ++frame)
+                {
+                    PlayerAnimationKeyframe keyframe{};
+                    keyframe.time = readFloatAccessorElement(bin, accessors, views, sampler.input, frame)[0];
+                    keyframe.value = readFloatAccessorElement(bin, accessors, views, sampler.output, frame);
+                    channel.keyframes.push_back(keyframe);
+                    clip.duration = std::max(clip.duration, keyframe.time);
+                }
+
+                if (!channel.keyframes.empty())
+                {
+                    clip.channels.push_back(std::move(channel));
+                }
+            }
+
+            if (!clip.channels.empty())
+            {
+                model.animations.push_back(std::move(clip));
             }
         }
 

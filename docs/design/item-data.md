@@ -52,12 +52,31 @@ assets/textures/item/*.png
     "texture": "rock_chunk"
   },
   "tags": [],
-  "useActions": [],
-  "burnTimeTicks": 0,
-  "heatLevel": 0,
-  "burnRemainder": {
-    "item": "ash",
-    "count": 1
+  "components": {
+    "useActions": ["ignite"],
+    "breakActions": ["smash"],
+    "breakLevel": 2,
+    "durability": {
+      "max": 64
+    },
+    "fuel": {
+      "burnTimeTicks": 2400,
+      "heatLevel": 2,
+      "remainder": {
+        "item": "ash",
+        "count": 4
+      }
+    },
+    "burnableLight": {
+      "maxTicks": 2400,
+      "lightEmission": 12,
+      "burnoutItem": "ash",
+      "burnoutCount": 1,
+      "ticksOnlyWhileHeld": true
+    },
+    "placeable": {
+      "block": "rock"
+    }
   }
 }
 ```
@@ -76,51 +95,72 @@ assets/textures/item/*.png
 - `heldRender.type`: 플레이어가 아이템을 들었을 때 사용하는 렌더 타입. 현재 `extruded_sprite`, `block_model`을 사용한다.
 - `heldRender.texture`: `extruded_sprite` 든 아이템 렌더 상태에서 사용하는 텍스처 이름
 - `tags`: 이후 시스템을 위한 아이템 분류 태그
-- `useActions`: 손에 들었을 때 수행 가능한 월드 상호작용 액션 키 목록
-- `placeActions`: 손에 들었을 때 수행 가능한 블록/오브젝트 설치 액션 키 목록
-- `placeBlock`: `place` 액션으로 설치할 블록 이름
-- `modelBlock`: `block_model` 아이템 렌더링에 사용할 블록 이름. 생략하면 `placeBlock`을 사용한다.
-- `modelShape`: `block_model` 아이템 렌더링 형상. 현재 `source`, `cube`, `slab`, `quarter_log`, `crucible`을 사용한다.
+- `components`: 일부 아이템에만 붙는 선택 기능 묶음
+- `components.useActions`: 손에 들었을 때 수행 가능한 월드 상호작용 액션 키 목록
+- `components.breakActions`: 좌클릭 블록 파괴에 사용하는 액션 키 목록
+- `components.breakLevel`: 아이템 자체의 파괴 레벨
+- `components.durability.max`: 인스턴스별 내구도 최대값
+- `components.fuel`: fire가 연료로 소비할 수 있는 아이템 속성
+- `components.fuel.burnTimeTicks`: 불이 연료로 소비했을 때 더해지는 연소 tick 수
+- `components.fuel.heatLevel`: 연료의 처리 온도 단계. `burnTimeTicks > 0`이고 생략하면 1로 처리한다.
+- `components.fuel.remainder`: 연료 1개가 다 탄 뒤 드랍할 부산물. 현재는 `{ "item": "ash", "count": n }` 형태를 사용한다.
+- `components.burnableLight`: 손에 들었을 때만 연소 시간이 흐르는 휴대 조명 상태 정의. 현재 `lit_torch`에 사용한다.
+- `components.placeable.block`: 우클릭 설치로 배치할 블록 이름
+- `modelBlock`: `block_model` 아이템 렌더링에 사용할 블록 이름. 생략하면 `components.placeable.block`을 사용한다.
+- `modelShape`: `block_model` 아이템 렌더링 형상. 현재 `source`, `cube`, `slab`, `half_slab`, `quarter_log`, `crucible`을 사용한다.
 - `modelTexture`: `block_model` 아이템이 블록 ID 대신 재질 텍스처만 직접 사용할 때 참조하는 block texture 이름
-- `burnTimeTicks`: 불이 연료로 소비했을 때 더해지는 연소 tick 수. 생략하거나 `0`이면 타지 않는 아이템이다.
-- `heatLevel`: 연료의 처리 온도 단계. `burnTimeTicks > 0`이고 생략하면 1로 처리한다.
-- `burnRemainder`: 연료 1개가 다 탄 뒤 드랍할 부산물. 현재는 `{ "item": "ash", "count": n }` 형태를 사용한다.
 
 `id = 0`은 `none`용으로 예약한다.
 실제 아이템은 `id = 1`부터 시작하며, 구체적으로 빈 구간을 남길 이유가 없으면 순차적으로 배정한다.
 `block_model` 렌더 타입은 아이템의 `modelBlock`으로 지정된 블록의 텍스처 레이어를 사용한다.
-`modelBlock`을 생략하면 기존 설치 아이템처럼 `placeBlock`으로 지정된 블록을 사용한다.
+`modelBlock`을 생략하면 설치 아이템처럼 `components.placeable.block`으로 지정된 블록을 사용한다.
 아이템 데이터에는 별도 `block`이나 `viewModel` 필드를 두지 않는다.
 `slotRender.type = "block_model"`도 같은 표시용 블록 텍스처를 사용한다.
 콘텐츠 로딩 시 해당 블록의 위/옆면 텍스처를 합성해 `assets/textures/item/generated/{item_key}_slot.png` 아이콘을 만들고, UI는 기존 슬롯 이미지 경로처럼 이 생성 텍스처를 참조한다.
 `modelShape`가 `source`이거나 생략된 상태에서 표시 대상 블록이 `renderType: "slab"`이면 슬롯/든 아이템/드랍 아이템의 블록 모델도 기본 bottom 반블럭 형태로 만든다.
 `modelShape = "slab"`은 표시 대상 블록을 `1.0 x 0.5 x 1.0` 크기로 렌더링한다.
+`modelShape = "half_slab"`은 표시 대상 블록을 `0.5 x 0.5 x 1.0` 크기로 렌더링한다.
 `modelShape = "quarter_log"`는 반통나무를 수직으로 한 번 더 자른 `0.5 x 0.5 x 1.0` 크기로 렌더링한다.
 `modelShape = "crucible"`은 바닥과 네 벽으로 구성된 위가 열린 도가니 형상으로 렌더링한다.
-설치된 `quarter_stripped_log` 블록은 `renderType: "half_slab"`과 `stateKind: "attach_grid"`를 사용해 같은 크기의 배치 가능 조각으로 처리한다.
+설치된 `dirt_half_slab`과 `quarter_stripped_log` 블록은 `renderType: "half_slab"`과 `stateKind: "attach_grid"`를 사용해 같은 크기의 배치 가능 조각으로 처리한다.
 `quarter_log`의 새로 생긴 수직 절단면 한쪽은 `modelBlock` 블록 재질의 `verticalSection` 레이어를 전체 UV로 사용하고, 나머지 바깥 옆면은 기존 side 텍스처의 아래 절반을 사용한다.
 
 현재 `dirt_pile`은 직접 설치하지 않는다.
 `primal_workbench`의 `craft` 작업으로 `dirt_pile` 4개를 `packed_dirt` 1개로 만들고, `packed_dirt`를 설치하면 `dirt` 블록이 된다.
 `dirt_pile` 2개는 `dirt_slab` 1개로 만들며, `dirt_slab`은 설치 면에 붙는 반블럭 아이템이다.
+`dirt_pile` 1개는 `dirt_half_slab` 1개로 만들며, `dirt_half_slab`은 `half_slab` 배치 규칙을 쓰는 흙 조각 아이템이다.
 
 ## 연료 아이템
 
-`burnTimeTicks`는 아이템 1개가 불에 소모될 때 fire 블록 엔티티의 남은 연소 시간에 더해지는 값이다.
-`heatLevel`은 해당 연료가 낼 수 있는 처리 온도 단계다. `burnTimeTicks > 0`이고 `heatLevel`을 생략하면 런타임에서 1로 처리한다.
+`components.fuel.burnTimeTicks`는 아이템 1개가 불에 소모될 때 fire 블록 엔티티의 남은 연소 시간에 더해지는 값이다.
+`components.fuel.heatLevel`은 해당 연료가 낼 수 있는 처리 온도 단계다. `burnTimeTicks > 0`이고 `heatLevel`을 생략하면 런타임에서 1로 처리한다.
 현재는 0레벨 연료를 구분하지 않으며, 실제 연료 단계는 1부터 시작한다.
 `heatLevel = 1`은 일반 연료, `heatLevel = 2`는 도기 소성이 가능한 고열 연료로 사용한다.
-`burnRemainder`는 해당 연료로 추가된 연소 시간이 끝나는 시점에 드랍되는 부산물이다.
+`components.fuel.remainder`는 해당 연료로 추가된 연소 시간이 끝나는 시점에 드랍되는 부산물이다.
 재 생성량은 런타임 계산식이 아니라 아이템 데이터에 명시한다.
 현재 게임 시간은 초당 20틱 기준이며, 연료로 쓰는 아이템은 최소 100틱 이상을 사용한다.
 가공 아이템은 원재료 합보다 조금 낮은 값을 가진다.
 불은 같은 셀 영역에 있는 연료 아이템 중 하나를 무작위로 소비한다.
 `charcoal`은 하드코딩된 후순위 연료이며, 다른 연료가 없을 때만 무작위 소비 후보에 들어간다.
 
+## 휴대 조명 아이템
+
+`torch`와 `lit_torch`는 별도 아이템으로 관리한다.
+꺼진 `torch`는 `components.useActions`의 `light` 액션을 가지고, fire 블록에 적용하면 손에 든 아이템이 `lit_torch`로 교체된다.
+켜진 `lit_torch`는 `components.useActions`의 `ignite`, `extinguish` 액션을 가진다.
+`ignite`를 일반 블록에 적용하면 기존 점화 규칙처럼 대상 블록 위에 fire를 만들고, `extinguish`를 블록에 적용하면 손에 든 아이템이 `torch`로 교체된다.
+`lit_torch`는 `components.burnableLight.maxTicks`만큼 잔여 연소 시간을 가진다.
+이 값은 `ItemStack.burnTicksRemaining`으로 저장되며, 선택된 오른손 핫바 슬롯이나 왼손 슬롯에 들려 있을 때만 1틱씩 감소한다.
+잔여 시간이 0이 되면 `components.burnableLight.burnoutItem`과 `burnoutCount`에 따라 현재 스택이 교체된다.
+현재 `lit_torch`는 2400틱 동안 타고, 다 타면 `ash` 1개가 된다.
+`components.burnableLight.lightEmission`은 휴대 광원 렌더링에 사용할 데이터 값이다.
+선택 핫바 슬롯 또는 왼손 슬롯에 `portableLightEmission > 0`인 아이템이 있으면, 렌더 프레임은 가장 큰 emission 값을 카메라 위치 기준 다이나믹 라이트로 전달한다.
+이 휴대 광원은 월드 조명 데이터, 청크 조명, 저장 데이터에는 반영하지 않는 렌더링 전용 효과다.
+
 현재 연료 값:
 
 ```text
-item                                               burnTimeTicks  heatLevel  burnRemainder
+item                                               fuel.burnTimeTicks  fuel.heatLevel  fuel.remainder
 plant, plant_fiber, grass_scrap, leaf, bark_strip  100            1          ash x1
 short_plant_twine                                  100            1          ash x1
 plant_twine                                        160            1          ash x1
@@ -143,6 +183,7 @@ charcoal, coal                                     2400           2          ash
 
 fire 셀에 있는 아이템은 연료로 소비될 수 있고, fire 중심 같은 Y층 `3 x 3` 작업 공간 안에서 fire 셀을 제외한 BFS 내부 셀의 아이템은 [[recipe/processings]] 대상이 될 수 있다.
 `pyrolysis`는 leak이 없는 밀폐 작업 공간에서 진행되며, 현재 `log`, `stripped_log`, `half_stripped_log`, `quarter_stripped_log`를 `charcoal`로 변환한다.
+`bark_strip`은 같은 `pyrolysis` 처리에서 `tar` 1개로 변환된다.
 `firing`은 leak이 정확히 1개인 작업 공간에서 `heatLevel >= 2` 연료를 소비했을 때 진행되며, 현재 굽기 전 점토 아이템을 구운 결과물로 변환한다.
 둘 다 처리 시간은 600틱이다.
 `grog`는 구운 점토를 잘게 부순 내화 보강재이며, `clay_brick`을 `smash`하면 4개, `clay_pot`을 `smash`하면 8개를 얻는다.
@@ -152,7 +193,7 @@ fire 셀에 있는 아이템은 연료로 소비될 수 있고, fire 중심 같�
 드랍된 `extruded_sprite` 아이템은 전용 아이템 파이프라인을 통해 얇은 수평 월드 공간 3D 스프라이트 파생 메쉬로 렌더링한다.
 현재 메쉬는 윗면/아랫면 스프라이트 면과 스프라이트 알파 경계에서 생성한 옆면을 사용한다.
 현재 드랍 스프라이트와 기본 드랍 물리 AABB는 같은 `0.4 x 0.05 x 0.4` 블록 크기를 사용한다.
-드랍된 `block_model` 아이템은 `modelBlock` 또는 fallback `placeBlock` 블록의 6면 텍스처를 사용하는 작은 블록 mesh로 렌더링하며, 기본 렌더 크기와 기본 물리 AABB는 모두 `0.2 x 0.2 x 0.2`다.
+드랍된 `block_model` 아이템은 `modelBlock` 또는 fallback `components.placeable.block` 블록의 6면 텍스처를 사용하는 작은 블록 mesh로 렌더링하며, 기본 렌더 크기와 기본 물리 AABB는 모두 `0.2 x 0.2 x 0.2`다.
 표시 대상이 `slab`이거나 `modelShape`가 `slab`, `quarter_log`이면 해당 X/Y/Z 크기의 블록 모델을 사용하되 드랍 물리 AABB는 기존 `block_model` 기본값을 유지한다.
 드랍 아이템 런타임 위치는 아이템의 중앙 하단 접점이다.
 
@@ -257,61 +298,14 @@ tar                                    id 53
 wood_shavings                          id 54
 unfired_refractory_clay_crucible       id 55
 refractory_clay_crucible               id 56
+dirt_half_slab                         id 57
 ```
 
-## 초기 아이템 초안
+## 현재 아이템 목록
 
-```json
-[
-  { "id": 0, "key": "none", "name": "None", "stackSize": 0, "slotTexture": "none", "droppedRender": { "type": "extruded_sprite", "texture": "none" }, "heldRender": { "type": "extruded_sprite", "texture": "none" }, "tags": [], "useActions": [] },
-
-  { "id": 1, "key": "rock_chunk", "name": "Rock Chunk", "stackSize": 99, "slotTexture": "rock_chunk", "droppedRender": { "type": "extruded_sprite", "texture": "rock_chunk" }, "heldRender": { "type": "extruded_sprite", "texture": "rock_chunk" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "rock" },
-  { "id": 31, "key": "coal", "name": "Coal", "stackSize": 99, "slotTexture": "coal", "droppedRender": { "type": "extruded_sprite", "texture": "coal" }, "heldRender": { "type": "extruded_sprite", "texture": "coal" }, "tags": [], "useActions": [] },
-  { "id": 38, "key": "charcoal", "name": "Charcoal", "stackSize": 99, "slotTexture": "charcoal", "droppedRender": { "type": "extruded_sprite", "texture": "charcoal" }, "heldRender": { "type": "extruded_sprite", "texture": "charcoal" }, "tags": [], "useActions": [] },
-  { "id": 32, "key": "raw_copper", "name": "Raw Copper", "stackSize": 99, "slotTexture": "raw_copper", "droppedRender": { "type": "extruded_sprite", "texture": "raw_copper" }, "heldRender": { "type": "extruded_sprite", "texture": "raw_copper" }, "tags": [], "useActions": [] },
-  { "id": 33, "key": "raw_iron", "name": "Raw Iron", "stackSize": 99, "slotTexture": "raw_iron", "droppedRender": { "type": "extruded_sprite", "texture": "raw_iron" }, "heldRender": { "type": "extruded_sprite", "texture": "raw_iron" }, "tags": [], "useActions": [] },
-  { "id": 34, "key": "raw_tin", "name": "Raw Tin", "stackSize": 99, "slotTexture": "raw_tin", "droppedRender": { "type": "extruded_sprite", "texture": "raw_tin" }, "heldRender": { "type": "extruded_sprite", "texture": "raw_tin" }, "tags": [], "useActions": [] },
-  { "id": 35, "key": "raw_zinc", "name": "Raw Zinc", "stackSize": 99, "slotTexture": "raw_zinc", "droppedRender": { "type": "extruded_sprite", "texture": "raw_zinc" }, "heldRender": { "type": "extruded_sprite", "texture": "raw_zinc" }, "tags": [], "useActions": [] },
-  { "id": 36, "key": "raw_silver", "name": "Raw Silver", "stackSize": 99, "slotTexture": "raw_silver", "droppedRender": { "type": "extruded_sprite", "texture": "raw_silver" }, "heldRender": { "type": "extruded_sprite", "texture": "raw_silver" }, "tags": [], "useActions": [] },
-  { "id": 37, "key": "raw_gold", "name": "Raw Gold", "stackSize": 99, "slotTexture": "raw_gold", "droppedRender": { "type": "extruded_sprite", "texture": "raw_gold" }, "heldRender": { "type": "extruded_sprite", "texture": "raw_gold" }, "tags": [], "useActions": [] },
-  { "id": 2, "key": "dirt_pile", "name": "Dirt Pile", "stackSize": 99, "slotTexture": "dirt_pile", "droppedRender": { "type": "extruded_sprite", "texture": "dirt_pile" }, "heldRender": { "type": "extruded_sprite", "texture": "dirt_pile" }, "tags": [], "useActions": [] },
-  { "id": 39, "key": "packed_dirt", "name": "Packed Dirt", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "dirt" },
-  { "id": 40, "key": "dirt_slab", "name": "Dirt Slab", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "dirt_slab" },
-  { "id": 3, "key": "sand_pile", "name": "Sand Pile", "stackSize": 99, "slotTexture": "sand_pile", "droppedRender": { "type": "extruded_sprite", "texture": "sand_pile" }, "heldRender": { "type": "extruded_sprite", "texture": "sand_pile" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "sand" },
-
-  { "id": 4, "key": "plant", "name": "Plant", "stackSize": 99, "slotTexture": "plant", "droppedRender": { "type": "extruded_sprite", "texture": "plant" }, "heldRender": { "type": "extruded_sprite", "texture": "plant" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "plant" },
-  { "id": 5, "key": "plant_fiber", "name": "Plant Fiber", "stackSize": 99, "slotTexture": "plant_fiber", "droppedRender": { "type": "extruded_sprite", "texture": "plant_fiber" }, "heldRender": { "type": "extruded_sprite", "texture": "plant_fiber" }, "tags": [], "useActions": [] },
-  { "id": 6, "key": "plant_twine", "name": "Plant Twine", "stackSize": 99, "slotTexture": "plant_twine", "droppedRender": { "type": "extruded_sprite", "texture": "plant_twine" }, "heldRender": { "type": "extruded_sprite", "texture": "plant_twine" }, "tags": [], "useActions": [] },
-  { "id": 24, "key": "short_plant_twine", "name": "Short Plant Twine", "stackSize": 99, "slotTexture": "short_plant_twine", "droppedRender": { "type": "extruded_sprite", "texture": "short_plant_twine" }, "heldRender": { "type": "extruded_sprite", "texture": "short_plant_twine" }, "tags": [], "useActions": [] },
-  { "id": 25, "key": "long_plant_twine", "name": "Long Plant Twine", "stackSize": 99, "slotTexture": "long_plant_twine", "droppedRender": { "type": "extruded_sprite", "texture": "long_plant_twine" }, "heldRender": { "type": "extruded_sprite", "texture": "long_plant_twine" }, "tags": [], "useActions": [] },
-  { "id": 7, "key": "seed", "name": "Seed", "stackSize": 99, "slotTexture": "seed", "droppedRender": { "type": "extruded_sprite", "texture": "seed" }, "heldRender": { "type": "extruded_sprite", "texture": "seed" }, "tags": [], "useActions": [] },
-  { "id": 8, "key": "grass_scrap", "name": "Grass Scrap", "stackSize": 99, "slotTexture": "grass_scrap", "droppedRender": { "type": "extruded_sprite", "texture": "grass_scrap" }, "heldRender": { "type": "extruded_sprite", "texture": "grass_scrap" }, "tags": [], "useActions": [] },
-
-  { "id": 9, "key": "branch", "name": "Branch", "stackSize": 99, "slotTexture": "branch", "droppedRender": { "type": "extruded_sprite", "texture": "branch" }, "heldRender": { "type": "extruded_sprite", "texture": "branch" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "branch" },
-  { "id": 10, "key": "bough", "name": "Bough", "stackSize": 99, "slotTexture": "bough", "droppedRender": { "type": "extruded_sprite", "texture": "bough" }, "heldRender": { "type": "extruded_sprite", "texture": "bough" }, "tags": [], "useActions": [] },
-  { "id": 11, "key": "bark_strip", "name": "Bark Strip", "stackSize": 99, "slotTexture": "bark_strip", "droppedRender": { "type": "extruded_sprite", "texture": "bark_strip" }, "heldRender": { "type": "extruded_sprite", "texture": "bark_strip" }, "tags": [], "useActions": [] },
-  { "id": 12, "key": "leaf", "name": "Leaf", "stackSize": 99, "slotTexture": "leaf", "droppedRender": { "type": "extruded_sprite", "texture": "leaf" }, "heldRender": { "type": "extruded_sprite", "texture": "leaf" }, "tags": [], "useActions": [] },
-  { "id": 13, "key": "stone_shard", "name": "Stone Shard", "stackSize": 1, "slotTexture": "stone_shard", "droppedRender": { "type": "extruded_sprite", "texture": "stone_shard" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_shard" }, "tags": [], "useActions": ["chip", "smash", "grind"], "breakActions": ["smash"], "breakLevel": 2, "maxDurability": 64 },
-  { "id": 14, "key": "stone_flake", "name": "Stone Flake", "stackSize": 1, "slotTexture": "stone_flake", "droppedRender": { "type": "extruded_sprite", "texture": "stone_flake" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_flake" }, "tags": [], "useActions": ["chip"], "maxDurability": 64 },
-  { "id": 15, "key": "stone_chopper", "name": "Stone Chopper", "stackSize": 1, "slotTexture": "stone_chopper", "droppedRender": { "type": "extruded_sprite", "texture": "stone_chopper" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_chopper" }, "tags": [], "useActions": ["smash", "split"], "breakActions": ["chop", "dig"], "breakLevel": 2, "maxDurability": 64 },
-  { "id": 16, "key": "stone_blade", "name": "Stone Blade", "stackSize": 1, "slotTexture": "stone_blade", "droppedRender": { "type": "extruded_sprite", "texture": "stone_blade" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_blade" }, "tags": [], "useActions": ["cut", "carve"], "breakActions": ["cut"], "breakLevel": 2, "maxDurability": 64 },
-  { "id": 17, "key": "stone_scraper", "name": "Stone Scraper", "stackSize": 1, "slotTexture": "stone_scraper", "droppedRender": { "type": "extruded_sprite", "texture": "stone_scraper" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_scraper" }, "tags": [], "useActions": ["scrape", "pierce"], "maxDurability": 64 },
-  { "id": 27, "key": "stone_pounder", "name": "Stone Pounder", "stackSize": 1, "slotTexture": "stone_pounder", "droppedRender": { "type": "extruded_sprite", "texture": "stone_pounder" }, "heldRender": { "type": "extruded_sprite", "texture": "stone_pounder" }, "tags": [], "useActions": ["pound", "smash"], "breakActions": ["smash"], "breakLevel": 2, "maxDurability": 64 },
-  { "id": 18, "key": "log", "name": "Log", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "log" },
-  { "id": 19, "key": "stripped_log", "name": "Stripped Log", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "stripped_log" },
-  { "id": 41, "key": "half_stripped_log", "name": "Half Stripped Log", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "modelBlock": "stripped_log", "modelShape": "slab", "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "half_stripped_log" },
-  { "id": 42, "key": "quarter_stripped_log", "name": "Quarter Stripped Log", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "modelBlock": "stripped_log", "modelShape": "quarter_log", "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "quarter_stripped_log" },
-  { "id": 20, "key": "wooden_plank", "name": "Wooden Plank", "stackSize": 99, "slotTexture": "wooden_plank", "droppedRender": { "type": "extruded_sprite", "texture": "wooden_plank" }, "heldRender": { "type": "extruded_sprite", "texture": "wooden_plank" }, "tags": [], "useActions": [] },
-  { "id": 26, "key": "primal_workbench", "name": "Primal Workbench", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "primal_workbench" },
-  { "id": 29, "key": "wooden_box", "name": "Wooden Box", "stackSize": 99, "slotRender": { "type": "block_model" }, "droppedRender": { "type": "block_model" }, "heldRender": { "type": "block_model" }, "tags": [], "useActions": [], "placeActions": ["place"], "placeBlock": "wooden_box" },
-  { "id": 21, "key": "wooden_stick", "name": "Wooden Stick", "stackSize": 99, "slotTexture": "wooden_stick", "droppedRender": { "type": "extruded_sprite", "texture": "wooden_stick" }, "heldRender": { "type": "extruded_sprite", "texture": "wooden_stick" }, "tags": [], "useActions": [] },
-  { "id": 22, "key": "short_wooden_stick", "name": "Short Wooden Stick", "stackSize": 99, "slotTexture": "short_wooden_stick", "droppedRender": { "type": "extruded_sprite", "texture": "short_wooden_stick" }, "heldRender": { "type": "extruded_sprite", "texture": "short_wooden_stick" }, "tags": [], "useActions": [] },
-  { "id": 23, "key": "long_wooden_stick", "name": "Long Wooden Stick", "stackSize": 99, "slotTexture": "long_wooden_stick", "droppedRender": { "type": "extruded_sprite", "texture": "long_wooden_stick" }, "heldRender": { "type": "extruded_sprite", "texture": "long_wooden_stick" }, "tags": [], "useActions": [] },
-  { "id": 28, "key": "wooden_peg", "name": "Wooden Peg", "stackSize": 99, "slotTexture": "wooden_peg", "droppedRender": { "type": "extruded_sprite", "texture": "wooden_peg" }, "heldRender": { "type": "extruded_sprite", "texture": "wooden_peg" }, "tags": [], "useActions": [] },
-  { "id": 30, "key": "bow_drill", "name": "Bow Drill", "stackSize": 1, "slotTexture": "bow_drill", "droppedRender": { "type": "extruded_sprite", "texture": "bow_drill" }, "heldRender": { "type": "extruded_sprite", "texture": "bow_drill" }, "tags": [], "useActions": ["ignite"], "maxDurability": 4 }
-]
-```
-
+현재 아이템 목록의 정본은 `assets/data/items.json`이다.
+이 문서는 스키마와 주요 규칙을 설명하고, 개별 아이템의 전체 JSON 나열은 데이터 파일을 기준으로 확인한다.
+아이템 기능 필드는 최상위에 두지 않고 `components` 아래에만 둔다.
 ## 아이템 상호작용 후보
 
 월드 상호작용 후보 초안은 다음 파일에 둔다.
@@ -320,10 +314,10 @@ refractory_clay_crucible               id 56
 assets/data/recipes/interactions.json
 ```
 
-이 파일은 손에 든 아이템의 `useActions`와 땅에 떨어진 대상 아이템을 기준으로 후보 아이템 목록을 제공한다.
+이 파일은 손에 든 아이템의 `components.useActions`와 땅에 떨어진 대상 아이템을 기준으로 후보 아이템 목록을 제공한다.
 현재 초안에서는 `held item` 조건을 별도로 쓰지 않는다.
 손 아이템이 해당 `action`을 가지고 있고, 땅에 떨어진 아이템 key가 `target`과 일치하면 `candidates` 목록을 UI 후보로 표시한다.
-`handcraft`는 기본 손 액션으로 취급하며, 어떤 아이템을 들고 있어도 해당 아이템의 `useActions` 앞에 중복 없이 포함된다.
+`handcraft`는 기본 손 액션으로 취급하며, 어떤 아이템을 들고 있어도 해당 아이템의 `components.useActions` 앞에 중복 없이 포함된다.
 `targetCount`는 상호작용 1회에 소비할 대상 드랍 아이템 개수이며, 생략하면 `1`이다.
 `ingredients`는 작업대 영역에서 함께 소비할 추가 재료 목록이며, 항목은 `{ "item": "<key>", "count": <n> }` 형식으로 쓴다.
 추가 재료가 있는 레시피는 단일 드랍 아이템 직접 상호작용이 아니라 `primal_workbench` 같은 블록 작업 영역에서 처리한다.
@@ -530,10 +524,11 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 - `key`, `slotTexture`, `slotRender.texture`, `droppedRender.texture`, `heldRender.texture`는 소문자 `snake_case`를 사용해야 한다. 생성 슬롯 텍스처는 `generated/{item_key}_slot` 경로를 사용한다.
 - 내구도 없는 실제 아이템의 `stackSize`는 `99`, 내구도 있는 아이템의 `stackSize`는 `1`이어야 한다.
 - `droppedRender.type`, `heldRender.type`은 유효한 아이템 렌더 타입이어야 한다.
-- `block_model` 렌더 타입은 `modelBlock`으로 렌더 대상 블록을 찾고, 생략 시 `placeBlock`을 사용한다.
+- `block_model` 렌더 타입은 `modelBlock`으로 렌더 대상 블록을 찾고, 생략 시 `components.placeable.block`을 사용한다.
 - `slotRender.type = "block_model"`은 같은 표시 대상 블록으로 슬롯 아이콘 대상 블록을 찾는다.
-- `modelTexture`가 있으면 `modelBlock/placeBlock` 대신 해당 block texture를 모든 면의 재질로 사용한다.
-- `burnTimeTicks`는 생략 가능하며 음수 입력은 `0`으로 정규화한다.
+- `modelTexture`가 있으면 `modelBlock/components.placeable.block` 대신 해당 block texture를 모든 면의 재질로 사용한다.
+- 기능 필드 `useActions`, `breakActions`, `breakLevel`, `durability`, `fuel`, `burnableLight`, `placeable`은 모두 `components` 아래에만 둔다.
+- `components.fuel.burnTimeTicks`는 생략 가능하며 음수 입력은 `0`으로 정규화한다.
 
 ## 블록 드랍
 
@@ -552,8 +547,8 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 아이템은 플레이어 높이 절반의 플레이어 콜라이더 중심을 향해 가속한다.
 드랍 아이템 bounds가 플레이어 콜라이더에 닿으면, 공간이 있을 때 런타임 플레이어 인벤토리에 삽입된다.
 삽입에 실패하면 드랍 아이템은 월드에 남는다.
-드랍 아이템 엔티티는 소유 청크 payload에 `entityId`, 로컬 위치, 속도, 접지 플래그, `itemId`, `count`, `durability`, `processingTicks`, `processingType`을 저장한다.
-`processingTicks`와 `processingType`은 [[recipe/processings]]의 시간 기반 처리 진행도이며, 같은 아이템이라도 진행도나 처리 종류가 다른 드랍 스택은 병합하지 않는다.
+드랍 아이템 엔티티는 소유 청크 payload에 `entityId`, 로컬 위치, 속도, 접지 플래그, `itemId`, `count`, `durability`, `burnTicksRemaining`, `processingTicks`, `processingType`을 저장한다.
+`processingTicks`와 `processingType`은 [[recipe/processings]]의 시간 기반 처리 진행도이며, 같은 아이템이라도 내구도, 잔여 연소 시간, 진행도, 처리 종류가 다른 드랍 스택은 병합하지 않는다.
 획득 진행 상태와 렌더 전용 회전/스핀은 저장하지 않는다.
 
 ## 런타임 인벤토리
@@ -655,47 +650,53 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 }
 ```
 
-## 현재 아이템 액션/내구도 필드
+## 현재 아이템 컴포넌트 필드
 
-아이템의 우클릭 드랍 아이템 상호작용 액션은 `useActions`에 저장한다.
-좌클릭 블록 파괴 액션은 `breakActions`에 저장한다.
-우클릭 블록/오브젝트 설치 액션은 `placeActions`에 저장하고, 실제 설치할 블록은 `placeBlock`으로 지정한다.
-우클릭 시 바라보는 드랍 아이템이 `assets/data/recipes/interactions.json`의 `target`으로 등장하면 `useActions`가 `placeActions`보다 우선한다.
+아이템의 우클릭 드랍 아이템 상호작용 액션은 `components.useActions`에 저장한다.
+좌클릭 블록 파괴 액션은 `components.breakActions`에 저장한다.
+우클릭 블록/오브젝트 설치 가능 여부는 `components.placeable` 존재로 판단하고, 실제 설치할 블록은 `components.placeable.block`으로 지정한다.
+우클릭 시 바라보는 드랍 아이템이 `assets/data/recipes/interactions.json`의 `target`으로 등장하면 `components.useActions`가 `components.placeable`보다 우선한다.
 이때 손 아이템으로 실행 가능한 후보가 없어도 설치는 시도하지 않는다.
-블록에 `interactActions`가 있으면 블록 액션이 기본 우클릭 상호작용으로 우선한다. `Shift + 우클릭`은 손에 든 아이템의 블록 대상 `useActions`를 우선해, 예를 들어 `bow_drill`의 `ignite`로 대상 블록 윗칸에 `fire`를 만들 수 있다.
-`breakLevel`은 아이템 자체의 파괴 레벨이며, 블록의 `breakLevel`보다 낮으면 해당 블록을 파괴하지 못한다.
-`breakActions`와 `breakLevel`이 모두 비어 있는 아이템은 좌클릭 파괴에서 손과 동일하게 취급한다.
-`maxDurability`가 0보다 크면 인스턴스별 `ItemStack.durability`를 사용하며, 새로 생성되는 아이템은 최대 내구도로 초기화한다.
+블록에 `interactActions`가 있으면 블록 액션이 기본 우클릭 상호작용으로 우선한다. `Shift + 우클릭`은 손에 든 아이템의 블록 대상 `components.useActions`를 우선해, 예를 들어 `bow_drill`의 `ignite`로 대상 블록 윗칸에 `fire`를 만들 수 있다.
+`components.breakLevel`은 아이템 자체의 파괴 레벨이며, 블록의 `breakLevel`보다 낮으면 해당 블록을 파괴하지 못한다.
+`components.breakActions`와 `components.breakLevel`이 모두 비어 있는 아이템은 좌클릭 파괴에서 손과 동일하게 취급한다.
+`components.durability.max`가 0보다 크면 인스턴스별 `ItemStack.durability`를 사용하며, 새로 생성되는 아이템은 최대 내구도로 초기화한다.
 드랍 아이템 상호작용으로 내구도 있는 대상 아이템이 결과 아이템으로 변환되면, 대상 아이템의 현재 내구도 비율을 결과 아이템의 최대 내구도에 적용하고 소수점은 올림한다.
 
 현재 설치 아이템 기준:
 
 ```text
-rock_chunk: placeActions place, placeBlock rock
-dirt_pile: placeActions place, placeBlock dirt
-sand_pile: placeActions place, placeBlock sand
-plant: placeActions place, placeBlock plant
-branch: placeActions place, placeBlock branch
-log: placeActions place, placeBlock log
-stripped_log: placeActions place, placeBlock stripped_log
-half_stripped_log: placeActions place, placeBlock half_stripped_log
-quarter_stripped_log: placeActions place, placeBlock quarter_stripped_log
-primal_workbench: placeActions place, placeBlock primal_workbench
-wooden_box: placeActions place, placeBlock wooden_box
+rock_chunk: components.placeable.block rock
+packed_dirt: components.placeable.block dirt
+dirt_slab: components.placeable.block dirt_slab
+dirt_half_slab: components.placeable.block dirt_half_slab, modelBlock dirt, modelShape half_slab
+sand_pile: components.placeable.block sand
+plant: components.placeable.block plant
+branch: components.placeable.block branch
+log: components.placeable.block log
+stripped_log: components.placeable.block stripped_log
+half_stripped_log: components.placeable.block half_stripped_log
+quarter_stripped_log: components.placeable.block quarter_stripped_log
+primal_workbench: components.placeable.block primal_workbench
+wooden_box: components.placeable.block wooden_box
+refractory_clay_crucible: components.placeable.block refractory_clay_crucible
 ```
 
 `half_stripped_log`, `quarter_stripped_log`는 `modelBlock: "stripped_log"`와 `modelShape`를 사용해 표시 형태를 정하고, 각각 `slab`, `half_slab` 배치 블록으로 설치된다.
+`dirt_half_slab`은 `modelBlock: "dirt"`, `modelShape: "half_slab"`을 사용해 흙 재질의 작은 조각으로 표시하고 `half_slab` 배치 블록으로 설치된다.
 
 현재 석기 아이템 기준:
 
 ```text
-stone_shard: useActions chip/smash/grind, breakActions smash, breakLevel 2, maxDurability 64
-stone_flake: useActions chip, maxDurability 64
-stone_chopper: useActions smash/split, breakActions chop/dig, breakLevel 2, maxDurability 64
-stone_blade: useActions cut/carve, breakActions cut, breakLevel 2, maxDurability 64
-stone_scraper: useActions scrape/pierce, maxDurability 64
-stone_pounder: useActions pound/smash, breakActions smash, breakLevel 2, maxDurability 64
-bow_drill: useActions ignite, maxDurability 4
+stone_shard: components.useActions chip/smash/grind, components.breakActions smash, components.breakLevel 2, components.durability.max 64
+stone_flake: components.useActions chip, components.durability.max 64
+stone_chopper: components.useActions smash/split, components.breakActions chop/dig, components.breakLevel 2, components.durability.max 64
+stone_blade: components.useActions cut/carve, components.breakActions cut, components.breakLevel 2, components.durability.max 64
+stone_scraper: components.useActions scrape/pierce, components.durability.max 64
+stone_pounder: components.useActions pound/smash, components.breakActions smash, components.breakLevel 2, components.durability.max 64
+bow_drill: components.useActions ignite, components.durability.max 4
+torch: components.useActions light
+lit_torch: components.useActions ignite/extinguish, components.burnableLight
 ```
 
 관련 문서: [[block-data]], [[save-load]], [[ui]]

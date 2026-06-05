@@ -410,6 +410,7 @@ namespace dolbuto::save
             writeU16(payload, entity.droppedItem.stack.itemId);
             writeU16(payload, entity.droppedItem.stack.count);
             writeU16(payload, entity.droppedItem.stack.durability);
+            writeU16(payload, entity.droppedItem.stack.burnTicksRemaining);
             writeU32(payload, entity.droppedItem.processingTicks);
             writeU8(payload, entity.droppedItem.processingType);
             ++writtenEntities;
@@ -580,8 +581,10 @@ namespace dolbuto::save
                 const float worldZStart = static_cast<float>(chunkZ * ChunkSizeZ);
                 constexpr size_t DroppedItemEntityLegacyBytes = 39;
                 constexpr size_t DroppedItemEntityBytes = 41;
+                constexpr size_t DroppedItemEntityBurnTicksBytes = 43;
                 constexpr size_t DroppedItemEntityProcessingBytes = 45;
                 constexpr size_t DroppedItemEntityProcessingTypeBytes = 46;
+                constexpr size_t DroppedItemEntityCurrentBytes = 48;
                 constexpr size_t CurrentBlockEntityBytes = 16;
                 auto peekU16At = [&](size_t readOffset) -> std::optional<uint16_t>
                 {
@@ -609,9 +612,11 @@ namespace dolbuto::save
                     return afterBlockEntities <= payload.size() && blockStateSectionFits(payload, afterBlockEntities);
                 };
 
-                const bool hasEntityProcessingType = payloadFitsAfterEntities(DroppedItemEntityProcessingTypeBytes);
+                const bool hasEntityCurrent = payloadFitsAfterEntities(DroppedItemEntityCurrentBytes);
+                const bool hasEntityProcessingType = hasEntityCurrent || payloadFitsAfterEntities(DroppedItemEntityProcessingTypeBytes);
                 const bool hasEntityProcessing = hasEntityProcessingType || payloadFitsAfterEntities(DroppedItemEntityProcessingBytes);
-                const bool hasEntityDurability = hasEntityProcessing || payloadFitsAfterEntities(DroppedItemEntityBytes);
+                const bool hasEntityBurnTicks = hasEntityCurrent || payloadFitsAfterEntities(DroppedItemEntityBurnTicksBytes);
+                const bool hasEntityDurability = hasEntityBurnTicks || hasEntityProcessing || payloadFitsAfterEntities(DroppedItemEntityBytes);
                 if (!hasEntityProcessing &&
                     !hasEntityDurability &&
                     !payloadFitsAfterEntities(DroppedItemEntityLegacyBytes))
@@ -644,6 +649,7 @@ namespace dolbuto::save
                     entity.droppedItem.stack.itemId = readU16(payload, offset);
                     entity.droppedItem.stack.count = readU16(payload, offset);
                     entity.droppedItem.stack.durability = hasEntityDurability ? readU16(payload, offset) : 0;
+                    entity.droppedItem.stack.burnTicksRemaining = hasEntityBurnTicks ? readU16(payload, offset) : 0;
                     entity.droppedItem.processingTicks = hasEntityProcessing ? readU32(payload, offset) : 0;
                     entity.droppedItem.processingType = hasEntityProcessingType ? readU8(payload, offset) : 0;
                     if (entity.entityId != 0 &&

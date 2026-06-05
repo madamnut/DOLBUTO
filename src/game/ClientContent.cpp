@@ -97,6 +97,10 @@ namespace dolbuto::game
             {
                 return {1.0f, 0.5f, 1.0f};
             }
+            if (value == "half_slab")
+            {
+                return {0.5f, 0.5f, 1.0f};
+            }
             if (value == "quarter_log" || value == "quarter")
             {
                 return {0.5f, 0.5f, 1.0f, true};
@@ -459,6 +463,10 @@ namespace dolbuto::game
             itemDefinition.heatLevel = definition.heatLevel != 0 || definition.burnTimeTicks == 0
                 ? definition.heatLevel
                 : 1;
+            itemDefinition.portableLightEmission = definition.portableLightEmission;
+            itemDefinition.maxBurnTicks = definition.maxBurnTicks;
+            itemDefinition.burnoutCount = definition.burnoutCount;
+            itemDefinition.burnTicksOnlyWhileHeld = definition.burnTicksOnlyWhileHeld;
             const ItemBlockModelSize blockModelSize = parseItemBlockModelSize(definition.modelShape);
             itemDefinition.blockModelWidth = blockModelSize.width;
             itemDefinition.blockModelHeight = blockModelSize.height;
@@ -485,20 +493,38 @@ namespace dolbuto::game
         for (const data::ParsedItemDefinition& definition : parsedItems)
         {
             if (definition.id >= content.itemDefinitions_.size() ||
-                definition.burnRemainderItem.empty() ||
-                definition.burnRemainderCount == 0)
+                ((definition.burnRemainderItem.empty() || definition.burnRemainderCount == 0) &&
+                    (definition.burnoutItem.empty() || definition.burnoutCount == 0)))
             {
                 continue;
             }
 
-            const auto itemIt = content.itemIdByKey_.find(definition.burnRemainderItem);
-            if (itemIt == content.itemIdByKey_.end())
+            if (!definition.burnRemainderItem.empty() && definition.burnRemainderCount != 0)
             {
-                log::warn("Item '" + definition.key + "' references unknown burn remainder item '" + definition.burnRemainderItem + "'");
-                continue;
+                const auto itemIt = content.itemIdByKey_.find(definition.burnRemainderItem);
+                if (itemIt == content.itemIdByKey_.end())
+                {
+                    log::warn("Item '" + definition.key + "' references unknown burn remainder item '" + definition.burnRemainderItem + "'");
+                }
+                else
+                {
+                    content.itemDefinitions_[definition.id].burnRemainderItemId = itemIt->second;
+                    content.itemDefinitions_[definition.id].burnRemainderCount = definition.burnRemainderCount;
+                }
             }
-            content.itemDefinitions_[definition.id].burnRemainderItemId = itemIt->second;
-            content.itemDefinitions_[definition.id].burnRemainderCount = definition.burnRemainderCount;
+            if (!definition.burnoutItem.empty() && definition.burnoutCount != 0)
+            {
+                const auto itemIt = content.itemIdByKey_.find(definition.burnoutItem);
+                if (itemIt == content.itemIdByKey_.end())
+                {
+                    log::warn("Item '" + definition.key + "' references unknown burnout item '" + definition.burnoutItem + "'");
+                }
+                else
+                {
+                    content.itemDefinitions_[definition.id].burnoutItemId = itemIt->second;
+                    content.itemDefinitions_[definition.id].burnoutCount = definition.burnoutCount;
+                }
+            }
         }
 
         const std::vector<char> blockDefinitionData = readContentFile(assetDirectory / "data" / "blocks.json");
@@ -755,6 +781,16 @@ namespace dolbuto::game
                         recipe.targetBlockId = blockIt->second;
                     }
                 }
+                if (!definition.held.empty())
+                {
+                    const auto heldIt = content.itemIdByKey_.find(definition.held);
+                    if (heldIt == content.itemIdByKey_.end())
+                    {
+                        log::warn("Interaction references unknown held item key: " + definition.action + " -> " + definition.held);
+                        continue;
+                    }
+                    recipe.heldItemId = heldIt->second;
+                }
 
                 for (const data::ParsedInteractionIngredient& parsedIngredient : definition.ingredients)
                 {
@@ -773,6 +809,7 @@ namespace dolbuto::game
                 for (const data::ParsedInteractionCandidate& parsedCandidate : definition.candidates)
                 {
                     ItemInteractionCandidate candidate{};
+                    candidate.resultTargetsHeldItem = definition.resultTarget == "held";
                     for (const data::ParsedInteractionOutput& parsedOutput : parsedCandidate.outputs)
                     {
                         if (!parsedOutput.item.empty())

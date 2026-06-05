@@ -195,6 +195,10 @@ namespace dolbuto::world
             entity.droppedItem.stack.durability = maxDurability == 0
                 ? 0
                 : (entity.droppedItem.stack.durability == 0 ? maxDurability : std::min(entity.droppedItem.stack.durability, maxDurability));
+            const uint16_t maxBurnTicks = definition.maxBurnTicks;
+            entity.droppedItem.stack.burnTicksRemaining = maxBurnTicks == 0
+                ? 0
+                : (entity.droppedItem.stack.burnTicksRemaining == 0 ? maxBurnTicks : std::min(entity.droppedItem.stack.burnTicksRemaining, maxBurnTicks));
             if (entity.droppedItem.processingType > 2)
             {
                 entity.droppedItem.processingType = 0;

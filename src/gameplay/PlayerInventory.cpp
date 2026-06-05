@@ -105,10 +105,12 @@ namespace dolbuto::gameplay
             target.itemId = stack.itemId;
             target.count = moved;
             target.durability = stack.durability;
+            target.burnTicksRemaining = stack.burnTicksRemaining;
             stack.count = static_cast<uint16_t>(stack.count - moved);
             if (stack.count == 0)
             {
                 stack.durability = 0;
+                stack.burnTicksRemaining = 0;
             }
         }
 
@@ -134,6 +136,69 @@ namespace dolbuto::gameplay
             target = {};
         }
         return true;
+    }
+
+    bool PlayerInventory::replaceSlot(size_t slotIndex, ItemStack stack, const std::vector<ItemDefinition>& itemDefinitions)
+    {
+        if (slotIndex >= slots_.size())
+        {
+            return false;
+        }
+
+        slots_[slotIndex] = validStack(stack, itemDefinitions) ? normalizedStack(stack, itemDefinitions) : ItemStack{};
+        return true;
+    }
+
+    bool PlayerInventory::tickHeldBurningItems(size_t selectedHotbarSlot, const std::vector<ItemDefinition>& itemDefinitions)
+    {
+        bool changed = false;
+        auto tickStack = [&](ItemStack& stack)
+        {
+            if (!validStack(stack, itemDefinitions))
+            {
+                return;
+            }
+
+            const ItemDefinition& definition = itemDefinitions[stack.itemId];
+            if (definition.maxBurnTicks == 0 || !definition.burnTicksOnlyWhileHeld)
+            {
+                return;
+            }
+
+            if (stack.burnTicksRemaining == 0)
+            {
+                stack.burnTicksRemaining = definition.maxBurnTicks;
+            }
+            --stack.burnTicksRemaining;
+            if (stack.burnTicksRemaining > 0)
+            {
+                return;
+            }
+
+            if (definition.burnoutItemId != 0 &&
+                static_cast<std::size_t>(definition.burnoutItemId) < itemDefinitions.size() &&
+                definition.burnoutCount != 0)
+            {
+                stack = ItemStack{
+                    definition.burnoutItemId,
+                    std::min(definition.burnoutCount, itemDefinitions[definition.burnoutItemId].stackSize),
+                    0,
+                    0
+                };
+            }
+            else
+            {
+                stack = {};
+            }
+            changed = true;
+        };
+
+        if (selectedHotbarSlot < HotbarSlotCount)
+        {
+            tickStack(slots_[selectedHotbarSlot]);
+        }
+        tickStack(offhandSlot_);
+        return changed;
     }
 
     bool PlayerInventory::damageSlot(size_t slotIndex, uint16_t damage, const std::vector<ItemDefinition>& itemDefinitions)
@@ -176,6 +241,10 @@ namespace dolbuto::gameplay
             return false;
         }
         if (slot.durability != stack.durability)
+        {
+            return false;
+        }
+        if (slot.burnTicksRemaining != stack.burnTicksRemaining)
         {
             return false;
         }
@@ -248,6 +317,7 @@ namespace dolbuto::gameplay
             cursorStack_.itemId = target.itemId;
             cursorStack_.count = taken;
             cursorStack_.durability = target.durability;
+            cursorStack_.burnTicksRemaining = target.burnTicksRemaining;
             target.count = static_cast<uint16_t>(target.count - taken);
             if (target.count == 0)
             {
@@ -261,6 +331,7 @@ namespace dolbuto::gameplay
             target.itemId = cursorStack_.itemId;
             target.count = 1;
             target.durability = cursorStack_.durability;
+            target.burnTicksRemaining = cursorStack_.burnTicksRemaining;
             cursorStack_.count = static_cast<uint16_t>(cursorStack_.count - 1u);
             if (cursorStack_.count == 0)
             {
@@ -353,6 +424,17 @@ namespace dolbuto::gameplay
         else
         {
             stack.durability = 0;
+        }
+        if (definition.maxBurnTicks > 0)
+        {
+            stack.count = std::min<uint16_t>(stack.count, 1u);
+            stack.burnTicksRemaining = stack.burnTicksRemaining == 0
+                ? definition.maxBurnTicks
+                : std::min(stack.burnTicksRemaining, definition.maxBurnTicks);
+        }
+        else
+        {
+            stack.burnTicksRemaining = 0;
         }
         return stack;
     }

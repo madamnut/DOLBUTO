@@ -150,6 +150,7 @@ repeat entityCount:
     uint16 itemId
     uint16 count
     uint16 durability
+    uint16 burnTicksRemaining
     uint32 processingTicks
     uint8 processingType  // 0 = none, 1 = pyrolysis, 2 = firing
 uint16 blockEntityCount
@@ -172,8 +173,9 @@ uint64 revision
 
 엔티티 위치는 청크 로컬 X/Z와 월드 Y로 저장한다.
 드랍 아이템 `durability`는 내구도 있는 아이템의 현재 내구도다.
+드랍 아이템 `burnTicksRemaining`은 횃불처럼 아이템 스택 자체가 가진 잔여 연소 시간이다.
 `processingTicks`와 `processingType`은 [[recipe/processings]]의 시간 기반 처리 진행도와 처리 종류다.
-기존 `itemId/count`만 있는 청크 엔티티 payload도 읽을 수 있으며, 로드 후 내구도 있는 드랍 아이템의 `durability = 0`은 최대 내구도로 정규화한다.
+기존 `itemId/count`만 있는 청크 엔티티 payload와 `durability`, `processingTicks`, `processingType`까지만 있는 payload도 읽을 수 있으며, 로드 후 내구도 있는 드랍 아이템의 `durability = 0`은 최대 내구도로, 잔여 연소 시간이 있는 아이템의 `burnTicksRemaining = 0`은 최대 연소 시간으로 정규화한다.
 드랍 아이템의 회전, 스핀, 나이, 획득 진행 상태는 런타임 전용이며 저장하지 않는다.
 엔티티만 바뀐 경우에는 terrain revision을 올리지 않고 런타임 dirty serial을 사용한다. terrain revision은 mesh validity에도 사용되기 때문이다.
 
@@ -194,9 +196,9 @@ saves/<world-name>/player.dat
 ```
 
 파일은 버전 필드가 없는 고정 바이너리 레이아웃이다.
-현재 레이아웃은 인벤토리 슬롯마다 `itemId`, `count`, `durability`를 저장한다.
-현재 저장 포맷은 50개 인벤토리 슬롯 뒤에 왼손 슬롯 1개를 같은 `itemId/count/durability` 형식으로 덧붙인다.
-왼손 슬롯이 없는 기존 `itemId/count/durability` 플레이어 파일과 `itemId/count`만 저장한 플레이어 파일도 읽을 수 있으며, 로드 시 내구도 있는 아이템의 `durability = 0`은 최대 내구도로 정규화한다.
+현재 레이아웃은 인벤토리 슬롯마다 `itemId`, `count`, `durability`, `burnTicksRemaining`을 저장한다.
+현재 저장 포맷은 50개 인벤토리 슬롯 뒤에 왼손 슬롯 1개를 같은 `itemId/count/durability/burnTicksRemaining` 형식으로 덧붙인다.
+왼손 슬롯이 없는 기존 파일, `itemId/count/durability` 플레이어 파일, `itemId/count`만 저장한 플레이어 파일도 읽을 수 있으며, 로드 시 내구도 있는 아이템의 `durability = 0`은 최대 내구도로, 잔여 연소 시간이 있는 아이템의 `burnTicksRemaining = 0`은 최대 연소 시간으로 정규화한다.
 
 ```text
 double x
@@ -217,13 +219,15 @@ repeat 50:
   uint16 itemId
   uint16 count
   uint16 durability
+  uint16 burnTicksRemaining
 offhand:
   uint16 itemId
   uint16 count
   uint16 durability
+  uint16 burnTicksRemaining
 ```
 
-전체 크기는 360바이트다. X/Z는 래핑된 월드 좌표로 저장한다.
+전체 크기는 462바이트다. X/Z는 래핑된 월드 좌표로 저장한다.
 인벤토리 슬롯 `0~49`는 이동 상태 뒤에 저장한다.
 왼손 슬롯은 인벤토리 슬롯 50개 뒤에 저장한다.
 임시 인벤토리 커서 스택은 저장하지 않는다.

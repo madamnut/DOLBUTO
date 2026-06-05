@@ -21,6 +21,7 @@ namespace dolbuto
             float mvp[16]{};
             float cameraPosition[4]{};
             float fluidWaterParams[4]{};
+            float dynamicLightParams[4]{};
         };
 
         struct BreakingOverlay

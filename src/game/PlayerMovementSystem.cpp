@@ -396,6 +396,7 @@ namespace dolbuto::game
             if (dy == 0.0 &&
                 state.moveMode == PlayerMoveMode::Ground &&
                 state.grounded &&
+                !groundProne &&
                 !swimming &&
                 !state.waterClimbActive &&
                 !waterClimbHandledThisTick &&

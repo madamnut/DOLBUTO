@@ -26,9 +26,13 @@ namespace dolbuto
         float playerHeadPitch = 0.0f;
         float playerWalkPhase = 0.0f;
         float playerWalkAmount = 0.0f;
+        bool playerWalkReverse = false;
+        bool playerCrouching = false;
+        bool playerSprinting = false;
         bool playerProne = false;
         bool showFirstPersonHand = false;
         uint16_t heldItemId = 0;
+        uint16_t heldPortableLightEmission = 0;
         bool terrainWireframe = false;
         int climateOverlayMode = 0;
         int menuOverlayMode = 0;

@@ -312,7 +312,20 @@ namespace dolbuto
 
         if (frame.showPlayer)
         {
-            updatePlayerMesh(playerPositionFloat, frame.playerYaw, frame.playerHeadYaw, frame.playerHeadPitch, frame.playerWalkPhase, frame.playerWalkAmount, frame.playerProne, vulkan_.currentFrame, playerPackedLight);
+            updatePlayerMesh(
+                playerPositionFloat,
+                frame.playerYaw,
+                frame.playerHeadYaw,
+                frame.playerHeadPitch,
+                frame.playerWalkPhase,
+                frame.playerWalkAmount,
+                frame.playerWalkReverse,
+                frame.playerCrouching,
+                frame.playerSprinting,
+                frame.playerProne,
+                static_cast<float>(glfwGetTime()),
+                vulkan_.currentFrame,
+                playerPackedLight);
         }
         if (frame.showFirstPersonHand && frame.heldItemId == 0)
         {
@@ -341,6 +354,7 @@ namespace dolbuto
             waterOverlay,
             playerPositionFloat,
             playerPackedLight,
+            frame.heldPortableLightEmission,
             frame.fpsText,
             frame.perfText,
             frame.debugTextVisible,
@@ -468,7 +482,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, float cloudCoverage, ScreenPresentation::WaterOverlay waterOverlay, Vec3 playerPosition, uint8_t playerPackedLight, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, float cloudCoverage, ScreenPresentation::WaterOverlay waterOverlay, Vec3 playerPosition, uint8_t playerPackedLight, uint16_t heldPortableLightEmission, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -547,14 +561,14 @@ namespace dolbuto
                 worldTicks,
                 cloudCoverage);
 
-            drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, terrainWireframe, true, false, imageIndex);
-            drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, terrainWireframe, false, true, imageIndex);
+            drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, terrainWireframe, true, false, imageIndex);
+            drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, terrainWireframe, false, true, imageIndex);
             if (showPlayer && menuOverlayMode == 0)
             {
-                drawPlayer(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, vulkan_.currentFrame);
+                drawPlayer(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, vulkan_.currentFrame);
             }
-            drawBlockBreakParticles(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness);
-            drawDroppedItems(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, playerPosition);
+            drawBlockBreakParticles(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission);
+            drawDroppedItems(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, playerPosition);
             if (menuOverlayMode == 0)
             {
                 drawBlockSelection(commandBuffer, camera, cameraPosition, fovRadians);
@@ -564,11 +578,11 @@ namespace dolbuto
                 clearDepthAttachment(commandBuffer, vulkan_.swapchainExtent);
                 if (heldItemId == 0)
                 {
-                    drawFirstPersonHand(commandBuffer, camera, cameraPosition, skyBrightness, vulkan_.currentFrame);
+                    drawFirstPersonHand(commandBuffer, camera, cameraPosition, skyBrightness, heldPortableLightEmission, vulkan_.currentFrame);
                 }
                 else
                 {
-                    drawHeldItem(commandBuffer, camera, cameraPosition, heldItemId, skyBrightness, playerPackedLight);
+                    drawHeldItem(commandBuffer, camera, cameraPosition, heldItemId, skyBrightness, heldPortableLightEmission, playerPackedLight);
                 }
             }
         }

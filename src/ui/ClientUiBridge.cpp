@@ -562,10 +562,13 @@ namespace dolbuto::ui
 
         item.stackSize = definition.stackSize;
         item.durability = stack.durability;
+        item.burnTicksRemaining = stack.burnTicksRemaining;
         item.maxDurability = definition.maxDurability;
         item.breakLevel = definition.breakLevel;
         item.burnTimeTicks = definition.burnTimeTicks;
         item.heatLevel = definition.heatLevel;
+        item.portableLightEmission = definition.portableLightEmission;
+        item.maxBurnTicks = definition.maxBurnTicks;
         item.name = definition.name;
         item.key = definition.key;
         item.slotTexture = definition.slotTexture;

@@ -73,8 +73,10 @@ namespace dolbuto::game
             void cancelPendingItemInteraction();
             void tickBlockUpdates();
             void tickFluidSimulation();
+            bool tickHeldBurningItems();
             std::array<ItemStack, gameplay::PlayerInventory::SlotCount> inventorySnapshot() const;
             ItemStack offhandSlot() const;
+            uint16_t heldPortableLightEmission() const;
             void setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots);
             void setOffhandSlot(ItemStack stack);
             bool swapSelectedHotbarWithOffhand();

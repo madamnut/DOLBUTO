@@ -13,8 +13,7 @@
             "type": "extruded_sprite",
             "texture": "none"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 1,
@@ -31,11 +30,11 @@
             "texture": "rock_chunk"
         },
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "rock"
+        "components": {
+            "placeable": {
+                "block": "rock"
+            }
+        }
     },
     {
         "id": 31,
@@ -52,12 +51,15 @@
             "texture": "coal"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 2400,
-        "heatLevel": 2,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 4
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 2400,
+                "heatLevel": 2,
+                "remainder": {
+                    "item": "ash",
+                    "count": 4
+                }
+            }
         }
     },
     {
@@ -75,12 +77,15 @@
             "texture": "charcoal"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 2400,
-        "heatLevel": 2,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 4
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 2400,
+                "heatLevel": 2,
+                "remainder": {
+                    "item": "ash",
+                    "count": 4
+                }
+            }
         }
     },
     {
@@ -97,8 +102,7 @@
             "type": "extruded_sprite",
             "texture": "raw_copper"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 33,
@@ -114,8 +118,7 @@
             "type": "extruded_sprite",
             "texture": "raw_iron"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 34,
@@ -131,8 +134,7 @@
             "type": "extruded_sprite",
             "texture": "raw_tin"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 35,
@@ -148,8 +150,7 @@
             "type": "extruded_sprite",
             "texture": "raw_zinc"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 36,
@@ -165,8 +166,7 @@
             "type": "extruded_sprite",
             "texture": "raw_silver"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 37,
@@ -182,8 +182,7 @@
             "type": "extruded_sprite",
             "texture": "raw_gold"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 2,
@@ -199,8 +198,7 @@
             "type": "extruded_sprite",
             "texture": "dirt_pile"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 39,
@@ -217,11 +215,11 @@
             "type": "block_model"
         },
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "dirt"
+        "components": {
+            "placeable": {
+                "block": "dirt"
+            }
+        }
     },
     {
         "id": 40,
@@ -238,11 +236,34 @@
             "type": "block_model"
         },
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "dirt_slab"
+        "components": {
+            "placeable": {
+                "block": "dirt_slab"
+            }
+        }
+    },
+    {
+        "id": 57,
+        "key": "dirt_half_slab",
+        "name": "Dirt Half Slab",
+        "stackSize": 99,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "modelBlock": "dirt",
+        "modelShape": "half_slab",
+        "tags": [],
+        "components": {
+            "placeable": {
+                "block": "dirt_half_slab"
+            }
+        }
     },
     {
         "id": 3,
@@ -259,11 +280,11 @@
             "texture": "sand_pile"
         },
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "sand"
+        "components": {
+            "placeable": {
+                "block": "sand"
+            }
+        }
     },
     {
         "id": 4,
@@ -280,15 +301,17 @@
             "texture": "plant"
         },
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "plant",
-        "burnTimeTicks": 100,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 100,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            },
+            "placeable": {
+                "block": "plant"
+            }
         }
     },
     {
@@ -306,11 +329,14 @@
             "texture": "plant_fiber"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 100,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 100,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            }
         }
     },
     {
@@ -328,11 +354,14 @@
             "texture": "plant_twine"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 160,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 160,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            }
         }
     },
     {
@@ -350,11 +379,14 @@
             "texture": "short_plant_twine"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 100,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 100,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            }
         }
     },
     {
@@ -372,11 +404,14 @@
             "texture": "long_plant_twine"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 256,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 256,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            }
         }
     },
     {
@@ -393,8 +428,7 @@
             "type": "extruded_sprite",
             "texture": "seed"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 8,
@@ -411,11 +445,14 @@
             "texture": "grass_scrap"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 100,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 100,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            }
         }
     },
     {
@@ -433,15 +470,17 @@
             "texture": "branch"
         },
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "branch",
-        "burnTimeTicks": 300,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 300,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            },
+            "placeable": {
+                "block": "branch"
+            }
         }
     },
     {
@@ -459,11 +498,14 @@
             "texture": "bough"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 1000,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 2
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 1000,
+                "remainder": {
+                    "item": "ash",
+                    "count": 2
+                }
+            }
         }
     },
     {
@@ -481,11 +523,14 @@
             "texture": "bark_strip"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 100,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 100,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            }
         }
     },
     {
@@ -503,11 +548,14 @@
             "texture": "leaf"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 100,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 100,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            }
         }
     },
     {
@@ -525,16 +573,20 @@
             "texture": "stone_shard"
         },
         "tags": [],
-        "useActions": [
-            "chip",
-            "smash",
-            "grind"
-        ],
-        "breakActions": [
-            "smash"
-        ],
-        "breakLevel": 2,
-        "maxDurability": 64
+        "components": {
+            "useActions": [
+                "chip",
+                "smash",
+                "grind"
+            ],
+            "breakActions": [
+                "smash"
+            ],
+            "breakLevel": 2,
+            "durability": {
+                "max": 64
+            }
+        }
     },
     {
         "id": 14,
@@ -551,10 +603,14 @@
             "texture": "stone_flake"
         },
         "tags": [],
-        "useActions": [
-            "chip"
-        ],
-        "maxDurability": 64
+        "components": {
+            "useActions": [
+                "chip"
+            ],
+            "durability": {
+                "max": 64
+            }
+        }
     },
     {
         "id": 15,
@@ -571,16 +627,20 @@
             "texture": "stone_chopper"
         },
         "tags": [],
-        "useActions": [
-            "smash",
-            "split"
-        ],
-        "breakActions": [
-            "chop",
-            "dig"
-        ],
-        "breakLevel": 2,
-        "maxDurability": 64
+        "components": {
+            "useActions": [
+                "smash",
+                "split"
+            ],
+            "breakActions": [
+                "chop",
+                "dig"
+            ],
+            "breakLevel": 2,
+            "durability": {
+                "max": 64
+            }
+        }
     },
     {
         "id": 16,
@@ -597,15 +657,19 @@
             "texture": "stone_blade"
         },
         "tags": [],
-        "useActions": [
-            "cut",
-            "carve"
-        ],
-        "breakActions": [
-            "cut"
-        ],
-        "breakLevel": 2,
-        "maxDurability": 64
+        "components": {
+            "useActions": [
+                "cut",
+                "carve"
+            ],
+            "breakActions": [
+                "cut"
+            ],
+            "breakLevel": 2,
+            "durability": {
+                "max": 64
+            }
+        }
     },
     {
         "id": 17,
@@ -622,11 +686,15 @@
             "texture": "stone_scraper"
         },
         "tags": [],
-        "useActions": [
-            "scrape",
-            "pierce"
-        ],
-        "maxDurability": 64
+        "components": {
+            "useActions": [
+                "scrape",
+                "pierce"
+            ],
+            "durability": {
+                "max": 64
+            }
+        }
     },
     {
         "id": 27,
@@ -643,15 +711,19 @@
             "texture": "stone_pounder"
         },
         "tags": [],
-        "useActions": [
-            "pound",
-            "smash"
-        ],
-        "breakActions": [
-            "smash"
-        ],
-        "breakLevel": 2,
-        "maxDurability": 64
+        "components": {
+            "useActions": [
+                "pound",
+                "smash"
+            ],
+            "breakActions": [
+                "smash"
+            ],
+            "breakLevel": 2,
+            "durability": {
+                "max": 64
+            }
+        }
     },
     {
         "id": 18,
@@ -668,15 +740,17 @@
             "type": "block_model"
         },
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "log",
-        "burnTimeTicks": 2000,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 4
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 2000,
+                "remainder": {
+                    "item": "ash",
+                    "count": 4
+                }
+            },
+            "placeable": {
+                "block": "log"
+            }
         }
     },
     {
@@ -694,15 +768,17 @@
             "type": "block_model"
         },
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "stripped_log",
-        "burnTimeTicks": 1800,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 3
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 1800,
+                "remainder": {
+                    "item": "ash",
+                    "count": 3
+                }
+            },
+            "placeable": {
+                "block": "stripped_log"
+            }
         }
     },
     {
@@ -722,15 +798,17 @@
         "modelBlock": "stripped_log",
         "modelShape": "slab",
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "half_stripped_log",
-        "burnTimeTicks": 900,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 2
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 900,
+                "remainder": {
+                    "item": "ash",
+                    "count": 2
+                }
+            },
+            "placeable": {
+                "block": "half_stripped_log"
+            }
         }
     },
     {
@@ -750,15 +828,17 @@
         "modelBlock": "stripped_log",
         "modelShape": "quarter_log",
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "quarter_stripped_log",
-        "burnTimeTicks": 450,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 450,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            },
+            "placeable": {
+                "block": "quarter_stripped_log"
+            }
         }
     },
     {
@@ -776,11 +856,14 @@
             "texture": "wooden_plank"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 225,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 225,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            }
         }
     },
     {
@@ -798,11 +881,11 @@
             "type": "block_model"
         },
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "wooden_box"
+        "components": {
+            "placeable": {
+                "block": "wooden_box"
+            }
+        }
     },
     {
         "id": 26,
@@ -819,11 +902,11 @@
             "type": "block_model"
         },
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "primal_workbench"
+        "components": {
+            "placeable": {
+                "block": "primal_workbench"
+            }
+        }
     },
     {
         "id": 21,
@@ -840,11 +923,14 @@
             "texture": "wooden_stick"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 240,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 240,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            }
         }
     },
     {
@@ -862,11 +948,14 @@
             "texture": "short_wooden_stick"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 120,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 120,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            }
         }
     },
     {
@@ -884,11 +973,14 @@
             "texture": "long_wooden_stick"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 800,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 2
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 800,
+                "remainder": {
+                    "item": "ash",
+                    "count": 2
+                }
+            }
         }
     },
     {
@@ -906,11 +998,14 @@
             "texture": "wooden_peg"
         },
         "tags": [],
-        "useActions": [],
-        "burnTimeTicks": 100,
-        "burnRemainder": {
-            "item": "ash",
-            "count": 1
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 100,
+                "remainder": {
+                    "item": "ash",
+                    "count": 1
+                }
+            }
         }
     },
     {
@@ -928,10 +1023,14 @@
             "texture": "bow_drill"
         },
         "tags": [],
-        "useActions": [
-            "ignite"
-        ],
-        "maxDurability": 4
+        "components": {
+            "useActions": [
+                "ignite"
+            ],
+            "durability": {
+                "max": 4
+            }
+        }
     },
     {
         "id": 43,
@@ -947,8 +1046,7 @@
             "type": "extruded_sprite",
             "texture": "clay_pile"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 44,
@@ -964,8 +1062,7 @@
             "type": "extruded_sprite",
             "texture": "unfired_clay_brick"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 45,
@@ -981,8 +1078,7 @@
             "type": "extruded_sprite",
             "texture": "clay_brick"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 46,
@@ -998,8 +1094,7 @@
             "type": "extruded_sprite",
             "texture": "unfired_clay_pot"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 47,
@@ -1015,8 +1110,7 @@
             "type": "extruded_sprite",
             "texture": "clay_pot"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 48,
@@ -1032,8 +1126,7 @@
             "type": "extruded_sprite",
             "texture": "grog"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 49,
@@ -1049,8 +1142,7 @@
             "type": "extruded_sprite",
             "texture": "refractory_clay_pile"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 50,
@@ -1066,8 +1158,7 @@
             "type": "extruded_sprite",
             "texture": "unfired_refractory_clay_brick"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 51,
@@ -1083,8 +1174,7 @@
             "type": "extruded_sprite",
             "texture": "refractory_clay_brick"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 55,
@@ -1102,8 +1192,7 @@
         },
         "modelShape": "crucible",
         "modelTexture": "refractory_clay",
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 56,
@@ -1122,11 +1211,61 @@
         "modelShape": "crucible",
         "modelTexture": "fired_refractory_clay",
         "tags": [],
-        "useActions": [],
-        "placeActions": [
-            "place"
-        ],
-        "placeBlock": "refractory_clay_crucible"
+        "components": {
+            "placeable": {
+                "block": "refractory_clay_crucible"
+            }
+        }
+    },
+    {
+        "id": 58,
+        "key": "torch",
+        "name": "Torch",
+        "stackSize": 1,
+        "slotTexture": "torch",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "torch"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "torch"
+        },
+        "tags": [],
+        "components": {
+            "useActions": [
+                "light"
+            ]
+        }
+    },
+    {
+        "id": 59,
+        "key": "lit_torch",
+        "name": "Torch",
+        "stackSize": 1,
+        "slotTexture": "lit_torch",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "lit_torch"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "lit_torch"
+        },
+        "tags": [],
+        "components": {
+            "useActions": [
+                "ignite",
+                "extinguish"
+            ],
+            "burnableLight": {
+                "maxTicks": 2400,
+                "lightEmission": 12,
+                "burnoutItem": "ash",
+                "burnoutCount": 1,
+                "ticksOnlyWhileHeld": true
+            }
+        }
     },
     {
         "id": 52,
@@ -1142,8 +1281,7 @@
             "type": "extruded_sprite",
             "texture": "ash"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 53,
@@ -1159,8 +1297,7 @@
             "type": "extruded_sprite",
             "texture": "tar"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     },
     {
         "id": 54,
@@ -1176,7 +1313,6 @@
             "type": "extruded_sprite",
             "texture": "wood_shavings"
         },
-        "tags": [],
-        "useActions": []
+        "tags": []
     }
 ]

@@ -190,6 +190,7 @@ namespace dolbuto::gameplay
         const ItemStack& inventorySlot(std::size_t index) const;
         const ItemStack& offhandSlot() const;
         const ItemStack& inventoryCursorStack() const;
+        uint16_t heldPortableLightEmission() const;
         void clearInventory();
         std::array<ItemStack, PlayerInventory::SlotCount> inventorySnapshot() const;
         void setInventorySnapshot(const std::array<ItemStack, PlayerInventory::SlotCount>& slots);
@@ -199,6 +200,7 @@ namespace dolbuto::gameplay
         bool swapHotbarWithSlot(std::size_t slotIndex, std::size_t hotbarSlot);
         bool swapSelectedHotbarWithOffhand();
         bool closeInventoryCursor();
+        bool tickHeldBurningItems();
 
     private:
         const std::vector<ItemDefinition>& itemDefinitions() const;

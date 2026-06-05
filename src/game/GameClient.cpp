@@ -66,9 +66,13 @@ namespace dolbuto
         constexpr size_t PlayerStatsFileSize = sizeof(uint16_t) * 6u;
         constexpr size_t PlayerStateBaseFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t) * 2u + PlayerStatsFileSize;
         constexpr size_t PlayerInventoryLegacyFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 2u;
-        constexpr size_t PlayerInventoryFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 3u;
-        constexpr size_t PlayerOffhandFileSize = sizeof(uint16_t) * 3u;
+        constexpr size_t PlayerInventoryDurabilityFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 3u;
+        constexpr size_t PlayerInventoryFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 4u;
+        constexpr size_t PlayerOffhandDurabilityFileSize = sizeof(uint16_t) * 3u;
+        constexpr size_t PlayerOffhandFileSize = sizeof(uint16_t) * 4u;
         constexpr size_t PlayerStateLegacyFileSize = PlayerStateBaseFileSize + PlayerInventoryLegacyFileSize;
+        constexpr size_t PlayerStateDurabilityInventoryFileSize = PlayerStateBaseFileSize + PlayerInventoryDurabilityFileSize;
+        constexpr size_t PlayerStateDurabilityFileSize = PlayerStateDurabilityInventoryFileSize + PlayerOffhandDurabilityFileSize;
         constexpr size_t PlayerStateInventoryFileSize = PlayerStateBaseFileSize + PlayerInventoryFileSize;
         constexpr size_t PlayerStateFileSize = PlayerStateInventoryFileSize + PlayerOffhandFileSize;
         constexpr size_t WorldStateFileSize = sizeof(uint64_t) * 4u;
@@ -758,6 +762,7 @@ namespace dolbuto
                 updatePlayer(FixedPhysicsTimestep, screen_ == AppScreen::Game && !chatOpen_ && !radialActive_);
                 if (runtime_ != nullptr)
                 {
+                    runtime_->gameplay().tickHeldBurningItems();
                     runtime_->gameplay().tickBlockUpdates();
                     const bool breaking = screen_ == AppScreen::Game && mouseCaptured_ && breakHeld_;
                     if (gameMode_ == game::GameMode::Sandbox)
@@ -835,6 +840,14 @@ namespace dolbuto
                 static_cast<float>(static_cast<double>(previousPlayerWalkAmount_) + (static_cast<double>(playerWalkAmount_) - static_cast<double>(previousPlayerWalkAmount_)) * physicsAlpha),
                 0.0f,
                 1.35f);
+            const double walkDeltaX = playerPosition_.x - previousPlayerPosition_.x;
+            const double walkDeltaZ = playerPosition_.z - previousPlayerPosition_.z;
+            const double walkForwardX = std::cos(static_cast<double>(renderBodyYaw));
+            const double walkForwardZ = std::sin(static_cast<double>(renderBodyYaw));
+            const bool renderWalkReverse =
+                renderWalkAmount > 0.01f &&
+                walkDeltaX * walkDeltaX + walkDeltaZ * walkDeltaZ > 0.000001 &&
+                walkDeltaX * walkForwardX + walkDeltaZ * walkForwardZ < -0.000001;
             const double renderSprintFovAmount = std::clamp(
                 static_cast<double>(previousSprintFovAmount_) + (static_cast<double>(sprintFovAmount_) - static_cast<double>(previousSprintFovAmount_)) * physicsAlpha,
                 0.0,
@@ -905,6 +918,7 @@ namespace dolbuto
             float playerHeadPitch = 0.0f;
             updatePlayerLookPose(renderBodyYaw, playerHeadYaw, playerHeadPitch);
             uint16_t heldItemId = 0;
+            uint16_t heldPortableLightEmission = 0;
             if (runtime_ != nullptr)
             {
                 const std::array<ItemStack, PlayerInventorySlotCount> inventorySlots = runtime_->gameplay().inventorySnapshot();
@@ -913,6 +927,7 @@ namespace dolbuto
                 {
                     heldItemId = heldStack.itemId;
                 }
+                heldPortableLightEmission = runtime_->gameplay().heldPortableLightEmission();
             }
             const bool showFirstPersonHand = gameSceneRenderEnabled && menuOverlayMode == 0 && viewMode_ == ViewMode::FirstPerson;
             game::RadialMenuRenderFrame radialMenuRenderFrame{};
@@ -935,6 +950,12 @@ namespace dolbuto
             }
             const bool playerProne = moveMode_ == MoveMode::Ground &&
                 static_cast<double>(playerHeightScale_) <= proneHeight_ / 1.75 + 0.001;
+            const bool playerCrouching = moveMode_ == MoveMode::Ground &&
+                !playerProne &&
+                static_cast<double>(playerHeightScale_) <= sneakHeightScale_ + 0.001;
+            const bool playerSprinting = !playerCrouching &&
+                !playerProne &&
+                renderSprintFovAmount > 0.01;
             sectionPerfStart = std::chrono::steady_clock::now();
             runtime_->render().frame(game::ClientFrame{
                 renderCamera,
@@ -953,9 +974,13 @@ namespace dolbuto
                 playerHeadPitch,
                 renderWalkPhase,
                 renderWalkAmount,
+                renderWalkReverse,
+                playerCrouching,
+                playerSprinting,
                 playerProne,
                 showFirstPersonHand,
                 heldItemId,
+                heldPortableLightEmission,
                 terrainWireframe_,
                 climateOverlayMode_,
                 menuOverlayMode,
@@ -2556,6 +2581,8 @@ namespace dolbuto
         file.seekg(0, std::ios::beg);
         if (fileSize != static_cast<std::streamoff>(PlayerStateFileSize) &&
             fileSize != static_cast<std::streamoff>(PlayerStateInventoryFileSize) &&
+            fileSize != static_cast<std::streamoff>(PlayerStateDurabilityFileSize) &&
+            fileSize != static_cast<std::streamoff>(PlayerStateDurabilityInventoryFileSize) &&
             fileSize != static_cast<std::streamoff>(PlayerStateLegacyFileSize))
         {
             log::warn("Player state file has unsupported size, using default player state.");
@@ -2592,13 +2619,18 @@ namespace dolbuto
             stats.maxThirst = readU16(bytes, offset);
             stats.clamp();
             std::array<ItemStack, PlayerInventorySlotCount> inventorySlots{};
-            const bool hasDurability = bytes.size() == PlayerStateFileSize || bytes.size() == PlayerStateInventoryFileSize;
-            const bool hasOffhandSlot = bytes.size() == PlayerStateFileSize;
+            const bool hasBurnTicks = bytes.size() == PlayerStateFileSize || bytes.size() == PlayerStateInventoryFileSize;
+            const bool hasDurability = hasBurnTicks ||
+                bytes.size() == PlayerStateDurabilityFileSize ||
+                bytes.size() == PlayerStateDurabilityInventoryFileSize;
+            const bool hasOffhandSlot = bytes.size() == PlayerStateFileSize || bytes.size() == PlayerStateDurabilityFileSize;
+            const bool offhandHasBurnTicks = bytes.size() == PlayerStateFileSize;
             for (ItemStack& slot : inventorySlots)
             {
                 slot.itemId = readU16(bytes, offset);
                 slot.count = readU16(bytes, offset);
                 slot.durability = hasDurability ? readU16(bytes, offset) : 0;
+                slot.burnTicksRemaining = hasBurnTicks ? readU16(bytes, offset) : 0;
             }
             ItemStack offhandSlot{};
             if (hasOffhandSlot)
@@ -2606,6 +2638,7 @@ namespace dolbuto
                 offhandSlot.itemId = readU16(bytes, offset);
                 offhandSlot.count = readU16(bytes, offset);
                 offhandSlot.durability = readU16(bytes, offset);
+                offhandSlot.burnTicksRemaining = offhandHasBurnTicks ? readU16(bytes, offset) : 0;
             }
 
             if (!std::isfinite(x) ||
@@ -2713,11 +2746,13 @@ namespace dolbuto
                 writeU16(bytes, slot.itemId);
                 writeU16(bytes, slot.count);
                 writeU16(bytes, slot.durability);
+                writeU16(bytes, slot.burnTicksRemaining);
             }
             const ItemStack offhandSlot = runtime_ != nullptr ? runtime_->gameplay().offhandSlot() : ItemStack{};
             writeU16(bytes, offhandSlot.itemId);
             writeU16(bytes, offhandSlot.count);
             writeU16(bytes, offhandSlot.durability);
+            writeU16(bytes, offhandSlot.burnTicksRemaining);
 
             std::ofstream file(playerStatePath(), std::ios::binary | std::ios::trunc);
             if (!file.is_open())

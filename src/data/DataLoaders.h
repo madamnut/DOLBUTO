@@ -79,6 +79,11 @@ namespace dolbuto::data
         uint16_t heatLevel = 0;
         std::string burnRemainderItem;
         uint16_t burnRemainderCount = 0;
+        uint16_t portableLightEmission = 0;
+        uint16_t maxBurnTicks = 0;
+        std::string burnoutItem;
+        uint16_t burnoutCount = 0;
+        bool burnTicksOnlyWhileHeld = false;
         std::string placeBlock;
         std::string modelBlock;
         std::string modelShape;
@@ -115,6 +120,8 @@ namespace dolbuto::data
         uint16_t targetCount = 1;
         uint16_t resultCountMin = 1;
         uint16_t resultCountMax = 1;
+        std::string held;
+        std::string resultTarget = "target";
     };
 
     struct ParsedProcessingDefinition

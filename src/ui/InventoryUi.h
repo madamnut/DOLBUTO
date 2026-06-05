@@ -15,10 +15,13 @@ namespace dolbuto::ui
         uint16_t count = 0;
         uint16_t stackSize = 0;
         uint16_t durability = 0;
+        uint16_t burnTicksRemaining = 0;
         uint16_t maxDurability = 0;
         uint16_t breakLevel = 0;
         uint32_t burnTimeTicks = 0;
         uint16_t heatLevel = 0;
+        uint16_t portableLightEmission = 0;
+        uint16_t maxBurnTicks = 0;
         std::string name;
         std::string key;
         std::string slotTexture;

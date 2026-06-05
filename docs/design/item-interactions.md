@@ -5,7 +5,7 @@
 ## 입력 흐름
 
 - 우클릭은 먼저 바라보는 월드 드랍 아이템이 `interactions.json`의 `target`과 일치하는지 확인한다.
-- target 가능성이 있으면 `useActions`가 `placeActions`보다 우선하며, 손 아이템으로 가능한 후보가 없어도 설치 흐름으로 넘어가지 않는다.
+- target 가능성이 있으면 `components.useActions`가 `components.placeable`보다 우선하며, 손 아이템으로 가능한 후보가 없어도 설치 흐름으로 넘어가지 않는다.
 - 우클릭을 유지하는 동안 원형 UI가 열리고 마우스 위치로 액션 또는 후보를 선택한다.
 - 원형 UI가 처음 열릴 때는 액션 개수와 관계없이 선택 없음 상태이며, 중앙 `Cancel` 영역을 가리킨다.
 - 가장 안쪽 원은 `Cancel`, 바깥 1링은 액션 영역, 그 바깥 1링은 선택 액션의 후보 영역이다.
@@ -18,9 +18,9 @@
 
 ## 데이터
 
-아이템이 수행 가능한 우클릭 작업은 아이템의 `useActions`에 둔다.
+아이템이 수행 가능한 우클릭 작업은 아이템의 `components.useActions`에 둔다.
 실제 조합은 `assets/data/recipes/interactions.json`에서 정의한다.
-좌클릭 블록 파괴 동작은 `breakActions`로 분리한다.
+좌클릭 블록 파괴 동작은 `components.breakActions`로 분리한다.
 
 ```json
 {
@@ -84,7 +84,7 @@
 우클릭 해제 시 `Ctrl`이 눌려 있으면 같은 후보를 가능한 만큼 반복 처리한다.
 반복 처리 횟수는 대상 스택 개수, 레시피의 `targetCount`, 손 아이템의 남은 내구도 중 가능한 값으로 제한한다.
 손에 든 아이템이 내구도를 가지지 않으면 반복 처리 때 대상 스택과 `targetCount`만으로 처리 횟수를 제한한다.
-`handcraft`는 기본 손 액션으로 취급하며, 어떤 아이템을 들고 있어도 해당 아이템의 `useActions` 앞에 중복 없이 포함된다.
+`handcraft`는 기본 손 액션으로 취급하며, 어떤 아이템을 들고 있어도 해당 아이템의 `components.useActions` 앞에 중복 없이 포함된다.
 대상 스택 개수가 레시피의 `targetCount`보다 적어 1회 실행도 불가능한 후보는 UI에 계속 표시하되 해당 후보가 차지하는 바깥 링 구간을 빨간색으로 표시한다.
 대상 스택이 전부 처리되면 첫 번째 출력 아이템 스택은 대상 드랍 엔티티를 직접 대체한다.
 대상 스택이 일부만 처리되면 대상 드랍 엔티티의 원본 count를 남기고, 모든 출력 아이템은 대상 위치 근처에 별도 드랍 아이템으로 생성한다.
@@ -165,7 +165,38 @@ wooden_stick x2 + plant_twine + craft
 
 bow_drill + ignite on block
 -> fire above target block
+
+wooden_stick + plant_twine + tar + craft
+-> torch
+
+torch + light on fire block
+-> lit_torch held in hand
+
+lit_torch + ignite on block
+-> fire above target block
+
+lit_torch + extinguish on block
+-> torch held in hand
 ```
+
+## Held Item Result
+
+일부 블록 대상 상호작용은 대상 블록이나 드랍 아이템을 바꾸지 않고 손에 든 아이템 자체를 바꾼다.
+`interactions.json`에서 `resultTarget: "held"`를 사용하면 후보 결과의 첫 번째 아이템으로 현재 선택 핫바 슬롯을 교체한다.
+현재 이 형식은 `torch`를 fire 블록에 `light` 해서 `lit_torch`로 바꾸거나, `lit_torch`를 블록에 `extinguish` 해서 `torch`로 되돌리는 데 사용한다.
+
+```json
+{
+  "action": "light",
+  "held": "torch",
+  "targetBlock": "fire",
+  "resultTarget": "held",
+  "candidates": ["lit_torch"]
+}
+```
+
+`held`는 해당 레시피를 수행할 수 있는 손 아이템을 제한한다.
+`resultTarget`을 생략하면 기존처럼 대상 드랍 아이템, 작업대 영역, 또는 설치 블록 결과에 적용한다.
 
 ## 블록 작업대 상호작용
 
@@ -178,7 +209,7 @@ bow_drill + ignite on block
 따라서 `plant_fiber` 2개를 작업대 위에 올려두고 `primal_workbench`를 우클릭하면 `plant_twine` 후보가 표시된다.
 재료 수량이 부족한 후보는 기존 단일 아이템 상호작용과 동일하게 비활성 후보로 표시하고 실행하지 않는다.
 
-플레이어가 든 아이템의 `useActions`도 블록 액션에 더해질 수 있다.
+플레이어가 든 아이템의 `components.useActions`도 블록 액션에 더해질 수 있다.
 예를 들어 작업대가 `craft`를 제공하고 손에 든 도구가 `cut`을 제공하면, 해당 레시피 후보는 `craft + cut` 액션 구간으로 표시한다.
 이 경우 액션 구간에는 두 액션 심볼을 함께 배치한다.
 단, 블록 자체에 `interactActions`가 있으면 기본 우클릭은 블록 액션을 우선한다.

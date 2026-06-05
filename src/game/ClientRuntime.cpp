@@ -413,6 +413,11 @@ namespace dolbuto::game
         owner_.renderRuntime_->tickFluidSimulation();
     }
 
+    bool ClientRuntime::GameplayAccess::tickHeldBurningItems()
+    {
+        return owner_.renderRuntime_->tickHeldBurningItems();
+    }
+
     std::array<ItemStack, gameplay::PlayerInventory::SlotCount> ClientRuntime::GameplayAccess::inventorySnapshot() const
     {
         return owner_.state_->gameplayRuntime.inventorySnapshot();
@@ -421,6 +426,11 @@ namespace dolbuto::game
     ItemStack ClientRuntime::GameplayAccess::offhandSlot() const
     {
         return owner_.state_->gameplayRuntime.offhandSlot();
+    }
+
+    uint16_t ClientRuntime::GameplayAccess::heldPortableLightEmission() const
+    {
+        return owner_.state_->gameplayRuntime.heldPortableLightEmission();
     }
 
     void ClientRuntime::GameplayAccess::setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots)

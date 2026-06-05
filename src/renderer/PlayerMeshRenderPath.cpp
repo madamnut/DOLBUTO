@@ -14,19 +14,11 @@ namespace dolbuto
     namespace
     {
         constexpr float PlayerModelScale = 1.0f / 16.0f;
-        constexpr float WalkArmSwing = 0.45f;
-        constexpr float WalkElbowBendLimit = 0.35f;
-        constexpr float WalkLegSwing = 0.65f;
-        constexpr float WalkKneeBendLimit = 0.55f;
         constexpr float PlayerStandingHeight = 1.75f;
         constexpr float PlayerProneColliderHeight = 0.6f;
         constexpr uint32_t PlayerTransformFrameCount = 2;
-
-        struct PlayerAnimationPose
-        {
-            float walkPhase = 0.0f;
-            float walkAmount = 0.0f;
-        };
+        constexpr float TwoPi = 6.28318530718f;
+        constexpr float AnimationTransitionSeconds = 0.4f;
 
         std::array<float, 16> multiplyMatrix(const std::array<float, 16>& left, const std::array<float, 16>& right)
         {
@@ -144,69 +136,25 @@ namespace dolbuto
             return name == "Head" || name == "head";
         }
 
-        float walkingNodePitch(const std::string& name, const PlayerAnimationPose& pose)
+        bool hasHeadControlNode(const std::vector<PlayerModelNode>& nodes)
         {
-            if (pose.walkAmount <= 0.001f)
+            return std::any_of(nodes.begin(), nodes.end(), [](const PlayerModelNode& node)
             {
-                return 0.0f;
-            }
-
-            const float s = std::sin(pose.walkPhase);
-            const float amount = std::clamp(pose.walkAmount, 0.0f, 1.0f);
-            if (name == "Arm_L")
-            {
-                return s * WalkArmSwing * amount;
-            }
-            if (name == "Arm_R")
-            {
-                return -s * WalkArmSwing * amount;
-            }
-            if (name == "Arm_LL")
-            {
-                return std::clamp(std::max(0.0f, -s) * WalkElbowBendLimit * amount, 0.0f, WalkElbowBendLimit);
-            }
-            if (name == "Arm_RL")
-            {
-                return std::clamp(std::max(0.0f, s) * WalkElbowBendLimit * amount, 0.0f, WalkElbowBendLimit);
-            }
-            if (name == "Leg_L")
-            {
-                return -s * WalkLegSwing * amount;
-            }
-            if (name == "Leg_R")
-            {
-                return s * WalkLegSwing * amount;
-            }
-            if (name == "Leg_LL")
-            {
-                return std::clamp(std::max(0.0f, s) * WalkKneeBendLimit * amount, 0.0f, WalkKneeBendLimit);
-            }
-            if (name == "Leg_RL")
-            {
-                return std::clamp(std::max(0.0f, -s) * WalkKneeBendLimit * amount, 0.0f, WalkKneeBendLimit);
-            }
-            return 0.0f;
+                return isHeadNodeName(node.name) && !node.hasMesh && !node.children.empty();
+            });
         }
 
-        std::array<float, 16> animatedLocalTransform(
-            const PlayerModelNode& node,
-            const std::array<float, 16>* headRotation,
-            const PlayerAnimationPose* pose)
+        bool isHeadControlNode(const std::vector<PlayerModelNode>& nodes, size_t index)
         {
-            std::array<float, 16> transform = node.localTransform;
-            if (headRotation != nullptr && isHeadNodeName(node.name))
+            if (index >= nodes.size() || !isHeadNodeName(nodes[index].name))
             {
-                transform = multiplyMatrix(transform, *headRotation);
+                return false;
             }
-            if (pose != nullptr)
+            if (hasHeadControlNode(nodes))
             {
-                const float pitch = walkingNodePitch(node.name, *pose);
-                if (pitch != 0.0f)
-                {
-                    transform = multiplyMatrix(transform, rotationX(pitch));
-                }
+                return !nodes[index].hasMesh && !nodes[index].children.empty();
             }
-            return transform;
+            return true;
         }
 
         bool isFirstPersonHandNode(const std::vector<PlayerModelNode>& nodes, int nodeIndex)
@@ -223,10 +171,234 @@ namespace dolbuto
             return false;
         }
 
+        std::array<float, 4> normalizeQuat(std::array<float, 4> value)
+        {
+            const float length = std::sqrt(
+                value[0] * value[0] +
+                value[1] * value[1] +
+                value[2] * value[2] +
+                value[3] * value[3]);
+            if (length <= 0.000001f)
+            {
+                return {0.0f, 0.0f, 0.0f, 1.0f};
+            }
+            const float invLength = 1.0f / length;
+            return {value[0] * invLength, value[1] * invLength, value[2] * invLength, value[3] * invLength};
+        }
+
+        std::array<float, 3> lerp3(const std::array<float, 3>& left, const std::array<float, 3>& right, float amount)
+        {
+            return {
+                left[0] + (right[0] - left[0]) * amount,
+                left[1] + (right[1] - left[1]) * amount,
+                left[2] + (right[2] - left[2]) * amount};
+        }
+
+        std::array<float, 4> nlerpQuat(std::array<float, 4> left, std::array<float, 4> right, float amount)
+        {
+            const float d =
+                left[0] * right[0] +
+                left[1] * right[1] +
+                left[2] * right[2] +
+                left[3] * right[3];
+            if (d < 0.0f)
+            {
+                right = {-right[0], -right[1], -right[2], -right[3]};
+            }
+            return normalizeQuat({
+                left[0] + (right[0] - left[0]) * amount,
+                left[1] + (right[1] - left[1]) * amount,
+                left[2] + (right[2] - left[2]) * amount,
+                left[3] + (right[3] - left[3]) * amount});
+        }
+
+        std::array<float, 16> matrixFromTrs(const PlayerAnimationNodePose& pose)
+        {
+            const float x = pose.rotation[0];
+            const float y = pose.rotation[1];
+            const float z = pose.rotation[2];
+            const float w = pose.rotation[3];
+            const float x2 = x + x;
+            const float y2 = y + y;
+            const float z2 = z + z;
+            const float xx = x * x2;
+            const float xy = x * y2;
+            const float xz = x * z2;
+            const float yy = y * y2;
+            const float yz = y * z2;
+            const float zz = z * z2;
+            const float wx = w * x2;
+            const float wy = w * y2;
+            const float wz = w * z2;
+
+            return {
+                (1.0f - (yy + zz)) * pose.scale[0], (xy + wz) * pose.scale[0], (xz - wy) * pose.scale[0], 0.0f,
+                (xy - wz) * pose.scale[1], (1.0f - (xx + zz)) * pose.scale[1], (yz + wx) * pose.scale[1], 0.0f,
+                (xz + wy) * pose.scale[2], (yz - wx) * pose.scale[2], (1.0f - (xx + yy)) * pose.scale[2], 0.0f,
+                pose.translation[0], pose.translation[1], pose.translation[2], 1.0f};
+        }
+
+        PlayerAnimationNodePose basePoseForNode(const PlayerModelNode& node)
+        {
+            return PlayerAnimationNodePose{node.translation, node.rotation, node.scale};
+        }
+
+        std::array<float, 4> sampleKeyframes(const PlayerAnimationChannel& channel, float time)
+        {
+            if (channel.keyframes.empty())
+            {
+                return {};
+            }
+            if (channel.keyframes.size() == 1u || time <= channel.keyframes.front().time)
+            {
+                return channel.keyframes.front().value;
+            }
+            if (time >= channel.keyframes.back().time)
+            {
+                return channel.keyframes.back().value;
+            }
+
+            for (size_t i = 0; i + 1u < channel.keyframes.size(); ++i)
+            {
+                const PlayerAnimationKeyframe& left = channel.keyframes[i];
+                const PlayerAnimationKeyframe& right = channel.keyframes[i + 1u];
+                if (time < left.time || time > right.time)
+                {
+                    continue;
+                }
+
+                const float span = std::max(right.time - left.time, 0.000001f);
+                const float amount = std::clamp((time - left.time) / span, 0.0f, 1.0f);
+                if (channel.path == PlayerAnimationPath::Rotation)
+                {
+                    return nlerpQuat(left.value, right.value, amount);
+                }
+                return {
+                    left.value[0] + (right.value[0] - left.value[0]) * amount,
+                    left.value[1] + (right.value[1] - left.value[1]) * amount,
+                    left.value[2] + (right.value[2] - left.value[2]) * amount,
+                    left.value[3] + (right.value[3] - left.value[3]) * amount};
+            }
+
+            return channel.keyframes.back().value;
+        }
+
+        const PlayerAnimationClip* findClip(const std::vector<PlayerAnimationClip>& animations, const std::string& name)
+        {
+            const auto it = std::find_if(animations.begin(), animations.end(), [&name](const PlayerAnimationClip& clip)
+            {
+                return clip.name == name;
+            });
+            return it != animations.end() ? &*it : nullptr;
+        }
+
+        std::vector<PlayerAnimationNodePose> sampleClip(
+            const std::vector<PlayerModelNode>& nodes,
+            const PlayerAnimationClip* clip,
+            float time)
+        {
+            std::vector<PlayerAnimationNodePose> poses;
+            poses.reserve(nodes.size());
+            for (const PlayerModelNode& node : nodes)
+            {
+                poses.push_back(basePoseForNode(node));
+            }
+            if (clip == nullptr || clip->duration <= 0.0f)
+            {
+                return poses;
+            }
+
+            float clipTime = std::fmod(std::max(time, 0.0f), clip->duration);
+            if (clipTime < 0.0f)
+            {
+                clipTime += clip->duration;
+            }
+            for (const PlayerAnimationChannel& channel : clip->channels)
+            {
+                if (channel.nodeIndex < 0 || static_cast<size_t>(channel.nodeIndex) >= poses.size())
+                {
+                    continue;
+                }
+
+                PlayerAnimationNodePose& pose = poses[static_cast<size_t>(channel.nodeIndex)];
+                const std::array<float, 4> value = sampleKeyframes(channel, clipTime);
+                if (channel.path == PlayerAnimationPath::Translation)
+                {
+                    pose.translation = {value[0], value[1], value[2]};
+                }
+                else if (channel.path == PlayerAnimationPath::Rotation)
+                {
+                    pose.rotation = normalizeQuat(value);
+                }
+                else if (channel.path == PlayerAnimationPath::Scale)
+                {
+                    pose.scale = {value[0], value[1], value[2]};
+                }
+            }
+            return poses;
+        }
+
+        PlayerAnimationNodePose blendNodePose(
+            const PlayerAnimationNodePose& left,
+            const PlayerAnimationNodePose& right,
+            float amount)
+        {
+            return PlayerAnimationNodePose{
+                lerp3(left.translation, right.translation, amount),
+                nlerpQuat(left.rotation, right.rotation, amount),
+                lerp3(left.scale, right.scale, amount)};
+        }
+
+        std::vector<PlayerAnimationNodePose> blendPoseVectors(
+            const std::vector<PlayerModelNode>& nodes,
+            const std::vector<PlayerAnimationNodePose>& leftPose,
+            const std::vector<PlayerAnimationNodePose>& rightPose,
+            float amount)
+        {
+            const float clampedAmount = std::clamp(amount, 0.0f, 1.0f);
+            std::vector<PlayerAnimationNodePose> poses;
+            poses.reserve(nodes.size());
+            for (size_t i = 0; i < nodes.size(); ++i)
+            {
+                const PlayerAnimationNodePose fallback = basePoseForNode(nodes[i]);
+                const PlayerAnimationNodePose& left = i < leftPose.size() ? leftPose[i] : fallback;
+                const PlayerAnimationNodePose& right = i < rightPose.size() ? rightPose[i] : fallback;
+                poses.push_back(blendNodePose(left, right, clampedAmount));
+            }
+            return poses;
+        }
+
+        std::vector<PlayerAnimationNodePose> animationPoseFromIdleMovement(
+            const std::vector<PlayerModelNode>& nodes,
+            const std::vector<PlayerAnimationNodePose>& idlePose,
+            const std::vector<PlayerAnimationNodePose>& walkPose,
+            float walkAmount)
+        {
+            return blendPoseVectors(nodes, idlePose, walkPose, walkAmount);
+        }
+
+        std::vector<std::array<float, 16>> localTransformsFromPose(
+            const std::vector<PlayerModelNode>& nodes,
+            const std::vector<PlayerAnimationNodePose>& pose,
+            const std::array<float, 16>* headRotation)
+        {
+            std::vector<std::array<float, 16>> localTransforms(nodes.size(), identityMatrix());
+            for (size_t i = 0; i < nodes.size(); ++i)
+            {
+                const PlayerAnimationNodePose fallback = basePoseForNode(nodes[i]);
+                const PlayerAnimationNodePose& nodePose = i < pose.size() ? pose[i] : fallback;
+                localTransforms[i] = matrixFromTrs(nodePose);
+                if (headRotation != nullptr && isHeadControlNode(nodes, i))
+                {
+                    localTransforms[i] = multiplyMatrix(localTransforms[i], *headRotation);
+                }
+            }
+            return localTransforms;
+        }
+
         std::vector<std::array<float, 16>> nodeWorldTransforms(
             const std::vector<PlayerModelNode>& nodes,
-            const std::array<float, 16>* headRotation,
-            const PlayerAnimationPose* pose)
+            const std::vector<std::array<float, 16>>& localTransforms)
         {
             std::vector<std::array<float, 16>> worldTransforms(nodes.size(), identityMatrix());
             std::vector<bool> worldTransformReady(nodes.size(), false);
@@ -238,7 +410,9 @@ namespace dolbuto
                 }
 
                 const int parent = nodes[index].parent;
-                const std::array<float, 16> localTransform = animatedLocalTransform(nodes[index], headRotation, pose);
+                const std::array<float, 16>& localTransform = index < localTransforms.size()
+                    ? localTransforms[index]
+                    : nodes[index].localTransform;
                 worldTransforms[index] = parent >= 0 && static_cast<size_t>(parent) < nodes.size()
                     ? multiplyMatrix(self(self, static_cast<size_t>(parent)), localTransform)
                     : localTransform;
@@ -304,6 +478,7 @@ namespace dolbuto
 
         destroy();
         nodes_ = std::move(model.nodes);
+        animations_ = std::move(model.animations);
         sourceVertices_ = std::move(model.vertices);
         indices_ = std::move(model.indices);
         mesh_.vertexCount = static_cast<uint32_t>(sourceVertices_.size());
@@ -451,7 +626,11 @@ namespace dolbuto
         float playerHeadPitch,
         float playerWalkPhase,
         float playerWalkAmount,
+        bool playerWalkReverse,
+        bool playerCrouching,
+        bool playerSprinting,
         bool playerProne,
+        float animationSeconds,
         uint32_t frameIndex,
         uint8_t packedLight)
     {
@@ -462,17 +641,85 @@ namespace dolbuto
         updateMeshLight(mesh_, packedLight, meshPackedLight_);
 
         const std::array<float, 16> headRotation = multiplyMatrix(rotationY(playerHeadYaw), rotationX(-playerHeadPitch));
-        const PlayerAnimationPose animationPose{
-            playerWalkPhase,
-            playerWalkAmount
-        };
-        const std::vector<std::array<float, 16>> worldTransforms = nodeWorldTransforms(nodes_, &headRotation, &animationPose);
+        const bool moving = playerWalkAmount > 0.001f;
+        const char* idleClipName = playerProne
+            ? "proneidle"
+            : (playerCrouching ? "crouchidle" : "idle");
+        const char* movementClipName = playerProne
+            ? "pronewalk"
+            : (playerCrouching ? "crouchwalk" : (playerSprinting ? "run" : "walk"));
+        const PlayerAnimationClip* idleClip = findClip(animations_, idleClipName);
+        if (idleClip == nullptr)
+        {
+            idleClip = findClip(animations_, "idle");
+        }
+        const PlayerAnimationClip* movementClip = findClip(animations_, movementClipName);
+        if (movementClip == nullptr)
+        {
+            movementClip = findClip(animations_, "walk");
+        }
+        const bool animationProvidesPronePosture = playerProne &&
+            (findClip(animations_, "proneidle") != nullptr || findClip(animations_, "pronewalk") != nullptr);
+        const std::string targetAnimationStateKey = std::string(idleClipName) + "|" + movementClipName;
+        const std::vector<PlayerAnimationNodePose> idlePose = sampleClip(nodes_, idleClip, animationSeconds);
+        float movementTime = 0.0f;
+        if (movementClip != nullptr && movementClip->duration > 0.0f)
+        {
+            float normalizedPhase = std::fmod(playerWalkPhase / TwoPi, 1.0f);
+            if (normalizedPhase < 0.0f)
+            {
+                normalizedPhase += 1.0f;
+            }
+            if (playerWalkReverse)
+            {
+                normalizedPhase = normalizedPhase <= 0.0f ? 0.0f : 1.0f - normalizedPhase;
+            }
+            movementTime = normalizedPhase * movementClip->duration;
+        }
+        const std::vector<PlayerAnimationNodePose> movementPose = sampleClip(nodes_, movementClip, movementTime);
+        const float movementBlend = moving
+            ? std::clamp(playerWalkAmount * ((playerCrouching || playerProne) ? 3.0f : 1.0f), 0.0f, 1.0f)
+            : 0.0f;
+        std::vector<PlayerAnimationNodePose> animationPose =
+            animationPoseFromIdleMovement(nodes_, idlePose, movementPose, movementBlend);
+        if (animationStateKey_ != targetAnimationStateKey)
+        {
+            if (lastAnimationPose_.size() == nodes_.size())
+            {
+                transitionFromAnimationPose_ = lastAnimationPose_;
+                animationTransitionStartSeconds_ = animationSeconds;
+                animationTransitionActive_ = true;
+            }
+            else
+            {
+                animationTransitionActive_ = false;
+                transitionFromAnimationPose_.clear();
+            }
+            animationStateKey_ = targetAnimationStateKey;
+        }
+        if (animationTransitionActive_)
+        {
+            const float transitionAmount = (animationSeconds - animationTransitionStartSeconds_) / AnimationTransitionSeconds;
+            if (transitionAmount >= 1.0f)
+            {
+                animationTransitionActive_ = false;
+                transitionFromAnimationPose_.clear();
+            }
+            else
+            {
+                animationPose = blendPoseVectors(nodes_, transitionFromAnimationPose_, animationPose, transitionAmount);
+            }
+        }
+        lastAnimationPose_ = animationPose;
+        const std::vector<std::array<float, 16>> localTransforms =
+            localTransformsFromPose(nodes_, animationPose, &headRotation);
+        const std::vector<std::array<float, 16>> worldTransforms = nodeWorldTransforms(nodes_, localTransforms);
 
         const Vec3 forward{std::cos(playerYaw), 0.0f, std::sin(playerYaw)};
         const Vec3 right{std::sin(playerYaw), 0.0f, -std::cos(playerYaw)};
         Vec3 modelOrigin = playerPosition;
         std::array<float, 16> postureTransform = identityMatrix();
-        if (playerProne)
+        if (playerProne && !animationProvidesPronePosture)
         {
             modelOrigin.x -= forward.x * (PlayerStandingHeight * 0.5f);
             modelOrigin.y += PlayerProneColliderHeight * 0.5f;
@@ -553,7 +800,10 @@ namespace dolbuto
         }
         updateMeshLight(firstPersonHandMesh_, packedLight, firstPersonHandPackedLight_);
 
-        const std::vector<std::array<float, 16>> worldTransforms = nodeWorldTransforms(nodes_, nullptr, nullptr);
+        const std::vector<PlayerAnimationNodePose> neutralPose = sampleClip(nodes_, nullptr, 0.0f);
+        const std::vector<std::array<float, 16>> localTransforms =
+            localTransformsFromPose(nodes_, neutralPose, nullptr);
+        const std::vector<std::array<float, 16>> worldTransforms = nodeWorldTransforms(nodes_, localTransforms);
         std::vector<Vec3> modelPoints(firstPersonHandSourceVertices_.size());
         Vec3 minPoint{999999.0f, 999999.0f, 999999.0f};
         Vec3 maxPoint{-999999.0f, -999999.0f, -999999.0f};
@@ -655,10 +905,16 @@ namespace dolbuto
         destroyTransformFrames(transformFrames_);
         destroyTransformFrames(firstPersonHandTransformFrames_);
         nodes_.clear();
+        animations_.clear();
+        lastAnimationPose_.clear();
+        transitionFromAnimationPose_.clear();
         sourceVertices_.clear();
         indices_.clear();
         firstPersonHandSourceVertices_.clear();
         firstPersonHandIndices_.clear();
+        animationStateKey_.clear();
+        animationTransitionStartSeconds_ = 0.0f;
+        animationTransitionActive_ = false;
         meshPackedLight_ = 0xFFu;
         firstPersonHandPackedLight_ = 0xFFu;
     }

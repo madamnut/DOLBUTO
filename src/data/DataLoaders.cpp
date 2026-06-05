@@ -871,56 +871,90 @@ namespace dolbuto::data
                     definition.heldTexture = *texture;
                 }
             }
-            if (const std::optional<std::string> useActions = jsonArrayField(object, "useActions"); useActions.has_value())
+            const std::optional<std::string> components = jsonObjectField(object, "components");
+            const std::string componentObject = components.value_or("{}");
+            if (const std::optional<std::string> useActions = jsonArrayField(componentObject, "useActions"); useActions.has_value())
             {
                 definition.useActions = jsonStringArrayValues(*useActions);
             }
-            else if (const std::optional<std::string> actions = jsonArrayField(object, "actions"); actions.has_value())
-            {
-                definition.useActions = jsonStringArrayValues(*actions);
-            }
-            if (const std::optional<std::string> breakActions = jsonArrayField(object, "breakActions"); breakActions.has_value())
+            if (const std::optional<std::string> breakActions = jsonArrayField(componentObject, "breakActions"); breakActions.has_value())
             {
                 definition.breakActions = jsonStringArrayValues(*breakActions);
             }
-            if (const std::optional<std::string> placeActions = jsonArrayField(object, "placeActions"); placeActions.has_value())
-            {
-                definition.placeActions = jsonStringArrayValues(*placeActions);
-            }
-            if (const std::optional<int> breakLevel = jsonIntField(object, "breakLevel"); breakLevel.has_value())
+            if (const std::optional<int> breakLevel = jsonIntField(componentObject, "breakLevel"); breakLevel.has_value())
             {
                 definition.breakLevel = static_cast<uint16_t>(std::clamp(*breakLevel, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
             }
-            if (const std::optional<int> maxDurability = jsonIntField(object, "maxDurability"); maxDurability.has_value())
+            if (const std::optional<std::string> durability = jsonObjectField(componentObject, "durability"); durability.has_value())
             {
-                definition.maxDurability = static_cast<uint16_t>(std::clamp(*maxDurability, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
-            }
-            if (const std::optional<int> burnTimeTicks = jsonIntField(object, "burnTimeTicks"); burnTimeTicks.has_value())
-            {
-                definition.burnTimeTicks = static_cast<uint32_t>(std::max(*burnTimeTicks, 0));
-            }
-            if (const std::optional<int> heatLevel = jsonIntField(object, "heatLevel"); heatLevel.has_value())
-            {
-                definition.heatLevel = static_cast<uint16_t>(std::clamp(*heatLevel, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
-            }
-            if (const std::optional<std::string> burnRemainder = jsonObjectField(object, "burnRemainder"); burnRemainder.has_value())
-            {
-                if (const std::optional<std::string> item = jsonStringField(*burnRemainder, "item"); item.has_value())
+                if (const std::optional<int> maxDurability = jsonIntField(*durability, "max"); maxDurability.has_value())
                 {
-                    definition.burnRemainderItem = *item;
-                }
-                if (const std::optional<int> count = jsonIntField(*burnRemainder, "count"); count.has_value())
-                {
-                    definition.burnRemainderCount = static_cast<uint16_t>(std::clamp(*count, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
-                }
-                else if (!definition.burnRemainderItem.empty())
-                {
-                    definition.burnRemainderCount = 1;
+                    definition.maxDurability = static_cast<uint16_t>(std::clamp(*maxDurability, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
                 }
             }
-            if (const std::optional<std::string> placeBlock = jsonStringField(object, "placeBlock"); placeBlock.has_value())
+            if (const std::optional<std::string> fuel = jsonObjectField(componentObject, "fuel"); fuel.has_value())
             {
-                definition.placeBlock = *placeBlock;
+                if (const std::optional<int> burnTimeTicks = jsonIntField(*fuel, "burnTimeTicks"); burnTimeTicks.has_value())
+                {
+                    definition.burnTimeTicks = static_cast<uint32_t>(std::max(*burnTimeTicks, 0));
+                }
+                if (const std::optional<int> heatLevel = jsonIntField(*fuel, "heatLevel"); heatLevel.has_value())
+                {
+                    definition.heatLevel = static_cast<uint16_t>(std::clamp(*heatLevel, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
+                }
+                if (const std::optional<std::string> burnRemainder = jsonObjectField(*fuel, "remainder"); burnRemainder.has_value())
+                {
+                    if (const std::optional<std::string> item = jsonStringField(*burnRemainder, "item"); item.has_value())
+                    {
+                        definition.burnRemainderItem = *item;
+                    }
+                    if (const std::optional<int> count = jsonIntField(*burnRemainder, "count"); count.has_value())
+                    {
+                        definition.burnRemainderCount = static_cast<uint16_t>(std::clamp(*count, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
+                    }
+                    else if (!definition.burnRemainderItem.empty())
+                    {
+                        definition.burnRemainderCount = 1;
+                    }
+                }
+            }
+            if (const std::optional<std::string> burnableLight = jsonObjectField(componentObject, "burnableLight"); burnableLight.has_value())
+            {
+                if (const std::optional<int> maxTicks = jsonIntField(*burnableLight, "maxTicks"); maxTicks.has_value())
+                {
+                    definition.maxBurnTicks = static_cast<uint16_t>(std::clamp(*maxTicks, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
+                }
+                if (const std::optional<int> lightEmission = jsonIntField(*burnableLight, "lightEmission"); lightEmission.has_value())
+                {
+                    definition.portableLightEmission = static_cast<uint16_t>(std::clamp(*lightEmission, 0, 15));
+                }
+                if (const std::optional<std::string> burnoutItem = jsonStringField(*burnableLight, "burnoutItem"); burnoutItem.has_value())
+                {
+                    definition.burnoutItem = *burnoutItem;
+                }
+                if (const std::optional<int> burnoutCount = jsonIntField(*burnableLight, "burnoutCount"); burnoutCount.has_value())
+                {
+                    definition.burnoutCount = static_cast<uint16_t>(std::clamp(*burnoutCount, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
+                }
+                else if (!definition.burnoutItem.empty())
+                {
+                    definition.burnoutCount = 1;
+                }
+                if (const std::optional<bool> ticksOnlyWhileHeld = jsonBoolField(*burnableLight, "ticksOnlyWhileHeld"); ticksOnlyWhileHeld.has_value())
+                {
+                    definition.burnTicksOnlyWhileHeld = *ticksOnlyWhileHeld;
+                }
+            }
+            if (const std::optional<std::string> placeable = jsonObjectField(componentObject, "placeable"); placeable.has_value())
+            {
+                if (const std::optional<std::string> block = jsonStringField(*placeable, "block"); block.has_value())
+                {
+                    definition.placeBlock = *block;
+                    if (!definition.placeBlock.empty())
+                    {
+                        definition.placeActions.push_back("place");
+                    }
+                }
             }
             if (const std::optional<std::string> modelBlock = jsonStringField(object, "modelBlock"); modelBlock.has_value())
             {
@@ -1167,6 +1201,14 @@ namespace dolbuto::data
             if (const std::optional<std::string> targetBlock = jsonStringField(object, "targetBlock"); targetBlock.has_value())
             {
                 definition.targetBlock = *targetBlock;
+            }
+            if (const std::optional<std::string> held = jsonStringField(object, "held"); held.has_value())
+            {
+                definition.held = *held;
+            }
+            if (const std::optional<std::string> resultTarget = jsonStringField(object, "resultTarget"); resultTarget.has_value())
+            {
+                definition.resultTarget = resultTarget->empty() ? "target" : *resultTarget;
             }
             definition.targetCount = clampedInteractionCount(jsonIntField(object, "targetCount").value_or(1));
             const int minCount = jsonIntField(object, "min").value_or(1);

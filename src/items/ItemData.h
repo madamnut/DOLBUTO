@@ -11,6 +11,7 @@ namespace dolbuto
         uint16_t itemId = 0;
         uint16_t count = 0;
         uint16_t durability = 0;
+        uint16_t burnTicksRemaining = 0;
     };
 
     enum class ItemRenderType : uint8_t
@@ -45,6 +46,11 @@ namespace dolbuto
         uint16_t heatLevel = 0;
         uint16_t burnRemainderItemId = 0;
         uint16_t burnRemainderCount = 0;
+        uint16_t portableLightEmission = 0;
+        uint16_t maxBurnTicks = 0;
+        uint16_t burnoutItemId = 0;
+        uint16_t burnoutCount = 0;
+        bool burnTicksOnlyWhileHeld = false;
         uint32_t droppedTextureLayer = 0;
         uint32_t heldTextureLayer = 0;
         float blockModelWidth = 0.0f;
@@ -77,6 +83,7 @@ namespace dolbuto
         std::vector<ItemInteractionIngredient> ingredients;
         std::vector<ItemInteractionOutput> outputs;
         uint16_t placeBlockId = 0;
+        bool resultTargetsHeldItem = false;
         std::string placeBlockPlacement;
         std::string displayName;
         std::string iconTexture;
@@ -87,6 +94,7 @@ namespace dolbuto
         std::string action;
         uint16_t targetItemId = 0;
         uint16_t targetBlockId = 0;
+        uint16_t heldItemId = 0;
         bool targetAnyBlock = false;
         uint16_t targetCount = 1;
         std::vector<ItemInteractionIngredient> ingredients;

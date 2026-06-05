@@ -187,6 +187,17 @@ namespace dolbuto
         client_.gameplayRuntime.cancelPendingItemInteraction();
     }
 
+    bool RendererGameplayBridge::tickHeldBurningItems()
+    {
+        const bool changed = client_.gameplayRuntime.tickHeldBurningItems();
+        if (changed && hooks_.updateInventoryUi)
+        {
+            hooks_.updateInventoryUi();
+            client_.uiBridge.updateItemTooltipUi(vulkan_.swapchainExtent.width, vulkan_.swapchainExtent.height);
+        }
+        return changed;
+    }
+
     void RendererGameplayBridge::tickBlockUpdates()
     {
         constexpr uint32_t MaxBlockTickCells = 256;

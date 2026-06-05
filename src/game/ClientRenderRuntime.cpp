@@ -35,9 +35,13 @@ namespace dolbuto::game
             frame.playerHeadPitch,
             frame.playerWalkPhase,
             frame.playerWalkAmount,
+            frame.playerWalkReverse,
+            frame.playerCrouching,
+            frame.playerSprinting,
             frame.playerProne,
             frame.showFirstPersonHand,
             frame.heldItemId,
+            frame.heldPortableLightEmission,
             frame.terrainWireframe,
             frame.climateOverlayMode,
             frame.menuOverlayMode,
@@ -115,6 +119,11 @@ namespace dolbuto::game
     void ClientRenderRuntime::tickFluidSimulation()
     {
         renderer_->terrainRuntimeBridge_->tickFluidSimulation();
+    }
+
+    bool ClientRenderRuntime::tickHeldBurningItems()
+    {
+        return renderer_->gameplayBridge_->tickHeldBurningItems();
     }
 
     void ClientRenderRuntime::setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots)

@@ -9,12 +9,13 @@
 
 ## 플레이어 모델
 
-플레이어 모델 소스는 `assets/textures/character/Character.glb`를 사용한다.
+플레이어 모델 소스는 우선 `assets/textures/character/Characterwithanim.glb`를 사용하고, 없으면 `assets/textures/character/Character.glb`로 되돌아간다.
 런타임은 더 이상 별도 `Character.mesh` 캐시 파일을 사용하지 않고, 시작 시 GLB를 직접 읽는다.
-`PlayerModelLoader`는 GLB의 node, mesh primitive, vertex/index 데이터를 읽어 `PlayerMeshRenderPath`가 사용할 파트별 source vertex 목록으로 변환한다.
+`PlayerModelLoader`는 GLB의 node, mesh primitive, vertex/index, animation channel 데이터를 읽어 `PlayerMeshRenderPath`가 사용할 파트별 source vertex 목록과 animation clip 목록으로 변환한다.
 `PlayerMeshRenderPath`는 각 vertex가 속한 GLB node index를 보존하고, 매 프레임 node transform을 적용한 뒤 `1 / 16` 스케일로 플레이어 월드 좌표에 배치한다.
 
-현재 모델 구조는 다음 파트 이름을 기준으로 한다.
+현재 모델 구조는 Blockbench group node와 mesh node가 분리될 수 있으므로 animation channel의 대상은 node 이름이 아니라 GLB node index 기준으로 적용한다.
+기본 구조는 다음 파트 이름을 기준으로 한다.
 
 ```text
 ModelRoot
@@ -35,7 +36,7 @@ ModelRoot
       Leg_RL
 ```
 
-이 구조는 이후 보행 모션, 머리 회전, 팔/다리 procedural animation을 node transform 단계에서 적용하기 위한 기준이다.
+이 구조는 보행 모션과 머리 회전을 node transform 단계에서 적용하기 위한 기준이다.
 
 카메라 yaw와 몸통 yaw는 분리한다.
 저장되는 카메라 yaw/pitch는 기존처럼 실제 시선 방향이고, 렌더링용 `bodyYaw`는 카메라 yaw를 부드럽게 따라가는 몸 방향이다.
@@ -48,14 +49,18 @@ ModelRoot
 좌우 이동 입력이 있을 때는 전방 기준으로 몸 방향만 좌우 `45도`까지 비틀어 옆걸음 느낌을 만든다.
 머리 yaw는 렌더링 시점의 몸 방향을 기준으로 `-45도 ~ +45도` 안에서만 회전한다.
 보행 모션은 플레이어의 실제 수평 이동 거리에서 `walkPhase`와 `walkAmount`를 계산하고, 이전 물리 tick 값과 현재 tick 값을 렌더 alpha로 보간해 렌더 프레임에 전달한다.
-`PlayerMeshRenderPath`는 node transform 계산 단계에서 보행 pose를 추가한다.
-`Arm_L`/`Arm_R`와 `Leg_L`/`Leg_R`는 앞뒤 swing을 담당하고, `Arm_LL`/`Arm_RL`과 `Leg_LL`/`Leg_RL`은 팔꿈치/무릎 접힘을 담당한다.
-상하위 관절은 모두 GLB node local transform 뒤에 추가 pitch 회전을 곱해 처리한다.
-팔꿈치와 무릎 접힘은 한 방향으로만 적용하고 각도 상한을 둔다.
-엎드린 상태에서는 3인칭 플레이어 모델을 전방으로 90도 눕히고, 모델 중심이 `0.6 x 0.6 x 0.6` 엎드리기 콜라이더 중심에 오도록 배치한다.
+`PlayerMeshRenderPath`는 플레이어 자세와 이동 상태에 따라 `idle`, `walk`, `run`, `crouchidle`, `crouchwalk`, `proneidle`, `pronewalk` clip을 선택한다.
+정지 상태는 자세별 idle clip을 시간 기준으로 루프 샘플링하고, 이동 상태는 자세별 movement clip을 `walkPhase` 기준으로 루프 샘플링한 뒤 `walkAmount`로 두 pose를 블렌드한다.
+자세 또는 movement clip 조합이 바뀌면 직전 렌더 pose snapshot에서 새 pose로 `0.4`초 동안 TRS 블렌딩한다.
+뒤로 이동하면 현재 movement clip 샘플 시간이 역방향으로 흐른다.
+웅크림/엎드림 이동은 실제 이동 속도가 낮으므로 낮은 `walkAmount`에서도 movement clip이 충분히 보이도록 블렌드 값을 보정한다.
+머리 yaw/pitch는 animation pose가 적용된 뒤 `Head` 제어 node local transform에 추가로 곱한다.
+`Head` 이름이 mesh node와 group node에 중복되면 mesh를 갖지 않고 자식이 있는 group node를 머리 제어 대상으로 우선 사용한다.
+`proneidle`/`pronewalk` clip이 있으면 해당 clip의 ModelRoot 회전을 사용하고, 없을 때만 기존 fallback으로 3인칭 플레이어 모델을 전방으로 90도 눕힌다.
 
 1인칭 화면에서는 오른팔 아래팔 node인 `Arm_RL` 계열에 속한 vertex만 별도 hand mesh로 추출해 사용한다.
 `PlayerMeshRenderPath`는 전체 플레이어 mesh와 1인칭 손 mesh를 함께 소유하며, 1인칭 손은 카메라 기준 오른쪽 아래 위치에 매 프레임 다시 배치한다.
+1인칭 손은 아직 GLB animation clip을 적용하지 않고 neutral pose 기반으로 렌더링한다.
 선택 핫바 슬롯에 아이템이 있으면 해당 아이템을 드랍 아이템과 같은 extruded sprite 형태로 손 앞에 렌더링한다.
 선택 슬롯이 비어 있어도 1인칭 손은 표시한다.
 아이템을 들고 있을 때는 1인칭 팔/손을 렌더링하지 않고 아이템만 표시한다.
@@ -143,12 +148,13 @@ Sandbox fly 상태에서 `Shift`로 하강하며, 하강 중 지면에 닿으면
 - 달리기, 웅크리기, 엎드리기 입력은 Options의 SPRINT/SNEAK/PRONE 모드에서 hold/toggle을 전환한다.
 - 이 세 입력 모드는 `config/settings.json`의 `controls.toggleSprint`, `controls.toggleSneak`, `controls.toggleProne`에 저장한다.
 - ground 이동은 yaw만 반영하고 pitch는 이동 방향에 영향을 주지 않는다.
-- ground 상태에서 현재 땅에 닿아 있고 수평 이동 중 낮은 장애물에 막히면, 모든 자세에서 최대 `0.5`블록 높이까지 즉시 step-up을 시도한다.
+- ground 상태에서 현재 땅에 닿아 있고 수평 이동 중 낮은 장애물에 막히면, 서있기와 웅크림은 최대 `0.5`블록 높이까지 즉시 step-up을 시도한다.
   step-up은 올라간 위치의 콜라이더가 비어 있고 발밑 지지가 있을 때만 적용하므로 공중에서 벽을 비비며 올라가지는 않는다.
 - 상승 중 재점프는 막는다.
 - 웅크리기와 엎드리기 충돌 높이는 즉시 적용하지만, 1인칭 눈높이는 별도 `eyeHeightScale`을 목표 높이로 보간해 카메라가 순간 이동하지 않게 한다.
 - 웅크리기나 엎드리기에서 더 큰 자세로 돌아가려 할 때 현재 위치가 더 큰 콜라이더로 막혀 있으면 낮은 자세를 유지한다.
 - 엎드린 상태에서는 점프하지 않는다.
+- 엎드린 상태에서는 일반 `0.5`블록 자동 step-up을 사용하지 않는다.
 - 엎드린 상태에서 수평 이동이 막히면, 현재 위치에서 1블록 위와 1블록 위의 전방 이동 위치가 모두 비어 있는지 검사해 1칸 벽인지 판정한다.
   1칸 벽이면 기어오르기 상태로 들어가며, 최대 1블록 높이를 `2.0 block/sec` 속도로 천천히 상승한다.
   상승 중 현재 높이에서 수평 충돌이 풀리면 수평 이동도 함께 허용한다.

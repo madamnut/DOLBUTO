@@ -50,5 +50,12 @@
         "output": "charcoal",
         "outputCount": 2,
         "requiredTicks": 600
+    },
+    {
+        "type": "pyrolysis",
+        "input": "bark_strip",
+        "output": "tar",
+        "outputCount": 1,
+        "requiredTicks": 600
     }
 ]

@@ -200,6 +200,14 @@
     },
     {
         "action": "handcraft",
+        "target": "dirt_pile",
+        "targetCount": 1,
+        "candidates": [
+            "dirt_half_slab"
+        ]
+    },
+    {
+        "action": "handcraft",
         "target": "clay_pile",
         "targetCount": 1,
         "candidates": [
@@ -292,6 +300,42 @@
         ],
         "candidates": [
             "bow_drill"
+        ]
+    },
+    {
+        "action": "craft",
+        "target": "wooden_stick",
+        "targetCount": 1,
+        "ingredients": [
+            {
+                "item": "plant_twine",
+                "count": 1
+            },
+            {
+                "item": "tar",
+                "count": 1
+            }
+        ],
+        "candidates": [
+            "torch"
+        ]
+    },
+    {
+        "action": "light",
+        "held": "torch",
+        "targetBlock": "fire",
+        "resultTarget": "held",
+        "candidates": [
+            "lit_torch"
+        ]
+    },
+    {
+        "action": "extinguish",
+        "held": "lit_torch",
+        "targetBlock": "*",
+        "resultTarget": "held",
+        "candidates": [
+            "torch"
         ]
     },
     {

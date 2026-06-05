@@ -154,6 +154,12 @@ namespace dolbuto::ui
             lines.push_back({"BURN_TIME", item.burnTimeTicks > 0
                 ? std::to_string(item.burnTimeTicks) + " ticks"
                 : "none"});
+            lines.push_back({"BURN_REMAINING", item.maxBurnTicks > 0
+                ? std::to_string(item.burnTicksRemaining) + " / " + std::to_string(item.maxBurnTicks)
+                : "none"});
+            lines.push_back({"PORTABLE_LIGHT", item.portableLightEmission > 0
+                ? std::to_string(item.portableLightEmission)
+                : "none"});
             lines.push_back({"HEAT_LEVEL", item.heatLevel > 0
                 ? std::to_string(item.heatLevel)
                 : "none"});

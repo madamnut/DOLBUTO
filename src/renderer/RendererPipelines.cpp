@@ -752,7 +752,7 @@ namespace dolbuto
         pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         pushRange.offset = 0;
         pushRange.size = sizeof(TerrainPush);
-        static_assert(sizeof(TerrainPush) == sizeof(float) * 24);
+        static_assert(sizeof(TerrainPush) == sizeof(float) * 28);
 
         VkPipelineLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;

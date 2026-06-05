@@ -186,9 +186,9 @@ terrain/chunk-load 완료 큐 drain, stale 완료 결과 저장/무시/설치 �
 `src/renderer/RendererTerrainMeshBridge.h/.cpp`는 `TerrainGeometryBuilder`와 `TerrainMesher`를 연결해 chunk mesh와 edited subchunk mesh의 CPU 조립을 담당한다.
 `src/renderer/TextRenderPath.h/.cpp`는 font atlas 생성, text vertex buffer, text batch 구성, debug/menu text draw submission을 담당한다.
 `src/renderer/TerrainRenderPath.h/.cpp`는 terrain render chunk storage, render chunk 설치/교체/retire 규칙, retired mesh cleanup, packed quad 변환, terrain GPU upload, terrain vertex descriptor set 생성, solid/blend/fluid terrain mesh draw loop와 terrain frustum culling을 담당한다.
-`src/renderer/PlayerModelLoader.h/.cpp`는 `Character.glb`의 node, mesh primitive, vertex/index 데이터를 읽어 파트별 플레이어 모델 source data를 만든다.
-`src/renderer/PlayerMeshRenderPath.h/.cpp`는 player GLB 모델 로드, player vertex/index buffer 생성, 매 프레임 GLB node transform 기반 player vertex 갱신, player indexed draw와 buffer 수명을 담당한다.
-플레이어 머리 회전은 `ClientFrame`/`RendererFrame`의 head yaw/pitch 값을 `Head` node transform에 추가 적용하는 방식으로 처리한다.
+`src/renderer/PlayerModelLoader.h/.cpp`는 player GLB의 node, mesh primitive, vertex/index, animation channel 데이터를 읽어 파트별 플레이어 모델 source data와 animation clip data를 만든다.
+`src/renderer/PlayerMeshRenderPath.h/.cpp`는 player GLB 모델 로드, player vertex/index buffer 생성, 매 프레임 GLB 상태별 animation pose 기반 transform buffer 갱신, player indexed draw와 buffer 수명을 담당한다.
+플레이어 머리 회전은 `ClientFrame`/`RendererFrame`의 head yaw/pitch 값을 animation pose 적용 뒤 `Head` 제어 node transform에 추가 적용하는 방식으로 처리한다.
 `src/renderer/ParticleRenderPath.h/.cpp`는 블록 파괴 파티클과 파괴 오버레이 렌더링 상태, host-visible particle vertex/index buffer, 파티클 갱신과 draw path를 담당한다.
 `src/renderer/DroppedItemRenderCollector.h/.cpp`는 dropped item 렌더 후보 수집, 청크 frustum culling, 거리 culling, 렌더 instance 생성을 담당한다.
 `src/renderer/DroppedItemRenderPath.h/.cpp`는 dropped item의 아이템 스프라이트 GPU mesh, persistent instance buffer, instance 업로드, item id별 batch draw를 담당한다.

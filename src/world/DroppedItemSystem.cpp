@@ -54,6 +54,7 @@ namespace dolbuto::world
             if (static_cast<size_t>(itemId) < itemDefinitions.size())
             {
                 stack.durability = itemDefinitions[itemId].maxDurability;
+                stack.burnTicksRemaining = itemDefinitions[itemId].maxBurnTicks;
             }
             return stack;
         }
@@ -393,6 +394,8 @@ namespace dolbuto::world
                     uint16_t otherMaxStack = 0;
                     if (!canMergeDroppedItem(b, itemDefinitions, otherMaxStack) ||
                         a.droppedItem.stack.itemId != b.droppedItem.stack.itemId ||
+                        a.droppedItem.stack.durability != b.droppedItem.stack.durability ||
+                        a.droppedItem.stack.burnTicksRemaining != b.droppedItem.stack.burnTicksRemaining ||
                         a.droppedItem.processingTicks != b.droppedItem.processingTicks ||
                         a.droppedItem.processingType != b.droppedItem.processingType ||
                         maxStack != otherMaxStack ||

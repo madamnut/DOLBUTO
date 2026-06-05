@@ -7,6 +7,7 @@ layout(push_constant) uniform TerrainPush
     mat4 mvp;
     vec4 cameraPosition;
     vec4 fluidWaterParams;
+    vec4 dynamicLightParams;
 } pushData;
 
 layout(location = 0) in vec2 fragUv;
@@ -23,6 +24,16 @@ float lightCurve(float normalizedLight)
 {
     float x = clamp(normalizedLight, 0.0, 1.0);
     return x * x * (0.667482 + 0.332518 * x);
+}
+
+float dynamicLight()
+{
+    float emission = clamp(pushData.dynamicLightParams.x, 0.0, 15.0);
+    if (emission <= 0.0)
+    {
+        return 0.0;
+    }
+    return clamp((emission - length(fragWorldPosition)) / 15.0, 0.0, 1.0);
 }
 
 void main()
@@ -47,7 +58,7 @@ void main()
         discard;
     }
     float skyLight = fragSkyLight * pushData.fluidWaterParams.y;
-    float finalLight = lightCurve(max(skyLight, fragBlockLight));
+    float finalLight = lightCurve(max(max(skyLight, fragBlockLight), dynamicLight()));
     color.rgb *= fragAo * finalLight;
     if (fireAnimated)
     {

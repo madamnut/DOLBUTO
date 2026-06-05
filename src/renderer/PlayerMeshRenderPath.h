@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <string>
 #include <vector>
 
 #include <vulkan/vulkan.h>
@@ -30,6 +31,13 @@ namespace dolbuto
         uint8_t packedLight = 0xF0u;
     };
 
+    struct PlayerAnimationNodePose
+    {
+        std::array<float, 3> translation{0.0f, 0.0f, 0.0f};
+        std::array<float, 4> rotation{0.0f, 0.0f, 0.0f, 1.0f};
+        std::array<float, 3> scale{1.0f, 1.0f, 1.0f};
+    };
+
     class PlayerMeshRenderPath
     {
     public:
@@ -47,7 +55,7 @@ namespace dolbuto
             VulkanResourceManager* gpuResources);
 
         void loadFromGlb(const std::filesystem::path& path);
-        void update(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount, bool playerProne, uint32_t frameIndex, uint8_t packedLight);
+        void update(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount, bool playerWalkReverse, bool playerCrouching, bool playerSprinting, bool playerProne, float animationSeconds, uint32_t frameIndex, uint8_t packedLight);
         void updateFirstPersonHand(const Camera& camera, Vec3 cameraPosition, const config::ViewmodelHandConfig& config, uint32_t frameIndex, uint8_t packedLight);
         void draw(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture, uint32_t frameIndex) const;
         void drawFirstPersonHand(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture, uint32_t frameIndex) const;
@@ -85,10 +93,16 @@ namespace dolbuto
         std::vector<TransformFrame> transformFrames_;
         std::vector<TransformFrame> firstPersonHandTransformFrames_;
         std::vector<PlayerModelNode> nodes_;
+        std::vector<PlayerAnimationClip> animations_;
+        std::vector<PlayerAnimationNodePose> lastAnimationPose_;
+        std::vector<PlayerAnimationNodePose> transitionFromAnimationPose_;
         std::vector<PlayerModelVertex> sourceVertices_;
         std::vector<uint32_t> indices_;
         std::vector<PlayerModelVertex> firstPersonHandSourceVertices_;
         std::vector<uint32_t> firstPersonHandIndices_;
+        std::string animationStateKey_;
+        float animationTransitionStartSeconds_ = 0.0f;
+        bool animationTransitionActive_ = false;
         uint8_t meshPackedLight_ = 0xFFu;
         uint8_t firstPersonHandPackedLight_ = 0xFFu;
     };

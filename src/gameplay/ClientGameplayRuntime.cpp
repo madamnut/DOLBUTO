@@ -894,6 +894,7 @@ namespace dolbuto::gameplay
         dropStack.itemId = slot.itemId;
         dropStack.count = dropCount;
         dropStack.durability = slot.durability;
+        dropStack.burnTicksRemaining = slot.burnTicksRemaining;
 
         WorldEntity item = droppedItemRuntime_.createManualDropEntity(dropStack, sourcePosition, direction);
         if (!droppedItemRuntime_.addWorldEntity(std::move(item), markDirty))
@@ -1045,6 +1046,7 @@ namespace dolbuto::gameplay
                 {
                     if (recipe.action == heldAction &&
                         !recipe.candidates.empty() &&
+                        (recipe.heldItemId == 0 || recipe.heldItemId == heldStack.itemId) &&
                         recipeTargetsBlock(recipe, interactionBlock))
                     {
                         heldHasBlockTargetAction = true;
@@ -1222,6 +1224,7 @@ namespace dolbuto::gameplay
             {
                 if (recipe.action != action ||
                     recipe.candidates.empty() ||
+                    (recipe.heldItemId != 0 && recipe.heldItemId != heldStack.itemId) ||
                     !recipeTargetsBlock(recipe, interactionBlock))
                 {
                     continue;
@@ -1229,12 +1232,14 @@ namespace dolbuto::gameplay
 
                 for (ItemInteractionCandidate candidate : recipe.candidates)
                 {
-                    if (candidate.placeBlockId == 0)
+                    if (candidate.placeBlockId == 0 && !candidate.resultTargetsHeldItem)
                     {
                         continue;
                     }
-                    candidate.enabled = canPlaceAbove &&
-                        (candidate.placeBlockPlacement.empty() || candidate.placeBlockPlacement == "above_target");
+                    candidate.enabled = candidate.resultTargetsHeldItem ||
+                        (canPlaceAbove &&
+                            (candidate.placeBlockPlacement.empty() ||
+                                candidate.placeBlockPlacement == "above_target"));
                     candidates.push_back(std::move(candidate));
                 }
             }
@@ -1413,6 +1418,38 @@ namespace dolbuto::gameplay
             consumesDurability = false;
         }
         pendingItemInteraction_ = {};
+        if (candidate.resultTargetsHeldItem)
+        {
+            if (!blockInteraction || candidate.outputs.empty())
+            {
+                return result;
+            }
+
+            const ItemInteractionOutput& output = candidate.outputs.front();
+            if (output.itemId == 0 ||
+                static_cast<std::size_t>(output.itemId) >= definitions.size() ||
+                definitions[output.itemId].stackSize == 0)
+            {
+                return result;
+            }
+
+            ItemStack replacement{};
+            replacement.itemId = output.itemId;
+            replacement.count = std::min<uint16_t>(output.min, definitions[output.itemId].stackSize);
+            if (replacement.count == 0)
+            {
+                replacement.count = 1;
+            }
+
+            if (!playerInventory_.replaceSlot(heldSlotIndex, replacement, definitions))
+            {
+                return result;
+            }
+            result.executed = true;
+            result.inventoryChanged = true;
+            return result;
+        }
+
         if (candidate.placeBlockId != 0)
         {
             if (!blockInteraction ||
@@ -1599,6 +1636,36 @@ namespace dolbuto::gameplay
         return playerInventory_.cursorStack();
     }
 
+    uint16_t ClientGameplayRuntime::heldPortableLightEmission() const
+    {
+        const std::vector<ItemDefinition>& definitions = itemDefinitions();
+        auto emissionFor = [&](const ItemStack& stack) -> uint16_t
+        {
+            if (stack.itemId == 0 || stack.count == 0 || static_cast<std::size_t>(stack.itemId) >= definitions.size())
+            {
+                return 0;
+            }
+            const ItemDefinition& definition = definitions[stack.itemId];
+            if (definition.portableLightEmission == 0)
+            {
+                return 0;
+            }
+            if (definition.maxBurnTicks > 0 && stack.burnTicksRemaining == 0)
+            {
+                return 0;
+            }
+            return definition.portableLightEmission;
+        };
+
+        uint16_t emission = 0;
+        if (hotbarSelectedSlot_ >= 0 && hotbarSelectedSlot_ < static_cast<int>(PlayerInventory::HotbarSlotCount))
+        {
+            emission = std::max(emission, emissionFor(playerInventory_.slot(static_cast<std::size_t>(hotbarSelectedSlot_))));
+        }
+        emission = std::max(emission, emissionFor(playerInventory_.offhandSlot()));
+        return emission;
+    }
+
     void ClientGameplayRuntime::clearInventory()
     {
         playerInventory_.clear();
@@ -1655,6 +1722,13 @@ namespace dolbuto::gameplay
     bool ClientGameplayRuntime::closeInventoryCursor()
     {
         return playerInventory_.closeCursor(itemDefinitions());
+    }
+
+    bool ClientGameplayRuntime::tickHeldBurningItems()
+    {
+        return playerInventory_.tickHeldBurningItems(
+            static_cast<std::size_t>(std::clamp(hotbarSelectedSlot_, 0, 9)),
+            itemDefinitions());
     }
 
     BlockBreakTool ClientGameplayRuntime::currentBlockBreakTool() const

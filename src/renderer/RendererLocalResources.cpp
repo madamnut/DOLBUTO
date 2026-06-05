@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 
 namespace dolbuto
 {
@@ -55,6 +56,8 @@ namespace dolbuto
 
     void Renderer::createPlayerMesh()
     {
-        playerMeshRenderPath_.loadFromGlb(assetDirectory() / "textures" / "character" / "Character.glb");
+        const std::filesystem::path characterDirectory = assetDirectory() / "textures" / "character";
+        const std::filesystem::path animatedModel = characterDirectory / "Characterwithanim.glb";
+        playerMeshRenderPath_.loadFromGlb(std::filesystem::exists(animatedModel) ? animatedModel : characterDirectory / "Character.glb");
     }
 }

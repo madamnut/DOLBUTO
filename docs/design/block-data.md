@@ -45,10 +45,11 @@ assets/data/blocks.json
 `2`, `4`, `6`, `8`은 해당 면 위의 아래/왼쪽/오른쪽/위 구역 방향으로 세워진 반블럭을 배치한다.
 `1`, `3`, `7`, `9` 모서리는 플레이어 시선이 해당 면 위에서 더 평행한 축을 골라 인접한 직선 구역 중 하나로 해석한다.
 
-`quarter_stripped_log`는 테스트용 `renderType: "half_slab"`, `stateKind: "attach_grid"` 블록이다.
+`dirt_half_slab`과 `quarter_stripped_log`는 `renderType: "half_slab"`, `stateKind: "attach_grid"` 블록이다.
+`dirt_half_slab`은 `dirt` 텍스처만 쓰는 일반 `0.5 x 0.5 x 1.0` 조각이다.
 배치 면 기준 `1/3/7/9`는 해당 꼭짓점에 세우고, `2/4/6/8`은 해당 모서리에 눕힌다.
 `5`는 플레이어가 보는 방향의 모서리로 눕힌다.
-텍스처는 기준 slab을 수직으로 반 자른 `0.5 x 0.5 x 1.0` 조각에서 slab의 위/아래였던 면에 `topBottom`, 원래 외곽 옆면에 `side`, 새로 잘린 수직 절단면에 `verticalSection`을 사용하고, 배치 상태는 이 기준 배치를 회전/이동만 한다.
+`quarter_stripped_log` 텍스처는 기준 slab을 수직으로 반 자른 `0.5 x 0.5 x 1.0` 조각에서 slab의 위/아래였던 면에 `topBottom`, 원래 외곽 옆면에 `side`, 새로 잘린 수직 절단면에 `verticalSection`을 사용하고, 배치 상태는 이 기준 배치를 회전/이동만 한다.
 UV는 현재 배치된 AABB에 맞춰 다시 늘리지 않고 기준 조각의 재질 좌표를 유지한다.
 
 ## 블록 드랍
@@ -61,11 +62,11 @@ UV는 현재 배치된 AABB에 맞춰 다시 늘리지 않고 기준 조각의 �
 
 블록 정의는 우클릭 상호작용용 `interactActions` 배열을 가질 수 있다.
 이 값이 비어 있으면 블록 우클릭은 아이템 설치 흐름으로 넘어간다.
-값이 있으면 해당 블록은 상호작용 대상 가능성이 있는 것으로 보고, `placeActions`보다 먼저 원형 상호작용 UI를 연다.
+값이 있으면 해당 블록은 상호작용 대상 가능성이 있는 것으로 보고, `components.placeable`보다 먼저 원형 상호작용 UI를 연다.
 
 현재 `primal_workbench`는 `interactActions: ["craft"]`를 가진다.
 워크벤치의 작업 영역은 블록 바로 위 `1 x 1 x 1` 공간이며, 그 안에 들어온 드랍 아이템 스택을 재료로 감지한다.
-블록에 `interactActions`가 있으면 기본 우클릭은 블록 액션을 우선하며, `Shift + 우클릭`은 손에 든 아이템의 블록 대상 `useActions`를 우선한다.
+블록에 `interactActions`가 있으면 기본 우클릭은 블록 액션을 우선하며, `Shift + 우클릭`은 손에 든 아이템의 블록 대상 `components.useActions`를 우선한다.
 현재 `bow_drill`의 `ignite`는 대상 블록 윗칸이 비어 있고 대상 블록이 충돌 블록이면 `fire`를 그 윗칸에 설치한다.
 
 ## 블록 파괴
@@ -80,14 +81,14 @@ UV는 현재 배치된 AABB에 맞춰 다시 늘리지 않고 기준 조각의 �
 - `breakAction`: 권장 좌클릭 파괴 동작. `none`이면 동작 보정을 적용하지 않는다.
 
 손은 내부적으로 `breakLevel = 1`, 파괴 동작 없음으로 취급한다.
-든 아이템에 `breakActions`와 `breakLevel`이 모두 없으면 좌클릭 파괴에서는 손과 동일하게 취급한다.
+든 아이템에 `components.breakActions`와 `components.breakLevel`이 모두 없으면 좌클릭 파괴에서는 손과 동일하게 취급한다.
 손이나 든 아이템의 레벨이 블록의 `breakLevel`보다 낮으면 파괴 진행도와 오버레이가 생기지 않는다.
 Sandbox 모드에서는 도구 레벨과 동작을 검사하지 않고 파괴 가능한 블록을 즉시 제거한다.
 레벨이 충분하면 파괴 파워는 다음 규칙으로 계산한다.
 
 ```text
 levelMultiplier = 1.5 ^ (toolLevel - block.breakLevel)
-actionMultiplier = block.breakAction == "none" 또는 도구의 breakActions에 포함되면 1.0, 아니면 0.5
+actionMultiplier = block.breakAction == "none" 또는 도구의 components.breakActions에 포함되면 1.0, 아니면 0.5
 breakPower = 1.0 * levelMultiplier * actionMultiplier
 progress += deltaSeconds * breakPower / hardness
 ```
@@ -126,6 +127,7 @@ fire      0.0
 dirt_slab 0.8
 half_stripped_log 2.0
 quarter_stripped_log 1.0
+dirt_half_slab 0.4
 rock      5.0
 coal_ore, copper_ore, iron_ore, tin_ore, zinc_ore, silver_ore, gold_ore 5.0
 ```
@@ -135,7 +137,7 @@ coal_ore, copper_ore, iron_ore, tin_ore, zinc_ore, silver_ore, gold_ore 5.0
 ```text
 rock, sandstone, *_ore          breakLevel 2 / smash
 grass, dirt, sand, mud, clay, gravel  breakLevel 1 / dig
-dirt_slab                       breakLevel 1 / dig
+dirt_slab, dirt_half_slab       breakLevel 1 / dig
 log, stripped_log, half_stripped_log, quarter_stripped_log, primal_workbench breakLevel 2 / chop
 wooden_box                      breakLevel 1 / chop
 fire                            breakLevel 0 / none
@@ -151,8 +153,9 @@ air, bedrock                    breakLevel 0 / none
 현재 `dirt`는 파괴되면 `dirt_pile` 4개를 확정 드랍한다.
 현재 `grass`는 파괴되면 `dirt_pile` 4개와 `grass_scrap` 2~4개를 확정 드랍하며, `seed`는 낮은 확률 드랍을 유지한다.
 현재 `log`는 파괴되면 `log` 아이템 1개를 드랍한다.
-`log`, `stripped_log`, `half_stripped_log`, `primal_workbench`, `wooden_box`는 `block_model` 아이템으로, 각 아이템의 `modelBlock` 또는 `placeBlock` 대상 블록 텍스처를 작은 블록 모델로 렌더링한다.
-`quarter_stripped_log`도 `block_model` 설치 아이템이며, `modelBlock = stripped_log`, `modelShape = quarter_log`, `placeBlock = quarter_stripped_log`를 사용한다.
+`log`, `stripped_log`, `half_stripped_log`, `primal_workbench`, `wooden_box`는 `block_model` 아이템으로, 각 아이템의 `modelBlock` 또는 `components.placeable.block` 대상 블록 텍스처를 작은 블록 모델로 렌더링한다.
+`quarter_stripped_log`도 `block_model` 설치 아이템이며, `modelBlock = stripped_log`, `modelShape = quarter_log`, `components.placeable.block = quarter_stripped_log`를 사용한다.
+`dirt_half_slab`은 `block_model` 설치 아이템이며, `modelBlock = dirt`, `modelShape = half_slab`, `components.placeable.block = dirt_half_slab`을 사용한다.
 
 블록 파괴 오버레이 텍스처는 블록 렌더링 에셋으로 저장한다.
 
@@ -257,10 +260,10 @@ fire 작업 공간은 fire 중심 같은 Y층의 `3 x 3` 영역이다. 구조 �
 남은 연소 시간 감소는 별도 `FireBurn` tick으로 진행하며, fire가 계속 존재하면 자기 자신을 다시 `FireBurn`으로 등록한다.
 연소 시간이 0이 되면 fire 셀의 `1 x 1 x 1` 영역 안에 있는 드랍 아이템 중 연료 아이템 1개를 무작위로 소비한다. fire 셀 안에 있는 아이템은 작업 공간에 포함되더라도 연료 소비 대상이며, processing 대상에서는 제외한다.
 단, `charcoal`은 같은 영역에 다른 연료가 하나도 없을 때만 소비 후보로 사용한다.
-연료를 소비하면 해당 아이템의 `burnTimeTicks`만큼 남은 연소 시간이 늘어난다.
-연료에 `burnRemainder`가 있으면 fire block entity가 해당 부산물 아이템과 개수를 기억하고, 그 연료로 추가된 연소 시간이 끝나는 시점에 드랍 아이템으로 뱉는다.
+연료를 소비하면 해당 아이템의 `components.fuel.burnTimeTicks`만큼 남은 연소 시간이 늘어난다.
+연료에 `components.fuel.remainder`가 있으면 fire block entity가 해당 부산물 아이템과 개수를 기억하고, 그 연료로 추가된 연소 시간이 끝나는 시점에 드랍 아이템으로 뱉는다.
 연료 소비 시점에 `leakCount == 0`이면 `pyrolysis` 모드가 된다.
-연료 소비 시점에 `leakCount == 1`이고 소비한 연료의 `heatLevel >= 2`이면 `firing` 모드가 된다.
+연료 소비 시점에 `leakCount == 1`이고 소비한 연료의 `components.fuel.heatLevel >= 2`이면 `firing` 모드가 된다.
 둘 다 아니면 `normal` 모드가 된다.
 `normal` fire가 나중에 밀폐되더라도 이미 타고 있던 연료는 일반 연소로 유지되고, 다음 연료 소비부터 `pyrolysis` 또는 `firing`이 적용된다.
 `pyrolysis`와 `firing` fire는 5틱마다 fire 셀을 제외한 BFS 내부 작업 셀의 드랍 아이템을 확인하고, [[recipe/processings]]의 현재 모드 레시피 대상이면 해당 드랍 아이템의 `processingTicks`를 5틱씩 증가시킨다.
@@ -362,6 +365,7 @@ fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 bounds 박스
 24    half_stripped_log
 25    quarter_stripped_log
 26    refractory_clay_crucible
+27    dirt_half_slab
 10000 plant
 20000 stone
 20001 branch
