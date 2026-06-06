@@ -494,14 +494,13 @@ namespace dolbuto::world
         return targets;
     }
 
-    DroppedItemRuntime::BurnableConsumptionResult DroppedItemRuntime::consumeRandomBurnableInAabb(
+    DroppedItemRuntime::BurnableConsumptionResult DroppedItemRuntime::consumeHighestHeatBurnableInAabb(
         float minX,
         float minY,
         float minZ,
         float maxX,
         float maxY,
         float maxZ,
-        bool allowCharcoal,
         const MarkDirtyFn& markDirty)
     {
         struct BurnableCandidate
@@ -516,8 +515,8 @@ namespace dolbuto::world
         };
 
         const std::vector<ItemDefinition>& definitions = itemDefinitions();
-        std::vector<BurnableCandidate> regularCandidates;
-        std::vector<BurnableCandidate> charcoalCandidates;
+        std::vector<BurnableCandidate> candidates;
+        uint16_t bestHeatLevel = 0;
 
         for (const Target& target : targetsInAabb(minX, minY, minZ, maxX, maxY, maxZ))
         {
@@ -541,22 +540,18 @@ namespace dolbuto::world
             candidate.heatLevel = definitions[target.stack.itemId].heatLevel;
             candidate.remainderItemId = definitions[target.stack.itemId].burnRemainderItemId;
             candidate.remainderCount = definitions[target.stack.itemId].burnRemainderCount;
-            if (definitions[target.stack.itemId].key == "charcoal")
+            if (candidate.heatLevel > bestHeatLevel)
             {
-                if (allowCharcoal)
-                {
-                    charcoalCandidates.push_back(candidate);
-                }
+                bestHeatLevel = candidate.heatLevel;
+                candidates.clear();
+                candidates.push_back(candidate);
             }
-            else
+            else if (candidate.heatLevel == bestHeatLevel)
             {
-                regularCandidates.push_back(candidate);
+                candidates.push_back(candidate);
             }
         }
 
-        const std::vector<BurnableCandidate>& candidates = regularCandidates.empty()
-            ? charcoalCandidates
-            : regularCandidates;
         if (candidates.empty())
         {
             return {};

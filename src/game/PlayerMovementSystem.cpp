@@ -160,6 +160,17 @@ namespace dolbuto::game
             return collision.playerColliderIntersectsTerrain &&
                 collision.playerColliderIntersectsTerrain(position, playerHeightScale);
         };
+        const auto terrainClimbHeight = [&](DVec3 blockedPosition, double maxHeight) -> double
+        {
+            if (collision.playerColliderTerrainClimbHeight)
+            {
+                return std::clamp(
+                    collision.playerColliderTerrainClimbHeight(blockedPosition, playerHeightScale, maxHeight),
+                    0.0,
+                    maxHeight);
+            }
+            return maxHeight;
+        };
         if (state.proneClimbActive)
         {
             const double maxClimbHeight = state.proneClimbTarget.y > 0.0 ? state.proneClimbTarget.y : ProneClimbHeight;
@@ -429,19 +440,28 @@ namespace dolbuto::game
                 horizontalIntentLength > 0.001 &&
                 (dx != 0.0 || dz != 0.0))
             {
+                DVec3 blockedNext = state.position;
+                blockedNext.x += dx;
+                blockedNext.z += dz;
+                const double climbHeight = terrainClimbHeight(blockedNext, ProneClimbHeight);
+                if (climbHeight <= 0.000001)
+                {
+                    return false;
+                }
+
                 DVec3 climbTop = state.position;
-                climbTop.y += ProneClimbHeight;
+                climbTop.y += climbHeight;
                 DVec3 climbTopNext = climbTop;
                 climbTopNext.x += dx;
                 climbTopNext.z += dz;
-                if (!moveBlocked(climbTop, 0.0, ProneClimbHeight, 0.0) &&
+                if (!moveBlocked(climbTop, 0.0, climbHeight, 0.0) &&
                     !moveBlocked(climbTopNext, dx, 0.0, dz))
                 {
                     state.proneClimbActive = true;
                     state.proneClimbProgress = 0.0;
                     state.proneClimbStart = state.position;
-                    state.proneClimbTarget = {0.0, ProneClimbHeight, 0.0};
-                    const double appliedLift = std::min(ProneClimbHeight, ProneClimbStepUpSpeed * fixedDeltaSeconds);
+                    state.proneClimbTarget = {0.0, climbHeight, 0.0};
+                    const double appliedLift = std::min(climbHeight, ProneClimbStepUpSpeed * fixedDeltaSeconds);
                     DVec3 applied = state.position;
                     applied.y += appliedLift;
                     if (moveBlocked(applied, 0.0, appliedLift, 0.0))
@@ -463,7 +483,7 @@ namespace dolbuto::game
                         state.position = applied;
                     }
                     state.proneClimbProgress = appliedLift;
-                    if (state.proneClimbProgress >= ProneClimbHeight)
+                    if (state.proneClimbProgress >= climbHeight)
                     {
                         state.proneClimbActive = false;
                         state.proneClimbProgress = 0.0;

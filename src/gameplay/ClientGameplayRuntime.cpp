@@ -440,10 +440,18 @@ namespace dolbuto::gameplay
                 {0, 0, 1},
                 {0, 0, -1}
             };
-            auto insideWorkBounds = [&](int cellX, int cellY, int cellZ)
+            constexpr int WatchRadiusXZ = 2;
+            constexpr int WatchRadiusY = 1;
+            auto insideWatchBounds = [&](int cellX, int cellY, int cellZ)
             {
-                return std::abs(cellX - x) <= 1 &&
-                    cellY == y &&
+                return std::abs(cellX - x) <= WatchRadiusXZ &&
+                    std::abs(cellY - y) <= WatchRadiusY &&
+                    std::abs(cellZ - z) <= WatchRadiusXZ;
+            };
+            auto insideHorizontalWorkArea = [&](int cellX, int cellY, int cellZ)
+            {
+                return cellY == y &&
+                    std::abs(cellX - x) <= 1 &&
                     std::abs(cellZ - z) <= 1;
             };
             auto containsCell = [](const std::vector<std::array<int, 3>>& cells, int cellX, int cellY, int cellZ)
@@ -455,7 +463,7 @@ namespace dolbuto::gameplay
             };
 
             std::vector<std::array<int, 3>> visited;
-            std::vector<std::array<int, 3>> leaks;
+            bool leakDirections[6] = {};
             visited.push_back({x, y, z});
             for (std::size_t index = 0; index < visited.size(); ++index)
             {
@@ -465,30 +473,57 @@ namespace dolbuto::gameplay
                     const int nextX = current[0] + direction[0];
                     const int nextY = current[1] + direction[1];
                     const int nextZ = current[2] + direction[2];
+                    if (!insideWatchBounds(nextX, nextY, nextZ))
+                    {
+                        continue;
+                    }
                     if (blockSealsFire(nextX, nextY, nextZ))
                     {
                         continue;
                     }
-                    if (insideWorkBounds(nextX, nextY, nextZ))
+                    if (nextX == x + WatchRadiusXZ)
                     {
-                        if (!containsCell(visited, nextX, nextY, nextZ))
-                        {
-                            visited.push_back({nextX, nextY, nextZ});
-                        }
-                        continue;
+                        leakDirections[0] = true;
                     }
-                    if (!containsCell(leaks, nextX, nextY, nextZ))
+                    if (nextX == x - WatchRadiusXZ)
                     {
-                        leaks.push_back({nextX, nextY, nextZ});
+                        leakDirections[1] = true;
+                    }
+                    if (nextY == y + WatchRadiusY)
+                    {
+                        leakDirections[2] = true;
+                    }
+                    if (nextY == y - WatchRadiusY)
+                    {
+                        leakDirections[3] = true;
+                    }
+                    if (nextZ == z + WatchRadiusXZ)
+                    {
+                        leakDirections[4] = true;
+                    }
+                    if (nextZ == z - WatchRadiusXZ)
+                    {
+                        leakDirections[5] = true;
+                    }
+                    if (!containsCell(visited, nextX, nextY, nextZ))
+                    {
+                        visited.push_back({nextX, nextY, nextZ});
                     }
                 }
             }
 
             FireWorkVolume volume{};
-            volume.leakCount = static_cast<uint32_t>(leaks.size());
+            for (const bool leakDirection : leakDirections)
+            {
+                if (leakDirection)
+                {
+                    ++volume.leakCount;
+                }
+            }
             for (const std::array<int, 3>& cell : visited)
             {
-                if (cell[0] == x && cell[1] == y && cell[2] == z)
+                if ((cell[0] == x && cell[1] == y && cell[2] == z) ||
+                    !insideHorizontalWorkArea(cell[0], cell[1], cell[2]))
                 {
                     continue;
                 }
@@ -536,31 +571,22 @@ namespace dolbuto::gameplay
             world::DroppedItemSystem::setGrounded(output, false);
             return droppedItemRuntime_.addWorldEntity(std::move(output), markDirty);
         };
-        auto fireModeForFuel = [&](int x, int y, int z, uint16_t heatLevel)
+        auto fireModeForOcclusionAndHeat = [](uint32_t leakCount, uint16_t heatLevel)
         {
-            const FireWorkVolume volume = fireWorkVolume(x, y, z);
-            if (volume.leakCount == 0)
+            if (leakCount == 0)
             {
                 return FireMode::Pyrolysis;
             }
-            if (volume.leakCount == 1 && heatLevel >= 2)
+            if (leakCount == 1 && heatLevel >= 3)
             {
                 return FireMode::Firing;
             }
-            return FireMode::Normal;
+            return FireMode::Exposed;
         };
-        auto fireModeStructureValid = [&](int x, int y, int z, FireMode mode)
+        auto fireModeForFuel = [&](int x, int y, int z, uint16_t heatLevel)
         {
             const FireWorkVolume volume = fireWorkVolume(x, y, z);
-            if (mode == FireMode::Pyrolysis)
-            {
-                return volume.leakCount == 0;
-            }
-            if (mode == FireMode::Firing)
-            {
-                return volume.leakCount == 1;
-            }
-            return true;
+            return fireModeForOcclusionAndHeat(volume.leakCount, heatLevel);
         };
         auto setFireMode = [&](int x, int y, int z, BlockEntity& entity, FireMode nextMode, bool forceNotify)
         {
@@ -666,9 +692,9 @@ namespace dolbuto::gameplay
 
         auto updateFireMode = [&](int x, int y, int z, BlockEntity& entity, bool forceNotify)
         {
-            const bool modeStructureValid =
-                fireModeStructureValid(x, y, z, entity.fireMode);
-            if (entity.fireMode == FireMode::Normal || modeStructureValid)
+            const FireWorkVolume volume = fireWorkVolume(x, y, z);
+            const FireMode nextMode = fireModeForOcclusionAndHeat(volume.leakCount, entity.fireHeatLevel);
+            if (entity.fireMode == nextMode)
             {
                 if (forceNotify)
                 {
@@ -683,7 +709,7 @@ namespace dolbuto::gameplay
                 return;
             }
 
-            setFireMode(x, y, z, entity, FireMode::Normal, forceNotify);
+            setFireMode(x, y, z, entity, nextMode, forceNotify);
         };
 
         auto processFireBurn = [&](const world::WorldRuntime::BlockTickCell& cell, uint16_t block)
@@ -709,8 +735,6 @@ namespace dolbuto::gameplay
             {
                 return;
             }
-
-            updateFireMode(cell.x, cell.y, cell.z, *entity, false);
 
             if (entity->remainingBurnTicks > 0)
             {
@@ -766,14 +790,13 @@ namespace dolbuto::gameplay
                 }
             }
 
-            const world::DroppedItemRuntime::BurnableConsumptionResult consumedFuel = droppedItemRuntime_.consumeRandomBurnableInAabb(
+            const world::DroppedItemRuntime::BurnableConsumptionResult consumedFuel = droppedItemRuntime_.consumeHighestHeatBurnableInAabb(
                 static_cast<float>(cell.x) - 0.5f,
                 static_cast<float>(cell.y),
                 static_cast<float>(cell.z) - 0.5f,
                 static_cast<float>(cell.x) + 0.5f,
                 static_cast<float>(cell.y + 1),
                 static_cast<float>(cell.z) + 0.5f,
-                true,
                 markDirty);
             if (consumedFuel.burnTimeTicks > 0)
             {
@@ -781,6 +804,7 @@ namespace dolbuto::gameplay
                 if (entity != nullptr && entity->type == BlockEntityType::Fire)
                 {
                     entity->remainingBurnTicks += consumedFuel.burnTimeTicks;
+                    entity->fireHeatLevel = static_cast<uint8_t>(std::min<uint16_t>(consumedFuel.heatLevel, 255));
                     entity->burnRemainderItemId = consumedFuel.remainderItemId;
                     entity->burnRemainderCount = consumedFuel.remainderCount;
                     const FireMode consumedFuelMode = fireModeForFuel(cell.x, cell.y, cell.z, consumedFuel.heatLevel);
@@ -1440,6 +1464,10 @@ namespace dolbuto::gameplay
             {
                 replacement.count = 1;
             }
+            if (definitions[output.itemId].maxBurnTicks > 0 && heldStack.burnTicksRemaining > 0)
+            {
+                replacement.burnTicksRemaining = std::min(heldStack.burnTicksRemaining, definitions[output.itemId].maxBurnTicks);
+            }
 
             if (!playerInventory_.replaceSlot(heldSlotIndex, replacement, definitions))
             {
@@ -1724,10 +1752,11 @@ namespace dolbuto::gameplay
         return playerInventory_.closeCursor(itemDefinitions());
     }
 
-    bool ClientGameplayRuntime::tickHeldBurningItems()
+    bool ClientGameplayRuntime::tickHeldBurningItems(bool extinguishHeldBurnableLights)
     {
         return playerInventory_.tickHeldBurningItems(
             static_cast<std::size_t>(std::clamp(hotbarSelectedSlot_, 0, 9)),
+            extinguishHeldBurnableLights,
             itemDefinitions());
     }
 

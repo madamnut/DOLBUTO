@@ -200,7 +200,7 @@ namespace dolbuto::gameplay
         bool swapHotbarWithSlot(std::size_t slotIndex, std::size_t hotbarSlot);
         bool swapSelectedHotbarWithOffhand();
         bool closeInventoryCursor();
-        bool tickHeldBurningItems();
+        bool tickHeldBurningItems(bool extinguishHeldBurnableLights);
 
     private:
         const std::vector<ItemDefinition>& itemDefinitions() const;

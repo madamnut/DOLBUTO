@@ -70,9 +70,13 @@ assets/textures/item/*.png
     "burnableLight": {
       "maxTicks": 2400,
       "lightEmission": 12,
+      "extinguishedItem": "torch",
       "burnoutItem": "ash",
       "burnoutCount": 1,
       "ticksOnlyWhileHeld": true
+    },
+    "slotGauge": {
+      "source": "durability"
     },
     "placeable": {
       "block": "rock"
@@ -105,6 +109,8 @@ assets/textures/item/*.png
 - `components.fuel.heatLevel`: 연료의 처리 온도 단계. `burnTimeTicks > 0`이고 생략하면 1로 처리한다.
 - `components.fuel.remainder`: 연료 1개가 다 탄 뒤 드랍할 부산물. 현재는 `{ "item": "ash", "count": n }` 형태를 사용한다.
 - `components.burnableLight`: 손에 들었을 때만 연소 시간이 흐르는 휴대 조명 상태 정의. 현재 `lit_torch`에 사용한다.
+- `components.burnableLight.extinguishedItem`: 물 접촉이나 `extinguish` 같은 소화 처리로 바뀔 아이템 키
+- `components.slotGauge.source`: 인벤토리/핫바 슬롯 하단 게이지에 표시할 런타임 값. 현재 `durability`, `burnTicks`를 사용한다.
 - `components.placeable.block`: 우클릭 설치로 배치할 블록 이름
 - `modelBlock`: `block_model` 아이템 렌더링에 사용할 블록 이름. 생략하면 `components.placeable.block`을 사용한다.
 - `modelShape`: `block_model` 아이템 렌더링 형상. 현재 `source`, `cube`, `slab`, `half_slab`, `quarter_log`, `crucible`을 사용한다.
@@ -135,13 +141,13 @@ assets/textures/item/*.png
 `components.fuel.burnTimeTicks`는 아이템 1개가 불에 소모될 때 fire 블록 엔티티의 남은 연소 시간에 더해지는 값이다.
 `components.fuel.heatLevel`은 해당 연료가 낼 수 있는 처리 온도 단계다. `burnTimeTicks > 0`이고 `heatLevel`을 생략하면 런타임에서 1로 처리한다.
 현재는 0레벨 연료를 구분하지 않으며, 실제 연료 단계는 1부터 시작한다.
-`heatLevel = 1`은 일반 연료, `heatLevel = 2`는 도기 소성이 가능한 고열 연료로 사용한다.
+`heatLevel = 1`은 약한 식물성/얇은 연료, `heatLevel = 2`는 목질 연료, `heatLevel = 3`은 숯/석탄 같은 고열 연료로 사용한다.
 `components.fuel.remainder`는 해당 연료로 추가된 연소 시간이 끝나는 시점에 드랍되는 부산물이다.
 재 생성량은 런타임 계산식이 아니라 아이템 데이터에 명시한다.
 현재 게임 시간은 초당 20틱 기준이며, 연료로 쓰는 아이템은 최소 100틱 이상을 사용한다.
 가공 아이템은 원재료 합보다 조금 낮은 값을 가진다.
-불은 같은 셀 영역에 있는 연료 아이템 중 하나를 무작위로 소비한다.
-`charcoal`은 하드코딩된 후순위 연료이며, 다른 연료가 없을 때만 무작위 소비 후보에 들어간다.
+불은 같은 셀 영역에 있는 연료 아이템 중 가장 높은 `heatLevel`을 가진 연료를 먼저 소비한다.
+같은 `heatLevel` 후보가 여러 개면 그 안에서 무작위로 고른다.
 
 ## 휴대 조명 아이템
 
@@ -151,8 +157,14 @@ assets/textures/item/*.png
 `ignite`를 일반 블록에 적용하면 기존 점화 규칙처럼 대상 블록 위에 fire를 만들고, `extinguish`를 블록에 적용하면 손에 든 아이템이 `torch`로 교체된다.
 `lit_torch`는 `components.burnableLight.maxTicks`만큼 잔여 연소 시간을 가진다.
 이 값은 `ItemStack.burnTicksRemaining`으로 저장되며, 선택된 오른손 핫바 슬롯이나 왼손 슬롯에 들려 있을 때만 1틱씩 감소한다.
+잔여 연소 시간이 감소하면 인벤토리/핫바 UI를 갱신해 슬롯 게이지가 최신 값을 표시한다.
+1인칭 카메라 위치가 물 안에 들어가면 선택된 오른손 핫바 슬롯과 왼손 슬롯의 켜진 휴대 조명 아이템은 `components.burnableLight.extinguishedItem`으로 교체된다.
+이때 `burnTicksRemaining`은 유지되며, 꺼진 `torch`도 남은 연소 시간을 저장하기 위해 `components.burnableLight.maxTicks`를 가진다.
+꺼진 `torch`는 `ticksOnlyWhileHeld`가 없고 `lightEmission = 0`이므로 들고 있어도 연소 시간이 줄거나 주변을 밝히지 않는다.
+꺼진 `torch`를 다시 `light`하면 기존 `burnTicksRemaining`이 새 `lit_torch`로 승계된다.
 잔여 시간이 0이 되면 `components.burnableLight.burnoutItem`과 `burnoutCount`에 따라 현재 스택이 교체된다.
 현재 `lit_torch`는 2400틱 동안 타고, 다 타면 `ash` 1개가 된다.
+`lit_torch`는 `components.slotGauge.source = "burnTicks"`를 사용해 슬롯 게이지에 남은 연소 시간을 표시한다.
 `components.burnableLight.lightEmission`은 휴대 광원 렌더링에 사용할 데이터 값이다.
 선택 핫바 슬롯 또는 왼손 슬롯에 `portableLightEmission > 0`인 아이템이 있으면, 렌더 프레임은 가장 큰 emission 값을 카메라 위치 기준 다이나믹 라이트로 전달한다.
 이 휴대 광원은 월드 조명 데이터, 청크 조명, 저장 데이터에는 반영하지 않는 렌더링 전용 효과다.
@@ -165,18 +177,18 @@ plant, plant_fiber, grass_scrap, leaf, bark_strip  100            1          ash
 short_plant_twine                                  100            1          ash x1
 plant_twine                                        160            1          ash x1
 long_plant_twine                                   256            1          ash x1
-branch                                             300            1          ash x1
-short_wooden_stick                                 120            1          ash x1
-wooden_stick                                       240            1          ash x1
-long_wooden_stick                                  800            1          ash x2
-bough                                              1000           1          ash x2
-log                                                2000           1          ash x4
-stripped_log                                       1800           1          ash x3
-half_stripped_log                                  900            1          ash x2
-quarter_stripped_log                               450            1          ash x1
-wooden_plank                                       225            1          ash x1
-wooden_peg                                         100            1          ash x1
-charcoal, coal                                     2400           2          ash x4
+branch                                             300            2          ash x1
+short_wooden_stick                                 120            2          ash x1
+wooden_stick                                       240            2          ash x1
+long_wooden_stick                                  800            2          ash x2
+bough                                              1000           2          ash x2
+log                                                2000           2          ash x4
+stripped_log                                       1800           2          ash x3
+half_stripped_log                                  900            2          ash x2
+quarter_stripped_log                               450            2          ash x1
+wooden_plank                                       225            2          ash x1
+wooden_peg                                         100            2          ash x1
+charcoal, coal                                     2400           3          ash x4
 ```
 
 ## Fire Processing
@@ -184,7 +196,7 @@ charcoal, coal                                     2400           2          ash
 fire 셀에 있는 아이템은 연료로 소비될 수 있고, fire 중심 같은 Y층 `3 x 3` 작업 공간 안에서 fire 셀을 제외한 BFS 내부 셀의 아이템은 [[recipe/processings]] 대상이 될 수 있다.
 `pyrolysis`는 leak이 없는 밀폐 작업 공간에서 진행되며, 현재 `log`, `stripped_log`, `half_stripped_log`, `quarter_stripped_log`를 `charcoal`로 변환한다.
 `bark_strip`은 같은 `pyrolysis` 처리에서 `tar` 1개로 변환된다.
-`firing`은 leak이 정확히 1개인 작업 공간에서 `heatLevel >= 2` 연료를 소비했을 때 진행되며, 현재 굽기 전 점토 아이템을 구운 결과물로 변환한다.
+`firing`은 leak이 정확히 1개인 작업 공간에서 `heatLevel >= 3` 연료를 소비했을 때 진행되며, 현재 굽기 전 점토 아이템을 구운 결과물로 변환한다.
 둘 다 처리 시간은 600틱이다.
 `grog`는 구운 점토를 잘게 부순 내화 보강재이며, `clay_brick`을 `smash`하면 4개, `clay_pot`을 `smash`하면 8개를 얻는다.
 
@@ -527,7 +539,8 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 - `block_model` 렌더 타입은 `modelBlock`으로 렌더 대상 블록을 찾고, 생략 시 `components.placeable.block`을 사용한다.
 - `slotRender.type = "block_model"`은 같은 표시 대상 블록으로 슬롯 아이콘 대상 블록을 찾는다.
 - `modelTexture`가 있으면 `modelBlock/components.placeable.block` 대신 해당 block texture를 모든 면의 재질로 사용한다.
-- 기능 필드 `useActions`, `breakActions`, `breakLevel`, `durability`, `fuel`, `burnableLight`, `placeable`은 모두 `components` 아래에만 둔다.
+- 기능 필드 `useActions`, `breakActions`, `breakLevel`, `durability`, `fuel`, `burnableLight`, `slotGauge`, `placeable`은 모두 `components` 아래에만 둔다.
+- `components.burnableLight.extinguishedItem`을 지정하면 해당 키는 존재하는 아이템이어야 한다.
 - `components.fuel.burnTimeTicks`는 생략 가능하며 음수 입력은 `0`으로 정규화한다.
 
 ## 블록 드랍
@@ -661,6 +674,10 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 `components.breakLevel`은 아이템 자체의 파괴 레벨이며, 블록의 `breakLevel`보다 낮으면 해당 블록을 파괴하지 못한다.
 `components.breakActions`와 `components.breakLevel`이 모두 비어 있는 아이템은 좌클릭 파괴에서 손과 동일하게 취급한다.
 `components.durability.max`가 0보다 크면 인스턴스별 `ItemStack.durability`를 사용하며, 새로 생성되는 아이템은 최대 내구도로 초기화한다.
+슬롯 하단 게이지는 `components.slotGauge.source`가 있을 때만 표시한다.
+`source = "durability"`이면 `ItemStack.durability / components.durability.max`, `source = "burnTicks"`이면 `ItemStack.burnTicksRemaining / components.burnableLight.maxTicks`를 사용한다.
+게이지는 값이 최대치이면 숨기고, 최대치보다 낮으면 검은 배경과 현재 비율만큼의 색상 바를 표시한다.
+색상은 낮을수록 빨강, 중간은 노랑, 높을수록 연두에 가깝게 보간한다.
 드랍 아이템 상호작용으로 내구도 있는 대상 아이템이 결과 아이템으로 변환되면, 대상 아이템의 현재 내구도 비율을 결과 아이템의 최대 내구도에 적용하고 소수점은 올림한다.
 
 현재 설치 아이템 기준:
@@ -688,15 +705,15 @@ refractory_clay_crucible: components.placeable.block refractory_clay_crucible
 현재 석기 아이템 기준:
 
 ```text
-stone_shard: components.useActions chip/smash/grind, components.breakActions smash, components.breakLevel 2, components.durability.max 64
-stone_flake: components.useActions chip, components.durability.max 64
-stone_chopper: components.useActions smash/split, components.breakActions chop/dig, components.breakLevel 2, components.durability.max 64
-stone_blade: components.useActions cut/carve, components.breakActions cut, components.breakLevel 2, components.durability.max 64
-stone_scraper: components.useActions scrape/pierce, components.durability.max 64
-stone_pounder: components.useActions pound/smash, components.breakActions smash, components.breakLevel 2, components.durability.max 64
-bow_drill: components.useActions ignite, components.durability.max 4
-torch: components.useActions light
-lit_torch: components.useActions ignite/extinguish, components.burnableLight
+stone_shard: components.useActions chip/smash/grind, components.breakActions smash, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
+stone_flake: components.useActions chip, components.durability.max 64, components.slotGauge.source durability
+stone_chopper: components.useActions smash/split, components.breakActions chop/dig, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
+stone_blade: components.useActions cut/carve, components.breakActions cut, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
+stone_scraper: components.useActions scrape/pierce, components.durability.max 64, components.slotGauge.source durability
+stone_pounder: components.useActions pound/smash, components.breakActions smash, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
+bow_drill: components.useActions ignite, components.durability.max 4, components.slotGauge.source durability
+torch: components.useActions light, components.burnableLight.maxTicks
+lit_torch: components.useActions ignite/extinguish, components.burnableLight, components.slotGauge.source burnTicks
 ```
 
 관련 문서: [[block-data]], [[save-load]], [[ui]]

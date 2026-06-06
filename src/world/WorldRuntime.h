@@ -163,6 +163,7 @@ namespace dolbuto::world
         bool setFluidAtWorld(int x, int y, int z, uint16_t fluid, FluidTickResult& result);
         void addChangedFluidCell(int x, int y, int z, FluidTickResult& result) const;
         void addLightChangedFluidCell(int x, int y, int z, FluidTickResult& result) const;
+        void scheduleFireStructureTicksNearBlockChange(int x, int y, int z);
 
         RuntimeChunkMap chunks_;
         LightAttenuationTablesPtr lightAttenuationTables_;

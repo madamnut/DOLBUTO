@@ -84,7 +84,7 @@ namespace dolbuto
 
     enum class FireMode : uint8_t
     {
-        Normal = 0,
+        Exposed = 0,
         Pyrolysis = 1,
         Firing = 2
     };
@@ -96,7 +96,8 @@ namespace dolbuto
         uint8_t localZ = 0;
         uint16_t y = 0;
         uint32_t remainingBurnTicks = 0;
-        FireMode fireMode = FireMode::Normal;
+        FireMode fireMode = FireMode::Exposed;
+        uint8_t fireHeatLevel = 0;
         uint16_t burnRemainderItemId = 0;
         uint16_t burnRemainderCount = 0;
     };

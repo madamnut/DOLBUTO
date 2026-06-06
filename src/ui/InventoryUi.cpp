@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 namespace dolbuto::ui
 {
@@ -87,7 +88,7 @@ namespace dolbuto::ui
             return value;
         }
 
-        std::string durabilityColor(float ratio)
+        std::string slotGaugeColor(float ratio)
         {
             ratio = std::clamp(ratio, 0.0f, 1.0f);
             const auto lerpByte = [](float from, float to, float t)
@@ -105,11 +106,32 @@ namespace dolbuto::ui
             return hexColor(lerpByte(235.0f, 95.0f, t), lerpByte(220.0f, 220.0f, t), lerpByte(45.0f, 65.0f, t));
         }
 
-        bool showDurabilityBar(const InventoryItemView& item)
+        struct SlotGaugeValue
         {
-            return item.maxDurability > 0 &&
-                item.durability > 0 &&
-                item.durability < item.maxDurability;
+            uint16_t current = 0;
+            uint16_t max = 0;
+        };
+
+        std::optional<SlotGaugeValue> slotGaugeValue(const InventoryItemView& item)
+        {
+            if (item.slotGaugeSource == "durability")
+            {
+                return SlotGaugeValue{item.durability, item.maxDurability};
+            }
+            if (item.slotGaugeSource == "burnTicks")
+            {
+                return SlotGaugeValue{item.burnTicksRemaining, item.maxBurnTicks};
+            }
+            return std::nullopt;
+        }
+
+        bool showSlotGauge(const InventoryItemView& item)
+        {
+            const std::optional<SlotGaugeValue> value = slotGaugeValue(item);
+            return value.has_value() &&
+                value->max > 0 &&
+                value->current > 0 &&
+                value->current < value->max;
         }
 
         std::string joinedValues(const std::vector<std::string>& values)
@@ -157,6 +179,7 @@ namespace dolbuto::ui
             lines.push_back({"BURN_REMAINING", item.maxBurnTicks > 0
                 ? std::to_string(item.burnTicksRemaining) + " / " + std::to_string(item.maxBurnTicks)
                 : "none"});
+            lines.push_back({"SLOT_GAUGE", item.slotGaugeSource.empty() ? "none" : item.slotGaugeSource});
             lines.push_back({"PORTABLE_LIGHT", item.portableLightEmission > 0
                 ? std::to_string(item.portableLightEmission)
                 : "none"});
@@ -238,16 +261,17 @@ namespace dolbuto::ui
             rml += std::to_string(item.count);
             rml += "</div>";
         }
-        if (showDurabilityBar(item))
+        if (showSlotGauge(item))
         {
-            const float ratio = item.maxDurability <= 1
+            const SlotGaugeValue gauge = *slotGaugeValue(item);
+            const float ratio = gauge.max <= 1
                 ? 0.0f
-                : static_cast<float>(item.durability - 1u) / static_cast<float>(item.maxDurability - 1u);
+                : static_cast<float>(gauge.current - 1u) / static_cast<float>(gauge.max - 1u);
             const int barLeft = itemLeft + DurabilityBarLeftInset;
             const int barTop = itemTop + DurabilityBarTopOffset;
             const int fillWidth = static_cast<int>(std::round(static_cast<float>(DurabilityBarWidth) * ratio));
-            rml += "<div class=\"slot-durability-bg\" style=\"left: " + std::to_string(barLeft) + "px; top: " + std::to_string(barTop) + "px;\">";
-            rml += "<div class=\"slot-durability-fill\" style=\"width: " + std::to_string(fillWidth) + "px; height: " + std::to_string(DurabilityBarHeight) + "px; background-color: " + durabilityColor(ratio) + ";\"></div>";
+            rml += "<div class=\"slot-gauge-bg\" style=\"left: " + std::to_string(barLeft) + "px; top: " + std::to_string(barTop) + "px;\">";
+            rml += "<div class=\"slot-gauge-fill\" style=\"width: " + std::to_string(fillWidth) + "px; height: " + std::to_string(DurabilityBarHeight) + "px; background-color: " + slotGaugeColor(ratio) + ";\"></div>";
             rml += "</div>";
         }
         return rml;

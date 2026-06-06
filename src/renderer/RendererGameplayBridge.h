@@ -53,7 +53,7 @@ namespace dolbuto
         void setOffhandSlot(ItemStack stack);
         bool swapSelectedHotbarWithOffhand();
         void tickBlockUpdates();
-        bool tickHeldBurningItems();
+        bool tickHeldBurningItems(bool extinguishHeldBurnableLights);
 
         const BlockDefinition& blockDefinition(uint16_t block) const;
         uint16_t blockAtWorld(int x, int y, int z) const;

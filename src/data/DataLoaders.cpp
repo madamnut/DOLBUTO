@@ -928,6 +928,10 @@ namespace dolbuto::data
                 {
                     definition.portableLightEmission = static_cast<uint16_t>(std::clamp(*lightEmission, 0, 15));
                 }
+                if (const std::optional<std::string> extinguishedItem = jsonStringField(*burnableLight, "extinguishedItem"); extinguishedItem.has_value())
+                {
+                    definition.extinguishedItem = *extinguishedItem;
+                }
                 if (const std::optional<std::string> burnoutItem = jsonStringField(*burnableLight, "burnoutItem"); burnoutItem.has_value())
                 {
                     definition.burnoutItem = *burnoutItem;
@@ -943,6 +947,13 @@ namespace dolbuto::data
                 if (const std::optional<bool> ticksOnlyWhileHeld = jsonBoolField(*burnableLight, "ticksOnlyWhileHeld"); ticksOnlyWhileHeld.has_value())
                 {
                     definition.burnTicksOnlyWhileHeld = *ticksOnlyWhileHeld;
+                }
+            }
+            if (const std::optional<std::string> slotGauge = jsonObjectField(componentObject, "slotGauge"); slotGauge.has_value())
+            {
+                if (const std::optional<std::string> source = jsonStringField(*slotGauge, "source"); source.has_value())
+                {
+                    definition.slotGaugeSource = *source;
                 }
             }
             if (const std::optional<std::string> placeable = jsonObjectField(componentObject, "placeable"); placeable.has_value())

@@ -160,8 +160,8 @@ repeat blockEntityCount:
   uint8 localZ
   uint16 y
   uint32 remainingBurnTicks
-  uint8 fireMode      // 0 = normal, 1 = pyrolysis, 2 = firing
-  uint8 reserved
+  uint8 fireMode      // 0 = exposed, 1 = pyrolysis, 2 = firing
+  uint8 fireHeatLevel
   uint16 burnRemainderItemId
   uint16 burnRemainderCount
 uint32 blockStateRunCount
@@ -181,7 +181,8 @@ uint64 revision
 
 block entity는 블록 ID만으로 표현하지 않는 셀별 상태를 저장한다.
 현재 저장 타입은 fire뿐이며, `remainingBurnTicks`는 해당 fire 블록이 꺼지기까지 남은 tick 수다.
-`fireMode`는 주변 block change event와 연료 소비 시점으로 결정된 fire의 현재 모드이며, `0`은 일반 불, `1`은 열분해 불, `2`는 도기 소성 불이다.
+`fireMode`는 주변 block change event와 연료 소비 시점으로 결정된 fire의 현재 모드이며, `0`은 노출 불, `1`은 열분해 불, `2`는 도기 소성 불이다.
+`fireHeatLevel`은 현재 타고 있는 연료의 `components.fuel.heatLevel` 값이다.
 `burnRemainderItemId`와 `burnRemainderCount`는 현재 타고 있는 연료의 연소 종료 시점에 드랍할 부산물이다.
 로드된 fire 블록에 block entity가 없으면 렌더/런타임 갱신 시 초기값으로 보강하고, block entity만 남고 실제 블록이 fire가 아니면 런타임에서 제거한다.
 block state RLE 섹션은 block entity 뒤, revision 앞에 붙는다.

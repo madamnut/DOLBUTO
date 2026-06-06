@@ -24,7 +24,7 @@
 - `fire` 렌더 타입은 바닥 불꽃용 컷아웃 쿼드 묶음으로 만든다.
 - `slab` 렌더 타입은 `blockStates`의 attach 상태를 읽어 셀 안의 반칸 cuboid를 별도 메쉬로 만들고, `half_slab`은 attach_grid 상태를 읽어 `0.5 x 0.5 x 1.0` 조각 메쉬를 만든다.
 - 청크 메싱은 주변 8청크 정보를 사용해 경계면을 처리한다.
-- 슬랩과 half slab은 렌더링/충돌에서는 배치 상태 AABB를 사용하지만 조명 전파에서는 공기처럼 감쇄 없이 통과시킨다.
+- 슬랩과 half slab은 렌더링/충돌에서는 배치 상태 AABB를 사용하지만 조명 전파에서는 블록 정의의 `lightAttenuation` 값을 따른다. 현재 slab, half_slab, crucible은 `lightAttenuation = 1`이다.
 
 ## GPU 데이터
 
@@ -117,17 +117,24 @@ player mesh는 terrain chunk mesh와 별도 indexed vertex buffer 경로이며 `
 뒤로 이동 중에는 movement clip 샘플 시간을 역방향으로 사용한다.
 1인칭 손은 아직 GLB animation clip을 적용하지 않고 neutral pose 기반 transform만 사용한다.
 1인칭 손은 같은 GLB에서 오른팔 아래팔 node만 추출한 별도 vertex/index buffer를 사용한다.
-현재 선택 핫바 아이템은 `ClientFrame`/`RendererFrame`의 `heldItemId`로 전달되고, `RendererDroppedItems.cpp`가 기존 `DroppedItemRenderPath` item pipeline을 재사용해 1인칭 손 앞에 렌더링한다.
+현재 선택 핫바 아이템은 `ClientFrame`/`RendererFrame`의 `heldItemId`로 전달되고, 왼손 슬롯 아이템은 `offhandItemId`로 전달된다.
+`RendererDroppedItems.cpp`는 기존 `DroppedItemRenderPath` item pipeline을 재사용해 1인칭 viewmodel 아이템을 렌더링한다.
 1인칭 손과 든 아이템은 지형 depth에 묻히지 않도록 그리기 직전에 scene depth attachment를 clear한 뒤 viewmodel pipeline으로 그린다.
 viewmodel pipeline은 depth test/write를 사용해 viewmodel mesh 내부의 앞뒤 관계를 유지한다.
 플레이어 스킨과 1인칭 손은 GLB 원본 vertex/index를 정적 GPU mesh로 유지하고, vertex별 `nodeIndex`와 frame별 node transform storage buffer를 통해 shader에서 최종 위치를 계산한다.
 CPU는 매 프레임 vertex buffer를 덮어쓰지 않고, 현재 in-flight frame의 transform buffer만 갱신한다.
-아이템을 들고 있을 때는 손 mesh를 숨기고 아이템 viewmodel만 표시한다.
+선택 핫바 슬롯에 아이템을 들고 있을 때는 오른손 mesh를 숨기고 아이템 viewmodel만 표시한다.
+선택 핫바 슬롯이 비어 있고 왼손 슬롯에만 아이템이 있으면 오른손 mesh와 왼손 아이템 viewmodel을 함께 표시한다.
 든 아이템은 `item_viewmodel.vert`에서 카메라 회전을 적용하지 않는 view-space 좌표로 렌더링해 화면상 같은 면이 유지된다.
+왼손 아이템은 별도 설정 없이 오른손 `heldItem`/`heldBlockModelItem` viewmodel 설정을 재사용하되 view-space X 좌표와 `rotationY`/`rotationZ` 부호를 반전해 화면 왼쪽에 좌우 대칭 배치한다.
+왼손 `extruded_sprite` viewmodel은 local geometry X를 반전해 alpha 기반 extruded mesh와 텍스처 실루엣이 함께 거울상으로 맞도록 한다.
+왼손 `block_model` viewmodel은 geometry를 뒤집지 않고 UV X만 반전한다.
 `block_model` 든 아이템은 `modelBlock` 또는 fallback `placeBlock` 블록의 텍스처 layer를 사용하는 작은 블록 mesh로 렌더링한다.
 대상 블록이 `slab`이거나 아이템의 `modelShape`가 `slab`, `quarter_log`이면 해당 X/Y/Z 크기의 bottom 기준 mesh와 생성 슬롯 아이콘을 사용한다.
 `config/viewmodel.json`은 손/아이템 viewmodel의 view-space 위치, 스케일, 회전값을 제공하고, `RendererConfigBridge`가 `ClientRuntimeState::viewmodelConfig`로 로드한다.
 `heldItem`은 `extruded_sprite` 든 아이템에 사용하고, `heldBlockModelItem`은 `block_model` 든 아이템에 사용한다.
+왼손 아이템도 같은 설정을 사용하되 X 좌표와 `rotationY`/`rotationZ` 부호를 반전한다.
+`item_viewmodel.vert`는 instance 플래그에 따라 UV X 또는 local geometry X를 반전한다.
 fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
 edited subchunk rebuild도 solid/blend mesh와 함께 해당 subchunk의 fluid mesh를 다시 만들고 GPU buffer를 교체한다.
 프레임 루프와 Vulkan command recording은 `RendererFrameLoop.cpp`의 책임이며, gameplay/terrain/scene/debug bridge는 별도 translation unit으로 분리한다. 이전 `Renderer.cpp`는 제거되었고, lifecycle/local resource/scene draw 책임은 이름 있는 translation unit에 둔다.
@@ -234,9 +241,13 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 - `half_slab` 배치에서 grid `1/3/7/9`는 꼭짓점에 세운 조각이고, `2/4/6/8`은 모서리에 눕힌 조각이다. grid `5`는 설치 시 플레이어가 보는 방향의 `2/4/6/8`로 변환한다.
 - `half_slab` 텍스처도 기준 slab을 수직으로 반 자른 `0.5 x 0.5 x 1.0` 조각 모델을 먼저 정의한다. slab의 위/아래였던 면은 `topBottom`, 원래 외곽 옆면은 `side`, 새로 잘린 수직 절단면은 `verticalSection`을 사용하고, attach_grid 상태는 이 기준 배치를 회전/이동만 한다.
 - `half_slab` UV는 현재 배치된 AABB에 맞춰 다시 0~1로 펴지 않는다. 배치 좌표와 재질 좌표를 분리해, 조각을 다른 위치나 방향으로 놓아도 slab을 자른 기준의 위/아래/외곽/절단면 관계가 유지된다.
-- 조명 전파에서 슬랩과 half slab은 현재 공기처럼 취급한다.
+- 조명 전파에서 슬랩과 half slab은 렌더 타입 예외 없이 블록 데이터의 `lightAttenuation` 값을 사용한다.
 - 선택 레이캐스트와 선택 아웃라인은 같은 슬랩 AABB를 사용한다.
 - 아이템 슬롯/든 아이템/드랍 아이템의 `block_model`은 기본 bottom 슬랩 모양을 사용하고, 옆면도 아래 절반 UV를 사용한다.
+
+`crucible` 렌더 타입은 한 셀 안에 바닥과 네 벽 cuboid를 따로 만든다.
+각 cuboid 면의 조명은 셀 외곽에 닿은 면이면 해당 방향 이웃 셀을 샘플하고, 도가니 내부를 향하는 셀 내부 면이면 도가니가 있는 현재 셀의 조명을 샘플한다.
+따라서 도가니를 벽에 붙여도 내부 반대편 면이 벽 칸 조명을 잘못 받아 어두워지지 않는다.
 
 ## 불 렌더링
 
@@ -357,6 +368,7 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 프레임마다 CPU가 아이템 쿼드 정점을 다시 펼치지 않고, 드랍 아이템 위치/회전/텍스처 layer만 담은 instance buffer를 갱신한다.
 instance buffer는 persistent mapping 상태로 유지해 매 프레임 `vkMapMemory`/`vkUnmapMemory`를 반복하지 않는다.
 item instance buffer는 frame-in-flight별 영역을 나누고, 각 프레임 영역 안에서 월드 드랍 아이템 영역과 1인칭 viewmodel 아이템 영역을 분리한다.
+1인칭 viewmodel 아이템 영역은 오른손과 왼손을 동시에 그릴 수 있도록 프레임당 2개 인스턴스 여유를 가진다.
 따라서 같은 프레임에서 viewmodel 아이템을 그려도 이미 기록된 월드 드랍 아이템 draw command의 instance data를 덮어쓰지 않는다.
 정적 mesh GPU buffer, instance buffer, instance 업로드, 정렬, item id별 batch draw는 `DroppedItemRenderPath`가 소유한다.
 `DroppedItemRuntime`은 드랍 아이템 runtime 상태와 tick을 갱신하고, `DroppedItemRenderCollector`는 월드 엔티티를 순회해 렌더 후보 `RenderInstance` 목록을 만들며, `RendererDroppedItems.cpp`는 카메라/pipeline/texture 정보를 `DroppedItemRenderPath`에 전달한다.

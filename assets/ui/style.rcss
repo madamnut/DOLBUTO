@@ -111,14 +111,14 @@ body {
     color: #ffffff;
 }
 
-.slot-durability-bg {
+.slot-gauge-bg {
     position: absolute;
     width: 52px;
     height: 4px;
     background-color: #000000;
 }
 
-.slot-durability-fill {
+.slot-gauge-fill {
     position: absolute;
     left: 0;
     top: 0;
@@ -486,6 +486,26 @@ body {
     height: 280px;
     margin-left: -260px;
     margin-bottom: 28px;
+}
+
+.lobby-splash {
+    position: absolute;
+    left: 550px;
+    top: 155px;
+    width: 260px;
+    height: 51px;
+    line-height: 51px;
+    color: #ffff00;
+    font-size: 39px;
+    text-align: center;
+    transform: rotate(-40deg) scale(1.0);
+    animation: 1.5s splash-pulse infinite;
+}
+
+@keyframes splash-pulse {
+    from { transform: rotate(-40deg) scale(1.0); }
+    50% { transform: rotate(-40deg) scale(1.5); }
+    to { transform: rotate(-40deg) scale(1.0); }
 }
 
 .heading {

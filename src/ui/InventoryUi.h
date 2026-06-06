@@ -22,6 +22,7 @@ namespace dolbuto::ui
         uint16_t heatLevel = 0;
         uint16_t portableLightEmission = 0;
         uint16_t maxBurnTicks = 0;
+        std::string slotGaugeSource;
         std::string name;
         std::string key;
         std::string slotTexture;

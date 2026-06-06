@@ -29,7 +29,7 @@ assets/data/recipes/processings.json
 
 ## Firing
 
-`firing`은 fire 중심 같은 Y층 `3 x 3` 작업 공간의 BFS leak이 정확히 1개이고, fire가 `components.fuel.heatLevel >= 2` 연료를 소비했을 때 시작되는 고온 소성 상태에서 진행된다.
+`firing`은 fire 중심 같은 Y층 `3 x 3` 작업 공간에서 fire 연결 내부 공간의 leak 방향이 정확히 1개이고, fire가 `components.fuel.heatLevel >= 3` 연료를 소비했을 때 시작되는 고온 소성 상태에서 진행된다.
 처리 주체는 모든 드랍 아이템이 아니라 `firing` 상태의 fire block entity다.
 
 ```text

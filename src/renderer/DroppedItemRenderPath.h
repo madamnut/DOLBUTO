@@ -54,6 +54,8 @@ namespace dolbuto
             float scaleZ = 1.0f;
             float skyLight = 1.0f;
             float blockLight = 0.0f;
+            float uvMirrorX = 0.0f;
+            float geometryMirrorX = 0.0f;
         };
 
         struct RenderInstance

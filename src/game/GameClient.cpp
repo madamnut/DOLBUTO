@@ -762,7 +762,9 @@ namespace dolbuto
                 updatePlayer(FixedPhysicsTimestep, screen_ == AppScreen::Game && !chatOpen_ && !radialActive_);
                 if (runtime_ != nullptr)
                 {
-                    runtime_->gameplay().tickHeldBurningItems();
+                    const bool cameraInWater = runtime_->gameplay().pointIntersectsWater(
+                        {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z});
+                    runtime_->gameplay().tickHeldBurningItems(cameraInWater);
                     runtime_->gameplay().tickBlockUpdates();
                     const bool breaking = screen_ == AppScreen::Game && mouseCaptured_ && breakHeld_;
                     if (gameMode_ == game::GameMode::Sandbox)
@@ -918,6 +920,7 @@ namespace dolbuto
             float playerHeadPitch = 0.0f;
             updatePlayerLookPose(renderBodyYaw, playerHeadYaw, playerHeadPitch);
             uint16_t heldItemId = 0;
+            uint16_t offhandItemId = 0;
             uint16_t heldPortableLightEmission = 0;
             if (runtime_ != nullptr)
             {
@@ -926,6 +929,11 @@ namespace dolbuto
                 if (heldStack.count > 0)
                 {
                     heldItemId = heldStack.itemId;
+                }
+                const ItemStack offhandStack = runtime_->gameplay().offhandSlot();
+                if (offhandStack.count > 0)
+                {
+                    offhandItemId = offhandStack.itemId;
                 }
                 heldPortableLightEmission = runtime_->gameplay().heldPortableLightEmission();
             }
@@ -980,6 +988,7 @@ namespace dolbuto
                 playerProne,
                 showFirstPersonHand,
                 heldItemId,
+                offhandItemId,
                 heldPortableLightEmission,
                 terrainWireframe_,
                 climateOverlayMode_,
@@ -2878,6 +2887,10 @@ namespace dolbuto
                 [this](DVec3 position, double heightScale)
                 {
                     return runtime_ != nullptr && runtime_->gameplay().playerColliderIntersectsWater(position, heightScale);
+                },
+                [this](DVec3 position, double heightScale, double maxHeight)
+                {
+                    return runtime_ != nullptr ? runtime_->gameplay().playerColliderTerrainClimbHeight(position, heightScale, maxHeight) : maxHeight;
                 }
             },
             fixedDeltaSeconds);

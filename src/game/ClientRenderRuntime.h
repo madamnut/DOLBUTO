@@ -47,7 +47,7 @@ namespace dolbuto
             void cancelPendingItemInteraction();
             void tickBlockUpdates();
             void tickFluidSimulation();
-            bool tickHeldBurningItems();
+            bool tickHeldBurningItems(bool extinguishHeldBurnableLights);
 
             void setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots);
             void setOffhandSlot(ItemStack stack);

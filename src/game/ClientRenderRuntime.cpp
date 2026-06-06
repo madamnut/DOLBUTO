@@ -41,6 +41,7 @@ namespace dolbuto::game
             frame.playerProne,
             frame.showFirstPersonHand,
             frame.heldItemId,
+            frame.offhandItemId,
             frame.heldPortableLightEmission,
             frame.terrainWireframe,
             frame.climateOverlayMode,
@@ -121,9 +122,9 @@ namespace dolbuto::game
         renderer_->terrainRuntimeBridge_->tickFluidSimulation();
     }
 
-    bool ClientRenderRuntime::tickHeldBurningItems()
+    bool ClientRenderRuntime::tickHeldBurningItems(bool extinguishHeldBurnableLights)
     {
-        return renderer_->gameplayBridge_->tickHeldBurningItems();
+        return renderer_->gameplayBridge_->tickHeldBurningItems(extinguishHeldBurnableLights);
     }
 
     void ClientRenderRuntime::setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots)

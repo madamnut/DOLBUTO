@@ -26,6 +26,13 @@ namespace dolbuto
         BlockModel
     };
 
+    enum class ItemSlotGaugeSource : uint8_t
+    {
+        None,
+        Durability,
+        BurnTicks
+    };
+
     struct ItemDefinition
     {
         std::string key = "none";
@@ -48,6 +55,8 @@ namespace dolbuto
         uint16_t burnRemainderCount = 0;
         uint16_t portableLightEmission = 0;
         uint16_t maxBurnTicks = 0;
+        ItemSlotGaugeSource slotGaugeSource = ItemSlotGaugeSource::None;
+        uint16_t extinguishedItemId = 0;
         uint16_t burnoutItemId = 0;
         uint16_t burnoutCount = 0;
         bool burnTicksOnlyWhileHeld = false;

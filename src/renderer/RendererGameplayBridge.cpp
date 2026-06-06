@@ -187,9 +187,9 @@ namespace dolbuto
         client_.gameplayRuntime.cancelPendingItemInteraction();
     }
 
-    bool RendererGameplayBridge::tickHeldBurningItems()
+    bool RendererGameplayBridge::tickHeldBurningItems(bool extinguishHeldBurnableLights)
     {
-        const bool changed = client_.gameplayRuntime.tickHeldBurningItems();
+        const bool changed = client_.gameplayRuntime.tickHeldBurningItems(extinguishHeldBurnableLights);
         if (changed && hooks_.updateInventoryUi)
         {
             hooks_.updateInventoryUi();

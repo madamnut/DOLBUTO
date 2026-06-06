@@ -704,7 +704,8 @@ namespace dolbuto::world
                 if (entity.type != BlockEntityType::Fire)
                 {
                     entity.type = BlockEntityType::Fire;
-                    entity.fireMode = FireMode::Normal;
+                    entity.fireMode = FireMode::Exposed;
+                    entity.fireHeatLevel = remainingBurnTicks > 0 ? 1 : 0;
                     entity.burnRemainderItemId = 0;
                     entity.burnRemainderCount = 0;
                     if (entity.remainingBurnTicks == 0)
@@ -728,6 +729,7 @@ namespace dolbuto::world
         entity.localZ = localZ;
         entity.y = localY;
         entity.remainingBurnTicks = remainingBurnTicks;
+        entity.fireHeatLevel = remainingBurnTicks > 0 ? 1 : 0;
         chunk->data->blockEntities.push_back(entity);
         scheduleBlockTickAtWorld(x, y, z, BlockTickReasonSelfBlockChanged | BlockTickReasonFireBurn);
         markDataDirty(*chunk);
@@ -932,6 +934,7 @@ namespace dolbuto::world
         updateChunkEmptySubchunk(runtimeChunk->data, y / SubchunkSize);
         scheduleLocalLightTickNeighborhood(x, y, z);
         scheduleBlockTickNeighborhood(x, y, z);
+        scheduleFireStructureTicksNearBlockChange(x, y, z);
         scheduleFluidTickNeighborhood(x, y, z);
         return true;
     }
@@ -973,7 +976,32 @@ namespace dolbuto::world
         runtimeChunk->data->blockStates[index] = state;
         ++runtimeChunk->data->revision;
         markDataDirty(*runtimeChunk);
+        scheduleFireStructureTicksNearBlockChange(x, y, z);
         return true;
+    }
+
+    void WorldRuntime::scheduleFireStructureTicksNearBlockChange(int x, int y, int z)
+    {
+        constexpr int FireWatchRadiusXZ = 2;
+        constexpr int FireWatchRadiusY = 1;
+        for (int dz = -FireWatchRadiusXZ; dz <= FireWatchRadiusXZ; ++dz)
+        {
+            for (int dy = -FireWatchRadiusY; dy <= FireWatchRadiusY; ++dy)
+            {
+                for (int dx = -FireWatchRadiusXZ; dx <= FireWatchRadiusXZ; ++dx)
+                {
+                    BlockEntity* entity = blockEntityAtWorld(x + dx, y + dy, z + dz);
+                    if (entity != nullptr && entity->type == BlockEntityType::Fire)
+                    {
+                        scheduleBlockTickAtWorld(
+                            x + dx,
+                            y + dy,
+                            z + dz,
+                            BlockTickReasonBlockNeighborChanged);
+                    }
+                }
+            }
+        }
     }
 
     void WorldRuntime::scheduleBlockTickAtWorld(int x, int y, int z, uint32_t reasons)

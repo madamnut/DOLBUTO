@@ -367,6 +367,7 @@ namespace dolbuto
             frame.gameSceneRenderEnabled,
             frame.showFirstPersonHand,
             frame.heldItemId,
+            frame.offhandItemId,
             frame.worldTicks,
             frame.radialMenu);
         recordMax(game::ClientPerfCounter::RenderRecord, sectionStart);
@@ -482,7 +483,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, float cloudCoverage, ScreenPresentation::WaterOverlay waterOverlay, Vec3 playerPosition, uint8_t playerPackedLight, uint16_t heldPortableLightEmission, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, float cloudCoverage, ScreenPresentation::WaterOverlay waterOverlay, Vec3 playerPosition, uint8_t playerPackedLight, uint16_t heldPortableLightEmission, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint16_t offhandItemId, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -580,9 +581,9 @@ namespace dolbuto
                 {
                     drawFirstPersonHand(commandBuffer, camera, cameraPosition, skyBrightness, heldPortableLightEmission, vulkan_.currentFrame);
                 }
-                else
+                if (heldItemId != 0 || offhandItemId != 0)
                 {
-                    drawHeldItem(commandBuffer, camera, cameraPosition, heldItemId, skyBrightness, heldPortableLightEmission, playerPackedLight);
+                    drawHeldItem(commandBuffer, camera, cameraPosition, heldItemId, offhandItemId, skyBrightness, heldPortableLightEmission, playerPackedLight);
                 }
             }
         }

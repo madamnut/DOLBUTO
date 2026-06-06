@@ -918,7 +918,7 @@ namespace dolbuto
         itemBindings[1].stride = sizeof(DroppedItemRenderPath::Instance);
         itemBindings[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
-        std::array<VkVertexInputAttributeDescription, 8> itemAttributes{};
+        std::array<VkVertexInputAttributeDescription, 10> itemAttributes{};
         itemAttributes[0].binding = 0;
         itemAttributes[0].location = 0;
         itemAttributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -951,6 +951,14 @@ namespace dolbuto
         itemAttributes[7].location = 7;
         itemAttributes[7].format = VK_FORMAT_R32G32_SFLOAT;
         itemAttributes[7].offset = offsetof(DroppedItemRenderPath::Instance, skyLight);
+        itemAttributes[8].binding = 1;
+        itemAttributes[8].location = 8;
+        itemAttributes[8].format = VK_FORMAT_R32_SFLOAT;
+        itemAttributes[8].offset = offsetof(DroppedItemRenderPath::Instance, uvMirrorX);
+        itemAttributes[9].binding = 1;
+        itemAttributes[9].location = 9;
+        itemAttributes[9].format = VK_FORMAT_R32_SFLOAT;
+        itemAttributes[9].offset = offsetof(DroppedItemRenderPath::Instance, geometryMirrorX);
 
         VkPipelineVertexInputStateCreateInfo itemVertexInput{};
         itemVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;

@@ -5,13 +5,17 @@
 #include "game/ClientRuntimeState.h"
 #include "gameplay/BlockInteractionSystem.h"
 #include "world/Biome.h"
+#include "world/BlockCollisionShape.h"
 #include "world/ClimateSystem.h"
 #include "world/TerrainBuilder.h"
 #include "world/WorldRuntime.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -24,6 +28,13 @@ namespace dolbuto::game
         constexpr int ChunkSizeZ = 16;
         constexpr int TerrainTilePeriod = 65536;
         constexpr int WorldSizeBlocks = TerrainTilePeriod;
+        constexpr int FluidAmountBits = 7;
+        constexpr uint16_t FluidAmountMask = (1u << FluidAmountBits) - 1u;
+        constexpr uint16_t FluidWater = 1;
+        constexpr uint16_t FluidFullAmount = 100;
+        constexpr uint16_t FluidHeightStepAmount = 10;
+        constexpr uint16_t FluidHeightLevels = 10;
+        constexpr double FluidSurfaceMaxHeight = 0.8;
 
         uint32_t stableStringHash(const std::string& value)
         {
@@ -54,6 +65,38 @@ namespace dolbuto::game
         int blockCoordinateXz(double worldCoordinate)
         {
             return world::WorldRuntime::blockCoordinateXz(worldCoordinate);
+        }
+
+        int blockCoordinateY(double worldCoordinate)
+        {
+            return world::WorldRuntime::blockCoordinateY(worldCoordinate);
+        }
+
+        uint16_t fluidId(uint16_t fluid)
+        {
+            return static_cast<uint16_t>(fluid >> FluidAmountBits);
+        }
+
+        uint16_t fluidAmount(uint16_t fluid)
+        {
+            return static_cast<uint16_t>(fluid & FluidAmountMask);
+        }
+
+        bool isWater(uint16_t fluid)
+        {
+            return fluidId(fluid) == FluidWater && fluidAmount(fluid) != 0;
+        }
+
+        double fluidSurfaceHeight(uint16_t amount)
+        {
+            const uint16_t clampedAmount = std::min<uint16_t>(amount, FluidFullAmount);
+            if (clampedAmount == 0)
+            {
+                return 0.0;
+            }
+
+            const uint16_t level = static_cast<uint16_t>((clampedAmount + FluidHeightStepAmount - 1u) / FluidHeightStepAmount);
+            return (static_cast<double>(level) / static_cast<double>(FluidHeightLevels)) * FluidSurfaceMaxHeight;
         }
 
         uint64_t chunkKey(int chunkX, int chunkZ)
@@ -106,6 +149,87 @@ namespace dolbuto::game
                 {
                     return blockDefinition(state, block);
                 });
+        }
+
+        double playerTerrainClimbHeight(const ClientRuntimeState& state, DVec3 playerPosition, double heightScale, double maxHeight)
+        {
+            if (maxHeight <= 0.0)
+            {
+                return 0.0;
+            }
+
+            constexpr double HalfWidth = 0.3;
+            constexpr double Height = 1.75;
+            constexpr double Epsilon = 0.000001;
+            const double scaledHeight = std::max(0.1, Height * heightScale);
+
+            const DVec3 min{playerPosition.x - HalfWidth, playerPosition.y, playerPosition.z - HalfWidth};
+            const DVec3 max{playerPosition.x + HalfWidth, playerPosition.y + scaledHeight, playerPosition.z + HalfWidth};
+
+            const int blockMinX = blockCoordinateXz(min.x);
+            const int blockMaxX = blockCoordinateXz(max.x - Epsilon);
+            const int blockMinY = blockCoordinateY(min.y);
+            const int blockMaxY = blockCoordinateY(max.y - Epsilon);
+            const int blockMinZ = blockCoordinateXz(min.z);
+            const int blockMaxZ = blockCoordinateXz(max.z - Epsilon);
+
+            double bestHeight = std::numeric_limits<double>::infinity();
+            auto considerAabb = [&](const world::block_visual::LocalAabb& aabb)
+            {
+                const DVec3 blockMin{
+                    static_cast<double>(aabb.min.x),
+                    static_cast<double>(aabb.min.y),
+                    static_cast<double>(aabb.min.z)
+                };
+                const DVec3 blockMax{
+                    static_cast<double>(aabb.max.x),
+                    static_cast<double>(aabb.max.y),
+                    static_cast<double>(aabb.max.z)
+                };
+                if (!world::block_collision::aabbIntersects(min, max, blockMin, blockMax))
+                {
+                    return;
+                }
+
+                const double requiredHeight = blockMax.y - playerPosition.y;
+                if (requiredHeight > Epsilon && requiredHeight <= maxHeight + Epsilon)
+                {
+                    bestHeight = std::min(bestHeight, requiredHeight);
+                }
+            };
+
+            for (int y = blockMinY; y <= blockMaxY; ++y)
+            {
+                for (int z = blockMinZ; z <= blockMaxZ; ++z)
+                {
+                    for (int x = blockMinX; x <= blockMaxX; ++x)
+                    {
+                        const uint16_t block = state.worldRuntime.blockAtWorld(x, y, z);
+                        if (block == world::WorldRuntime::BlockAir)
+                        {
+                            continue;
+                        }
+
+                        const BlockDefinition& definition = blockDefinition(state, block);
+                        if (!definition.collision)
+                        {
+                            continue;
+                        }
+
+                        const uint16_t blockState = state.worldRuntime.blockStateAtWorld(x, y, z);
+                        if (definition.renderType == BlockRenderType::Crucible)
+                        {
+                            world::block_visual::forEachCrucibleWorldAabb(x, y, z, considerAabb);
+                        }
+                        else
+                        {
+                            considerAabb(world::block_collision::blockWorldAabb(x, y, z, definition, blockState));
+                        }
+                    }
+                }
+            }
+
+            return std::isfinite(bestHeight) ? bestHeight : 0.0;
         }
 
         world::TerrainBuilderConfig terrainBuilderConfig(const ClientRuntimeState& state)
@@ -326,6 +450,27 @@ namespace dolbuto::game
             });
     }
 
+    double ClientRuntime::GameplayAccess::playerColliderTerrainClimbHeight(DVec3 playerPosition, double heightScale, double maxHeight) const
+    {
+        return playerTerrainClimbHeight(*owner_.state_, playerPosition, heightScale, maxHeight);
+    }
+
+    bool ClientRuntime::GameplayAccess::pointIntersectsWater(DVec3 position) const
+    {
+        const int x = blockCoordinateXz(position.x);
+        const int y = blockCoordinateY(position.y);
+        const int z = blockCoordinateXz(position.z);
+        const uint16_t fluid = owner_.state_->worldRuntime.fluidAtWorld(x, y, z);
+        if (!isWater(fluid))
+        {
+            return false;
+        }
+
+        const bool hasWaterAbove = isWater(owner_.state_->worldRuntime.fluidAtWorld(x, y + 1, z));
+        const double waterTop = static_cast<double>(y) + (hasWaterAbove ? 1.0 : fluidSurfaceHeight(fluidAmount(fluid)));
+        return position.y < waterTop;
+    }
+
     void ClientRuntime::GameplayAccess::updateBlockSelection(DVec3 origin, Vec3 direction)
     {
         gameplay::BlockRaycastHit hit{};
@@ -413,9 +558,9 @@ namespace dolbuto::game
         owner_.renderRuntime_->tickFluidSimulation();
     }
 
-    bool ClientRuntime::GameplayAccess::tickHeldBurningItems()
+    bool ClientRuntime::GameplayAccess::tickHeldBurningItems(bool extinguishHeldBurnableLights)
     {
-        return owner_.renderRuntime_->tickHeldBurningItems();
+        return owner_.renderRuntime_->tickHeldBurningItems(extinguishHeldBurnableLights);
     }
 
     std::array<ItemStack, gameplay::PlayerInventory::SlotCount> ClientRuntime::GameplayAccess::inventorySnapshot() const

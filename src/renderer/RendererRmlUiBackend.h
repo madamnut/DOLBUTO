@@ -32,11 +32,14 @@ namespace dolbuto
         void ReleaseTexture(Rml::TextureHandle texture) override;
         void EnableScissorRegion(bool enable) override;
         void SetScissorRegion(Rml::Rectanglei region) override;
+        void SetTransform(const Rml::Matrix4f* transform) override;
 
     private:
         RendererVulkanState& vulkan_;
         VulkanResourceManager& gpuResources_;
         RendererAssetStore& assets_;
         std::filesystem::path assetDirectory_;
+        Rml::Matrix4f transform_ = Rml::Matrix4f::Identity();
+        bool transformEnabled_ = false;
     };
 }

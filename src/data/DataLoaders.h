@@ -81,6 +81,8 @@ namespace dolbuto::data
         uint16_t burnRemainderCount = 0;
         uint16_t portableLightEmission = 0;
         uint16_t maxBurnTicks = 0;
+        std::string slotGaugeSource;
+        std::string extinguishedItem;
         std::string burnoutItem;
         uint16_t burnoutCount = 0;
         bool burnTicksOnlyWhileHeld = false;

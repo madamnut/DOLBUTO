@@ -18,6 +18,7 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <random>
 #include <utility>
 
 namespace dolbuto::ui
@@ -78,6 +79,29 @@ namespace dolbuto::ui
             {
                 fill->SetProperty(Rml::PropertyId::Height, Rml::Property(static_cast<float>(statBarHeight(value, maxValue)), Rml::Unit::PX));
             }
+        }
+
+        void setLobbySplash(Rml::ElementDocument* document)
+        {
+            if (document == nullptr)
+            {
+                return;
+            }
+
+            Rml::Element* splash = document->GetElementById("lobby-splash");
+            if (splash == nullptr)
+            {
+                return;
+            }
+
+            constexpr std::array<const char*, 3> Splashes = {
+                "DOLBUTO!!",
+                "0.0.0.3!!",
+                "DEV!!"
+            };
+            static thread_local std::mt19937 random{std::random_device{}()};
+            std::uniform_int_distribution<std::size_t> distribution(0, Splashes.size() - 1);
+            splash->SetInnerRML(Splashes[distribution(random)]);
         }
     }
 
@@ -141,6 +165,8 @@ namespace dolbuto::ui
         inventoryDocument_ = context_->LoadDocument((uiDir / "inventory.rml").string());
         pauseDocument_ = context_->LoadDocument((uiDir / "pause.rml").string());
         optionsDocument_ = context_->LoadDocument((uiDir / "options.rml").string());
+
+        setLobbySplash(lobbyDocument_);
 
         attachDocumentEvents(lobbyDocument_);
         attachDocumentEvents(worldSelectDocument_);

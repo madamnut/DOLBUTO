@@ -454,6 +454,20 @@ namespace dolbuto
             {
                 vertex.ao = 1.0f;
             };
+            auto cuboidFaceLight = [&](int face) -> uint8_t
+            {
+                if ((face == 0 && maxY >= 1.0f) ||
+                    (face == 1 && minY <= 0.0f) ||
+                    (face == 2 && maxX >= 1.0f) ||
+                    (face == 3 && minX <= 0.0f) ||
+                    (face == 4 && maxZ >= 1.0f) ||
+                    (face == 5 && minZ <= 0.0f))
+                {
+                    return faceLight(x, y, z, face);
+                }
+
+                return lightAt(x - worldXStart, y, z - worldZStart);
+            };
             auto quad = [&](std::array<TerrainVertex, 4> vertices, int face)
             {
                 for (TerrainVertex& vertex : vertices)
@@ -466,7 +480,7 @@ namespace dolbuto
                     textureLayer,
                     mipDistanceScale,
                     alphaBlend,
-                    faceLight(x, y, z, face));
+                    cuboidFaceLight(face));
             };
             quad({{
                 TerrainVertex{worldMinX, worldMaxY, worldMinZ, 0.0f, 0.0f},

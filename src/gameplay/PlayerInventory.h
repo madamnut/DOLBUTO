@@ -36,7 +36,7 @@ namespace dolbuto::gameplay
         bool removeFromSlot(size_t slotIndex, uint16_t count);
         bool damageSlot(size_t slotIndex, uint16_t damage, const std::vector<ItemDefinition>& itemDefinitions);
         bool replaceSlot(size_t slotIndex, ItemStack stack, const std::vector<ItemDefinition>& itemDefinitions);
-        bool tickHeldBurningItems(size_t selectedHotbarSlot, const std::vector<ItemDefinition>& itemDefinitions);
+        bool tickHeldBurningItems(size_t selectedHotbarSlot, bool extinguishHeldBurnableLights, const std::vector<ItemDefinition>& itemDefinitions);
         bool stackCanMerge(const ItemStack& slot, const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions) const;
 
         bool handleSlotClick(size_t slotIndex, InventoryClickButton button, bool shift, const std::vector<ItemDefinition>& itemDefinitions);

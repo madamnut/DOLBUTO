@@ -68,14 +68,13 @@ namespace dolbuto::world
             float maxX,
             float maxY,
             float maxZ) const;
-        BurnableConsumptionResult consumeRandomBurnableInAabb(
+        BurnableConsumptionResult consumeHighestHeatBurnableInAabb(
             float minX,
             float minY,
             float minZ,
             float maxX,
             float maxY,
             float maxZ,
-            bool allowCharcoal,
             const MarkDirtyFn& markDirty);
         bool processItemsInAabb(
             float minX,

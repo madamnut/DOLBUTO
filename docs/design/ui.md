@@ -282,6 +282,22 @@ RmlUi가 이미 결합되었지만 유효하지 않은 절대 텍스처 경로�
 - [[runtime-paths]]
 - [[build-and-distribution]]
 
+## 로비 스플래시 텍스트
+
+로비 화면은 타이틀 이미지 위에 노란색 스플래시 텍스트를 표시한다.
+스플래시 텍스트는 `assets/ui/lobby.rml`의 `lobby-splash` 요소에 표시되며, `UiSystem` 초기화 시 아래 목록 중 하나를 무작위로 선택한다.
+
+```text
+DOLBUTO!!
+0.0.0.3!!
+DEV!!
+```
+
+스플래시 텍스트는 `assets/ui/style.rcss`의 `lobby-splash` 스타일로 위치와 노란색을 정의한다.
+위치는 타이틀 표시 박스의 우하단 꼭짓점에서 좌상방향으로 100px 떨어진 지점을 스플래시 박스 중심으로 잡는다.
+텍스트 테두리는 쓰지 않으며, `splash-pulse` keyframes로 반시계 방향 40도 회전 상태에서 커졌다가 돌아오는 scale 애니메이션을 반복한다.
+RmlUi `transform`은 `RendererRmlUiBackend`의 `SetTransform` 상태를 기준으로 UI vertex를 변환해 반영한다.
+
 ## 현재 코드 경계
 
 `ClientUiBridge`는 `UiSystem`과 `ClientGameplayRuntime` 사이의 클라이언트 UI 어댑터다.

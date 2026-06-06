@@ -15,6 +15,8 @@ layout(location = 4) in vec4 inCenterRotX;
 layout(location = 5) in vec4 inRotYRotZLayerMip;
 layout(location = 6) in vec3 inScale;
 layout(location = 7) in vec2 inLight;
+layout(location = 8) in float inUvMirrorX;
+layout(location = 9) in float inGeometryMirrorX;
 
 layout(location = 0) out vec2 fragUv;
 layout(location = 1) out float fragAo;
@@ -28,6 +30,10 @@ layout(location = 8) flat out float fragBlockLight;
 void main()
 {
     vec3 value = inPosition * inScale;
+    if (inGeometryMirrorX > 0.5)
+    {
+        value.x = -value.x;
+    }
 
     float cosX = cos(inCenterRotX.w);
     float sinX = sin(inCenterRotX.w);
@@ -52,7 +58,7 @@ void main()
 
     vec3 viewPosition = inCenterRotX.xyz + value;
     gl_Position = pushData.mvp * vec4(viewPosition, 1.0);
-    fragUv = inUv;
+    fragUv = vec2(inUvMirrorX > 0.5 ? 1.0 - inUv.x : inUv.x, inUv.y);
     fragAo = inAo;
     fragWorldPosition = viewPosition;
     fragTextureLayer = inLocalTextureLayer >= 0.0 ? inLocalTextureLayer : inRotYRotZLayerMip.z;

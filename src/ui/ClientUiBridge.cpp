@@ -559,6 +559,19 @@ namespace dolbuto::ui
             }
             return "unknown";
         };
+        const auto slotGaugeSourceText = [](ItemSlotGaugeSource source)
+        {
+            switch (source)
+            {
+            case ItemSlotGaugeSource::Durability:
+                return "durability";
+            case ItemSlotGaugeSource::BurnTicks:
+                return "burnTicks";
+            case ItemSlotGaugeSource::None:
+                return "none";
+            }
+            return "none";
+        };
 
         item.stackSize = definition.stackSize;
         item.durability = stack.durability;
@@ -569,6 +582,7 @@ namespace dolbuto::ui
         item.heatLevel = definition.heatLevel;
         item.portableLightEmission = definition.portableLightEmission;
         item.maxBurnTicks = definition.maxBurnTicks;
+        item.slotGaugeSource = slotGaugeSourceText(definition.slotGaugeSource);
         item.name = definition.name;
         item.key = definition.key;
         item.slotTexture = definition.slotTexture;

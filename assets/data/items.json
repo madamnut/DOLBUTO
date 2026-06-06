@@ -54,7 +54,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 2400,
-                "heatLevel": 2,
+                "heatLevel": 3,
                 "remainder": {
                     "item": "ash",
                     "count": 4
@@ -80,7 +80,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 2400,
-                "heatLevel": 2,
+                "heatLevel": 3,
                 "remainder": {
                     "item": "ash",
                     "count": 4
@@ -473,6 +473,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 300,
+                "heatLevel": 2,
                 "remainder": {
                     "item": "ash",
                     "count": 1
@@ -501,6 +502,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 1000,
+                "heatLevel": 2,
                 "remainder": {
                     "item": "ash",
                     "count": 2
@@ -585,6 +587,9 @@
             "breakLevel": 2,
             "durability": {
                 "max": 64
+            },
+            "slotGauge": {
+                "source": "durability"
             }
         }
     },
@@ -609,6 +614,9 @@
             ],
             "durability": {
                 "max": 64
+            },
+            "slotGauge": {
+                "source": "durability"
             }
         }
     },
@@ -639,6 +647,9 @@
             "breakLevel": 2,
             "durability": {
                 "max": 64
+            },
+            "slotGauge": {
+                "source": "durability"
             }
         }
     },
@@ -668,6 +679,9 @@
             "breakLevel": 2,
             "durability": {
                 "max": 64
+            },
+            "slotGauge": {
+                "source": "durability"
             }
         }
     },
@@ -693,6 +707,9 @@
             ],
             "durability": {
                 "max": 64
+            },
+            "slotGauge": {
+                "source": "durability"
             }
         }
     },
@@ -722,6 +739,9 @@
             "breakLevel": 2,
             "durability": {
                 "max": 64
+            },
+            "slotGauge": {
+                "source": "durability"
             }
         }
     },
@@ -743,6 +763,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 2000,
+                "heatLevel": 2,
                 "remainder": {
                     "item": "ash",
                     "count": 4
@@ -771,6 +792,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 1800,
+                "heatLevel": 2,
                 "remainder": {
                     "item": "ash",
                     "count": 3
@@ -801,6 +823,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 900,
+                "heatLevel": 2,
                 "remainder": {
                     "item": "ash",
                     "count": 2
@@ -831,6 +854,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 450,
+                "heatLevel": 2,
                 "remainder": {
                     "item": "ash",
                     "count": 1
@@ -859,6 +883,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 225,
+                "heatLevel": 2,
                 "remainder": {
                     "item": "ash",
                     "count": 1
@@ -926,6 +951,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 240,
+                "heatLevel": 2,
                 "remainder": {
                     "item": "ash",
                     "count": 1
@@ -951,6 +977,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 120,
+                "heatLevel": 2,
                 "remainder": {
                     "item": "ash",
                     "count": 1
@@ -976,6 +1003,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 800,
+                "heatLevel": 2,
                 "remainder": {
                     "item": "ash",
                     "count": 2
@@ -1001,6 +1029,7 @@
         "components": {
             "fuel": {
                 "burnTimeTicks": 100,
+                "heatLevel": 2,
                 "remainder": {
                     "item": "ash",
                     "count": 1
@@ -1029,6 +1058,9 @@
             ],
             "durability": {
                 "max": 4
+            },
+            "slotGauge": {
+                "source": "durability"
             }
         }
     },
@@ -1235,7 +1267,10 @@
         "components": {
             "useActions": [
                 "light"
-            ]
+            ],
+            "burnableLight": {
+                "maxTicks": 2400
+            }
         }
     },
     {
@@ -1261,9 +1296,13 @@
             "burnableLight": {
                 "maxTicks": 2400,
                 "lightEmission": 12,
+                "extinguishedItem": "torch",
                 "burnoutItem": "ash",
                 "burnoutCount": 1,
                 "ticksOnlyWhileHeld": true
+            },
+            "slotGauge": {
+                "source": "burnTicks"
             }
         }
     },

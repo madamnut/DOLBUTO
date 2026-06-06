@@ -149,7 +149,7 @@ namespace dolbuto::gameplay
         return true;
     }
 
-    bool PlayerInventory::tickHeldBurningItems(size_t selectedHotbarSlot, const std::vector<ItemDefinition>& itemDefinitions)
+    bool PlayerInventory::tickHeldBurningItems(size_t selectedHotbarSlot, bool extinguishHeldBurnableLights, const std::vector<ItemDefinition>& itemDefinitions)
     {
         bool changed = false;
         auto tickStack = [&](ItemStack& stack)
@@ -165,11 +165,27 @@ namespace dolbuto::gameplay
                 return;
             }
 
+            if (extinguishHeldBurnableLights && definition.extinguishedItemId != 0 &&
+                static_cast<std::size_t>(definition.extinguishedItemId) < itemDefinitions.size() &&
+                itemDefinitions[definition.extinguishedItemId].stackSize != 0)
+            {
+                const uint16_t remainingTicks = stack.burnTicksRemaining == 0
+                    ? definition.maxBurnTicks
+                    : std::min(stack.burnTicksRemaining, definition.maxBurnTicks);
+                stack.itemId = definition.extinguishedItemId;
+                stack.count = std::min<uint16_t>(stack.count, itemDefinitions[definition.extinguishedItemId].stackSize);
+                stack.durability = 0;
+                stack.burnTicksRemaining = remainingTicks;
+                changed = true;
+                return;
+            }
+
             if (stack.burnTicksRemaining == 0)
             {
                 stack.burnTicksRemaining = definition.maxBurnTicks;
             }
             --stack.burnTicksRemaining;
+            changed = true;
             if (stack.burnTicksRemaining > 0)
             {
                 return;

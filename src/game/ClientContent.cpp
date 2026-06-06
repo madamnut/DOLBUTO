@@ -74,6 +74,23 @@ namespace dolbuto::game
             throw std::runtime_error("Unknown item slot render type: " + value);
         }
 
+        ItemSlotGaugeSource parseItemSlotGaugeSource(const std::string& value)
+        {
+            if (value.empty() || value == "none")
+            {
+                return ItemSlotGaugeSource::None;
+            }
+            if (value == "durability")
+            {
+                return ItemSlotGaugeSource::Durability;
+            }
+            if (value == "burnTicks")
+            {
+                return ItemSlotGaugeSource::BurnTicks;
+            }
+            throw std::runtime_error("Unknown item slot gauge source: " + value);
+        }
+
         struct ItemBlockModelSize
         {
             float width = 0.0f;
@@ -465,6 +482,7 @@ namespace dolbuto::game
                 : 1;
             itemDefinition.portableLightEmission = definition.portableLightEmission;
             itemDefinition.maxBurnTicks = definition.maxBurnTicks;
+            itemDefinition.slotGaugeSource = parseItemSlotGaugeSource(definition.slotGaugeSource);
             itemDefinition.burnoutCount = definition.burnoutCount;
             itemDefinition.burnTicksOnlyWhileHeld = definition.burnTicksOnlyWhileHeld;
             const ItemBlockModelSize blockModelSize = parseItemBlockModelSize(definition.modelShape);
@@ -494,6 +512,7 @@ namespace dolbuto::game
         {
             if (definition.id >= content.itemDefinitions_.size() ||
                 ((definition.burnRemainderItem.empty() || definition.burnRemainderCount == 0) &&
+                    definition.extinguishedItem.empty() &&
                     (definition.burnoutItem.empty() || definition.burnoutCount == 0)))
             {
                 continue;
@@ -510,6 +529,18 @@ namespace dolbuto::game
                 {
                     content.itemDefinitions_[definition.id].burnRemainderItemId = itemIt->second;
                     content.itemDefinitions_[definition.id].burnRemainderCount = definition.burnRemainderCount;
+                }
+            }
+            if (!definition.extinguishedItem.empty())
+            {
+                const auto itemIt = content.itemIdByKey_.find(definition.extinguishedItem);
+                if (itemIt == content.itemIdByKey_.end())
+                {
+                    log::warn("Item '" + definition.key + "' references unknown extinguished item '" + definition.extinguishedItem + "'");
+                }
+                else
+                {
+                    content.itemDefinitions_[definition.id].extinguishedItemId = itemIt->second;
                 }
             }
             if (!definition.burnoutItem.empty() && definition.burnoutCount != 0)

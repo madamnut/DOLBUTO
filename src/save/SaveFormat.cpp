@@ -440,7 +440,7 @@ namespace dolbuto::save
             writeU16(payload, entity.y);
             writeU32(payload, entity.remainingBurnTicks);
             writeU8(payload, static_cast<uint8_t>(entity.fireMode));
-            writeU8(payload, 0);
+            writeU8(payload, entity.fireHeatLevel);
             writeU16(payload, entity.burnRemainderItemId);
             writeU16(payload, entity.burnRemainderCount);
             ++writtenBlockEntities;
@@ -683,8 +683,12 @@ namespace dolbuto::save
                         ? FireMode::Firing
                         : (savedFireMode == static_cast<uint8_t>(FireMode::Pyrolysis)
                             ? FireMode::Pyrolysis
-                            : FireMode::Normal);
-                    (void)readU8(payload, offset);
+                            : FireMode::Exposed);
+                    entity.fireHeatLevel = readU8(payload, offset);
+                    if (entity.fireHeatLevel == 0 && entity.remainingBurnTicks > 0)
+                    {
+                        entity.fireHeatLevel = 1;
+                    }
                     entity.burnRemainderItemId = readU16(payload, offset);
                     entity.burnRemainderCount = readU16(payload, offset);
                     if (entity.type != BlockEntityType::None &&

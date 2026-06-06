@@ -37,8 +37,8 @@ assets/data/blocks.json
 `dirt_slab`은 `dirt` 텍스처를 재사용하고, `half_stripped_log`는 껍질벗긴 통나무 텍스처를 재사용한다. 설치한 면에 따라 위/아래/동서남북 반칸 AABB로 렌더링, 레이캐스트, 선택 아웃라인, 배치 충돌, 플레이어 이동 충돌, 발밑 지지 판정을 처리한다.
 렌더링 텍스처는 bottom 상태의 기준 반칸 cuboid를 먼저 만들고, 배치 상태에 따라 그 모델 전체를 회전/이동한 것처럼 유지한다.
 플레이어, 드랍 아이템, 파티클 지형 충돌은 블록의 `collision`, `renderType`, `blockStates`를 읽어 같은 반블럭 AABB 기준으로 처리한다.
-슬랩과 half slab은 현재 조명 전파에서 공기처럼 취급한다.
-렌더링, 선택, 충돌은 배치 상태의 AABB를 사용하지만, 조명 감쇄에는 `lightAttenuation`을 적용하지 않는다.
+슬랩과 half slab의 조명 감쇄는 별도 렌더 타입 예외 없이 블록 정의의 `lightAttenuation` 값을 따른다.
+현재 반블럭 계열은 조명 전파에서 일반 투명 통과값인 `lightAttenuation = 1`을 사용한다.
 
 슬랩 설치는 레이캐스트 충돌 지점을 기준으로 클릭한 면을 `7 8 9 / 4 5 6 / 1 2 3` 키패드형 3x3 구역으로 나누어 판정한다.
 `5`는 기존처럼 클릭한 면에 붙는 반블럭을 배치한다.
@@ -217,12 +217,13 @@ support 블록이 없으면 해당 잎은 일반 블록 파괴와 같은 방식�
 유체량은 조명 감쇠량에 영향을 주지 않는다.
 따라서 유체 흐름 중 물량만 바뀌는 경우에는 조명을 다시 계산하지 않고, 유체가 없던 셀에 생기거나 있던 유체가 사라지는 경우처럼 유체 존재/종류가 바뀔 때만 조명 dirty로 본다.
 빛이 한 셀에서 이웃 셀로 전파될 때 현재 셀의 출구 방향 감쇄와 다음 셀의 입구 방향 감쇄 중 큰 값을 사용한다.
-슬랩과 half slab은 조명 전파 기준으로 모든 방향에서 공기와 같은 감쇄 `1`을 사용한다. 해당 셀에 유체가 있으면 블록 감쇄와 유체 감쇄 중 큰 값을 쓴다.
+조명 전파는 `renderType`별 특수 예외를 두지 않고 블록 데이터의 감쇄값을 사용한다. 해당 셀에 유체가 있으면 블록 감쇄와 유체 감쇄 중 큰 값을 쓴다.
 
 현재 초기값:
 
 ```text
 air, plant, stone prop, branch prop  1
+slab, half_slab, crucible            1
 leaves, ice                          2
 그 외 불투명 블록                    15
 none fluid                           0
@@ -247,25 +248,23 @@ block entity는 청크 로컬 X/Z, 월드 Y, 타입, 타입별 상태 값을 가
 현재 타입은 `Fire`뿐이다.
 
 `fire` 블록은 설치되거나 로드될 때 같은 좌표에 fire block entity를 가진다.
-초기 남은 연소 시간은 `200`틱이다.
-fire block entity는 일반 불 `normal`, 열분해 불 `pyrolysis`, 도기 소성 불 `firing` 모드를 가진다.
+초기 남은 연소 시간은 `200`틱이며, 기본 열 단계는 `1`이다.
+fire block entity는 노출 불 `exposed`, 열분해 불 `pyrolysis`, 도기 소성 불 `firing` 모드와 현재 타는 연료의 `fireHeatLevel`을 가진다.
 블록 변화가 발생하면 변화 좌표 자신은 `SelfBlockChanged`, 동서남북/상하 6방향 이웃은 `BlockNeighborChanged` 이유로 block tick에 등록된다.
-fire는 주변 블록 변화 이벤트와 `FireBurn` tick에서 현재 모드에 필요한 구조가 유지되는지 다시 검사한다.
-fire 작업 공간은 fire 중심 같은 Y층의 `3 x 3` 영역이다. 구조 판정은 fire 셀에서 6방향 BFS로 도달 가능한 비고체 셀만 내부 공간으로 보고, `3 x 3` 작업 공간 밖으로 이어지는 고유 비고체 이웃 셀을 leak으로 센다.
-작업 공간 안에 벽이 있어도 된다. 벽 뒤쪽처럼 fire에서 6방향으로 도달할 수 없는 셀은 processing 대상에 포함하지 않는다.
-`pyrolysis`는 `leakCount == 0`인 완전 밀폐 구조를 요구한다.
-`firing`은 `leakCount == 1`인 구멍 하나짜리 구조와 `heatLevel >= 2` 연료를 요구한다.
-현재 모드에 필요한 구조가 깨지면 즉시 `normal`로 전환한다.
-구조가 새로 생겨도 현재 타고 있는 연료의 모드는 유지하며, 다음 연료 소비 시점에 새 모드를 결정한다.
+추가로 블록 변화 좌표가 fire의 구조 감시 범위 안에 들어가면 해당 fire도 `BlockNeighborChanged` 이유로 block tick에 등록된다.
+fire는 주변 블록 변화 이벤트와 연료 소비 시점에 현재 열 단계와 구조 폐색 단계에 맞는 모드를 다시 검사한다.
+fire 작업 공간은 fire 중심 같은 Y층의 `3 x 3` 영역이다. 구조 감시 범위는 fire 중심 `5 x 5 x 3` AABB이며, 위 작업 공간은 아직 사용하지 않는다.
+구조 판정은 fire 셀에서 6방향 flood fill로 도달 가능한 비고체 셀만 내부 공간으로 보고, 도달한 내부 공간이 감시 AABB의 동서남북/상하 6개 껍데기 방향 중 몇 방향에 닿는지를 `leakCount`로 센다.
+작업 공간 안에 벽이 있어도 된다. 벽 뒤쪽처럼 fire에서 6방향으로 도달할 수 없는 셀은 processing 대상에 포함하지 않으며, 벽 바깥 빈 공간도 fire 내부 공간과 연결되지 않으면 leak으로 세지 않는다.
+폐색 단계는 `leakCount == 0`이면 `sealed`, `leakCount == 1`이면 `vented`, 그 외는 `exposed`다.
+`sealed` 구조는 `pyrolysis` 모드가 된다.
+`vented` 구조는 현재 타는 연료의 `heatLevel >= 3`일 때만 `firing` 모드가 된다.
+그 외 조합은 `exposed` 모드가 된다.
 남은 연소 시간 감소는 별도 `FireBurn` tick으로 진행하며, fire가 계속 존재하면 자기 자신을 다시 `FireBurn`으로 등록한다.
-연소 시간이 0이 되면 fire 셀의 `1 x 1 x 1` 영역 안에 있는 드랍 아이템 중 연료 아이템 1개를 무작위로 소비한다. fire 셀 안에 있는 아이템은 작업 공간에 포함되더라도 연료 소비 대상이며, processing 대상에서는 제외한다.
-단, `charcoal`은 같은 영역에 다른 연료가 하나도 없을 때만 소비 후보로 사용한다.
-연료를 소비하면 해당 아이템의 `components.fuel.burnTimeTicks`만큼 남은 연소 시간이 늘어난다.
+연소 시간이 0이 되면 fire 셀의 `1 x 1 x 1` 영역 안에 있는 드랍 아이템 중 가장 높은 `heatLevel`을 가진 연료 아이템 1개를 소비한다. 같은 `heatLevel` 후보가 여러 개면 그 안에서 무작위로 고른다. fire 셀 안에 있는 아이템은 작업 공간에 포함되더라도 연료 소비 대상이며, processing 대상에서는 제외한다.
+연료를 소비하면 해당 아이템의 `components.fuel.burnTimeTicks`만큼 남은 연소 시간이 늘어나고, fire block entity의 `fireHeatLevel`이 해당 연료의 `heatLevel`로 바뀐다.
 연료에 `components.fuel.remainder`가 있으면 fire block entity가 해당 부산물 아이템과 개수를 기억하고, 그 연료로 추가된 연소 시간이 끝나는 시점에 드랍 아이템으로 뱉는다.
-연료 소비 시점에 `leakCount == 0`이면 `pyrolysis` 모드가 된다.
-연료 소비 시점에 `leakCount == 1`이고 소비한 연료의 `components.fuel.heatLevel >= 2`이면 `firing` 모드가 된다.
-둘 다 아니면 `normal` 모드가 된다.
-`normal` fire가 나중에 밀폐되더라도 이미 타고 있던 연료는 일반 연소로 유지되고, 다음 연료 소비부터 `pyrolysis` 또는 `firing`이 적용된다.
+연료 소비 시점과 구조 변경 이벤트 시점 모두 현재 `fireHeatLevel`과 폐색 단계로 모드를 다시 결정한다.
 `pyrolysis`와 `firing` fire는 5틱마다 fire 셀을 제외한 BFS 내부 작업 셀의 드랍 아이템을 확인하고, [[recipe/processings]]의 현재 모드 레시피 대상이면 해당 드랍 아이템의 `processingTicks`를 5틱씩 증가시킨다.
 요구 tick에 도달한 드랍 아이템 스택이 1개이면 해당 엔티티를 결과 아이템과 `outputCount`로 교체한다. 스택이 2개 이상이면 원본 count를 1 줄이고 같은 위치에 결과 드랍 엔티티를 새로 만든다.
 소비할 연료가 없으면 fire 블록은 `air`로 바뀌고 일반 블록 파괴와 같은 갱신 경로로 메쉬, 파티클, 사운드 이벤트를 발생시킨다.
@@ -391,6 +390,7 @@ fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 bounds 박스
 
 `crucible`은 바닥 `1.0 x 0.2 x 1.0`과 네 벽으로 구성된 위가 열린 렌더 타입이다.
 내부 빈 공간은 대략 `0.6 x 0.8 x 0.6`이며, 충돌/레이캐스트/선택 아웃라인은 전체 큐브가 아니라 바닥과 네 벽 AABB를 사용한다.
+도가니는 장치성 블록이고 내부가 비어 있으므로 조명 전파에서는 일반 투명 통과값인 `lightAttenuation = 1`을 사용한다.
 
 `alphaMode = "blend"` 블록은 일반 solid 지형 mesh가 아니라 별도 blend subchunk mesh로 분리된다.
 blend 블록은 terrain texture array를 그대로 사용하며, `alphaBlend` 값을 packed terrain material에 담아 fragment shader에서 최종 alpha에 곱한다.

@@ -81,6 +81,7 @@ namespace dolbuto::game
         std::function<bool(DVec3, double)> playerColliderIntersectsTerrain;
         std::function<bool(DVec3)> playerColliderHasSupportBelow;
         std::function<bool(DVec3, double)> playerColliderIntersectsWater;
+        std::function<double(DVec3, double, double)> playerColliderTerrainClimbHeight;
     };
 
     class PlayerMovementSystem

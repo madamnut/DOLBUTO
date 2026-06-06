@@ -19,6 +19,16 @@ namespace dolbuto
     {
         constexpr size_t MaxUiVertices = 262144;
         constexpr size_t MaxUiIndices = 393216;
+
+        UiVertex transformUiVertex(const UiVertex& vertex, const Rml::Matrix4f& transform, Rml::Vector2f translation)
+        {
+            UiVertex transformed = vertex;
+            const Rml::Vector4f position(vertex.x + translation.x, vertex.y + translation.y, 0.0f, 1.0f);
+            const Rml::Vector4f transformedPosition = transform * position;
+            transformed.x = transformedPosition.x;
+            transformed.y = transformedPosition.y;
+            return transformed;
+        }
     }
 
     RendererRmlUiBackend::RendererRmlUiBackend(
@@ -92,11 +102,25 @@ namespace dolbuto
             return;
         }
 
-        const VkDeviceSize vertexBytes = sizeof(UiVertex) * geometry->vertices.size();
+        std::vector<UiVertex> transformedVertices;
+        const std::vector<UiVertex>* vertexSource = &geometry->vertices;
+        Rml::Vector2f pushTranslation = translation;
+        if (transformEnabled_)
+        {
+            transformedVertices.reserve(geometry->vertices.size());
+            for (const UiVertex& vertex : geometry->vertices)
+            {
+                transformedVertices.push_back(transformUiVertex(vertex, transform_, translation));
+            }
+            vertexSource = &transformedVertices;
+            pushTranslation = Rml::Vector2f(0.0f, 0.0f);
+        }
+
+        const VkDeviceSize vertexBytes = sizeof(UiVertex) * vertexSource->size();
         const VkDeviceSize vertexBufferOffset = sizeof(UiVertex) * vulkan_.rmlUiVertexOffset;
         void* vertexData = nullptr;
         vkMapMemory(vulkan_.device, vulkan_.uiVertexMemory, vertexBufferOffset, vertexBytes, 0, &vertexData);
-        std::memcpy(vertexData, geometry->vertices.data(), static_cast<size_t>(vertexBytes));
+        std::memcpy(vertexData, vertexSource->data(), static_cast<size_t>(vertexBytes));
         vkUnmapMemory(vulkan_.device, vulkan_.uiVertexMemory);
 
         const VkDeviceSize indexBytes = sizeof(uint32_t) * geometry->indices.size();
@@ -126,8 +150,8 @@ namespace dolbuto
         const UiPush push{
             static_cast<float>(vulkan_.swapchainExtent.width),
             static_cast<float>(vulkan_.swapchainExtent.height),
-            translation.x,
-            translation.y
+            pushTranslation.x,
+            pushTranslation.y
         };
 
         vkCmdBindPipeline(vulkan_.rmlCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.uiPipeline);
@@ -237,5 +261,19 @@ namespace dolbuto
             static_cast<uint32_t>(std::max(right - left, 0)),
             static_cast<uint32_t>(std::max(bottom - top, 0))
         };
+    }
+
+    void RendererRmlUiBackend::SetTransform(const Rml::Matrix4f* transform)
+    {
+        const Rml::Matrix4f& identity = Rml::Matrix4f::Identity();
+        if (transform == nullptr || *transform == identity)
+        {
+            transform_ = identity;
+            transformEnabled_ = false;
+            return;
+        }
+
+        transform_ = *transform;
+        transformEnabled_ = true;
     }
 }

@@ -699,7 +699,7 @@
                 "chance": 1
             }
         ],
-        "lightAttenuation": 15,
+        "lightAttenuation": 1,
         "breakLevel": 1,
         "breakAction": "dig"
     },
@@ -729,7 +729,7 @@
                 "chance": 1
             }
         ],
-        "lightAttenuation": 15,
+        "lightAttenuation": 1,
         "breakLevel": 2,
         "breakAction": "chop"
     },
@@ -759,7 +759,7 @@
                 "chance": 1
             }
         ],
-        "lightAttenuation": 15,
+        "lightAttenuation": 1,
         "breakLevel": 2,
         "breakAction": "chop"
     },
@@ -786,7 +786,7 @@
                 "chance": 1
             }
         ],
-        "lightAttenuation": 15,
+        "lightAttenuation": 1,
         "breakLevel": 1,
         "breakAction": "smash"
     },
@@ -814,7 +814,7 @@
                 "chance": 1
             }
         ],
-        "lightAttenuation": 15,
+        "lightAttenuation": 1,
         "breakLevel": 1,
         "breakAction": "dig"
     },

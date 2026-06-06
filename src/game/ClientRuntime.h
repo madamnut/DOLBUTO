@@ -62,6 +62,8 @@ namespace dolbuto::game
             bool playerColliderIntersectsTerrain(DVec3 playerPosition, double heightScale) const;
             bool playerColliderHasSupportBelow(DVec3 playerPosition) const;
             bool playerColliderIntersectsWater(DVec3 playerPosition, double heightScale) const;
+            double playerColliderTerrainClimbHeight(DVec3 playerPosition, double heightScale, double maxHeight) const;
+            bool pointIntersectsWater(DVec3 position) const;
             void updateBlockSelection(DVec3 origin, Vec3 direction);
             void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds, bool sandboxMode);
             bool editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale);
@@ -73,7 +75,7 @@ namespace dolbuto::game
             void cancelPendingItemInteraction();
             void tickBlockUpdates();
             void tickFluidSimulation();
-            bool tickHeldBurningItems();
+            bool tickHeldBurningItems(bool extinguishHeldBurnableLights);
             std::array<ItemStack, gameplay::PlayerInventory::SlotCount> inventorySnapshot() const;
             ItemStack offhandSlot() const;
             uint16_t heldPortableLightEmission() const;
