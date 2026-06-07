@@ -112,6 +112,7 @@ namespace dolbuto
         double currentPlayerHeightScale() const;
         double currentEyeHeight() const;
         double interpolatedEyeHeight(double alpha) const;
+        DVec3 thirdPersonCameraPosition(DVec3 pivot, Vec3 offsetDirection) const;
         void updatePlayerLookPose(float bodyYaw, float& headYaw, float& headPitch) const;
         void updatePlayer(double fixedDeltaSeconds, bool allowInput);
         void updateDebugText();

@@ -18,6 +18,7 @@ namespace dolbuto
         float textureLayer = 0.0f;
         float mipDistanceScale = 1.0f;
         float alphaBlend = 1.0f;
+        float waterTint = 0.0f;
         uint8_t packedLight = 0;
     };
 

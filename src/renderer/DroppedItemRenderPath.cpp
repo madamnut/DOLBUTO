@@ -12,7 +12,7 @@ namespace dolbuto
     {
         constexpr std::size_t MaxDroppedItemRenderInstances = world::DroppedItemSystem::MaxDroppedItemRenderInstances;
         constexpr std::size_t MaxBufferedItemFrames = 2u;
-        constexpr std::size_t ItemInstanceFrameStride = MaxDroppedItemRenderInstances + 2u;
+        constexpr std::size_t ItemInstanceFrameStride = MaxDroppedItemRenderInstances + 4u;
         constexpr std::size_t MaxItemRenderInstances = ItemInstanceFrameStride * MaxBufferedItemFrames;
     }
 

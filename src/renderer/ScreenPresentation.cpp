@@ -47,7 +47,7 @@ namespace dolbuto
         }
         if (projectSkyDirection(camera, aspect, fovRadians, moonDirection, rect))
         {
-            sprites.draw(commandBuffer, pipelineLayout, spriteVertexBuffer, assets.moon, rect, {}, {1.15f, 1.05f, 0.82f, 1.0f});
+            sprites.draw(commandBuffer, pipelineLayout, spriteVertexBuffer, assets.moon, rect, {}, {1.0f, 0.92f, 0.78f, 1.0f});
         }
     }
 

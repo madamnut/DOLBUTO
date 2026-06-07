@@ -18,7 +18,9 @@ layout(location = 4) flat in float fragMipDistanceScale;
 layout(location = 6) flat in float fragAlphaBlend;
 layout(location = 7) flat in float fragSkyLight;
 layout(location = 8) flat in float fragBlockLight;
+layout(location = 9) flat in float fragWaterTint;
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outBloom;
 
 float lightCurve(float normalizedLight)
 {
@@ -64,6 +66,13 @@ void main()
     {
         color.rgb *= 2.0;
     }
+    if (fragWaterTint > 0.0)
+    {
+        vec3 waterColor = vec3(0.18, 0.55, 0.70);
+        float waterMix = clamp(fragWaterTint * max(pushData.fluidWaterParams.x, 0.35), 0.0, 0.75);
+        color.rgb = mix(color.rgb, waterColor * finalLight, waterMix);
+    }
     float outputAlpha = fragAlphaBlend >= 0.999 ? 1.0 : color.a * fragAlphaBlend;
     outColor = vec4(color.rgb, outputAlpha);
+    outBloom = fireAnimated ? vec4(color.rgb, outputAlpha) : vec4(0.0, 0.0, 0.0, outputAlpha);
 }

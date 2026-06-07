@@ -21,6 +21,7 @@ layout(location = 5) flat out vec3 fragNormal;
 layout(location = 6) flat out float fragAlphaBlend;
 layout(location = 7) flat out float fragSkyLight;
 layout(location = 8) flat out float fragBlockLight;
+layout(location = 9) flat out float fragWaterTint;
 
 int decodeSignedFixed(uint packedValue)
 {
@@ -111,4 +112,5 @@ void main()
     fragAlphaBlend = float((material >> 26u) & 0x3Fu) / 63.0;
     fragSkyLight = float((packedLight >> 4u) & 0xFu) / 15.0;
     fragBlockLight = float(packedLight & 0xFu) / 15.0;
+    fragWaterTint = 0.0;
 }

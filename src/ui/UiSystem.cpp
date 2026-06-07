@@ -17,7 +17,10 @@
 
 #include <array>
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <fstream>
+#include <iterator>
 #include <random>
 #include <utility>
 
@@ -81,7 +84,131 @@ namespace dolbuto::ui
             }
         }
 
-        void setLobbySplash(Rml::ElementDocument* document)
+        void skipWhitespace(std::string_view text, std::size_t& offset)
+        {
+            while (offset < text.size() && std::isspace(static_cast<unsigned char>(text[offset])) != 0)
+            {
+                ++offset;
+            }
+        }
+
+        bool readJsonString(std::string_view text, std::size_t& offset, std::string& output)
+        {
+            skipWhitespace(text, offset);
+            if (offset >= text.size() || text[offset] != '"')
+            {
+                return false;
+            }
+            ++offset;
+
+            std::string value;
+            while (offset < text.size())
+            {
+                const char c = text[offset++];
+                if (c == '"')
+                {
+                    output = std::move(value);
+                    return true;
+                }
+                if (c != '\\')
+                {
+                    value.push_back(c);
+                    continue;
+                }
+                if (offset >= text.size())
+                {
+                    return false;
+                }
+
+                const char escaped = text[offset++];
+                switch (escaped)
+                {
+                case '"': value.push_back('"'); break;
+                case '\\': value.push_back('\\'); break;
+                case '/': value.push_back('/'); break;
+                case 'b': value.push_back('\b'); break;
+                case 'f': value.push_back('\f'); break;
+                case 'n': value.push_back('\n'); break;
+                case 'r': value.push_back('\r'); break;
+                case 't': value.push_back('\t'); break;
+                default: return false;
+                }
+            }
+
+            return false;
+        }
+
+        std::vector<std::string> parseSplashList(std::string_view text)
+        {
+            std::vector<std::string> splashes;
+            std::size_t offset = 0;
+            skipWhitespace(text, offset);
+            if (offset >= text.size() || text[offset] != '[')
+            {
+                return {};
+            }
+            ++offset;
+
+            while (true)
+            {
+                skipWhitespace(text, offset);
+                if (offset < text.size() && text[offset] == ']')
+                {
+                    ++offset;
+                    break;
+                }
+
+                std::string value;
+                if (!readJsonString(text, offset, value))
+                {
+                    return {};
+                }
+                if (!value.empty())
+                {
+                    splashes.push_back(std::move(value));
+                }
+
+                skipWhitespace(text, offset);
+                if (offset < text.size() && text[offset] == ',')
+                {
+                    ++offset;
+                    continue;
+                }
+                if (offset < text.size() && text[offset] == ']')
+                {
+                    ++offset;
+                    break;
+                }
+                return {};
+            }
+
+            skipWhitespace(text, offset);
+            if (offset != text.size())
+            {
+                return {};
+            }
+            return splashes;
+        }
+
+        std::vector<std::string> loadSplashList(const std::filesystem::path& path)
+        {
+            std::ifstream file(path, std::ios::binary);
+            if (!file)
+            {
+                log::warn("Lobby splash file not found: " + path.string());
+                return {};
+            }
+
+            const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+            std::vector<std::string> splashes = parseSplashList(text);
+            if (splashes.empty())
+            {
+                log::warn("Lobby splash file has no valid entries: " + path.string());
+            }
+            return splashes;
+        }
+
+        void setLobbySplash(Rml::ElementDocument* document, const std::filesystem::path& splashPath)
         {
             if (document == nullptr)
             {
@@ -94,14 +221,14 @@ namespace dolbuto::ui
                 return;
             }
 
-            constexpr std::array<const char*, 3> Splashes = {
-                "DOLBUTO!!",
-                "0.0.0.3!!",
-                "DEV!!"
-            };
+            std::vector<std::string> splashes = loadSplashList(splashPath);
+            if (splashes.empty())
+            {
+                splashes = {"DOLBUTO!!", "0.0.0.3!!", "DEV!!"};
+            }
             static thread_local std::mt19937 random{std::random_device{}()};
-            std::uniform_int_distribution<std::size_t> distribution(0, Splashes.size() - 1);
-            splash->SetInnerRML(Splashes[distribution(random)]);
+            std::uniform_int_distribution<std::size_t> distribution(0, splashes.size() - 1);
+            splash->SetInnerRML(escapeRml(splashes[distribution(random)]));
         }
     }
 
@@ -166,7 +293,7 @@ namespace dolbuto::ui
         pauseDocument_ = context_->LoadDocument((uiDir / "pause.rml").string());
         optionsDocument_ = context_->LoadDocument((uiDir / "options.rml").string());
 
-        setLobbySplash(lobbyDocument_);
+        setLobbySplash(lobbyDocument_, uiDir / "splashes.json");
 
         attachDocumentEvents(lobbyDocument_);
         attachDocumentEvents(worldSelectDocument_);

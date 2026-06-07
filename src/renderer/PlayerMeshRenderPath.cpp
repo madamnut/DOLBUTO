@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstring>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -44,6 +45,23 @@ namespace dolbuto
                 matrix[0] * point.x + matrix[4] * point.y + matrix[8] * point.z + matrix[12],
                 matrix[1] * point.x + matrix[5] * point.y + matrix[9] * point.z + matrix[13],
                 matrix[2] * point.x + matrix[6] * point.y + matrix[10] * point.z + matrix[14]};
+        }
+
+        Vec3 matrixAxis(const std::array<float, 16>& matrix, int column)
+        {
+            const std::size_t offset = static_cast<std::size_t>(std::clamp(column, 0, 2)) * 4u;
+            const Vec3 axis{matrix[offset + 0u], matrix[offset + 1u], matrix[offset + 2u]};
+            const float lengthSquared = dot(axis, axis);
+            return lengthSquared > 0.000001f ? normalize(axis) : Vec3{};
+        }
+
+        int findNodeIndexByName(const std::vector<PlayerModelNode>& nodes, const std::string& name)
+        {
+            const auto it = std::find_if(nodes.begin(), nodes.end(), [&name](const PlayerModelNode& node)
+            {
+                return node.name == name;
+            });
+            return it != nodes.end() ? static_cast<int>(std::distance(nodes.begin(), it)) : -1;
         }
 
         std::array<float, 16> identityMatrix()
@@ -425,6 +443,25 @@ namespace dolbuto
             }
             return worldTransforms;
         }
+
+        PlayerMeshRenderPath::ItemAttachment itemAttachmentFromNode(
+            const std::vector<std::array<float, 16>>& transforms,
+            int nodeIndex)
+        {
+            if (nodeIndex < 0 || static_cast<std::size_t>(nodeIndex) >= transforms.size())
+            {
+                return {};
+            }
+
+            const std::array<float, 16>& transform = transforms[static_cast<std::size_t>(nodeIndex)];
+            return PlayerMeshRenderPath::ItemAttachment{
+                true,
+                transformPoint(transform, {}),
+                matrixAxis(transform, 0),
+                matrixAxis(transform, 1),
+                matrixAxis(transform, 2)
+            };
+        }
     }
 
     PlayerMeshRenderPath::PlayerMeshRenderPath(
@@ -481,6 +518,8 @@ namespace dolbuto
         animations_ = std::move(model.animations);
         sourceVertices_ = std::move(model.vertices);
         indices_ = std::move(model.indices);
+        leftItemAttachmentNodeIndex_ = findNodeIndexByName(nodes_, "Attach_L");
+        rightItemAttachmentNodeIndex_ = findNodeIndexByName(nodes_, "Attach_R");
         mesh_.vertexCount = static_cast<uint32_t>(sourceVertices_.size());
         mesh_.indexCount = static_cast<uint32_t>(indices_.size());
 
@@ -738,6 +777,8 @@ namespace dolbuto
         {
             transforms.push_back(multiplyMatrix(worldBasis, multiplyMatrix(postureTransform, nodeTransform)));
         }
+        leftItemAttachment_ = itemAttachmentFromNode(transforms, leftItemAttachmentNodeIndex_);
+        rightItemAttachment_ = itemAttachmentFromNode(transforms, rightItemAttachmentNodeIndex_);
         updateTransformFrame(transformFrames_, transforms, frameIndex);
     }
 
@@ -913,6 +954,10 @@ namespace dolbuto
         firstPersonHandSourceVertices_.clear();
         firstPersonHandIndices_.clear();
         animationStateKey_.clear();
+        leftItemAttachmentNodeIndex_ = -1;
+        rightItemAttachmentNodeIndex_ = -1;
+        leftItemAttachment_ = {};
+        rightItemAttachment_ = {};
         animationTransitionStartSeconds_ = 0.0f;
         animationTransitionActive_ = false;
         meshPackedLight_ = 0xFFu;
@@ -990,5 +1035,15 @@ namespace dolbuto
             firstPersonHandMesh_.vertexBuffer != VK_NULL_HANDLE &&
             firstPersonHandMesh_.indexBuffer != VK_NULL_HANDLE &&
             !firstPersonHandTransformFrames_.empty();
+    }
+
+    const PlayerMeshRenderPath::ItemAttachment& PlayerMeshRenderPath::leftItemAttachment() const
+    {
+        return leftItemAttachment_;
+    }
+
+    const PlayerMeshRenderPath::ItemAttachment& PlayerMeshRenderPath::rightItemAttachment() const
+    {
+        return rightItemAttachment_;
     }
 }

@@ -13,6 +13,7 @@ layout(location = 3) in float inTextureLayer;
 layout(location = 4) in float inMipDistanceScale;
 layout(location = 5) in uint inPackedLight;
 layout(location = 6) in float inAlphaBlend;
+layout(location = 7) in float inWaterTint;
 
 layout(location = 0) out vec2 fragUv;
 layout(location = 1) out float fragAo;
@@ -22,6 +23,7 @@ layout(location = 4) flat out float fragMipDistanceScale;
 layout(location = 6) flat out float fragAlphaBlend;
 layout(location = 7) flat out float fragSkyLight;
 layout(location = 8) flat out float fragBlockLight;
+layout(location = 9) flat out float fragWaterTint;
 
 void main()
 {
@@ -35,4 +37,5 @@ void main()
     fragAlphaBlend = inAlphaBlend;
     fragSkyLight = float((inPackedLight >> 4u) & 0xFu) / 15.0;
     fragBlockLight = float(inPackedLight & 0xFu) / 15.0;
+    fragWaterTint = inWaterTint;
 }

@@ -50,7 +50,7 @@ namespace dolbuto::world
             float maxY,
             float maxZ)
         {
-            const DroppedItemSystem::Bounds bounds = DroppedItemSystem::boundsForStack(item.droppedItem.stack, itemDefinitions);
+            const DroppedItemSystem::Bounds bounds = DroppedItemSystem::renderBoundsForStack(item.droppedItem.stack, itemDefinitions);
             const float itemMinX = item.position.x - bounds.halfWidth;
             const float itemMaxX = item.position.x + bounds.halfWidth;
             const float itemMinY = item.position.y;
@@ -347,7 +347,7 @@ namespace dolbuto::world
 
         auto rayIntersectsAabb = [&](const WorldEntity& item, double& hitDistance)
         {
-            const DroppedItemSystem::Bounds bounds = DroppedItemSystem::boundsForStack(item.droppedItem.stack, itemDefinitions());
+            const DroppedItemSystem::Bounds bounds = DroppedItemSystem::renderBoundsForStack(item.droppedItem.stack, itemDefinitions());
             const double halfWidth = static_cast<double>(bounds.halfWidth);
             const double minX = static_cast<double>(item.position.x) - halfWidth;
             const double maxX = static_cast<double>(item.position.x) + halfWidth;
@@ -1288,7 +1288,7 @@ namespace dolbuto::world
 
         auto overlapsPlacedBlock = [&](const WorldEntity& item)
         {
-            const DroppedItemSystem::Bounds bounds = DroppedItemSystem::boundsForStack(item.droppedItem.stack, itemDefinitions());
+            const DroppedItemSystem::Bounds bounds = DroppedItemSystem::physicsBoundsForStack(item.droppedItem.stack, itemDefinitions());
             const float itemMinX = item.position.x - bounds.halfWidth;
             const float itemMaxX = item.position.x + bounds.halfWidth;
             const float itemMinY = item.position.y;
@@ -1359,7 +1359,7 @@ namespace dolbuto::world
                 }
 
                 const Vec3 originalPosition = item.position;
-                const DroppedItemSystem::Bounds bounds = DroppedItemSystem::boundsForStack(item.droppedItem.stack, itemDefinitions());
+                const DroppedItemSystem::Bounds bounds = DroppedItemSystem::physicsBoundsForStack(item.droppedItem.stack, itemDefinitions());
                 std::array<Candidate, 4> horizontalCandidates{{
                     Candidate{{blockMinX - bounds.halfWidth - Epsilon, originalPosition.y, originalPosition.z}, {-HorizontalPushSpeed, VerticalPushSpeed * 0.5f, 0.0f}, std::abs(originalPosition.x - (blockMinX - bounds.halfWidth - Epsilon))},
                     Candidate{{blockMaxX + bounds.halfWidth + Epsilon, originalPosition.y, originalPosition.z}, {HorizontalPushSpeed, VerticalPushSpeed * 0.5f, 0.0f}, std::abs(originalPosition.x - (blockMaxX + bounds.halfWidth + Epsilon))},

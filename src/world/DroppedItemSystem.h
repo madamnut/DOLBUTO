@@ -31,7 +31,8 @@ namespace dolbuto::world
         };
 
         static constexpr size_t MaxDroppedItems = 1024;
-        static constexpr float DroppedItemSize = 0.4f;
+        static constexpr float DroppedItemPhysicsSize = 0.2f;
+        static constexpr float DroppedItemRenderSize = 0.5f;
         static constexpr float DroppedItemThickness = 0.05f;
         static constexpr float BlockModelDroppedItemSize = 0.2f;
         static constexpr float DroppedItemTickSeconds = 1.0f / 20.0f;
@@ -47,7 +48,8 @@ namespace dolbuto::world
 
         static size_t countDroppedItemsInChunk(const RuntimeChunk& chunk);
         static size_t visualCopyCount(uint16_t count);
-        static Bounds boundsForStack(const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions);
+        static Bounds physicsBoundsForStack(const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions);
+        static Bounds renderBoundsForStack(const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions);
         static bool grounded(const WorldEntity& entity);
         static void setGrounded(WorldEntity& entity, bool grounded);
         static bool touchesPlayerCollider(const WorldEntity& item, Vec3 playerPosition, const std::vector<ItemDefinition>& itemDefinitions);

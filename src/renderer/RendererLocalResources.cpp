@@ -57,7 +57,6 @@ namespace dolbuto
     void Renderer::createPlayerMesh()
     {
         const std::filesystem::path characterDirectory = assetDirectory() / "textures" / "character";
-        const std::filesystem::path animatedModel = characterDirectory / "Characterwithanim.glb";
-        playerMeshRenderPath_.loadFromGlb(std::filesystem::exists(animatedModel) ? animatedModel : characterDirectory / "Character.glb");
+        playerMeshRenderPath_.loadFromGlb(characterDirectory / "Character.glb");
     }
 }

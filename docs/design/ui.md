@@ -293,6 +293,9 @@ DOLBUTO!!
 DEV!!
 ```
 
+현재 스플래시 텍스트 목록은 `assets/ui/splashes.json`의 최상위 JSON 문자열 배열에서 읽는다.
+파일이 없거나 유효한 항목이 없으면 `UiSystem`의 기본 fallback 목록을 사용한다.
+
 스플래시 텍스트는 `assets/ui/style.rcss`의 `lobby-splash` 스타일로 위치와 노란색을 정의한다.
 위치는 타이틀 표시 박스의 우하단 꼭짓점에서 좌상방향으로 100px 떨어진 지점을 스플래시 박스 중심으로 잡는다.
 텍스트 테두리는 쓰지 않으며, `splash-pulse` keyframes로 반시계 방향 40도 회전 상태에서 커졌다가 돌아오는 scale 애니메이션을 반복한다.

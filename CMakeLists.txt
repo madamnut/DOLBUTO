@@ -126,6 +126,7 @@ set(SHADER_SOURCES
     shaders/cloud.frag
     shaders/sprite.vert
     shaders/sprite.frag
+    shaders/sprite_scene.frag
     shaders/kawase_blur.frag
     shaders/bloom_downsample.frag
     shaders/bloom_upsample.frag

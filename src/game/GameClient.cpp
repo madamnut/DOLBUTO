@@ -44,6 +44,9 @@ namespace dolbuto
         constexpr double SprintFovMultiplier = 1.15;
         constexpr double EyeHeight = 1.5625;
         constexpr double ThirdPersonDistance = 5.5;
+        constexpr double ThirdPersonMinDistance = 0.35;
+        constexpr double ThirdPersonCameraRadius = 0.20;
+        constexpr double ThirdPersonCollisionStep = 0.10;
         constexpr double FixedPhysicsTimestep = 1.0 / 20.0;
         constexpr double MaxPhysicsFrameTime = 0.25;
         constexpr double DefaultFlyMoveSpeed = 64.0;
@@ -872,24 +875,17 @@ namespace dolbuto
             Camera renderCamera = camera_;
             DVec3 renderCameraPosition = eyePosition;
             bool showPlayer = false;
+            Vec3 thirdPersonOffsetDirection{};
             if (viewMode_ == ViewMode::ThirdPersonRear)
             {
                 const Vec3 forward = renderViewDirection(camera_);
-                renderCameraPosition = {
-                    eyePosition.x - forward.x * ThirdPersonDistance,
-                    eyePosition.y - forward.y * ThirdPersonDistance,
-                    eyePosition.z - forward.z * ThirdPersonDistance
-                };
+                thirdPersonOffsetDirection = {-forward.x, -forward.y, -forward.z};
                 showPlayer = true;
             }
             else if (viewMode_ == ViewMode::ThirdPersonFront)
             {
                 const Vec3 forward = renderViewDirection(camera_);
-                renderCameraPosition = {
-                    eyePosition.x + forward.x * ThirdPersonDistance,
-                    eyePosition.y + forward.y * ThirdPersonDistance,
-                    eyePosition.z + forward.z * ThirdPersonDistance
-                };
+                thirdPersonOffsetDirection = forward;
                 renderCamera.setAngles(camera_.yaw() + Pi, -camera_.pitch());
                 showPlayer = true;
             }
@@ -906,9 +902,14 @@ namespace dolbuto
                 renderWalkPhase,
                 renderWalkAmount
             });
-            renderCameraPosition.x += static_cast<double>(viewBobOffset.x);
-            renderCameraPosition.y += static_cast<double>(viewBobOffset.y);
-            renderCameraPosition.z += static_cast<double>(viewBobOffset.z);
+            const DVec3 cameraPivot{
+                eyePosition.x + static_cast<double>(viewBobOffset.x),
+                eyePosition.y + static_cast<double>(viewBobOffset.y),
+                eyePosition.z + static_cast<double>(viewBobOffset.z)
+            };
+            renderCameraPosition = showPlayer
+                ? thirdPersonCameraPosition(cameraPivot, thirdPersonOffsetDirection)
+                : cameraPivot;
 
             const int menuOverlayMode = screen_ == AppScreen::Lobby ? 1 : (screen_ == AppScreen::Pause ? 2 : (screen_ == AppScreen::WorldSelect ? 3 : (screen_ == AppScreen::WorldCreate ? 4 : (screen_ == AppScreen::Inventory ? 5 : (screen_ == AppScreen::Options ? 6 : 0)))));
             const bool optionsOverGame = screen_ == AppScreen::Options && optionsReturnScreen_ == AppScreen::Pause;
@@ -2808,6 +2809,71 @@ namespace dolbuto
         const double scale = static_cast<double>(previousEyeHeightScale_) +
             (static_cast<double>(eyeHeightScale_) - static_cast<double>(previousEyeHeightScale_)) * alpha;
         return EyeHeight * scale;
+    }
+
+    DVec3 GameClient::thirdPersonCameraPosition(DVec3 pivot, Vec3 offsetDirection) const
+    {
+        if (runtime_ == nullptr)
+        {
+            return {
+                pivot.x + static_cast<double>(offsetDirection.x) * ThirdPersonDistance,
+                pivot.y + static_cast<double>(offsetDirection.y) * ThirdPersonDistance,
+                pivot.z + static_cast<double>(offsetDirection.z) * ThirdPersonDistance
+            };
+        }
+
+        const Vec3 direction = normalize(offsetDirection);
+        if (dot(direction, direction) <= 0.0f)
+        {
+            return pivot;
+        }
+
+        auto cameraBlocked = [&](double distance)
+        {
+            const DVec3 center{
+                pivot.x + static_cast<double>(direction.x) * distance,
+                pivot.y + static_cast<double>(direction.y) * distance,
+                pivot.z + static_cast<double>(direction.z) * distance
+            };
+            return runtime_->gameplay().terrainAabbIntersects(
+                {
+                    center.x - ThirdPersonCameraRadius,
+                    center.y - ThirdPersonCameraRadius,
+                    center.z - ThirdPersonCameraRadius
+                },
+                {
+                    center.x + ThirdPersonCameraRadius,
+                    center.y + ThirdPersonCameraRadius,
+                    center.z + ThirdPersonCameraRadius
+                });
+        };
+
+        double bestDistance = 0.0;
+        const int steps = std::max(1, static_cast<int>(std::ceil(ThirdPersonDistance / ThirdPersonCollisionStep)));
+        for (int step = 1; step <= steps; ++step)
+        {
+            const double distance = std::min(ThirdPersonDistance, static_cast<double>(step) * ThirdPersonCollisionStep);
+            if (distance < ThirdPersonMinDistance)
+            {
+                continue;
+            }
+            if (cameraBlocked(distance))
+            {
+                break;
+            }
+            bestDistance = distance;
+        }
+
+        if (bestDistance <= 0.0)
+        {
+            bestDistance = cameraBlocked(ThirdPersonMinDistance) ? 0.0 : ThirdPersonMinDistance;
+        }
+
+        return {
+            pivot.x + static_cast<double>(direction.x) * bestDistance,
+            pivot.y + static_cast<double>(direction.y) * bestDistance,
+            pivot.z + static_cast<double>(direction.z) * bestDistance
+        };
     }
 
     void GameClient::updatePlayerLookPose(float bodyYaw, float& headYaw, float& headPitch) const

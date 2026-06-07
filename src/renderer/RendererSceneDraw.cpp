@@ -302,6 +302,7 @@ namespace dolbuto
         push.cameraPosition[1] = cameraPosition.y;
         push.cameraPosition[2] = cameraPosition.z;
         push.cameraPosition[3] = static_cast<float>(now);
+        push.fluidWaterParams[0] = client_.renderConfig.fluidWaterAlpha;
         push.fluidWaterParams[1] = skyBrightness;
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
 
@@ -335,6 +336,10 @@ namespace dolbuto
             [this](int x, int y, int z)
             {
                 return client_.worldRuntime.lightAtWorld(x, y, z);
+            },
+            [this](int x, int y, int z)
+            {
+                return client_.worldRuntime.fluidAtWorld(x, y, z);
             });
     }
 

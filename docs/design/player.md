@@ -9,10 +9,14 @@
 
 ## 플레이어 모델
 
-플레이어 모델 소스는 우선 `assets/textures/character/Characterwithanim.glb`를 사용하고, 없으면 `assets/textures/character/Character.glb`로 되돌아간다.
+플레이어 모델 소스는 `assets/textures/character/Character.glb` 단일 파일을 사용한다.
 런타임은 더 이상 별도 `Character.mesh` 캐시 파일을 사용하지 않고, 시작 시 GLB를 직접 읽는다.
 `PlayerModelLoader`는 GLB의 node, mesh primitive, vertex/index, animation channel 데이터를 읽어 `PlayerMeshRenderPath`가 사용할 파트별 source vertex 목록과 animation clip 목록으로 변환한다.
 `PlayerMeshRenderPath`는 각 vertex가 속한 GLB node index를 보존하고, 매 프레임 node transform을 적용한 뒤 `1 / 16` 스케일로 플레이어 월드 좌표에 배치한다.
+`Character.glb`는 3인칭 손 아이템 부착 기준으로 `Attach_L`, `Attach_R` node를 가진다.
+3인칭에서 현재 선택 핫바 아이템은 `Attach_R`, 왼손 슬롯 아이템은 `Attach_L` node의 최종 월드 transform에 붙여 렌더링한다.
+부착 아이템은 드랍 아이템과 같은 item mesh/pipeline을 재사용하되, attachment node의 정규화된 X/Y/Z 축을 instance basis로 넘겨 손 애니메이션과 함께 움직인다.
+아이템 로컬 위쪽 축은 attachment 기준과 반대이므로 3인칭 손 아이템에만 로컬 X축 기준 180도 보정으로 Y/Z basis를 뒤집는다.
 
 현재 모델 구조는 Blockbench group node와 mesh node가 분리될 수 있으므로 animation channel의 대상은 node 이름이 아니라 GLB node index 기준으로 적용한다.
 기본 구조는 다음 파트 이름을 기준으로 한다.
@@ -25,9 +29,11 @@ ModelRoot
     Arm_L
       Arm_LU
       Arm_LL
+        Attach_L
     Arm_R
       Arm_RU
       Arm_RL
+        Attach_R
     Leg_L
       Leg_LU
       Leg_LL
@@ -93,6 +99,9 @@ Z 0
 
 F5로 순환한다.
 3인칭 카메라는 1인칭 눈 위치를 피벗으로 보고, 거리는 5.5다.
+3인칭 카메라는 피벗에서 목표 카메라 위치까지 작은 카메라 AABB를 일정 간격으로 샘플링해 지형 충돌을 검사한다.
+충돌이 감지되면 첫 충돌 직전 거리까지만 카메라를 뒤로 보내므로, 지형이나 반블럭/도가니 같은 실제 충돌 형상을 뚫고 보이지 않는다.
+View Bobbing이 켜진 경우에는 보빙 오프셋을 피벗에 먼저 적용한 뒤 3인칭 카메라 충돌 보정을 계산한다.
 
 ## 이동 모드
 

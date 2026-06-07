@@ -14,6 +14,7 @@ void drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 camera
 void drawFirstPersonHand(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float skyBrightness, uint16_t heldPortableLightEmission, uint32_t frameIndex) const;
 void drawBlockBreakParticles(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission);
 void drawDroppedItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission, Vec3 playerPosition);
+void drawThirdPersonHeldItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission, uint16_t heldItemId, uint16_t offhandItemId, uint8_t playerPackedLight);
 void drawHeldItem(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, uint16_t heldItemId, uint16_t offhandItemId, float skyBrightness, uint16_t heldPortableLightEmission, uint8_t playerPackedLight);
 void ensureClimateOverlayTexture(int mode);
 void drawWaterBlurTargets(VkCommandBuffer commandBuffer, uint32_t imageIndex, const ScreenPresentation::WaterOverlay& waterOverlay);

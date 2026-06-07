@@ -14,6 +14,7 @@ layout(push_constant) uniform CloudPush
 
 layout(location = 0) in vec2 fragNdc;
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outBloom;
 
 float saturate(float value)
 {
@@ -179,4 +180,5 @@ void main()
 
     vec4 clouds = renderClouds(pushData.cameraPosition.xyz, cloudDirection, sunDirection, sunVisibility, noonFactor, cloudCoverage);
     outColor = vec4(clouds.rgb, clouds.a);
+    outBloom = vec4(0.0, 0.0, 0.0, clouds.a);
 }

@@ -41,6 +41,15 @@ namespace dolbuto
     class PlayerMeshRenderPath
     {
     public:
+        struct ItemAttachment
+        {
+            bool valid = false;
+            Vec3 center{};
+            Vec3 xAxis{1.0f, 0.0f, 0.0f};
+            Vec3 yAxis{0.0f, 1.0f, 0.0f};
+            Vec3 zAxis{0.0f, 0.0f, 1.0f};
+        };
+
         PlayerMeshRenderPath() = default;
         PlayerMeshRenderPath(
             const VkDevice* device,
@@ -62,6 +71,8 @@ namespace dolbuto
         void destroy();
         bool ready() const;
         bool firstPersonHandReady() const;
+        const ItemAttachment& leftItemAttachment() const;
+        const ItemAttachment& rightItemAttachment() const;
 
     private:
         struct TransformFrame
@@ -101,6 +112,10 @@ namespace dolbuto
         std::vector<PlayerModelVertex> firstPersonHandSourceVertices_;
         std::vector<uint32_t> firstPersonHandIndices_;
         std::string animationStateKey_;
+        int leftItemAttachmentNodeIndex_ = -1;
+        int rightItemAttachmentNodeIndex_ = -1;
+        ItemAttachment leftItemAttachment_{};
+        ItemAttachment rightItemAttachment_{};
         float animationTransitionStartSeconds_ = 0.0f;
         bool animationTransitionActive_ = false;
         uint8_t meshPackedLight_ = 0xFFu;

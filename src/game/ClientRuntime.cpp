@@ -450,6 +450,32 @@ namespace dolbuto::game
             });
     }
 
+    bool ClientRuntime::GameplayAccess::terrainAabbIntersects(DVec3 min, DVec3 max) const
+    {
+        constexpr double Epsilon = 0.000001;
+        const int blockMinX = blockCoordinateXz(min.x);
+        const int blockMaxX = blockCoordinateXz(max.x - Epsilon);
+        const int blockMinY = blockCoordinateY(min.y);
+        const int blockMaxY = blockCoordinateY(max.y - Epsilon);
+        const int blockMinZ = blockCoordinateXz(min.z);
+        const int blockMaxZ = blockCoordinateXz(max.z - Epsilon);
+
+        for (int y = blockMinY; y <= blockMaxY; ++y)
+        {
+            for (int z = blockMinZ; z <= blockMaxZ; ++z)
+            {
+                for (int x = blockMinX; x <= blockMaxX; ++x)
+                {
+                    if (terrainCellIntersectsPlayerAabb(*owner_.state_, x, y, z, min, max))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     double ClientRuntime::GameplayAccess::playerColliderTerrainClimbHeight(DVec3 playerPosition, double heightScale, double maxHeight) const
     {
         return playerTerrainClimbHeight(*owner_.state_, playerPosition, heightScale, maxHeight);

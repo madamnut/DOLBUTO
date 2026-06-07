@@ -62,6 +62,7 @@ namespace dolbuto::game
             bool playerColliderIntersectsTerrain(DVec3 playerPosition, double heightScale) const;
             bool playerColliderHasSupportBelow(DVec3 playerPosition) const;
             bool playerColliderIntersectsWater(DVec3 playerPosition, double heightScale) const;
+            bool terrainAabbIntersects(DVec3 min, DVec3 max) const;
             double playerColliderTerrainClimbHeight(DVec3 playerPosition, double heightScale, double maxHeight) const;
             bool pointIntersectsWater(DVec3 position) const;
             void updateBlockSelection(DVec3 origin, Vec3 direction);

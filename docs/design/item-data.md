@@ -164,7 +164,7 @@ assets/textures/item/*.png
 꺼진 `torch`를 다시 `light`하면 기존 `burnTicksRemaining`이 새 `lit_torch`로 승계된다.
 잔여 시간이 0이 되면 `components.burnableLight.burnoutItem`과 `burnoutCount`에 따라 현재 스택이 교체된다.
 현재 `lit_torch`는 2400틱 동안 타고, 다 타면 `ash` 1개가 된다.
-`lit_torch`는 `components.slotGauge.source = "burnTicks"`를 사용해 슬롯 게이지에 남은 연소 시간을 표시한다.
+`torch`와 `lit_torch`는 `components.slotGauge.source = "burnTicks"`를 사용해 슬롯 게이지에 남은 연소 시간을 표시한다.
 `components.burnableLight.lightEmission`은 휴대 광원 렌더링에 사용할 데이터 값이다.
 선택 핫바 슬롯 또는 왼손 슬롯에 `portableLightEmission > 0`인 아이템이 있으면, 렌더 프레임은 가장 큰 emission 값을 카메라 위치 기준 다이나믹 라이트로 전달한다.
 이 휴대 광원은 월드 조명 데이터, 청크 조명, 저장 데이터에는 반영하지 않는 렌더링 전용 효과다.
@@ -204,7 +204,9 @@ fire 셀에 있는 아이템은 연료로 소비될 수 있고, fire 중심 같�
 
 드랍된 `extruded_sprite` 아이템은 전용 아이템 파이프라인을 통해 얇은 수평 월드 공간 3D 스프라이트 파생 메쉬로 렌더링한다.
 현재 메쉬는 윗면/아랫면 스프라이트 면과 스프라이트 알파 경계에서 생성한 옆면을 사용한다.
-현재 드랍 스프라이트와 기본 드랍 물리 AABB는 같은 `0.4 x 0.05 x 0.4` 블록 크기를 사용한다.
+현재 드랍 `extruded_sprite`는 렌더 크기와 물리 AABB를 분리한다.
+기본 렌더 크기는 `0.5 x 0.05 x 0.5`이고, 플레이어 접촉 획득, 레이캐스트 대상 지정, 작업 영역 감지는 이 렌더 bounds를 사용한다.
+기본 물리 AABB는 `0.2 x 0.05 x 0.2`이며, 지형 충돌, 드랍 아이템끼리 충돌, 아이템 위에 쌓이는 판정, 블록 설치 후 밀어내기에는 이 작은 물리 bounds를 사용한다.
 드랍된 `block_model` 아이템은 `modelBlock` 또는 fallback `components.placeable.block` 블록의 6면 텍스처를 사용하는 작은 블록 mesh로 렌더링하며, 기본 렌더 크기와 기본 물리 AABB는 모두 `0.2 x 0.2 x 0.2`다.
 표시 대상이 `slab`이거나 `modelShape`가 `slab`, `quarter_log`이면 해당 X/Y/Z 크기의 블록 모델을 사용하되 드랍 물리 AABB는 기존 `block_model` 기본값을 유지한다.
 드랍 아이템 런타임 위치는 아이템의 중앙 하단 접점이다.
@@ -230,8 +232,8 @@ fire 셀에 있는 아이템은 연료로 소비될 수 있고, fire 중심 같�
 드랍 아이템 렌더링은 아이템별 정적 extruded mesh와 드랍 엔티티별 instance data를 사용한다.
 병합된 스택은 데이터상 하나의 엔티티지만, 렌더링에서는 count에 따라 1~4개의 겹친 아이템으로 표시한다.
 시각 복제본 수는 count `1`, `2~16`, `17~48`, `49~99` 구간에 따라 각각 1, 2, 3, 4개다.
-스택 드랍 아이템의 물리 AABB 높이도 같은 복제본 수를 사용한다.
-즉 렌더링에서 2~4단으로 쌓여 보이는 스택은 충돌 두께도 기본 높이의 2~4배가 된다.
+스택 드랍 아이템의 렌더 bounds와 물리 AABB 높이도 같은 복제본 수를 사용한다.
+즉 렌더링에서 2~4단으로 쌓여 보이는 스택은 접촉/대상 bounds와 물리 충돌 두께도 각각 기본 높이의 2~4배가 된다.
 `block_model` 드랍 아이템도 같은 복제본 구간과 오프셋 규칙을 사용한다.
 옆면은 불투명 스프라이트 픽셀이 투명 이웃이나 텍스처 경계에 닿는 위치에만 생성한다.
 같은 방향의 인접 옆면 경계는 렌더링 전에 span으로 병합하므로, 드랍 아이템은 스프라이트 실루엣을 유지하면서도 경계 픽셀마다 옆면 쿼드를 만들지 않는다.
@@ -712,7 +714,7 @@ stone_blade: components.useActions cut/carve, components.breakActions cut, compo
 stone_scraper: components.useActions scrape/pierce, components.durability.max 64, components.slotGauge.source durability
 stone_pounder: components.useActions pound/smash, components.breakActions smash, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
 bow_drill: components.useActions ignite, components.durability.max 4, components.slotGauge.source durability
-torch: components.useActions light, components.burnableLight.maxTicks
+torch: components.useActions light, components.burnableLight.maxTicks, components.slotGauge.source burnTicks
 lit_torch: components.useActions ignite/extinguish, components.burnableLight, components.slotGauge.source burnTicks
 ```
 

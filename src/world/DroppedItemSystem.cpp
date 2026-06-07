@@ -132,7 +132,7 @@ namespace dolbuto::world
             const std::vector<ItemDefinition>& itemDefinitions)
         {
             constexpr float LandingEpsilon = 0.001f;
-            const float lowerTop = lower.position.y + DroppedItemSystem::boundsForStack(lower.droppedItem.stack, itemDefinitions).height;
+            const float lowerTop = lower.position.y + DroppedItemSystem::physicsBoundsForStack(lower.droppedItem.stack, itemDefinitions).height;
             if (upper.previousPosition.y + LandingEpsilon < lowerTop ||
                 upper.position.y > lowerTop + LandingEpsilon ||
                 upper.position.y > upper.previousPosition.y + LandingEpsilon)
@@ -187,8 +187,8 @@ namespace dolbuto::world
                 {
                     WorldEntity& a = items[i].chunk->data->entities[items[i].index];
                     WorldEntity& b = items[j].chunk->data->entities[items[j].index];
-                    const DroppedItemSystem::Bounds aBounds = DroppedItemSystem::boundsForStack(a.droppedItem.stack, itemDefinitions);
-                    const DroppedItemSystem::Bounds bBounds = DroppedItemSystem::boundsForStack(b.droppedItem.stack, itemDefinitions);
+                    const DroppedItemSystem::Bounds aBounds = DroppedItemSystem::physicsBoundsForStack(a.droppedItem.stack, itemDefinitions);
+                    const DroppedItemSystem::Bounds bBounds = DroppedItemSystem::physicsBoundsForStack(b.droppedItem.stack, itemDefinitions);
                     const float dx = b.position.x - a.position.x;
                     const float dy = (b.position.y + bBounds.height * 0.5f) - (a.position.y + aBounds.height * 0.5f);
                     const float dz = b.position.z - a.position.z;
@@ -521,7 +521,7 @@ namespace dolbuto::world
         return 1;
     }
 
-    DroppedItemSystem::Bounds DroppedItemSystem::boundsForStack(const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions)
+    DroppedItemSystem::Bounds DroppedItemSystem::physicsBoundsForStack(const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions)
     {
         const float stackHeightMultiplier = static_cast<float>(visualCopyCount(stack.count));
         if (stack.itemId != 0 &&
@@ -534,7 +534,25 @@ namespace dolbuto::world
             };
         }
         return DroppedItemSystem::Bounds{
-            DroppedItemSize * 0.5f,
+            DroppedItemPhysicsSize * 0.5f,
+            DroppedItemThickness * stackHeightMultiplier
+        };
+    }
+
+    DroppedItemSystem::Bounds DroppedItemSystem::renderBoundsForStack(const ItemStack& stack, const std::vector<ItemDefinition>& itemDefinitions)
+    {
+        const float stackHeightMultiplier = static_cast<float>(visualCopyCount(stack.count));
+        if (stack.itemId != 0 &&
+            static_cast<size_t>(stack.itemId) < itemDefinitions.size() &&
+            itemDefinitions[stack.itemId].droppedRender == ItemRenderType::BlockModel)
+        {
+            return DroppedItemSystem::Bounds{
+                BlockModelDroppedItemSize * 0.5f,
+                BlockModelDroppedItemSize * stackHeightMultiplier
+            };
+        }
+        return DroppedItemSystem::Bounds{
+            DroppedItemRenderSize * 0.5f,
             DroppedItemThickness * stackHeightMultiplier
         };
     }
@@ -560,7 +578,7 @@ namespace dolbuto::world
     {
         constexpr float PlayerHalfWidth = 0.3f;
         constexpr float PlayerHeight = 1.75f;
-        const DroppedItemSystem::Bounds bounds = boundsForStack(item.droppedItem.stack, itemDefinitions);
+        const DroppedItemSystem::Bounds bounds = renderBoundsForStack(item.droppedItem.stack, itemDefinitions);
 
         return item.position.x + bounds.halfWidth >= playerPosition.x - PlayerHalfWidth &&
             item.position.x - bounds.halfWidth <= playerPosition.x + PlayerHalfWidth &&
@@ -741,7 +759,7 @@ namespace dolbuto::world
                 return false;
             }
 
-            const Bounds bounds = boundsForStack(item.droppedItem.stack, itemDefinitions);
+            const Bounds bounds = physicsBoundsForStack(item.droppedItem.stack, itemDefinitions);
             return terrainCellBlocksPlayer(
                 DVec3{
                     static_cast<double>(item.position.x - bounds.halfWidth),
@@ -758,7 +776,7 @@ namespace dolbuto::world
         {
             constexpr float ItemSupportEpsilon = 0.02f;
             constexpr float ItemSupportMinOverlap = 0.04f;
-            const DroppedItemSystem::Bounds itemBounds = boundsForStack(item.droppedItem.stack, itemDefinitions);
+            const DroppedItemSystem::Bounds itemBounds = physicsBoundsForStack(item.droppedItem.stack, itemDefinitions);
             for (const auto& entry : runtimeChunks)
             {
                 const RuntimeChunk& chunk = entry.second;
@@ -778,7 +796,7 @@ namespace dolbuto::world
                         continue;
                     }
 
-                    const DroppedItemSystem::Bounds supportBounds = boundsForStack(support.droppedItem.stack, itemDefinitions);
+                    const DroppedItemSystem::Bounds supportBounds = physicsBoundsForStack(support.droppedItem.stack, itemDefinitions);
                     const float supportTop = support.position.y + supportBounds.height;
                     const float overlapX = itemBounds.halfWidth + supportBounds.halfWidth - std::abs(item.position.x - support.position.x);
                     const float overlapZ = itemBounds.halfWidth + supportBounds.halfWidth - std::abs(item.position.z - support.position.z);
@@ -821,7 +839,7 @@ namespace dolbuto::world
                     continue;
                 }
 
-                const DroppedItemSystem::Bounds itemBounds = boundsForStack(item.droppedItem.stack, itemDefinitions);
+                const DroppedItemSystem::Bounds itemBounds = physicsBoundsForStack(item.droppedItem.stack, itemDefinitions);
                 const uint64_t originalOwnerKey = entry.first;
                 item.previousPosition = item.position;
                 item.age += dt;

@@ -56,6 +56,16 @@ namespace dolbuto
             float blockLight = 0.0f;
             float uvMirrorX = 0.0f;
             float geometryMirrorX = 0.0f;
+            float basisXX = 1.0f;
+            float basisXY = 0.0f;
+            float basisXZ = 0.0f;
+            float basisYX = 0.0f;
+            float basisYY = 1.0f;
+            float basisYZ = 0.0f;
+            float basisZX = 0.0f;
+            float basisZY = 0.0f;
+            float basisZZ = 1.0f;
+            float waterTint = 0.0f;
         };
 
         struct RenderInstance

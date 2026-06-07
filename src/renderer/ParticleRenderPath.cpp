@@ -21,6 +21,13 @@ namespace dolbuto
         constexpr float SmokeSpawnInterval = 0.32f;
         constexpr uint32_t SmokeFrameCount = 8;
         constexpr float TileSize = 0.25f;
+        constexpr int FluidAmountBits = 7;
+        constexpr uint16_t FluidAmountMask = (1u << FluidAmountBits) - 1u;
+        constexpr uint16_t FluidWater = 1;
+        constexpr uint16_t FluidFullAmount = 100;
+        constexpr uint16_t FluidHeightStepAmount = 10;
+        constexpr uint16_t FluidHeightLevels = 10;
+        constexpr float FluidSurfaceMaxHeight = 0.8f;
         constexpr uint32_t ParticlePlacementSalt = 0x9A7D3E21u;
         constexpr uint32_t SmokePlacementSalt = 0x51A7E3D9u;
 
@@ -46,6 +53,28 @@ namespace dolbuto
         int blockCoordinateY(double worldCoordinate)
         {
             return static_cast<int>(std::floor(worldCoordinate));
+        }
+
+        uint16_t fluidId(uint16_t fluid)
+        {
+            return static_cast<uint16_t>(fluid >> FluidAmountBits);
+        }
+
+        uint16_t fluidAmount(uint16_t fluid)
+        {
+            return static_cast<uint16_t>(fluid & FluidAmountMask);
+        }
+
+        bool isWater(uint16_t fluid)
+        {
+            return fluidId(fluid) == FluidWater && fluidAmount(fluid) != 0;
+        }
+
+        float fluidSurfaceHeight(uint16_t amount)
+        {
+            const uint16_t clampedAmount = amount > FluidFullAmount ? FluidFullAmount : amount;
+            const uint16_t level = static_cast<uint16_t>((clampedAmount + FluidHeightStepAmount - 1u) / FluidHeightStepAmount);
+            return (static_cast<float>(level) / static_cast<float>(FluidHeightLevels)) * FluidSurfaceMaxHeight;
         }
 
         int chunkCoordinateForBlock(int blockCoordinate)
@@ -641,7 +670,8 @@ namespace dolbuto
         const BreakingOverlay& overlay,
         double now,
         const TerrainCollisionFn& terrainBlocks,
-        const LightSamplerFn& lightAtWorld)
+        const LightSamplerFn& lightAtWorld,
+        const FluidSamplerFn& fluidAtWorld)
     {
         update(now, terrainBlocks);
 
@@ -686,7 +716,32 @@ namespace dolbuto
             vertexScratch_.reserve(MaxBlockBreakParticles * 4u);
         }
 
-        auto appendQuad = [&](std::vector<TerrainVertex>& targetVertices, std::size_t maxParticles, const std::array<Vec3, 4>& positions, float u0, float v0, float u1, float v1, float ao, uint32_t textureLayer, float mipDistanceScale, float alphaBlend, uint8_t packedLight)
+        auto waterTintAt = [&](Vec3 position, float particleHeight)
+        {
+            if (!fluidAtWorld)
+            {
+                return 0.0f;
+            }
+
+            const int fluidX = blockCoordinateXz(position.x);
+            const int fluidY = blockCoordinateY(position.y);
+            const int fluidZ = blockCoordinateXz(position.z);
+            const uint16_t fluid = fluidAtWorld(fluidX, fluidY, fluidZ);
+            if (!isWater(fluid))
+            {
+                return 0.0f;
+            }
+
+            const bool hasWaterAbove = isWater(fluidAtWorld(fluidX, fluidY + 1, fluidZ));
+            const float waterTop = static_cast<float>(fluidY) + (hasWaterAbove ? 1.0f : fluidSurfaceHeight(fluidAmount(fluid)));
+            if (position.y >= waterTop)
+            {
+                return 0.0f;
+            }
+            return hasWaterAbove ? 1.0f : std::clamp((waterTop - position.y) / std::max(particleHeight, 0.01f), 0.0f, 1.0f);
+        };
+
+        auto appendQuad = [&](std::vector<TerrainVertex>& targetVertices, std::size_t maxParticles, const std::array<Vec3, 4>& positions, float u0, float v0, float u1, float v1, float ao, uint32_t textureLayer, float mipDistanceScale, float alphaBlend, uint8_t packedLight, float waterTint)
         {
             if (targetVertices.size() + 4u > maxParticles * 4u)
             {
@@ -703,6 +758,10 @@ namespace dolbuto
             targetVertices[baseIndex + 1u].alphaBlend = alphaBlend;
             targetVertices[baseIndex + 2u].alphaBlend = alphaBlend;
             targetVertices[baseIndex + 3u].alphaBlend = alphaBlend;
+            targetVertices[baseIndex].waterTint = waterTint;
+            targetVertices[baseIndex + 1u].waterTint = waterTint;
+            targetVertices[baseIndex + 2u].waterTint = waterTint;
+            targetVertices[baseIndex + 3u].waterTint = waterTint;
             targetVertices[baseIndex].packedLight = packedLight;
             targetVertices[baseIndex + 1u].packedLight = packedLight;
             targetVertices[baseIndex + 2u].packedLight = packedLight;
@@ -723,12 +782,13 @@ namespace dolbuto
             const float minZ = static_cast<float>(overlay.z) - 0.5f - Expand;
             const float maxZ = static_cast<float>(overlay.z) + 0.5f + Expand;
             const uint8_t overlayLight = lightAtWorld ? lightAtWorld(overlay.x, overlay.y + 1, overlay.z) : world::packLight(world::MaxSkyLight, 0);
-            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{minX, maxY, minZ}, Vec3{minX, maxY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, maxY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
-            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{minX, minY, maxZ}, Vec3{minX, minY, minZ}, Vec3{maxX, minY, minZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
-            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{minX, minY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, maxY, minZ}, Vec3{minX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
-            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{maxX, minY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
-            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{minX, minY, minZ}, Vec3{minX, maxY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
-            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{maxX, minY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight);
+            const float overlayWaterTint = waterTintAt(Vec3{static_cast<float>(overlay.x), static_cast<float>(overlay.y) + 0.5f, static_cast<float>(overlay.z)}, 1.0f);
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{minX, maxY, minZ}, Vec3{minX, maxY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, maxY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight, overlayWaterTint);
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{minX, minY, maxZ}, Vec3{minX, minY, minZ}, Vec3{maxX, minY, minZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight, overlayWaterTint);
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{minX, minY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, maxY, minZ}, Vec3{minX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight, overlayWaterTint);
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{maxX, minY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, maxY, maxZ}, Vec3{maxX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight, overlayWaterTint);
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{minX, minY, minZ}, Vec3{minX, maxY, minZ}, Vec3{maxX, maxY, minZ}, Vec3{maxX, minY, minZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight, overlayWaterTint);
+            appendQuad(vertexScratch_, MaxBlockBreakParticles, {Vec3{maxX, minY, maxZ}, Vec3{maxX, maxY, maxZ}, Vec3{minX, maxY, maxZ}, Vec3{minX, minY, maxZ}}, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, layer, 0.0f, 1.0f, overlayLight, overlayWaterTint);
         }
 
         const Vec3 cameraRight = camera.right();
@@ -748,6 +808,7 @@ namespace dolbuto
             const uint8_t particleLight = lightAtWorld
                 ? lightAtWorld(blockCoordinateXz(particle.position.x), blockCoordinateY(particle.position.y), blockCoordinateXz(particle.position.z))
                 : world::packLight(world::MaxSkyLight, 0);
+            const float particleWaterTint = waterTintAt(particle.position, particle.size);
             appendQuad(vertexScratch_, MaxBlockBreakParticles, {
                 Vec3{particle.position.x - rightOffset.x - upOffset.x, particle.position.y - rightOffset.y - upOffset.y, particle.position.z - rightOffset.z - upOffset.z},
                 Vec3{particle.position.x - rightOffset.x + upOffset.x, particle.position.y - rightOffset.y + upOffset.y, particle.position.z - rightOffset.z + upOffset.z},
@@ -761,7 +822,8 @@ namespace dolbuto
                 particle.textureLayer,
                 1.0f,
                 1.0f,
-                particleLight);
+                particleLight,
+                particleWaterTint);
         }
 
         if (!vertexScratch_.empty())
@@ -809,6 +871,7 @@ namespace dolbuto
             const uint8_t particleLight = lightAtWorld
                 ? lightAtWorld(blockCoordinateXz(particle.position.x), blockCoordinateY(particle.position.y), blockCoordinateXz(particle.position.z))
                 : world::packLight(world::MaxSkyLight, 0);
+            const float particleWaterTint = waterTintAt(particle.position, particle.size);
             appendQuad(smokeVertexScratch_, MaxSmokeParticles, {
                 Vec3{particle.position.x - rightOffset.x - upOffset.x, particle.position.y - rightOffset.y - upOffset.y, particle.position.z - rightOffset.z - upOffset.z},
                 Vec3{particle.position.x - rightOffset.x + upOffset.x, particle.position.y - rightOffset.y + upOffset.y, particle.position.z - rightOffset.z + upOffset.z},
@@ -822,7 +885,8 @@ namespace dolbuto
                 textureLayer,
                 1.0f,
                 alpha,
-                particleLight);
+                particleLight,
+                particleWaterTint);
         }
 
         if (smokeVertexScratch_.empty())

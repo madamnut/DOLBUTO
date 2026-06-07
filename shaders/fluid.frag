@@ -18,6 +18,7 @@ layout(location = 4) flat in float fragMipDistanceScale;
 layout(location = 7) flat in float fragSkyLight;
 layout(location = 8) flat in float fragBlockLight;
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outBloom;
 
 float lightCurve(float normalizedLight)
 {
@@ -48,5 +49,7 @@ void main()
     float skyLight = fragSkyLight * pushData.fluidWaterParams.y;
     float finalLight = lightCurve(max(max(skyLight, fragBlockLight), dynamicLight()));
     color.rgb *= fragAo * finalLight;
-    outColor = vec4(color.rgb, color.a * pushData.fluidWaterParams.x);
+    float outputAlpha = color.a * pushData.fluidWaterParams.x;
+    outColor = vec4(color.rgb, outputAlpha);
+    outBloom = vec4(0.0, 0.0, 0.0, outputAlpha);
 }

@@ -99,6 +99,7 @@ namespace dolbuto
         std::unique_ptr<RendererRmlUiBackend> rmlUiBackend_;
         std::unique_ptr<RendererUiRuntimeBridge> uiRuntimeBridge_;
         std::vector<Texture> sceneColorTargets_;
+        std::vector<Texture> bloomSourceTargets_;
         std::vector<Texture> sceneDepthTargets_;
         std::vector<Texture> waterBlurTargetsA_;
         std::vector<Texture> waterBlurTargetsB_;

@@ -17,6 +17,10 @@ layout(location = 6) in vec3 inScale;
 layout(location = 7) in vec2 inLight;
 layout(location = 8) in float inUvMirrorX;
 layout(location = 9) in float inGeometryMirrorX;
+layout(location = 10) in vec3 inBasisX;
+layout(location = 11) in vec3 inBasisY;
+layout(location = 12) in vec3 inBasisZ;
+layout(location = 13) in float inWaterTint;
 
 layout(location = 0) out vec2 fragUv;
 layout(location = 1) out float fragAo;
@@ -26,6 +30,7 @@ layout(location = 4) flat out float fragMipDistanceScale;
 layout(location = 6) flat out float fragAlphaBlend;
 layout(location = 7) flat out float fragSkyLight;
 layout(location = 8) flat out float fragBlockLight;
+layout(location = 9) flat out float fragWaterTint;
 
 void main()
 {
@@ -56,7 +61,7 @@ void main()
         value.y,
         value.x * sinY + value.z * cosY);
 
-    vec3 worldPosition = inCenterRotX.xyz + value;
+    vec3 worldPosition = inCenterRotX.xyz + inBasisX * value.x + inBasisY * value.y + inBasisZ * value.z;
     vec3 relativePosition = worldPosition - pushData.cameraPosition.xyz;
     gl_Position = pushData.mvp * vec4(relativePosition, 1.0);
     fragUv = vec2(inUvMirrorX > 0.5 ? 1.0 - inUv.x : inUv.x, inUv.y);
@@ -67,4 +72,5 @@ void main()
     fragAlphaBlend = 1.0;
     fragSkyLight = inLight.x;
     fragBlockLight = inLight.y;
+    fragWaterTint = inWaterTint;
 }

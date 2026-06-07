@@ -12,6 +12,7 @@ layout(push_constant) uniform SkyPush
 
 layout(location = 0) in vec2 fragNdc;
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outBloom;
 
 float saturate(float value)
 {
@@ -67,9 +68,9 @@ void main()
     vec3 twilightMiddle = vec3(0.42, 0.28, 0.45);
     vec3 twilightDown = vec3(1.00, 0.50, 0.24);
 
-    vec3 nightUp = vec3(0.0008, 0.0015, 0.0060);
-    vec3 nightMiddle = vec3(0.0040, 0.0070, 0.0200);
-    vec3 nightDown = vec3(0.0100, 0.0160, 0.0380);
+    vec3 nightUp = vec3(0.0004, 0.0008, 0.0030);
+    vec3 nightMiddle = vec3(0.0020, 0.0035, 0.0100);
+    vec3 nightDown = vec3(0.0050, 0.0080, 0.0190);
 
     vec3 dayUp = mix(twilightUp, noonUp, noonFactor);
     vec3 dayMiddle = mix(twilightMiddle, noonMiddle, noonFactor);
@@ -100,4 +101,5 @@ void main()
     color += (dither - 0.5) / 512.0;
 
     outColor = vec4(max(color, vec3(0.0)), 1.0);
+    outBloom = vec4(0.0, 0.0, 0.0, 1.0);
 }

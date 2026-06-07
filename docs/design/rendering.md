@@ -78,7 +78,7 @@
 `src/renderer/RendererFrameLoop.cpp`는 frame acquire/submit/present, command buffer 기록, screenshot readback/BMP 저장, command buffer/sync object 생성을 담는다.
 `src/renderer/SkyRenderPath.h/.cpp`는 scene render pass의 첫 draw로 fullscreen sky shader를 호출한다. sky shader는 clear color 고정값 대신 `worldTicks`에서 계산한 실제 sun direction, 낮/밤 판정용 day direction, camera basis, FOV를 받아 view direction과 direction dot 값으로 하늘 위쪽/지평선/아래쪽 그라데이션, 일출/일몰 horizon glow, 태양 방향 glare를 계산한다.
 `src/renderer/CloudRenderPath.h/.cpp`는 하늘 스프라이트 뒤, 지형 앞에서 별도 fullscreen alpha pass로 월드 공간 `Y=500..700` 범위의 렌더 전용 volumetric cloud slab을 그린다. 구름은 카메라 기준 화면 노이즈가 아니라 `cameraPosition + viewDirection * t` 월드 좌표에서 3D noise 밀도장을 raymarch해 샘플링하므로 플레이어 이동에 따라 월드 상공에 고정된 것처럼 보이며, 태양과 달 스프라이트를 가릴 수 있다. 키패드 `+`는 `cloudCoverage`를 높여 구름을 많게 하고, 키패드 `-`는 낮춰 구름을 적게 한다. 구름 coverage 디버그 값은 화면 텍스트로 표시하지 않는다.
-밤하늘은 낮보다 낮은 RGB ramp를 사용하고, 어두운 계조에서 줄무늬가 보이지 않도록 screen-space hash noise 기반의 약한 dither를 적용한다.
+밤하늘은 지형의 시간대별 `skyBrightness`와 별개로 낮보다 훨씬 낮은 RGB ramp를 사용하고, 어두운 계조에서 줄무늬가 보이지 않도록 screen-space hash noise 기반의 약한 dither를 적용한다.
 하늘색 디버그를 위해 게임 화면에서 `[`를 누르고 있으면 하루 안의 시간이 해가 뜨는 방향으로 되감기고, `]`를 누르고 있으면 해가 지는 방향으로 빨리 진행된다. 이 입력은 `worldTicks`만 조정하므로 sky shader와 sun/moon sprite 위치가 같은 기준으로 움직인다.
 `src/renderer/RendererGameplayBridge.h/.cpp`는 block selection/edit/breaking, pickup/drop, inventory snapshot, block lookup/collision helper, gameplay 결과의 mesh/particle/audio 반영을 담당하는 `RendererGameplayBridge`를 담는다.
 block tick 결과로 여러 블록이 제거되는 경우 `RendererGameplayBridge`는 파티클과 사운드는 이벤트별로 처리하되, edited mesh rebuild는 좌표 목록으로 모아 `RendererTerrainRuntimeBridge`에 배치 요청한다.
@@ -110,7 +110,8 @@ Renderer/GPU가 필요 없는 collision query, block selection state, inventory 
 solid/blend/cross/prop/fire subchunk mesh 생성은 `TerrainGeometryBuilder`가 담당하고, render chunk storage 조작, Vulkan upload, terrain render data 수명, terrain mesh draw loop는 `TerrainRenderPath`가 담당한다.
 chunk mesh와 edited subchunk mesh의 CPU 조립은 `RendererTerrainMeshBridge`가 담당하고, `Renderer`는 결과를 `TerrainRenderPath` 설치 API로 전달한다.
 player mesh는 terrain chunk mesh와 별도 indexed vertex buffer 경로이며 `PlayerMeshRenderPath`가 소유한다.
-플레이어는 우선 `assets/textures/character/Characterwithanim.glb`를 직접 읽고, 없으면 `assets/textures/character/Character.glb`로 되돌아가며, 별도 `Character.mesh` 런타임 캐시 파일은 사용하지 않는다.
+플레이어는 `assets/textures/character/Character.glb` 단일 파일을 직접 읽으며, 별도 `Character.mesh` 런타임 캐시 파일은 사용하지 않는다.
+`Character.glb`는 3인칭 손 아이템 부착 기준으로 `Attach_L`, `Attach_R` node를 포함한다.
 플레이어 전체 배치는 body yaw를 기준으로 하고, 머리 회전은 animation pose 적용 뒤 `Head` 제어 node local transform에 추가 yaw/pitch transform을 곱해 처리한다.
 보행 모션은 `ClientFrame`/`RendererFrame`의 `playerWalkPhase`, `playerWalkAmount`, `playerWalkReverse`, `playerCrouching`, `playerSprinting`, `playerProne`으로 전달되며, `GameClient`가 물리 tick 사이 값을 보간하고 실제 이동 방향이 body yaw 기준 후방이면 역재생 플래그를 넘긴다.
 `PlayerMeshRenderPath`는 정지 상태에서 자세별 idle clip을, 이동 상태에서 자세별 movement clip을 샘플링해 `walkAmount`로 블렌드하고, 자세 또는 movement clip 조합이 바뀌면 직전 렌더 pose snapshot에서 새 pose로 `0.4`초 동안 TRS 블렌딩한다.
@@ -118,7 +119,9 @@ player mesh는 terrain chunk mesh와 별도 indexed vertex buffer 경로이며 `
 1인칭 손은 아직 GLB animation clip을 적용하지 않고 neutral pose 기반 transform만 사용한다.
 1인칭 손은 같은 GLB에서 오른팔 아래팔 node만 추출한 별도 vertex/index buffer를 사용한다.
 현재 선택 핫바 아이템은 `ClientFrame`/`RendererFrame`의 `heldItemId`로 전달되고, 왼손 슬롯 아이템은 `offhandItemId`로 전달된다.
-`RendererDroppedItems.cpp`는 기존 `DroppedItemRenderPath` item pipeline을 재사용해 1인칭 viewmodel 아이템을 렌더링한다.
+`RendererDroppedItems.cpp`는 기존 `DroppedItemRenderPath` item pipeline을 재사용해 3인칭 손 아이템과 1인칭 viewmodel 아이템을 렌더링한다.
+3인칭 손 아이템은 플레이어 mesh draw 직후 `Attach_R`/`Attach_L` node의 최종 월드 위치와 basis 축을 사용해 월드 item pipeline으로 그린다.
+이때 아이템 로컬 위쪽 축을 맞추기 위해 3인칭 손 아이템에만 Y/Z basis를 뒤집는 180도 보정을 적용한다.
 1인칭 손과 든 아이템은 지형 depth에 묻히지 않도록 그리기 직전에 scene depth attachment를 clear한 뒤 viewmodel pipeline으로 그린다.
 viewmodel pipeline은 depth test/write를 사용해 viewmodel mesh 내부의 앞뒤 관계를 유지한다.
 플레이어 스킨과 1인칭 손은 GLB 원본 vertex/index를 정적 GPU mesh로 유지하고, vertex별 `nodeIndex`와 frame별 node transform storage buffer를 통해 shader에서 최종 위치를 계산한다.
@@ -326,14 +329,23 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 블룸은 `config/render.json`의 `bloom` 섹션으로 제어한다.
 
 - `enabled`: 블룸 패스 사용 여부.
-- `threshold`: 이 밝기 이상의 픽셀만 블룸 후보로 추출한다.
+- `threshold`: 밝기 threshold 기반 블룸에서 쓰던 값이다. 현재 알파 마스크 기반 bloom source를 사용하므로 첫 추출 단계에서는 사용하지 않는다.
 - `intensity`: 최종 화면에 더하는 블룸 세기.
 - `radius`: downsample/upsample sample offset 배율.
 
-렌더 순서는 scene pass 이후 `bloom_downsample.frag`로 밝은 픽셀을 1/4 해상도 target에 추출하고, 1/8, 1/16, 1/32 해상도로 순차 downsample한다.
+월드 씬은 scene color target과 bloom source target을 함께 쓰는 MRT scene pass로 렌더링한다.
+scene color target에는 실제 화면 색을 쓰고, bloom source target에는 블룸 대상 픽셀만 쓴다.
+블룸 기준은 밝기 threshold가 아니라 알파 마스크다.
+태양, 달, 불처럼 블룸 대상인 텍스처는 alpha가 있는 픽셀의 RGB를 bloom source에 기록하고, 일반 지형/플레이어/아이템은 bloom source에 검정을 기록한다.
+구름과 alpha blend 지형/유체는 bloom source에도 검정 alpha를 기록해 뒤쪽 태양/달 bloom을 같은 비율로 가린다.
+solid 지형은 bloom source를 검정으로 덮어 뒤쪽 bloom을 완전히 가린다.
+
+렌더 순서는 scene pass 이후 `bloom_downsample.frag`가 bloom source target을 1/4 해상도 target으로 downsample하고, 1/8, 1/16, 1/32 해상도로 순차 downsample한다.
 그 다음 `bloom_upsample.frag`로 작은 mip부터 큰 mip로 additive upsample해 여러 반경의 번짐을 합친다.
 최종 presentation pass에서는 scene color를 먼저 그리고, additive sprite pipeline으로 블룸 텍스처를 더한 뒤 물속 화면 블러와 기후 오버레이를 그린다.
-`fire` terrain fragment는 애니메이션 프레임 샘플 이후 색을 2배로 올려 HDR scene target에서 threshold를 넘을 수 있게 한다.
+`fire` terrain fragment는 애니메이션 프레임 샘플 이후 scene color와 bloom source에 같은 fire 색을 쓰며, texture alpha가 없는 픽셀은 discard한다.
+태양과 달 스프라이트는 구름과 지형에 가려지는 기존 scene pass 순서를 유지하면서, `sprite_scene.frag`가 alpha 마스크 기반 bloom source도 함께 출력한다.
+태양 주변 대기광은 `sky.frag`의 `solarGlare`로 처리하고, 태양/달 스프라이트 자체의 번짐은 bloom source 기반 포스트 블룸이 처리한다.
 
 ## 블록 파괴 파티클
 
@@ -353,10 +365,11 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 - 불 연기 파티클은 별도 smoke particle texture array를 같은 particle pipeline에 바인딩해 그린다.
 - Depth test는 켜고 depth write는 끈다.
 - 파티클 vertex는 파티클 위치에서 `WorldRuntime::lightAtWorld`를 샘플링한 packed light를 담고, 프레임 전역 `skyBrightness`와 같은 light curve를 통해 밝아지거나 어두워진다.
+- 파티클 vertex는 파티클 중심이 water fluid 표면 아래에 있으면 `waterTint`를 0~1로 담는다. 파티클 pipeline은 `terrain.frag`를 재사용하므로 물속 파티클은 드랍 아이템과 같은 물색 tint를 받는다.
 - 파티클 index buffer는 quad 패턴이 고정이므로 buffer 생성 시 한 번 채우고 매 프레임 다시 업로드하지 않는다.
 - 파티클 vertex buffer는 persistent mapping 상태로 유지하며, 매 프레임 `ParticleRenderPath`의 재사용 scratch vector에 vertex를 다시 구성한 뒤 mapped pointer로 복사한다.
 
-씬 그리기 순서는 solid 블록, blend 블록, 유체, 3인칭 플레이어, 블록 파괴 파티클, 드랍 아이템, 선택 외곽선, 1인칭 viewmodel 순서다.
+씬 그리기 순서는 solid 블록, blend 블록, 유체, 3인칭 플레이어, 3인칭 손 아이템, 블록 파괴 파티클, 드랍 아이템, 선택 외곽선, 1인칭 viewmodel 순서다.
 1인칭 viewmodel은 마지막에 그리기 직전 scene depth를 clear하고, viewmodel끼리는 depth test/write를 사용한다.
 
 ## 드랍 아이템 렌더링
@@ -367,9 +380,9 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 결과 타입은 모두 `DroppedItemRenderPath::ItemSpriteMesh`이다.
 프레임마다 CPU가 아이템 쿼드 정점을 다시 펼치지 않고, 드랍 아이템 위치/회전/텍스처 layer만 담은 instance buffer를 갱신한다.
 instance buffer는 persistent mapping 상태로 유지해 매 프레임 `vkMapMemory`/`vkUnmapMemory`를 반복하지 않는다.
-item instance buffer는 frame-in-flight별 영역을 나누고, 각 프레임 영역 안에서 월드 드랍 아이템 영역과 1인칭 viewmodel 아이템 영역을 분리한다.
-1인칭 viewmodel 아이템 영역은 오른손과 왼손을 동시에 그릴 수 있도록 프레임당 2개 인스턴스 여유를 가진다.
-따라서 같은 프레임에서 viewmodel 아이템을 그려도 이미 기록된 월드 드랍 아이템 draw command의 instance data를 덮어쓰지 않는다.
+item instance buffer는 frame-in-flight별 영역을 나누고, 각 프레임 영역 안에서 월드 드랍 아이템 영역, 3인칭 손 아이템 영역, 1인칭 viewmodel 아이템 영역을 분리한다.
+3인칭 손 아이템과 1인칭 viewmodel 아이템 영역은 각각 오른손과 왼손을 동시에 그릴 수 있도록 프레임당 2개 인스턴스 여유를 가진다.
+따라서 같은 프레임에서 3인칭 손 아이템이나 viewmodel 아이템을 그려도 이미 기록된 월드 드랍 아이템 draw command의 instance data를 덮어쓰지 않는다.
 정적 mesh GPU buffer, instance buffer, instance 업로드, 정렬, item id별 batch draw는 `DroppedItemRenderPath`가 소유한다.
 `DroppedItemRuntime`은 드랍 아이템 runtime 상태와 tick을 갱신하고, `DroppedItemRenderCollector`는 월드 엔티티를 순회해 렌더 후보 `RenderInstance` 목록을 만들며, `RendererDroppedItems.cpp`는 카메라/pipeline/texture 정보를 `DroppedItemRenderPath`에 전달한다.
 렌더 후보 수를 줄이기 위해 다음 컬링을 적용한다.
@@ -384,7 +397,8 @@ item instance buffer는 frame-in-flight별 영역을 나누고, 각 프레임 �
 - `extruded_sprite`와 `block_model` 드랍 아이템 모두 같은 복제본 배치 규칙을 사용한다.
 - 같은 아이템 mesh를 사용하는 instance는 item id 기준으로 정렬한 뒤 batch draw한다.
 - `extruded_sprite`는 item texture array를, `block_model`은 terrain texture array를 바인딩해 같은 item pipeline으로 나누어 그린다.
-- instance buffer에는 위치/회전/텍스처 layer, 렌더 크기와 함께 정규화된 sky/block light가 들어간다. 드랍 아이템은 보간된 월드 위치의 light를 사용하고, 손에 든 viewmodel 아이템은 플레이어 위치의 light를 사용한다.
+- instance buffer에는 위치/회전/텍스처 layer, 렌더 크기, optional basis 축, 물속 tint 계수와 함께 정규화된 sky/block light가 들어간다. 드랍 아이템은 보간된 월드 위치의 light를 사용하고, 3인칭 손 아이템과 1인칭 viewmodel 아이템은 플레이어 위치의 light를 사용한다.
+- 월드 드랍 아이템 렌더 후보는 복제본 중심점이 water fluid 표면 아래에 있으면 `waterTint`를 0~1로 설정한다. item pipeline은 `terrain.frag`를 재사용하므로 지형/플레이어/viewmodel vertex shader는 같은 fragment input 위치에 0을 출력하고, 월드 드랍 아이템만 물색 tint를 적용한다.
 
 이 컬링은 렌더링 후보만 줄이며, 드랍 아이템 물리, 저장, 획득 판정에는 영향을 주지 않는다.
 
@@ -422,7 +436,7 @@ Groundness/Smoothness/Weirdness/PV 오버레이는 월드 원점 기준 `0..4096
 
 태양과 달 스프라이트는 시간에 따라 변하는 월드 방향에서 투영해 screen-space sprite로 렌더링한다.
 현재 투영 half-size는 화면 너비의 `0.04`이며, 높이는 viewport aspect ratio에 맞게 조정한다.
-달 스프라이트는 scene pass에서 약간 따뜻한 흰노란 tint를 곱해 dual-filter bloom에 은은하게 잡히도록 한다.
+태양과 달 스프라이트는 구름/지형 occlusion을 유지하기 위해 scene pass 안에서 렌더링하고, 같은 draw에서 bloom source target에도 alpha 마스크 기반 색을 기록한다.
 렌더러는 `GameClient`에서 `worldTicks`를 받아 28800틱 하루 주기를 계산한다.
 `06H`에는 태양이 동쪽 지평선 근처에 있고, `12H`에는 머리 위에 있으며, `18H`에는 서쪽 지평선 근처에 있다. 달은 반대 방향을 사용한다.
 하늘 각도는 하루 주기 동안 감소하므로 `06H` 시작 시점에서 투영된 태양은 지는 것이 아니라 떠오른다.

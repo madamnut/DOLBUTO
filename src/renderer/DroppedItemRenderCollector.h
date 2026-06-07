@@ -31,6 +31,7 @@ namespace dolbuto
             std::function<const RuntimeChunk*(uint64_t)> findChunk;
             std::function<bool(uint16_t)> meshReady;
             std::function<uint8_t(int, int, int)> lightAtWorld;
+            std::function<uint16_t(int, int, int)> fluidAtWorld;
         };
 
         static std::vector<DroppedItemRenderPath::RenderInstance> collect(const Input& input);

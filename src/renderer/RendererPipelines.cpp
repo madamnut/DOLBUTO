@@ -128,11 +128,12 @@ namespace dolbuto
         VkPipelineColorBlendAttachmentState colorBlend{};
         colorBlend.blendEnable = VK_FALSE;
         colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        std::array<VkPipelineColorBlendAttachmentState, 2> sceneColorBlends = {colorBlend, colorBlend};
 
         VkPipelineColorBlendStateCreateInfo colorBlending{};
         colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        colorBlending.attachmentCount = 1;
-        colorBlending.pAttachments = &colorBlend;
+        colorBlending.attachmentCount = static_cast<uint32_t>(sceneColorBlends.size());
+        colorBlending.pAttachments = sceneColorBlends.data();
 
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -245,11 +246,12 @@ namespace dolbuto
         colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         colorBlend.alphaBlendOp = VK_BLEND_OP_ADD;
         colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        std::array<VkPipelineColorBlendAttachmentState, 2> sceneColorBlends = {colorBlend, colorBlend};
 
         VkPipelineColorBlendStateCreateInfo colorBlending{};
         colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        colorBlending.attachmentCount = 1;
-        colorBlending.pAttachments = &colorBlend;
+        colorBlending.attachmentCount = static_cast<uint32_t>(sceneColorBlends.size());
+        colorBlending.pAttachments = sceneColorBlends.data();
 
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -305,6 +307,7 @@ namespace dolbuto
         const std::filesystem::path shaderDir = shaderDirectory();
         VkShaderModule vertShader = createShaderModule((shaderDir / "sprite.vert.spv").string());
         VkShaderModule fragShader = createShaderModule((shaderDir / "sprite.frag.spv").string());
+        VkShaderModule sceneFragShader = createShaderModule((shaderDir / "sprite_scene.frag.spv").string());
         VkShaderModule waterBlurFragShader = createShaderModule((shaderDir / "kawase_blur.frag.spv").string());
         VkShaderModule bloomDownsampleFragShader = createShaderModule((shaderDir / "bloom_downsample.frag.spv").string());
         VkShaderModule bloomUpsampleFragShader = createShaderModule((shaderDir / "bloom_upsample.frag.spv").string());
@@ -448,18 +451,24 @@ namespace dolbuto
         colorBlend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         colorBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        std::array<VkPipelineColorBlendAttachmentState, 2> sceneSpriteColorBlends = {colorBlend, colorBlend};
+        colorBlending.attachmentCount = static_cast<uint32_t>(sceneSpriteColorBlends.size());
+        colorBlending.pAttachments = sceneSpriteColorBlends.data();
+        stages[1].module = sceneFragShader;
         pipelineInfo.renderPass = vulkan_.sceneRenderPass;
         if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.sceneSpritePipeline) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create scene sprite pipeline.");
         }
 
+        colorBlending.attachmentCount = 1;
+        colorBlending.pAttachments = &colorBlend;
+        stages[1].module = waterBlurFragShader;
         if (vkCreatePipelineLayout(vulkan_.device, &layoutInfo, nullptr, &vulkan_.waterBlurPipelineLayout) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create water blur pipeline layout.");
         }
 
-        stages[1].module = waterBlurFragShader;
         colorBlend.blendEnable = VK_FALSE;
         pipelineInfo.layout = vulkan_.waterBlurPipelineLayout;
         pipelineInfo.renderPass = vulkan_.waterBlurRenderPass;
@@ -489,6 +498,7 @@ namespace dolbuto
         vkDestroyShaderModule(vulkan_.device, bloomUpsampleFragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, bloomDownsampleFragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, waterBlurFragShader, nullptr);
+        vkDestroyShaderModule(vulkan_.device, sceneFragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, fragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, vertShader, nullptr);
     }
@@ -736,11 +746,12 @@ namespace dolbuto
         VkPipelineColorBlendAttachmentState colorBlend{};
         colorBlend.blendEnable = VK_FALSE;
         colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        std::array<VkPipelineColorBlendAttachmentState, 2> sceneColorBlends = {colorBlend, colorBlend};
 
         VkPipelineColorBlendStateCreateInfo colorBlending{};
         colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        colorBlending.attachmentCount = 1;
-        colorBlending.pAttachments = &colorBlend;
+        colorBlending.attachmentCount = static_cast<uint32_t>(sceneColorBlends.size());
+        colorBlending.pAttachments = sceneColorBlends.data();
 
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -798,6 +809,7 @@ namespace dolbuto
         colorBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         colorBlend.alphaBlendOp = VK_BLEND_OP_ADD;
+        sceneColorBlends = {colorBlend, colorBlend};
         depthStencil.depthWriteEnable = VK_FALSE;
 
         if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.terrainBlendPipeline) != VK_SUCCESS)
@@ -812,6 +824,7 @@ namespace dolbuto
         }
 
         colorBlend.blendEnable = VK_FALSE;
+        sceneColorBlends = {colorBlend, colorBlend};
         depthStencil.depthWriteEnable = VK_TRUE;
         stages[1].module = fragShader;
         rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
@@ -873,7 +886,7 @@ namespace dolbuto
         binding.stride = sizeof(TerrainVertex);
         binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-        std::array<VkVertexInputAttributeDescription, 7> attributes{};
+        std::array<VkVertexInputAttributeDescription, 8> attributes{};
         attributes[0].binding = 0;
         attributes[0].location = 0;
         attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -902,6 +915,10 @@ namespace dolbuto
         attributes[6].location = 6;
         attributes[6].format = VK_FORMAT_R32_SFLOAT;
         attributes[6].offset = offsetof(TerrainVertex, alphaBlend);
+        attributes[7].binding = 0;
+        attributes[7].location = 7;
+        attributes[7].format = VK_FORMAT_R32_SFLOAT;
+        attributes[7].offset = offsetof(TerrainVertex, waterTint);
 
         VkPipelineVertexInputStateCreateInfo vertexInput{};
         vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -918,7 +935,7 @@ namespace dolbuto
         itemBindings[1].stride = sizeof(DroppedItemRenderPath::Instance);
         itemBindings[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
-        std::array<VkVertexInputAttributeDescription, 10> itemAttributes{};
+        std::array<VkVertexInputAttributeDescription, 14> itemAttributes{};
         itemAttributes[0].binding = 0;
         itemAttributes[0].location = 0;
         itemAttributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -959,6 +976,22 @@ namespace dolbuto
         itemAttributes[9].location = 9;
         itemAttributes[9].format = VK_FORMAT_R32_SFLOAT;
         itemAttributes[9].offset = offsetof(DroppedItemRenderPath::Instance, geometryMirrorX);
+        itemAttributes[10].binding = 1;
+        itemAttributes[10].location = 10;
+        itemAttributes[10].format = VK_FORMAT_R32G32B32_SFLOAT;
+        itemAttributes[10].offset = offsetof(DroppedItemRenderPath::Instance, basisXX);
+        itemAttributes[11].binding = 1;
+        itemAttributes[11].location = 11;
+        itemAttributes[11].format = VK_FORMAT_R32G32B32_SFLOAT;
+        itemAttributes[11].offset = offsetof(DroppedItemRenderPath::Instance, basisYX);
+        itemAttributes[12].binding = 1;
+        itemAttributes[12].location = 12;
+        itemAttributes[12].format = VK_FORMAT_R32G32B32_SFLOAT;
+        itemAttributes[12].offset = offsetof(DroppedItemRenderPath::Instance, basisZX);
+        itemAttributes[13].binding = 1;
+        itemAttributes[13].location = 13;
+        itemAttributes[13].format = VK_FORMAT_R32_SFLOAT;
+        itemAttributes[13].offset = offsetof(DroppedItemRenderPath::Instance, waterTint);
 
         VkPipelineVertexInputStateCreateInfo itemVertexInput{};
         itemVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1006,11 +1039,12 @@ namespace dolbuto
         colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         colorBlend.alphaBlendOp = VK_BLEND_OP_ADD;
         colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        std::array<VkPipelineColorBlendAttachmentState, 2> sceneColorBlends = {colorBlend, colorBlend};
 
         VkPipelineColorBlendStateCreateInfo colorBlending{};
         colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        colorBlending.attachmentCount = 1;
-        colorBlending.pAttachments = &colorBlend;
+        colorBlending.attachmentCount = static_cast<uint32_t>(sceneColorBlends.size());
+        colorBlending.pAttachments = sceneColorBlends.data();
 
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -1058,6 +1092,7 @@ namespace dolbuto
 
         depthStencil.depthWriteEnable = VK_TRUE;
         colorBlend.blendEnable = VK_FALSE;
+        sceneColorBlends = {colorBlend, colorBlend};
         stages[0].module = itemVertShader;
         pipelineInfo.pVertexInputState = &itemVertexInput;
         if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.itemPipeline) != VK_SUCCESS)
@@ -1153,11 +1188,12 @@ namespace dolbuto
         VkPipelineColorBlendAttachmentState colorBlend{};
         colorBlend.blendEnable = VK_FALSE;
         colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        std::array<VkPipelineColorBlendAttachmentState, 2> sceneColorBlends = {colorBlend, colorBlend};
 
         VkPipelineColorBlendStateCreateInfo colorBlending{};
         colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        colorBlending.attachmentCount = 1;
-        colorBlending.pAttachments = &colorBlend;
+        colorBlending.attachmentCount = static_cast<uint32_t>(sceneColorBlends.size());
+        colorBlending.pAttachments = sceneColorBlends.data();
 
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;

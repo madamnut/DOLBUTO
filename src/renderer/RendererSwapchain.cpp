@@ -203,6 +203,12 @@ namespace dolbuto
         colorRef.attachment = 0;
         colorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+        VkAttachmentDescription bloomAttachment = colorAttachment;
+
+        VkAttachmentReference bloomRef{};
+        bloomRef.attachment = 1;
+        bloomRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
         VkAttachmentDescription depthAttachment{};
         depthAttachment.format = DepthFormat;
         depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -214,13 +220,15 @@ namespace dolbuto
         depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
         VkAttachmentReference depthRef{};
-        depthRef.attachment = 1;
+        depthRef.attachment = 2;
         depthRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        std::array<VkAttachmentReference, 2> colorRefs = {colorRef, bloomRef};
 
         VkSubpassDescription subpass{};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpass.colorAttachmentCount = 1;
-        subpass.pColorAttachments = &colorRef;
+        subpass.colorAttachmentCount = static_cast<uint32_t>(colorRefs.size());
+        subpass.pColorAttachments = colorRefs.data();
         subpass.pDepthStencilAttachment = &depthRef;
 
         VkSubpassDependency dependency{};
@@ -239,7 +247,7 @@ namespace dolbuto
         readDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         readDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-        std::array<VkAttachmentDescription, 2> attachments = {colorAttachment, depthAttachment};
+        std::array<VkAttachmentDescription, 3> attachments = {colorAttachment, bloomAttachment, depthAttachment};
         std::array<VkSubpassDependency, 2> dependencies = {dependency, readDependency};
 
         VkRenderPassCreateInfo createInfo{};
@@ -375,6 +383,7 @@ namespace dolbuto
     void Renderer::createSceneTargets()
     {
         sceneColorTargets_.clear();
+        bloomSourceTargets_.clear();
         sceneDepthTargets_.clear();
         waterBlurTargetsA_.clear();
         waterBlurTargetsB_.clear();
@@ -383,6 +392,7 @@ namespace dolbuto
             targets.clear();
         }
         sceneColorTargets_.reserve(vulkan_.swapchainImageViews.size());
+        bloomSourceTargets_.reserve(vulkan_.swapchainImageViews.size());
         sceneDepthTargets_.reserve(vulkan_.swapchainImageViews.size());
         waterBlurTargetsA_.reserve(vulkan_.swapchainImageViews.size());
         waterBlurTargetsB_.reserve(vulkan_.swapchainImageViews.size());
@@ -397,6 +407,13 @@ namespace dolbuto
         for (size_t i = 0; i < vulkan_.swapchainImageViews.size(); ++i)
         {
             sceneColorTargets_.push_back(gpuResources_.createRenderTargetTexture(
+                vulkan_.swapchainExtent,
+                vulkan_.sceneColorFormat,
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                vulkan_.linearSampler));
+            bloomSourceTargets_.push_back(gpuResources_.createRenderTargetTexture(
                 vulkan_.swapchainExtent,
                 vulkan_.sceneColorFormat,
                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -448,7 +465,7 @@ namespace dolbuto
         vulkan_.sceneFramebuffers.resize(vulkan_.swapchainImageViews.size());
         for (size_t i = 0; i < vulkan_.sceneFramebuffers.size(); ++i)
         {
-            std::array<VkImageView, 2> sceneAttachments = {sceneColorTargets_[i].view, sceneDepthTargets_[i].view};
+            std::array<VkImageView, 3> sceneAttachments = {sceneColorTargets_[i].view, bloomSourceTargets_[i].view, sceneDepthTargets_[i].view};
 
             VkFramebufferCreateInfo createInfo{};
             createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -561,6 +578,11 @@ namespace dolbuto
             gpuResources_.destroyTexture(texture);
         }
         sceneColorTargets_.clear();
+        for (Texture& texture : bloomSourceTargets_)
+        {
+            gpuResources_.destroyTexture(texture);
+        }
+        bloomSourceTargets_.clear();
         for (Texture& texture : sceneDepthTargets_)
         {
             gpuResources_.destroyTexture(texture);

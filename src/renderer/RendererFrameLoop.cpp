@@ -501,8 +501,11 @@ namespace dolbuto
 
         VkClearValue clearColor{};
         clearColor.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        VkClearValue clearBloom{};
+        clearBloom.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         VkClearValue clearDepth{};
         clearDepth.depthStencil = {1.0f, 0};
+        std::array<VkClearValue, 3> sceneClearValues = {clearColor, clearBloom, clearDepth};
         std::array<VkClearValue, 2> clearValues = {clearColor, clearDepth};
 
         VkRenderPassBeginInfo scenePassInfo{};
@@ -511,8 +514,8 @@ namespace dolbuto
         scenePassInfo.framebuffer = vulkan_.sceneFramebuffers[imageIndex];
         scenePassInfo.renderArea.offset = {0, 0};
         scenePassInfo.renderArea.extent = vulkan_.swapchainExtent;
-        scenePassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-        scenePassInfo.pClearValues = clearValues.data();
+        scenePassInfo.clearValueCount = static_cast<uint32_t>(sceneClearValues.size());
+        scenePassInfo.pClearValues = sceneClearValues.data();
 
         vkCmdBeginRenderPass(commandBuffer, &scenePassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -567,6 +570,7 @@ namespace dolbuto
             if (showPlayer && menuOverlayMode == 0)
             {
                 drawPlayer(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, vulkan_.currentFrame);
+                drawThirdPersonHeldItems(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, heldItemId, offhandItemId, playerPackedLight);
             }
             drawBlockBreakParticles(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission);
             drawDroppedItems(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, playerPosition);
@@ -855,14 +859,19 @@ namespace dolbuto
         const float downsampleRadius = std::max(radius, 0.5f);
         const float upsampleRadius = std::max(radius * 0.75f, 0.5f);
 
-        const Texture* source = &sceneColorTargets_[imageIndex];
+        if (imageIndex >= bloomSourceTargets_.size())
+        {
+            return;
+        }
+
+        const Texture* source = &bloomSourceTargets_[imageIndex];
         for (size_t mip = 0; mip < bloomTargets_.size(); ++mip)
         {
             Texture& target = bloomTargets_[mip][imageIndex];
             beginPostPass(vulkan_.waterBlurRenderPass, vulkan_.bloomFramebuffers[mip][imageIndex], target);
 
             SpriteRenderPath::Push push = fullscreenPush(*source, downsampleRadius);
-            push.data[11] = mip == 0 ? client_.renderConfig.bloomThreshold : -1.0f;
+            push.data[11] = -1.0f;
             bindFullscreenSource(vulkan_.bloomDownsamplePipeline, *source, push);
             vkCmdEndRenderPass(commandBuffer);
 

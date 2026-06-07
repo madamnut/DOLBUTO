@@ -1270,6 +1270,9 @@
             ],
             "burnableLight": {
                 "maxTicks": 2400
+            },
+            "slotGauge": {
+                "source": "burnTicks"
             }
         }
     },

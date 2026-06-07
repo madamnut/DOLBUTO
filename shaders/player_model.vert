@@ -27,6 +27,7 @@ layout(location = 4) flat out float fragMipDistanceScale;
 layout(location = 6) flat out float fragAlphaBlend;
 layout(location = 7) flat out float fragSkyLight;
 layout(location = 8) flat out float fragBlockLight;
+layout(location = 9) flat out float fragWaterTint;
 
 void main()
 {
@@ -41,4 +42,5 @@ void main()
     fragAlphaBlend = 1.0;
     fragSkyLight = float((inPackedLight >> 4u) & 0xFu) / 15.0;
     fragBlockLight = float(inPackedLight & 0xFu) / 15.0;
+    fragWaterTint = 0.0;
 }
