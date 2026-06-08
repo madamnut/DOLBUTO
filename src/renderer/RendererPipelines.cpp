@@ -47,6 +47,7 @@ namespace dolbuto
         {
             throw std::runtime_error("Failed to create descriptor set layout.");
         }
+
     }
 
 
@@ -176,124 +177,6 @@ namespace dolbuto
         if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.skyPipeline) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create sky pipeline.");
-        }
-
-        vkDestroyShaderModule(vulkan_.device, fragShader, nullptr);
-        vkDestroyShaderModule(vulkan_.device, vertShader, nullptr);
-    }
-
-
-
-    void Renderer::createCloudPipeline()
-    {
-        const std::filesystem::path shaderDir = shaderDirectory();
-        VkShaderModule vertShader = createShaderModule((shaderDir / "cloud.vert.spv").string());
-        VkShaderModule fragShader = createShaderModule((shaderDir / "cloud.frag.spv").string());
-
-        VkPipelineShaderStageCreateInfo vertStage{};
-        vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-        vertStage.module = vertShader;
-        vertStage.pName = "main";
-
-        VkPipelineShaderStageCreateInfo fragStage{};
-        fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        fragStage.module = fragShader;
-        fragStage.pName = "main";
-
-        VkPipelineShaderStageCreateInfo stages[] = {vertStage, fragStage};
-
-        VkPipelineVertexInputStateCreateInfo vertexInput{};
-        vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-
-        VkPipelineViewportStateCreateInfo viewportState{};
-        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-        viewportState.viewportCount = 1;
-        viewportState.scissorCount = 1;
-
-        std::array<VkDynamicState, 2> dynamicStates = {
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR
-        };
-
-        VkPipelineDynamicStateCreateInfo dynamicState{};
-        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-        dynamicState.pDynamicStates = dynamicStates.data();
-
-        VkPipelineRasterizationStateCreateInfo rasterizer{};
-        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-        rasterizer.cullMode = VK_CULL_MODE_NONE;
-        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-        rasterizer.lineWidth = 1.0f;
-
-        VkPipelineMultisampleStateCreateInfo multisampling{};
-        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-        VkPipelineColorBlendAttachmentState colorBlend{};
-        colorBlend.blendEnable = VK_TRUE;
-        colorBlend.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        colorBlend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-        colorBlend.colorBlendOp = VK_BLEND_OP_ADD;
-        colorBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-        colorBlend.alphaBlendOp = VK_BLEND_OP_ADD;
-        colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-        std::array<VkPipelineColorBlendAttachmentState, 2> sceneColorBlends = {colorBlend, colorBlend};
-
-        VkPipelineColorBlendStateCreateInfo colorBlending{};
-        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        colorBlending.attachmentCount = static_cast<uint32_t>(sceneColorBlends.size());
-        colorBlending.pAttachments = sceneColorBlends.data();
-
-        VkPipelineDepthStencilStateCreateInfo depthStencil{};
-        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencil.depthTestEnable = VK_FALSE;
-        depthStencil.depthWriteEnable = VK_FALSE;
-        depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
-
-        VkPushConstantRange pushRange{};
-        pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-        pushRange.offset = 0;
-        pushRange.size = sizeof(CloudRenderPath::Push);
-        static_assert(sizeof(CloudRenderPath::Push) == sizeof(float) * 32);
-
-        VkPipelineLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        layoutInfo.pushConstantRangeCount = 1;
-        layoutInfo.pPushConstantRanges = &pushRange;
-
-        if (vkCreatePipelineLayout(vulkan_.device, &layoutInfo, nullptr, &vulkan_.cloudPipelineLayout) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create cloud pipeline layout.");
-        }
-
-        VkGraphicsPipelineCreateInfo pipelineInfo{};
-        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipelineInfo.stageCount = 2;
-        pipelineInfo.pStages = stages;
-        pipelineInfo.pVertexInputState = &vertexInput;
-        pipelineInfo.pInputAssemblyState = &inputAssembly;
-        pipelineInfo.pViewportState = &viewportState;
-        pipelineInfo.pRasterizationState = &rasterizer;
-        pipelineInfo.pMultisampleState = &multisampling;
-        pipelineInfo.pColorBlendState = &colorBlending;
-        pipelineInfo.pDepthStencilState = &depthStencil;
-        pipelineInfo.pDynamicState = &dynamicState;
-        pipelineInfo.layout = vulkan_.cloudPipelineLayout;
-        pipelineInfo.renderPass = vulkan_.sceneRenderPass;
-        pipelineInfo.subpass = 0;
-
-        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.cloudPipeline) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create cloud pipeline.");
         }
 
         vkDestroyShaderModule(vulkan_.device, fragShader, nullptr);
@@ -1273,13 +1156,14 @@ namespace dolbuto
         {
             throw std::runtime_error("Failed to create linear texture sampler.");
         }
+
     }
 
 
 
     void Renderer::createDescriptorPool()
     {
-        constexpr uint32_t MaxTextureDescriptorSets = 256;
+        constexpr uint32_t MaxTextureDescriptorSets = 320;
         constexpr uint32_t MaxTerrainVertexDescriptorSets = 65536;
         std::array<VkDescriptorPoolSize, 2> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;

@@ -30,7 +30,7 @@ DOLBUTO는 Vulkan/C++ 기반의 샌드박스 복셀 게임이다.
 `main.cpp`는 로그 초기화, GLFW/window 생성, 최상위 예외 처리, `GameClient` 실행을 담당한다.
 `src/game/GameClient.h/.cpp`는 클라이언트 런타임 오케스트레이터로서 메인 루프, 입력, 플레이어 상태, 월드 선택/생성, 월드/플레이어 상태 저장, UI action 처리를 담당한다.
 현재 `Renderer`는 Vulkan/GPU 리소스와 화면 출력 경계를 맡고, 월드 런타임, 청크 저장/로드, UI, 오디오, gameplay 상태 조율은 `ClientRuntime` 계열 subsystem으로 분리되어 있다.
-0.0.0.3에서는 이 구조를 기준으로 새 기능을 추가하되, renderer 중심 구조로 되돌아가지 않도록 유지한다.
+0.0.0.4에서는 0.0.0.3에서 확장한 생존/제작/렌더링 구조를 기준선으로 삼고, renderer 중심 구조로 되돌아가지 않도록 유지한다.
 클라이언트 계층과 의존 방향은 [[client-architecture]]를 기준으로 한다.
 
 현재 분리된 타입 헤더:
@@ -225,6 +225,6 @@ game scene load/unload의 전체 순서와 정책은 `ClientSceneLifecycle`이 �
 
 ## 현재 주의점
 
-- 현재 버전은 `0.0.0.3`이다.
-- `docs/design`은 확정된 설계만 남기는 공간이고, 실험 과정은 `docs/0.0.0.3` 날짜 로그에 기록한다.
+- 현재 버전은 `0.0.0.4`이다.
+- `docs/design`은 확정된 설계만 남기는 공간이고, 실험 과정은 `docs/0.0.0.4` 날짜 로그에 기록한다.
 - Release 경로와 Debug 경로가 다르므로 경로 관련 작업은 [[runtime-paths]] 기준을 따른다.

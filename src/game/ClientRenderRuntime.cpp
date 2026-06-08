@@ -23,7 +23,6 @@ namespace dolbuto::game
             frame.cameraPosition,
             frame.fovRadians,
             frame.skyBrightness,
-            frame.cloudCoverage,
             frame.fpsText,
             frame.perfText,
             frame.debugTextVisible,

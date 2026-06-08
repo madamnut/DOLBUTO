@@ -350,7 +350,6 @@ namespace dolbuto
             cameraPositionFloat,
             frame.fovRadians,
             frame.skyBrightness,
-            frame.cloudCoverage,
             waterOverlay,
             playerPositionFloat,
             playerPackedLight,
@@ -483,7 +482,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, float cloudCoverage, ScreenPresentation::WaterOverlay waterOverlay, Vec3 playerPosition, uint8_t playerPackedLight, uint16_t heldPortableLightEmission, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint16_t offhandItemId, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, ScreenPresentation::WaterOverlay waterOverlay, Vec3 playerPosition, uint8_t playerPackedLight, uint16_t heldPortableLightEmission, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint16_t offhandItemId, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -554,16 +553,6 @@ namespace dolbuto
                 spriteRenderPath_,
                 vulkan_.pipelineLayout,
                 textRenderPath_.vertexBuffer());
-            cloudRenderPath_.draw(
-                commandBuffer,
-                vulkan_.cloudPipeline,
-                vulkan_.cloudPipelineLayout,
-                camera,
-                cameraPosition,
-                fovRadians,
-                vulkan_.swapchainExtent,
-                worldTicks,
-                cloudCoverage);
 
             drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, terrainWireframe, true, false, imageIndex);
             drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, terrainWireframe, false, true, imageIndex);

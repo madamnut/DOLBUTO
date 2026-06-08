@@ -224,7 +224,7 @@ namespace dolbuto::ui
             std::vector<std::string> splashes = loadSplashList(splashPath);
             if (splashes.empty())
             {
-                splashes = {"DOLBUTO!!", "0.0.0.3!!", "DEV!!"};
+                splashes = {"DOLBUTO!!", "0.0.0.4!!", "DEV!!"};
             }
             static thread_local std::mt19937 random{std::random_device{}()};
             std::uniform_int_distribution<std::size_t> distribution(0, splashes.size() - 1);

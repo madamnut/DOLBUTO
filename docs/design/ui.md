@@ -289,11 +289,12 @@ RmlUi가 이미 결합되었지만 유효하지 않은 절대 텍스처 경로�
 
 ```text
 DOLBUTO!!
-0.0.0.3!!
+{현재 버전}!!
 DEV!!
 ```
 
 현재 스플래시 텍스트 목록은 `assets/ui/splashes.json`의 최상위 JSON 문자열 배열에서 읽는다.
+버전 문구가 들어간 항목은 버전 전환 작업에서 함께 갱신한다.
 파일이 없거나 유효한 항목이 없으면 `UiSystem`의 기본 fallback 목록을 사용한다.
 
 스플래시 텍스트는 `assets/ui/style.rcss`의 `lobby-splash` 스타일로 위치와 노란색을 정의한다.

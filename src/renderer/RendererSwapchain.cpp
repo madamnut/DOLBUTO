@@ -27,6 +27,7 @@ namespace dolbuto
             }
             return fallback;
         }
+
     }
 
     void Renderer::createSwapchain()

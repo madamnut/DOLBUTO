@@ -77,7 +77,7 @@
 `src/renderer/RendererDroppedItems.cpp`는 `DroppedItemRuntime` update 호출, 렌더 후보 수집 입력 조립, push constant 준비, `DroppedItemRenderPath` draw 호출만 담는다.
 `src/renderer/RendererFrameLoop.cpp`는 frame acquire/submit/present, command buffer 기록, screenshot readback/BMP 저장, command buffer/sync object 생성을 담는다.
 `src/renderer/SkyRenderPath.h/.cpp`는 scene render pass의 첫 draw로 fullscreen sky shader를 호출한다. sky shader는 clear color 고정값 대신 `worldTicks`에서 계산한 실제 sun direction, 낮/밤 판정용 day direction, camera basis, FOV를 받아 view direction과 direction dot 값으로 하늘 위쪽/지평선/아래쪽 그라데이션, 일출/일몰 horizon glow, 태양 방향 glare를 계산한다.
-`src/renderer/CloudRenderPath.h/.cpp`는 하늘 스프라이트 뒤, 지형 앞에서 별도 fullscreen alpha pass로 월드 공간 `Y=500..700` 범위의 렌더 전용 volumetric cloud slab을 그린다. 구름은 카메라 기준 화면 노이즈가 아니라 `cameraPosition + viewDirection * t` 월드 좌표에서 3D noise 밀도장을 raymarch해 샘플링하므로 플레이어 이동에 따라 월드 상공에 고정된 것처럼 보이며, 태양과 달 스프라이트를 가릴 수 있다. 키패드 `+`는 `cloudCoverage`를 높여 구름을 많게 하고, 키패드 `-`는 낮춰 구름을 적게 한다. 구름 coverage 디버그 값은 화면 텍스트로 표시하지 않는다.
+현재 구름 렌더링은 제거되어 있다. 별도 cloud render path, cloud shader, cloud noise texture, cloud low-res target, cloud composite pass, `cloudCoverage` 디버그 입력은 사용하지 않는다. scene render pass는 sky, sun/moon, terrain, player, particle, dropped item, selection을 그리고, 1인칭 viewmodel은 depth를 clear한 뒤 별도로 그린다.
 밤하늘은 지형의 시간대별 `skyBrightness`와 별개로 낮보다 훨씬 낮은 RGB ramp를 사용하고, 어두운 계조에서 줄무늬가 보이지 않도록 screen-space hash noise 기반의 약한 dither를 적용한다.
 하늘색 디버그를 위해 게임 화면에서 `[`를 누르고 있으면 하루 안의 시간이 해가 뜨는 방향으로 되감기고, `]`를 누르고 있으면 해가 지는 방향으로 빨리 진행된다. 이 입력은 `worldTicks`만 조정하므로 sky shader와 sun/moon sprite 위치가 같은 기준으로 움직인다.
 `src/renderer/RendererGameplayBridge.h/.cpp`는 block selection/edit/breaking, pickup/drop, inventory snapshot, block lookup/collision helper, gameplay 결과의 mesh/particle/audio 반영을 담당하는 `RendererGameplayBridge`를 담는다.
@@ -92,7 +92,6 @@ block tick 결과로 여러 블록이 제거되는 경우 `RendererGameplayBridg
 `src/game/ClientFrame.h`는 `GameClient`가 한 프레임 렌더링에 넘기는 카메라, 플레이어, overlay, debug, screenshot, world tick 입력을 `ClientFrame` DTO로 묶는다.
 `ClientFrame`/`RendererFrame`은 현재 FOV를 `fovRadians`로 함께 전달한다.
 `ClientFrame`/`RendererFrame`은 아이템 상호작용 원형 UI의 표시 여부, 액션 수, 후보 수, 선택 인덱스를 `RadialMenuRenderFrame`으로 함께 전달한다.
-`ClientFrame`/`RendererFrame`은 cloud render path용 `cloudCoverage`도 전달한다.
 스카이라이트 전역 밝기는 `worldTicks`에서 시간 기반으로 계산한 `0.0~1.0` 범위의 `skyBrightness`로 렌더 프레임에 전달한다.
 `05:00~07:00`에는 최소 밝기 `0.08`에서 최대 밝기 `1.0`으로 부드럽게 밝아지고, `07:00~17:00`에는 최대 밝기를 유지하며, `17:00~21:00`에는 다시 최소 밝기로 어두워진다. `21:00~05:00`에는 최소 밝기를 유지한다.
 terrain/player/particle/selection/dropped item projection과 terrain/dropped item frustum culling, sky sprite projection은 이 값을 같은 프레임 기준으로 사용한다.
@@ -337,14 +336,14 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 scene color target에는 실제 화면 색을 쓰고, bloom source target에는 블룸 대상 픽셀만 쓴다.
 블룸 기준은 밝기 threshold가 아니라 알파 마스크다.
 태양, 달, 불처럼 블룸 대상인 텍스처는 alpha가 있는 픽셀의 RGB를 bloom source에 기록하고, 일반 지형/플레이어/아이템은 bloom source에 검정을 기록한다.
-구름과 alpha blend 지형/유체는 bloom source에도 검정 alpha를 기록해 뒤쪽 태양/달 bloom을 같은 비율로 가린다.
+alpha blend 지형/유체는 bloom source에도 검정 alpha를 기록해 뒤쪽 태양/달 bloom을 같은 비율로 가린다.
 solid 지형은 bloom source를 검정으로 덮어 뒤쪽 bloom을 완전히 가린다.
 
 렌더 순서는 scene pass 이후 `bloom_downsample.frag`가 bloom source target을 1/4 해상도 target으로 downsample하고, 1/8, 1/16, 1/32 해상도로 순차 downsample한다.
 그 다음 `bloom_upsample.frag`로 작은 mip부터 큰 mip로 additive upsample해 여러 반경의 번짐을 합친다.
 최종 presentation pass에서는 scene color를 먼저 그리고, additive sprite pipeline으로 블룸 텍스처를 더한 뒤 물속 화면 블러와 기후 오버레이를 그린다.
 `fire` terrain fragment는 애니메이션 프레임 샘플 이후 scene color와 bloom source에 같은 fire 색을 쓰며, texture alpha가 없는 픽셀은 discard한다.
-태양과 달 스프라이트는 구름과 지형에 가려지는 기존 scene pass 순서를 유지하면서, `sprite_scene.frag`가 alpha 마스크 기반 bloom source도 함께 출력한다.
+태양과 달 스프라이트는 지형에 가려지는 기존 scene pass 순서를 유지하면서, `sprite_scene.frag`가 alpha 마스크 기반 bloom source도 함께 출력한다.
 태양 주변 대기광은 `sky.frag`의 `solarGlare`로 처리하고, 태양/달 스프라이트 자체의 번짐은 bloom source 기반 포스트 블룸이 처리한다.
 
 ## 블록 파괴 파티클
@@ -436,7 +435,7 @@ Groundness/Smoothness/Weirdness/PV 오버레이는 월드 원점 기준 `0..4096
 
 태양과 달 스프라이트는 시간에 따라 변하는 월드 방향에서 투영해 screen-space sprite로 렌더링한다.
 현재 투영 half-size는 화면 너비의 `0.04`이며, 높이는 viewport aspect ratio에 맞게 조정한다.
-태양과 달 스프라이트는 구름/지형 occlusion을 유지하기 위해 scene pass 안에서 렌더링하고, 같은 draw에서 bloom source target에도 alpha 마스크 기반 색을 기록한다.
+태양과 달 스프라이트는 지형 occlusion을 유지하기 위해 scene pass 안에서 렌더링하고, 같은 draw에서 bloom source target에도 alpha 마스크 기반 색을 기록한다.
 렌더러는 `GameClient`에서 `worldTicks`를 받아 28800틱 하루 주기를 계산한다.
 `06H`에는 태양이 동쪽 지평선 근처에 있고, `12H`에는 머리 위에 있으며, `18H`에는 서쪽 지평선 근처에 있다. 달은 반대 방향을 사용한다.
 하늘 각도는 하루 주기 동안 감소하므로 `06H` 시작 시점에서 투영된 태양은 지는 것이 아니라 떠오른다.

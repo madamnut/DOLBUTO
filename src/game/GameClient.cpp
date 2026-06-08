@@ -581,7 +581,7 @@ namespace dolbuto
             throw std::runtime_error("GameClient requires a valid GLFW window.");
         }
 
-        log::info("DOLBUTO 0.0.0.3 start");
+        log::info("DOLBUTO 0.0.0.4 start");
         log::info("Asset directory: " + assetDirectory().string());
         log::info("Config directory: " + configDirectory().string());
         log::info("Shader directory: " + shaderDirectory().string());
@@ -738,17 +738,6 @@ namespace dolbuto
                     worldTicks_ = dayStart + nextTickOfDay;
                 }
 
-                const bool increaseClouds = glfwGetKey(window_, GLFW_KEY_KP_ADD) == GLFW_PRESS;
-                const bool decreaseClouds = glfwGetKey(window_, GLFW_KEY_KP_SUBTRACT) == GLFW_PRESS;
-                if (increaseClouds != decreaseClouds)
-                {
-                    constexpr double CloudCoverageDebugSpeed = 0.5;
-                    const float deltaCoverage = static_cast<float>(delta.count() * CloudCoverageDebugSpeed);
-                    cloudCoverage_ = std::clamp(
-                        cloudCoverage_ + (increaseClouds ? deltaCoverage : -deltaCoverage),
-                        0.0f,
-                        1.0f);
-                }
             }
 
             physicsAccumulator_ += std::min(delta.count(), MaxPhysicsFrameTime);
@@ -971,7 +960,6 @@ namespace dolbuto
                 renderCameraPosition,
                 static_cast<float>(worldFovDegrees * Pi / 180.0),
                 skyBrightnessForTicks(worldTicks_),
-                cloudCoverage_,
                 debugText_.data(),
                 "",
                 renderDebugText,

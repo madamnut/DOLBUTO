@@ -32,7 +32,7 @@ LOOKAT 좌표는 X/Z를 래핑한 월드 좌표만 표시한다.
 우상단은 버전과 하드웨어/렌더링 상태를 표시한다.
 
 ```text
-DOLBUTO 0.0.0.3
+DOLBUTO {현재 버전}
 CPU/GPU 이름
 VULKAN
 DRIVER

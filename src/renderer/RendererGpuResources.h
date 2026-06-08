@@ -16,6 +16,7 @@ namespace dolbuto
         VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
         int width = 0;
         int height = 0;
+        int depth = 1;
         uint32_t mipLevels = 1;
         uint32_t layers = 1;
     };
@@ -49,8 +50,8 @@ namespace dolbuto
             const VkDescriptorSetLayout* textureDescriptorSetLayout,
             const VkSampler* sampler);
 
-        Texture createTexture(const std::string& path, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB) const;
-        Texture createTextureFromRgba(const unsigned char* pixels, int width, int height, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB) const;
+        Texture createTexture(const std::string& path, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB, VkSampler descriptorSampler = VK_NULL_HANDLE) const;
+        Texture createTextureFromRgba(const unsigned char* pixels, int width, int height, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB, VkSampler descriptorSampler = VK_NULL_HANDLE) const;
         Texture createTextureArray(const std::vector<std::string>& paths, float alphaMultiplier = 1.0f) const;
         Texture createRenderTargetTexture(
             VkExtent2D extent,

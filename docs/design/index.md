@@ -24,7 +24,7 @@
 
 ## 현재 기준
 
-- 현재 버전 표기: `DOLBUTO 0.0.0.3`
+- 현재 버전 표기: `DOLBUTO 0.0.0.4`
 - 개발 언어/그래픽스: C++20 / Vulkan
 - 윈도우/입력: GLFW
 - 빌드: CMake / Ninja / Visual Studio

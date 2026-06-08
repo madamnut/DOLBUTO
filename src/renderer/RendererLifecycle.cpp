@@ -14,7 +14,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <stdexcept>
 #include <vector>
 
 namespace dolbuto
@@ -49,7 +48,6 @@ namespace dolbuto
         createDescriptorSetLayout();
         createTerrainVertexDescriptorSetLayout();
         createSkyPipeline();
-        createCloudPipeline();
         createPipeline();
         createUiPipeline();
         createTerrainPipeline();
@@ -61,6 +59,7 @@ namespace dolbuto
         createDescriptorPool();
         createSceneTargets();
         createFramebuffers();
+
         configBridge_ = std::make_unique<RendererConfigBridge>(client_, rendererAssets_, gpuResources_);
         configBridge_->loadContentAndAssets(assetDirectory());
         audioBridge_ = std::make_unique<RendererAudioBridge>(client_.audio, assetDirectory());
@@ -238,14 +237,6 @@ namespace dolbuto
         if (vulkan_.skyPipelineLayout != VK_NULL_HANDLE)
         {
             vkDestroyPipelineLayout(vulkan_.device, vulkan_.skyPipelineLayout, nullptr);
-        }
-        if (vulkan_.cloudPipeline != VK_NULL_HANDLE)
-        {
-            vkDestroyPipeline(vulkan_.device, vulkan_.cloudPipeline, nullptr);
-        }
-        if (vulkan_.cloudPipelineLayout != VK_NULL_HANDLE)
-        {
-            vkDestroyPipelineLayout(vulkan_.device, vulkan_.cloudPipelineLayout, nullptr);
         }
         if (vulkan_.terrainBlendPipeline != VK_NULL_HANDLE)
         {

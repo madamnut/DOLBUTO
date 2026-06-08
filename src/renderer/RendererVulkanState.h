@@ -40,8 +40,6 @@ namespace dolbuto
         VkDescriptorSetLayout terrainVertexDescriptorSetLayout = VK_NULL_HANDLE;
         VkPipelineLayout skyPipelineLayout = VK_NULL_HANDLE;
         VkPipeline skyPipeline = VK_NULL_HANDLE;
-        VkPipelineLayout cloudPipelineLayout = VK_NULL_HANDLE;
-        VkPipeline cloudPipeline = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
         VkPipeline pipeline = VK_NULL_HANDLE;
         VkPipeline sceneSpritePipeline = VK_NULL_HANDLE;

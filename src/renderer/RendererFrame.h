@@ -14,7 +14,6 @@ namespace dolbuto
         DVec3 cameraPosition;
         float fovRadians = 1.0471975512f;
         float skyBrightness = 1.0f;
-        float cloudCoverage = 0.55f;
         std::string_view fpsText;
         std::string_view perfText;
         bool debugTextVisible = false;

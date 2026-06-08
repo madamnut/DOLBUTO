@@ -142,7 +142,7 @@ namespace dolbuto
         return sampler_ != nullptr ? *sampler_ : VK_NULL_HANDLE;
     }
 
-    Texture VulkanResourceManager::createTexture(const std::string& path, VkFormat format) const
+    Texture VulkanResourceManager::createTexture(const std::string& path, VkFormat format, VkSampler descriptorSampler) const
     {
         Texture texture;
         int channels = 0;
@@ -152,12 +152,12 @@ namespace dolbuto
             throw std::runtime_error("Failed to load texture: " + path);
         }
 
-        Texture result = createTextureFromRgba(pixels, texture.width, texture.height, format);
+        Texture result = createTextureFromRgba(pixels, texture.width, texture.height, format, descriptorSampler);
         stbi_image_free(pixels);
         return result;
     }
 
-    Texture VulkanResourceManager::createTextureFromRgba(const unsigned char* pixels, int width, int height, VkFormat format) const
+    Texture VulkanResourceManager::createTextureFromRgba(const unsigned char* pixels, int width, int height, VkFormat format, VkSampler descriptorSampler) const
     {
         Texture texture;
         texture.width = width;
@@ -243,7 +243,7 @@ namespace dolbuto
         VkDescriptorImageInfo imageDescriptor{};
         imageDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageDescriptor.imageView = texture.view;
-        imageDescriptor.sampler = sampler();
+        imageDescriptor.sampler = descriptorSampler != VK_NULL_HANDLE ? descriptorSampler : sampler();
 
         VkWriteDescriptorSet write{};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

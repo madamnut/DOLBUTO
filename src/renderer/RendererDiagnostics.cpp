@@ -15,7 +15,7 @@ namespace dolbuto
     namespace
     {
         constexpr double PerformanceSampleSeconds = 0.5;
-        constexpr const char* VersionText = "DOLBUTO 0.0.0.3";
+        constexpr const char* VersionText = "DOLBUTO 0.0.0.4";
     }
 
     RendererDiagnosticsBridge::RendererDiagnosticsBridge(
