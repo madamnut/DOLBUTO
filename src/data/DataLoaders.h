@@ -53,6 +53,7 @@ namespace dolbuto::data
     {
         uint16_t id = 0;
         std::string name = "none";
+        std::string texture;
         uint8_t lightAttenuation = 0;
     };
 
@@ -131,7 +132,10 @@ namespace dolbuto::data
         std::string type;
         std::string input;
         std::string output;
+        std::string outputFluid;
         uint16_t outputCount = 1;
+        uint16_t outputAmount = 0;
+        uint16_t requiredHeatLevel = 0;
         uint32_t requiredTicks = 0;
     };
 

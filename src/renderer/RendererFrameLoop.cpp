@@ -556,6 +556,7 @@ namespace dolbuto
 
             drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, terrainWireframe, true, false, imageIndex);
             drawTerrain(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, terrainWireframe, false, true, imageIndex);
+            drawCrucibleMoltenSurfaces(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission);
             if (showPlayer && menuOverlayMode == 0)
             {
                 drawPlayer(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, vulkan_.currentFrame);

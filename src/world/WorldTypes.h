@@ -79,7 +79,8 @@ namespace dolbuto
     enum class BlockEntityType : uint16_t
     {
         None = 0,
-        Fire = 1
+        Fire = 1,
+        Crucible = 2
     };
 
     enum class FireMode : uint8_t
@@ -100,6 +101,8 @@ namespace dolbuto
         uint8_t fireHeatLevel = 0;
         uint16_t burnRemainderItemId = 0;
         uint16_t burnRemainderCount = 0;
+        uint16_t moltenFluidId = 0;
+        uint16_t moltenAmount = 0;
     };
 
     struct ChunkBlockData

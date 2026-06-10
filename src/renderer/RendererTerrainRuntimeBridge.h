@@ -48,6 +48,7 @@ namespace dolbuto
 
     private:
         void refreshFireEmittersForChunk(int chunkX, int chunkZ);
+        void refreshCrucibleBlockEntitiesForChunk(int chunkX, int chunkZ);
         uint16_t fireBlockId() const;
 
         game::ClientRuntimeState& client_;

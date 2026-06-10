@@ -7,6 +7,7 @@
 #include "renderer/RendererUiRuntimeBridge.h"
 #include "world/DroppedItemSystem.h"
 #include "world/SkyLightSystem.h"
+#include "world/WorldRuntime.h"
 
 #include <algorithm>
 #include <cmath>
@@ -445,5 +446,92 @@ namespace dolbuto
                 blockInstances,
                 frameInstanceOffset + spriteInstances.size());
         }
+    }
+
+    void Renderer::drawCrucibleMoltenSurfaces(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission)
+    {
+        if (vulkan_.crucibleMoltenPipeline == VK_NULL_HANDLE ||
+            !crucibleMoltenRenderPath_.ready() ||
+            !crucibleMoltenRenderPath_.meshReady(1) ||
+            rendererAssets_.fluidTextureArray.descriptorSet == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
+        constexpr float InnerSize = 0.60f;
+        constexpr float InnerBottomY = 0.20f;
+        constexpr float InnerTopY = 0.80f;
+        constexpr float Capacity = 100.0f;
+        std::vector<DroppedItemRenderPath::RenderInstance> instances;
+
+        const std::vector<FluidDefinition>& fluids = client_.content.fluidDefinitions();
+        for (const auto& entry : client_.worldRuntime.chunks())
+        {
+            const RuntimeChunk& chunk = entry.second;
+            if (!chunk.data)
+            {
+                continue;
+            }
+
+            for (const BlockEntity& entity : chunk.data->blockEntities)
+            {
+                if (entity.type != BlockEntityType::Crucible ||
+                    entity.moltenFluidId == 0 ||
+                    entity.moltenAmount == 0 ||
+                    static_cast<std::size_t>(entity.moltenFluidId) >= fluids.size())
+                {
+                    continue;
+                }
+
+                const FluidDefinition& fluid = fluids[entity.moltenFluidId];
+                const float fill = std::clamp(static_cast<float>(entity.moltenAmount) / Capacity, 0.0f, 1.0f);
+                const int worldX = chunk.chunkX * world::WorldRuntime::ChunkSizeX + entity.localX;
+                const int worldZ = chunk.chunkZ * world::WorldRuntime::ChunkSizeZ + entity.localZ;
+                const uint8_t packedLight = client_.worldRuntime.lightAtWorld(worldX, entity.y, worldZ);
+
+                DroppedItemRenderPath::RenderInstance renderInstance{};
+                renderInstance.itemId = 1;
+                renderInstance.instance.centerX = static_cast<float>(worldX);
+                renderInstance.instance.centerY = static_cast<float>(entity.y) + InnerBottomY + (InnerTopY - InnerBottomY) * fill;
+                renderInstance.instance.centerZ = static_cast<float>(worldZ);
+                renderInstance.instance.textureLayer = static_cast<float>(fluid.textureLayer);
+                renderInstance.instance.mipDistanceScale = 1.0f;
+                renderInstance.instance.scaleX = InnerSize;
+                renderInstance.instance.scaleY = 1.0f;
+                renderInstance.instance.scaleZ = InnerSize;
+                renderInstance.instance.skyLight = static_cast<float>(world::skyLightFromPacked(packedLight)) / 15.0f;
+                renderInstance.instance.blockLight = static_cast<float>(std::max<uint8_t>(world::blockLightFromPacked(packedLight), 10)) / 15.0f;
+                instances.push_back(renderInstance);
+            }
+        }
+
+        if (instances.empty())
+        {
+            return;
+        }
+
+        const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
+        const Mat4 projection = perspective(fovRadians, aspect, TerrainNearPlane, TerrainFarPlane);
+        const Mat4 view = viewMatrix(camera, {});
+        const Mat4 mvp = multiply(projection, view);
+
+        DroppedItemRenderPath::PushConstants push{};
+        std::memcpy(push.mvp, mvp.m, sizeof(push.mvp));
+        push.cameraPosition[0] = cameraPosition.x;
+        push.cameraPosition[1] = cameraPosition.y;
+        push.cameraPosition[2] = cameraPosition.z;
+        push.cameraPosition[3] = static_cast<float>(glfwGetTime());
+        push.fluidWaterParams[1] = skyBrightness;
+        push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
+
+        crucibleMoltenRenderPath_.draw(
+            commandBuffer,
+            vulkan_.swapchainExtent,
+            vulkan_.crucibleMoltenPipeline,
+            vulkan_.particlePipelineLayout,
+            rendererAssets_.fluidTextureArray,
+            push,
+            instances,
+            0);
     }
 }

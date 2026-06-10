@@ -170,7 +170,17 @@ namespace dolbuto
             blockTexturePaths.push_back((blockTextureDir / (textureName + ".png")).string());
         }
         store.terrainTextureArray = gpuResources.createTextureArray(blockTexturePaths);
-        store.fluidTextureArray = gpuResources.createTextureArray({(fluidTextureDir / "water.png").string()});
+        std::vector<std::string> fluidTexturePaths;
+        fluidTexturePaths.reserve(content.fluidTextureNames().size());
+        for (const std::string& textureName : content.fluidTextureNames())
+        {
+            fluidTexturePaths.push_back((fluidTextureDir / (textureName + ".png")).string());
+        }
+        if (fluidTexturePaths.empty())
+        {
+            fluidTexturePaths.push_back((fluidTextureDir / "water.png").string());
+        }
+        store.fluidTextureArray = gpuResources.createTextureArray(fluidTexturePaths);
         store.smokeParticleTextureArray = gpuResources.createTextureArray({
             (smokeTextureDir / "smoke_0.png").string(),
             (smokeTextureDir / "smoke_1.png").string(),

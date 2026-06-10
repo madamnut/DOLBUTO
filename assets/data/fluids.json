@@ -7,6 +7,7 @@
   {
     "id": 1,
     "name": "water",
+    "texture": "water",
     "lightAttenuation": 2
   },
   {
@@ -23,5 +24,41 @@
     "id": 301,
     "name": "hydrogen",
     "lightAttenuation": 1
+  },
+  {
+    "id": 1000,
+    "name": "molten_tin",
+    "texture": "molten tin",
+    "lightAttenuation": 0
+  },
+  {
+    "id": 1001,
+    "name": "molten_zinc",
+    "texture": "molten zinc",
+    "lightAttenuation": 0
+  },
+  {
+    "id": 1002,
+    "name": "molten_silver",
+    "texture": "molten silver",
+    "lightAttenuation": 0
+  },
+  {
+    "id": 1003,
+    "name": "molten_gold",
+    "texture": "molten gold",
+    "lightAttenuation": 0
+  },
+  {
+    "id": 1004,
+    "name": "molten_copper",
+    "texture": "molten copper",
+    "lightAttenuation": 0
+  },
+  {
+    "id": 1005,
+    "name": "molten_iron",
+    "texture": "molten iron",
+    "lightAttenuation": 0
   }
 ]

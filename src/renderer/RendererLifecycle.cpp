@@ -32,6 +32,7 @@ namespace dolbuto
         playerMeshRenderPath_(&vulkan_.device, &vulkan_.descriptorPool, &vulkan_.terrainVertexDescriptorSetLayout, &gpuResources_),
         particleRenderPath_(&vulkan_.device, &gpuResources_),
         droppedItemRenderPath_(&vulkan_.device, &gpuResources_),
+        crucibleMoltenRenderPath_(&vulkan_.device, &gpuResources_),
         radialMenuRenderPath_(&vulkan_.device, &gpuResources_)
     {
         createInstance();
@@ -95,6 +96,18 @@ namespace dolbuto
                             {
                                 client_.worldRuntime.ensureFireBlockEntityAtWorld(x, y, z, InitialFireBurnTicks);
                             }
+                        }
+                        const bool previousWasCrucible = previousBlock != 0 &&
+                            client_.content.blockDefinitions()[previousBlock].renderType == BlockRenderType::Crucible;
+                        const bool nextIsCrucible = block != 0 &&
+                            client_.content.blockDefinitions()[block].renderType == BlockRenderType::Crucible;
+                        if (previousWasCrucible && !nextIsCrucible)
+                        {
+                            client_.worldRuntime.removeBlockEntityAtWorld(x, y, z);
+                        }
+                        if (nextIsCrucible)
+                        {
+                            client_.worldRuntime.ensureCrucibleBlockEntityAtWorld(x, y, z);
                         }
                         particleRenderPath_.handleBlockChanged(x, y, z, previousBlock, block, fireBlock);
                     }
@@ -188,6 +201,7 @@ namespace dolbuto
         }
         particleRenderPath_.destroy();
         droppedItemRenderPath_.destroy();
+        crucibleMoltenRenderPath_.destroy();
         radialMenuRenderPath_.destroy();
         if (vulkan_.selectionLineVertexBuffer != VK_NULL_HANDLE)
         {
@@ -309,6 +323,10 @@ namespace dolbuto
         if (vulkan_.bloomUpsamplePipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.bloomUpsamplePipeline, nullptr);
+        }
+        if (vulkan_.crucibleMoltenPipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.crucibleMoltenPipeline, nullptr);
         }
         if (vulkan_.uiPipeline != VK_NULL_HANDLE)
         {

@@ -83,6 +83,7 @@ namespace dolbuto
         PlayerMeshRenderPath playerMeshRenderPath_;
         ParticleRenderPath particleRenderPath_;
         DroppedItemRenderPath droppedItemRenderPath_;
+        DroppedItemRenderPath crucibleMoltenRenderPath_;
         RadialMenuRenderPath radialMenuRenderPath_;
         VkDeviceSize localMemoryHeapSize_ = 0;
         uint32_t localMemoryHeapIndex_ = UINT32_MAX;

@@ -749,6 +749,7 @@ namespace dolbuto
         VkShaderModule itemVertShader = createShaderModule((shaderDir / "item.vert.spv").string());
         VkShaderModule itemViewmodelVertShader = createShaderModule((shaderDir / "item_viewmodel.vert.spv").string());
         VkShaderModule fragShader = createShaderModule((shaderDir / "terrain.frag.spv").string());
+        VkShaderModule moltenFragShader = createShaderModule((shaderDir / "molten.frag.spv").string());
 
         VkPipelineShaderStageCreateInfo vertStage{};
         vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -983,6 +984,13 @@ namespace dolbuto
             throw std::runtime_error("Failed to create item pipeline.");
         }
 
+        stages[1].module = moltenFragShader;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.crucibleMoltenPipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create crucible molten pipeline.");
+        }
+        stages[1].module = fragShader;
+
         depthStencil.depthTestEnable = VK_TRUE;
         depthStencil.depthWriteEnable = VK_TRUE;
         depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
@@ -993,6 +1001,7 @@ namespace dolbuto
         }
 
         vkDestroyShaderModule(vulkan_.device, fragShader, nullptr);
+        vkDestroyShaderModule(vulkan_.device, moltenFragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, itemViewmodelVertShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, itemVertShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, vertShader, nullptr);

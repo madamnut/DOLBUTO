@@ -116,6 +116,9 @@ namespace dolbuto
         uint16_t inputItemId = 0;
         uint16_t outputItemId = 0;
         uint16_t outputCount = 1;
+        uint16_t outputFluidId = 0;
+        uint16_t outputAmount = 0;
+        uint16_t requiredHeatLevel = 0;
         uint32_t requiredTicks = 0;
     };
 }

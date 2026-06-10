@@ -152,10 +152,10 @@ repeat entityCount:
     uint16 durability
     uint16 burnTicksRemaining
     uint32 processingTicks
-    uint8 processingType  // 0 = none, 1 = pyrolysis, 2 = firing
+    uint8 processingType  // 0 = none, 1 = pyrolysis, 2 = firing, 3 = smelt
 uint16 blockEntityCount
 repeat blockEntityCount:
-  uint16 type          // 1 = Fire
+  uint16 type          // 1 = Fire, 2 = Crucible
   uint8 localX
   uint8 localZ
   uint16 y
@@ -164,6 +164,8 @@ repeat blockEntityCount:
   uint8 fireHeatLevel
   uint16 burnRemainderItemId
   uint16 burnRemainderCount
+  uint16 moltenFluidId
+  uint16 moltenAmount
 uint32 blockStateRunCount
 repeat blockStateRunCount:
   uint32 state
@@ -180,13 +182,17 @@ uint64 revision
 엔티티만 바뀐 경우에는 terrain revision을 올리지 않고 런타임 dirty serial을 사용한다. terrain revision은 mesh validity에도 사용되기 때문이다.
 
 block entity는 블록 ID만으로 표현하지 않는 셀별 상태를 저장한다.
-현재 저장 타입은 fire뿐이며, `remainingBurnTicks`는 해당 fire 블록이 꺼지기까지 남은 tick 수다.
+현재 저장 타입은 fire와 crucible이다.
+`remainingBurnTicks`는 해당 fire 블록이 꺼지기까지 남은 tick 수다.
 `fireMode`는 주변 block change event와 연료 소비 시점으로 결정된 fire의 현재 모드이며, `0`은 노출 불, `1`은 열분해 불, `2`는 도기 소성 불이다.
 `fireHeatLevel`은 현재 타고 있는 연료의 `components.fuel.heatLevel` 값이다.
 `burnRemainderItemId`와 `burnRemainderCount`는 현재 타고 있는 연료의 연소 종료 시점에 드랍할 부산물이다.
+`moltenFluidId`와 `moltenAmount`는 도가니 내부의 용탕 종류와 양이다. fire block entity에서는 이 값이 0으로 유지된다.
 로드된 fire 블록에 block entity가 없으면 렌더/런타임 갱신 시 초기값으로 보강하고, block entity만 남고 실제 블록이 fire가 아니면 런타임에서 제거한다.
+로드된 crucible 블록에 block entity가 없으면 렌더/런타임 갱신 시 초기값으로 보강하고, block entity만 남고 실제 블록이 도가니가 아니면 런타임에서 제거한다.
 block state RLE 섹션은 block entity 뒤, revision 앞에 붙는다.
 구버전 payload처럼 해당 섹션이 없으면 `revision`을 바로 읽고, 런타임 설치 시 `blockStates`를 0으로 채운다.
+도가니 용탕 필드가 없는 기존 block entity payload도 읽을 수 있으며, 이 경우 `moltenFluidId = 0`, `moltenAmount = 0`으로 보강한다.
 
 ## 플레이어 상태
 

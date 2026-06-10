@@ -245,7 +245,7 @@ blockLight는 시간대별 하늘 밝기의 영향을 받지 않고, 렌더링�
 
 일반 블록 ID만으로 표현하기 어려운 셀별 런타임 상태는 청크의 block entity 목록에 저장한다.
 block entity는 청크 로컬 X/Z, 월드 Y, 타입, 타입별 상태 값을 가진다.
-현재 타입은 `Fire`뿐이다.
+현재 타입은 `Fire`와 `Crucible`이다.
 
 `fire` 블록은 설치되거나 로드될 때 같은 좌표에 fire block entity를 가진다.
 초기 남은 연소 시간은 `200`틱이며, 기본 열 단계는 `1`이다.
@@ -254,7 +254,9 @@ fire block entity는 노출 불 `exposed`, 열분해 불 `pyrolysis`, 도기 소
 추가로 블록 변화 좌표가 fire의 구조 감시 범위 안에 들어가면 해당 fire도 `BlockNeighborChanged` 이유로 block tick에 등록된다.
 fire는 주변 블록 변화 이벤트와 연료 소비 시점에 현재 열 단계와 구조 폐색 단계에 맞는 모드를 다시 검사한다.
 fire 작업 공간은 fire 중심 같은 Y층의 `3 x 3` 영역이다. 구조 감시 범위는 fire 중심 `5 x 5 x 3` AABB이며, 위 작업 공간은 아직 사용하지 않는다.
-구조 판정은 fire 셀에서 6방향 flood fill로 도달 가능한 비고체 셀만 내부 공간으로 보고, 도달한 내부 공간이 감시 AABB의 동서남북/상하 6개 껍데기 방향 중 몇 방향에 닿는지를 `leakCount`로 센다.
+구조 판정은 fire 셀에서 6방향 flood fill로 도달 가능한 비고체 셀을 내부 공간으로 본다.
+열린 경계 칸을 만나면 감시 AABB의 동서남북/상하 6개 껍데기 방향 중 해당 방향만 leak으로 기록하고, 그 경계 칸 너머로는 더 탐색하지 않는다.
+따라서 배기구 밖의 열린 외부 공간이 다른 방향으로 이어져 있어도 내부에서 처음 빠져나간 방향 하나만 `leakCount`에 반영된다.
 작업 공간 안에 벽이 있어도 된다. 벽 뒤쪽처럼 fire에서 6방향으로 도달할 수 없는 셀은 processing 대상에 포함하지 않으며, 벽 바깥 빈 공간도 fire 내부 공간과 연결되지 않으면 leak으로 세지 않는다.
 폐색 단계는 `leakCount == 0`이면 `sealed`, `leakCount == 1`이면 `vented`, 그 외는 `exposed`다.
 `sealed` 구조는 `pyrolysis` 모드가 된다.
@@ -269,6 +271,16 @@ fire 작업 공간은 fire 중심 같은 Y층의 `3 x 3` 영역이다. 구조 �
 요구 tick에 도달한 드랍 아이템 스택이 1개이면 해당 엔티티를 결과 아이템과 `outputCount`로 교체한다. 스택이 2개 이상이면 원본 count를 1 줄이고 같은 위치에 결과 드랍 엔티티를 새로 만든다.
 소비할 연료가 없으면 fire 블록은 `air`로 바뀌고 일반 블록 파괴와 같은 갱신 경로로 메쉬, 파티클, 사운드 이벤트를 발생시킨다.
 fire block entity만 남고 실제 블록이 fire가 아니면 stale 상태로 보고 제거한다.
+
+`refractory_clay_crucible` 블록은 설치되거나 로드될 때 같은 좌표에 crucible block entity를 가진다.
+crucible block entity는 내부 용탕 종류 `moltenFluidId`와 용탕량 `moltenAmount`를 저장한다.
+도가니 자체는 아래 블록이 fire인지 직접 처리하지 않고, 아래 fire block entity가 현재 타고 있으면 그 `fireHeatLevel`을 열 입력으로 읽는다.
+열 입력이 있고 내부 용량이 남아 있으면 도가니 내부 AABB 안의 드랍 아이템 중 [[recipe/processings]]의 `smelt` 레시피 대상 하나를 진행한다.
+비어 있는 도가니는 처리 가능한 광물 중 필요한 열 단계가 가장 낮은 그룹을 고르고, 같은 단계 후보가 여러 개면 무작위로 하나를 진행한다.
+이미 `smelt` 진행 중인 아이템은 우선 계속 처리한다.
+하나의 도가니는 한 종류의 용탕만 담을 수 있으므로, 이미 용탕이 들어 있으면 같은 `outputFluid` 레시피만 진행한다.
+현재 도가니 용량은 `100`이고, 금속 원재료 1개는 완료 시 용탕 `10`을 더한다.
+crucible block entity만 남고 실제 블록이 도가니가 아니면 stale 상태로 보고 제거한다.
 
 ## 랜덤 오프셋
 
@@ -494,12 +506,13 @@ blend 블록은 terrain texture array를 그대로 사용하며, `alphaBlend` �
 assets/data/fluids.json
 ```
 
-유체 정의는 현재 `id`, `name`, `lightAttenuation`을 가진다.
+유체 정의는 현재 `id`, `name`, `lightAttenuation`, 선택적 `texture`를 가진다.
 
 ```json
 {
   "id": 1,
   "name": "water",
+  "texture": "water",
   "lightAttenuation": 2
 }
 ```
@@ -512,6 +525,12 @@ assets/data/fluids.json
 2   lava
 300 methane
 301 hydrogen
+1000 molten_tin
+1001 molten_zinc
+1002 molten_silver
+1003 molten_gold
+1004 molten_copper
+1005 molten_iron
 ```
 
 유체 ID 범위는 다음 기준을 사용한다.
@@ -519,6 +538,7 @@ assets/data/fluids.json
 - `0`: 유체 없음
 - `1~299`: 액체
 - `300~511`: 기체
+- `1000~1099`: 장치 내부 상태로만 쓰는 금속 용탕
 
 런타임 유체 셀 데이터는 `uint16_t`로 표현한다.
 상위 9비트는 유체 ID, 하위 7비트는 유체량이다.
@@ -528,6 +548,9 @@ assets/data/fluids.json
 - `amount = 1~100`: 유체량
 - `amount = 100`: 가득 찬 상태
 - `amount = 101~127`: 예약값
+
+청크 유체 셀에 패킹되는 유체 ID는 상위 9비트 범위에 들어가는 흐르는 유체만 대상으로 한다.
+`molten_*` 용탕은 도가니 block entity의 내부 상태로만 저장하며, 청크 유체 셀이나 유체 시뮬레이션에는 넣지 않는다.
 
 청크 런타임 데이터는 블록 배열과 유체 배열을 분리해서 가진다.
 

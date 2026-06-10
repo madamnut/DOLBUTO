@@ -443,6 +443,8 @@ namespace dolbuto::save
             writeU8(payload, entity.fireHeatLevel);
             writeU16(payload, entity.burnRemainderItemId);
             writeU16(payload, entity.burnRemainderCount);
+            writeU16(payload, entity.moltenFluidId);
+            writeU16(payload, entity.moltenAmount);
             ++writtenBlockEntities;
         }
         payload[blockEntityCountOffset] = static_cast<uint8_t>(writtenBlockEntities & 0xFFu);
@@ -585,7 +587,8 @@ namespace dolbuto::save
                 constexpr size_t DroppedItemEntityProcessingBytes = 45;
                 constexpr size_t DroppedItemEntityProcessingTypeBytes = 46;
                 constexpr size_t DroppedItemEntityCurrentBytes = 48;
-                constexpr size_t CurrentBlockEntityBytes = 16;
+                constexpr size_t LegacyBlockEntityBytes = 16;
+                constexpr size_t CurrentBlockEntityBytes = 20;
                 auto peekU16At = [&](size_t readOffset) -> std::optional<uint16_t>
                 {
                     if (readOffset + 2 > payload.size())
@@ -608,8 +611,10 @@ namespace dolbuto::save
                     {
                         return false;
                     }
-                    const size_t afterBlockEntities = afterEntities + 2u + static_cast<size_t>(*blockEntityCount) * CurrentBlockEntityBytes;
-                    return afterBlockEntities <= payload.size() && blockStateSectionFits(payload, afterBlockEntities);
+                    const size_t afterCurrentBlockEntities = afterEntities + 2u + static_cast<size_t>(*blockEntityCount) * CurrentBlockEntityBytes;
+                    const size_t afterLegacyBlockEntities = afterEntities + 2u + static_cast<size_t>(*blockEntityCount) * LegacyBlockEntityBytes;
+                    return (afterCurrentBlockEntities <= payload.size() && blockStateSectionFits(payload, afterCurrentBlockEntities)) ||
+                        (afterLegacyBlockEntities <= payload.size() && blockStateSectionFits(payload, afterLegacyBlockEntities));
                 };
 
                 const bool hasEntityCurrent = payloadFitsAfterEntities(DroppedItemEntityCurrentBytes);
@@ -663,12 +668,17 @@ namespace dolbuto::save
             if (offset + 8 != payload.size() && offset + 2 <= payload.size())
             {
                 const uint16_t blockEntityCount = readU16(payload, offset);
-                constexpr size_t CurrentBlockEntityBytes = 16;
+                constexpr size_t LegacyBlockEntityBytes = 16;
+                constexpr size_t CurrentBlockEntityBytes = 20;
                 const size_t currentEndOffset = offset + static_cast<size_t>(blockEntityCount) * CurrentBlockEntityBytes;
-                if (currentEndOffset > payload.size() || !blockStateSectionFits(payload, currentEndOffset))
+                const size_t legacyEndOffset = offset + static_cast<size_t>(blockEntityCount) * LegacyBlockEntityBytes;
+                const bool hasCurrentBlockEntities = currentEndOffset <= payload.size() && blockStateSectionFits(payload, currentEndOffset);
+                const bool hasLegacyBlockEntities = legacyEndOffset <= payload.size() && blockStateSectionFits(payload, legacyEndOffset);
+                if (!hasCurrentBlockEntities && !hasLegacyBlockEntities)
                 {
                     return std::nullopt;
                 }
+                const bool readCurrentBlockEntities = hasCurrentBlockEntities;
                 value.blockEntities.reserve(blockEntityCount);
                 for (uint16_t i = 0; i < blockEntityCount; ++i)
                 {
@@ -691,6 +701,11 @@ namespace dolbuto::save
                     }
                     entity.burnRemainderItemId = readU16(payload, offset);
                     entity.burnRemainderCount = readU16(payload, offset);
+                    if (readCurrentBlockEntities)
+                    {
+                        entity.moltenFluidId = readU16(payload, offset);
+                        entity.moltenAmount = readU16(payload, offset);
+                    }
                     if (entity.type != BlockEntityType::None &&
                         entity.localX < ChunkSizeX &&
                         entity.localZ < ChunkSizeZ &&

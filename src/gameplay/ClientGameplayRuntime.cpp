@@ -442,11 +442,47 @@ namespace dolbuto::gameplay
             };
             constexpr int WatchRadiusXZ = 2;
             constexpr int WatchRadiusY = 1;
+            bool leakDirections[6] = {};
             auto insideWatchBounds = [&](int cellX, int cellY, int cellZ)
             {
                 return std::abs(cellX - x) <= WatchRadiusXZ &&
                     std::abs(cellY - y) <= WatchRadiusY &&
                     std::abs(cellZ - z) <= WatchRadiusXZ;
+            };
+            auto markBoundaryLeak = [&](int cellX, int cellY, int cellZ)
+            {
+                bool boundary = false;
+                if (cellX == x + WatchRadiusXZ)
+                {
+                    leakDirections[0] = true;
+                    boundary = true;
+                }
+                if (cellX == x - WatchRadiusXZ)
+                {
+                    leakDirections[1] = true;
+                    boundary = true;
+                }
+                if (cellY == y + WatchRadiusY)
+                {
+                    leakDirections[2] = true;
+                    boundary = true;
+                }
+                if (cellY == y - WatchRadiusY)
+                {
+                    leakDirections[3] = true;
+                    boundary = true;
+                }
+                if (cellZ == z + WatchRadiusXZ)
+                {
+                    leakDirections[4] = true;
+                    boundary = true;
+                }
+                if (cellZ == z - WatchRadiusXZ)
+                {
+                    leakDirections[5] = true;
+                    boundary = true;
+                }
+                return boundary;
             };
             auto insideHorizontalWorkArea = [&](int cellX, int cellY, int cellZ)
             {
@@ -463,7 +499,6 @@ namespace dolbuto::gameplay
             };
 
             std::vector<std::array<int, 3>> visited;
-            bool leakDirections[6] = {};
             visited.push_back({x, y, z});
             for (std::size_t index = 0; index < visited.size(); ++index)
             {
@@ -481,29 +516,9 @@ namespace dolbuto::gameplay
                     {
                         continue;
                     }
-                    if (nextX == x + WatchRadiusXZ)
+                    if (markBoundaryLeak(nextX, nextY, nextZ))
                     {
-                        leakDirections[0] = true;
-                    }
-                    if (nextX == x - WatchRadiusXZ)
-                    {
-                        leakDirections[1] = true;
-                    }
-                    if (nextY == y + WatchRadiusY)
-                    {
-                        leakDirections[2] = true;
-                    }
-                    if (nextY == y - WatchRadiusY)
-                    {
-                        leakDirections[3] = true;
-                    }
-                    if (nextZ == z + WatchRadiusXZ)
-                    {
-                        leakDirections[4] = true;
-                    }
-                    if (nextZ == z - WatchRadiusXZ)
-                    {
-                        leakDirections[5] = true;
+                        continue;
                     }
                     if (!containsCell(visited, nextX, nextY, nextZ))
                     {
@@ -712,6 +727,73 @@ namespace dolbuto::gameplay
             setFireMode(x, y, z, entity, nextMode, forceNotify);
         };
 
+        auto heatInputAt = [&](int x, int y, int z) -> uint16_t
+        {
+            const uint16_t below = worldRuntime_->blockAtWorld(x, y - 1, z);
+            if (below == BlockAir || blockDefinition(below).renderType != BlockRenderType::Fire)
+            {
+                return 0;
+            }
+            const BlockEntity* fire = worldRuntime_->blockEntityAtWorld(x, y - 1, z);
+            if (fire == nullptr || fire->type != BlockEntityType::Fire || fire->remainingBurnTicks == 0)
+            {
+                return 0;
+            }
+            return fire->fireHeatLevel;
+        };
+
+        auto processCrucible = [&](const world::WorldRuntime::BlockTickCell& cell, uint16_t block)
+        {
+            BlockEntity* entity = worldRuntime_->blockEntityAtWorld(cell.x, cell.y, cell.z);
+            if (entity == nullptr || entity->type != BlockEntityType::Crucible)
+            {
+                entity = worldRuntime_->ensureCrucibleBlockEntityAtWorld(cell.x, cell.y, cell.z);
+            }
+            if (entity == nullptr || entity->type != BlockEntityType::Crucible)
+            {
+                return;
+            }
+
+            constexpr uint16_t CrucibleCapacity = 100;
+            constexpr uint32_t SmeltElapsedTicks = 1;
+            const uint16_t heatLevel = heatInputAt(cell.x, cell.y, cell.z);
+            if (heatLevel != 0 && entity->moltenAmount < CrucibleCapacity)
+            {
+                const world::DroppedItemRuntime::SmeltProcessingResult smelt = droppedItemRuntime_.processCrucibleSmeltInAabb(
+                    static_cast<float>(cell.x) - 0.32f,
+                    static_cast<float>(cell.y) + 0.16f,
+                    static_cast<float>(cell.z) - 0.32f,
+                    static_cast<float>(cell.x) + 0.32f,
+                    static_cast<float>(cell.y) + 0.95f,
+                    static_cast<float>(cell.z) + 0.32f,
+                    processingRecipes,
+                    heatLevel,
+                    entity->moltenFluidId,
+                    entity->moltenAmount,
+                    CrucibleCapacity,
+                    SmeltElapsedTicks,
+                    markDirty);
+                if (smelt.completed &&
+                    smelt.outputFluidId != 0 &&
+                    smelt.outputAmount != 0 &&
+                    entity->moltenAmount <= CrucibleCapacity &&
+                    smelt.outputAmount <= CrucibleCapacity - entity->moltenAmount &&
+                    (entity->moltenFluidId == 0 || entity->moltenFluidId == smelt.outputFluidId))
+                {
+                    entity->moltenFluidId = smelt.outputFluidId;
+                    entity->moltenAmount = static_cast<uint16_t>(entity->moltenAmount + smelt.outputAmount);
+                    markBlockEntityDirty(cell.x, cell.z);
+                }
+            }
+
+            worldRuntime_->scheduleBlockTickAtWorld(
+                cell.x,
+                cell.y,
+                cell.z,
+                world::WorldRuntime::BlockTickReasonSelfBlockChanged);
+            (void)block;
+        };
+
         auto processFireBurn = [&](const world::WorldRuntime::BlockTickCell& cell, uint16_t block)
         {
             BlockEntity* entity = worldRuntime_->blockEntityAtWorld(cell.x, cell.y, cell.z);
@@ -839,6 +921,11 @@ namespace dolbuto::gameplay
             if (block != BlockAir && blockDefinition(block).renderType == BlockRenderType::Fire)
             {
                 processFireBurn(cell, block);
+                continue;
+            }
+            if (block != BlockAir && blockDefinition(block).renderType == BlockRenderType::Crucible)
+            {
+                processCrucible(cell, block);
                 continue;
             }
             if (worldRuntime_->blockEntityAtWorld(cell.x, cell.y, cell.z) != nullptr)

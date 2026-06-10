@@ -7,6 +7,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <random>
 #include <stdexcept>
 #include <unordered_map>
@@ -74,6 +75,10 @@ namespace dolbuto::world
             if (type == "firing")
             {
                 return 2;
+            }
+            if (type == "smelt")
+            {
+                return 3;
             }
             return 0;
         }
@@ -199,7 +204,7 @@ namespace dolbuto::world
             entity.droppedItem.stack.burnTicksRemaining = maxBurnTicks == 0
                 ? 0
                 : (entity.droppedItem.stack.burnTicksRemaining == 0 ? maxBurnTicks : std::min(entity.droppedItem.stack.burnTicksRemaining, maxBurnTicks));
-            if (entity.droppedItem.processingType > 2)
+            if (entity.droppedItem.processingType > 3)
             {
                 entity.droppedItem.processingType = 0;
                 entity.droppedItem.processingTicks = 0;
@@ -604,6 +609,176 @@ namespace dolbuto::world
             selected.remainderItemId,
             selected.remainderCount
         };
+    }
+
+    DroppedItemRuntime::SmeltProcessingResult DroppedItemRuntime::processCrucibleSmeltInAabb(
+        float minX,
+        float minY,
+        float minZ,
+        float maxX,
+        float maxY,
+        float maxZ,
+        const std::vector<ItemProcessingRecipe>& recipes,
+        uint16_t heatLevel,
+        uint16_t currentFluidId,
+        uint16_t currentAmount,
+        uint16_t capacity,
+        uint32_t elapsedTicks,
+        const MarkDirtyFn& markDirty)
+    {
+        struct SmeltCandidate
+        {
+            WorldEntityHandle handle{};
+            uint64_t entityId = 0;
+            const ItemProcessingRecipe* recipe = nullptr;
+            bool alreadyProcessing = false;
+        };
+
+        constexpr uint8_t SmeltProcessingType = 3;
+        if (recipes.empty() || heatLevel == 0 || elapsedTicks == 0 || currentAmount >= capacity)
+        {
+            return {};
+        }
+
+        const std::vector<ItemDefinition>& definitions = itemDefinitions();
+        std::vector<SmeltCandidate> candidates;
+        std::vector<SmeltCandidate> inProgressCandidates;
+        uint16_t lowestRequiredHeat = std::numeric_limits<uint16_t>::max();
+
+        auto usableRecipeForItem = [&](uint16_t itemId) -> const ItemProcessingRecipe*
+        {
+            for (const ItemProcessingRecipe& recipe : recipes)
+            {
+                if (recipe.type == "smelt" &&
+                    recipe.inputItemId == itemId &&
+                    recipe.outputFluidId != 0 &&
+                    recipe.outputAmount != 0 &&
+                    recipe.requiredTicks > 0 &&
+                    recipe.requiredHeatLevel <= heatLevel &&
+                    currentAmount <= capacity &&
+                    recipe.outputAmount <= capacity - currentAmount &&
+                    (currentFluidId == 0 || currentFluidId == recipe.outputFluidId))
+                {
+                    return &recipe;
+                }
+            }
+            return nullptr;
+        };
+
+        for (auto& entry : worldRuntime().chunks())
+        {
+            RuntimeChunk& chunk = entry.second;
+            if (!chunk.data)
+            {
+                continue;
+            }
+
+            for (std::size_t index = 0; index < chunk.data->entities.size(); ++index)
+            {
+                const WorldEntity& item = chunk.data->entities[index];
+                if (item.type != WorldEntityType::DroppedItem ||
+                    item.droppedItem.stack.itemId == 0 ||
+                    item.droppedItem.stack.count == 0 ||
+                    item.collecting ||
+                    static_cast<std::size_t>(item.droppedItem.stack.itemId) >= definitions.size() ||
+                    !droppedItemOverlapsAabb(item, definitions, minX, minY, minZ, maxX, maxY, maxZ))
+                {
+                    continue;
+                }
+
+                const ItemProcessingRecipe* recipe = usableRecipeForItem(item.droppedItem.stack.itemId);
+                if (recipe == nullptr)
+                {
+                    continue;
+                }
+
+                SmeltCandidate candidate{};
+                candidate.handle = WorldEntityHandle{entry.first, index};
+                candidate.entityId = item.entityId;
+                candidate.recipe = recipe;
+                candidate.alreadyProcessing = item.droppedItem.processingType == SmeltProcessingType && item.droppedItem.processingTicks > 0;
+                if (candidate.alreadyProcessing)
+                {
+                    inProgressCandidates.push_back(candidate);
+                    continue;
+                }
+
+                if (recipe->requiredHeatLevel < lowestRequiredHeat)
+                {
+                    lowestRequiredHeat = recipe->requiredHeatLevel;
+                    candidates.clear();
+                    candidates.push_back(candidate);
+                }
+                else if (recipe->requiredHeatLevel == lowestRequiredHeat)
+                {
+                    candidates.push_back(candidate);
+                }
+            }
+        }
+
+        std::vector<SmeltCandidate>& selectionPool = !inProgressCandidates.empty() ? inProgressCandidates : candidates;
+        if (selectionPool.empty())
+        {
+            return {};
+        }
+
+        static thread_local std::mt19937 random{std::random_device{}()};
+        std::uniform_int_distribution<std::size_t> candidateDistribution(0, selectionPool.size() - 1);
+        const SmeltCandidate selected = selectionPool[candidateDistribution(random)];
+
+        RuntimeChunk* chunk = worldRuntime().find(selected.handle.chunkKey);
+        if (chunk == nullptr ||
+            !chunk->data ||
+            selected.handle.index >= chunk->data->entities.size() ||
+            chunk->data->entities[selected.handle.index].entityId != selected.entityId ||
+            selected.recipe == nullptr)
+        {
+            return {};
+        }
+
+        WorldEntity& item = chunk->data->entities[selected.handle.index];
+        const ItemProcessingRecipe* recipe = usableRecipeForItem(item.droppedItem.stack.itemId);
+        if (recipe == nullptr ||
+            recipe->outputFluidId != selected.recipe->outputFluidId ||
+            recipe->outputAmount != selected.recipe->outputAmount)
+        {
+            return {};
+        }
+
+        if (item.droppedItem.processingType != SmeltProcessingType)
+        {
+            item.droppedItem.processingType = SmeltProcessingType;
+            item.droppedItem.processingTicks = 0;
+        }
+        item.droppedItem.processingTicks = std::min<uint32_t>(
+            item.droppedItem.processingTicks + elapsedTicks,
+            recipe->requiredTicks);
+
+        SmeltProcessingResult result{};
+        result.changed = true;
+        if (item.droppedItem.processingTicks >= recipe->requiredTicks)
+        {
+            result.completed = true;
+            result.outputFluidId = recipe->outputFluidId;
+            result.outputAmount = recipe->outputAmount;
+            if (item.droppedItem.stack.count <= 1)
+            {
+                chunk->data->entities.erase(chunk->data->entities.begin() + static_cast<std::ptrdiff_t>(selected.handle.index));
+            }
+            else
+            {
+                --item.droppedItem.stack.count;
+                item.droppedItem.processingTicks = 0;
+                item.droppedItem.processingType = 0;
+            }
+        }
+
+        refreshChunkTracking(selected.handle.chunkKey);
+        if (markDirty)
+        {
+            markDirty(*chunk);
+        }
+        return result;
     }
 
     bool DroppedItemRuntime::processItemsInAabb(

@@ -61,6 +61,7 @@ namespace dolbuto
         VkPipeline particlePipeline = VK_NULL_HANDLE;
         VkPipeline itemPipeline = VK_NULL_HANDLE;
         VkPipeline itemViewmodelPipeline = VK_NULL_HANDLE;
+        VkPipeline crucibleMoltenPipeline = VK_NULL_HANDLE;
         VkPipelineLayout selectionPipelineLayout = VK_NULL_HANDLE;
         VkPipeline selectionPipeline = VK_NULL_HANDLE;
 

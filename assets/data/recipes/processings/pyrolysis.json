@@ -1,0 +1,32 @@
+[
+    {
+        "input": "log",
+        "output": "charcoal",
+        "outputCount": 4,
+        "requiredTicks": 600
+    },
+    {
+        "input": "stripped_log",
+        "output": "charcoal",
+        "outputCount": 4,
+        "requiredTicks": 600
+    },
+    {
+        "input": "half_stripped_log",
+        "output": "charcoal",
+        "outputCount": 3,
+        "requiredTicks": 600
+    },
+    {
+        "input": "quarter_stripped_log",
+        "output": "charcoal",
+        "outputCount": 2,
+        "requiredTicks": 600
+    },
+    {
+        "input": "bark_strip",
+        "output": "tar",
+        "outputCount": 1,
+        "requiredTicks": 600
+    }
+]

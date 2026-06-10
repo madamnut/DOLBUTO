@@ -133,6 +133,7 @@ set(SHADER_SOURCES
     shaders/terrain.vert
     shaders/terrain.frag
     shaders/fluid.frag
+    shaders/molten.frag
     shaders/player.vert
     shaders/player_model.vert
     shaders/item.vert

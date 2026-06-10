@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <vector>
 
 namespace dolbuto
 {
@@ -40,6 +41,14 @@ namespace dolbuto
     {
         particleRenderPath_.createBuffers();
         droppedItemRenderPath_.createBuffers(rendererAssets_.itemSpriteMeshes);
+        std::vector<DroppedItemRenderPath::ItemSpriteMesh> moltenMeshes(2);
+        DroppedItemRenderPath::ItemSpriteQuad surface{};
+        surface.positions = {{{-0.5f, 0.0f, -0.5f}, {-0.5f, 0.0f, 0.5f}, {0.5f, 0.0f, 0.5f}, {0.5f, 0.0f, -0.5f}}};
+        surface.uvs = {{{{0.0f, 0.0f}}, {{0.0f, 1.0f}}, {{1.0f, 1.0f}}, {{1.0f, 0.0f}}}};
+        surface.ao = 1.0f;
+        surface.textureLayer = -1.0f;
+        moltenMeshes[1].quads.push_back(surface);
+        crucibleMoltenRenderPath_.createBuffers(moltenMeshes);
         radialMenuRenderPath_.createBuffers();
     }
 

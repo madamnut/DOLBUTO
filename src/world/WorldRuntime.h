@@ -141,6 +141,7 @@ namespace dolbuto::world
         BlockEntity* blockEntityAtWorld(int x, int y, int z);
         const BlockEntity* blockEntityAtWorld(int x, int y, int z) const;
         BlockEntity* ensureFireBlockEntityAtWorld(int x, int y, int z, uint32_t remainingBurnTicks);
+        BlockEntity* ensureCrucibleBlockEntityAtWorld(int x, int y, int z);
         bool removeBlockEntityAtWorld(int x, int y, int z);
         uint8_t lightAtWorld(int x, int y, int z) const;
         bool terrainCellBlocksPlayer(int x, int y, int z, const BlockDefinitionProvider& blockDefinition) const;

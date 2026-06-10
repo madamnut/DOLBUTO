@@ -103,7 +103,9 @@ namespace dolbuto
     struct FluidDefinition
     {
         std::string name = "none";
+        std::string texture;
         uint8_t lightAttenuation = 0;
+        uint32_t textureLayer = 0;
     };
 
     struct LightAttenuationTables

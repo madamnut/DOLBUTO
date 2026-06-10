@@ -12,6 +12,7 @@
 - 선택 블록 검정 테두리
 - 하늘, 해, 달, 크로스헤어
 - 디버그 텍스트
+- 도가니 내부 용탕 수면
 
 ## 지형 메쉬
 
@@ -77,7 +78,7 @@
 `src/renderer/RendererDroppedItems.cpp`는 `DroppedItemRuntime` update 호출, 렌더 후보 수집 입력 조립, push constant 준비, `DroppedItemRenderPath` draw 호출만 담는다.
 `src/renderer/RendererFrameLoop.cpp`는 frame acquire/submit/present, command buffer 기록, screenshot readback/BMP 저장, command buffer/sync object 생성을 담는다.
 `src/renderer/SkyRenderPath.h/.cpp`는 scene render pass의 첫 draw로 fullscreen sky shader를 호출한다. sky shader는 clear color 고정값 대신 `worldTicks`에서 계산한 실제 sun direction, 낮/밤 판정용 day direction, camera basis, FOV를 받아 view direction과 direction dot 값으로 하늘 위쪽/지평선/아래쪽 그라데이션, 일출/일몰 horizon glow, 태양 방향 glare를 계산한다.
-현재 구름 렌더링은 제거되어 있다. 별도 cloud render path, cloud shader, cloud noise texture, cloud low-res target, cloud composite pass, `cloudCoverage` 디버그 입력은 사용하지 않는다. scene render pass는 sky, sun/moon, terrain, player, particle, dropped item, selection을 그리고, 1인칭 viewmodel은 depth를 clear한 뒤 별도로 그린다.
+현재 구름 렌더링은 제거되어 있다. 별도 cloud render path, cloud shader, cloud noise texture, cloud low-res target, cloud composite pass, `cloudCoverage` 디버그 입력은 사용하지 않는다. scene render pass는 sky, sun/moon, terrain, 도가니 용탕 수면, player, particle, dropped item, selection을 그리고, 1인칭 viewmodel은 depth를 clear한 뒤 별도로 그린다.
 밤하늘은 지형의 시간대별 `skyBrightness`와 별개로 낮보다 훨씬 낮은 RGB ramp를 사용하고, 어두운 계조에서 줄무늬가 보이지 않도록 screen-space hash noise 기반의 약한 dither를 적용한다.
 하늘색 디버그를 위해 게임 화면에서 `[`를 누르고 있으면 하루 안의 시간이 해가 뜨는 방향으로 되감기고, `]`를 누르고 있으면 해가 지는 방향으로 빨리 진행된다. 이 입력은 `worldTicks`만 조정하므로 sky shader와 sun/moon sprite 위치가 같은 기준으로 움직인다.
 `src/renderer/RendererGameplayBridge.h/.cpp`는 block selection/edit/breaking, pickup/drop, inventory snapshot, block lookup/collision helper, gameplay 결과의 mesh/particle/audio 반영을 담당하는 `RendererGameplayBridge`를 담는다.
@@ -320,6 +321,13 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 `config/render.json` 파일 읽기와 값 검증은 `src/config/ConfigLoaders.h/.cpp`의 `config::loadRenderConfig`가 맡는다.
 물 normal mapping, Fresnel alpha, depth absorption, SSR은 현재 렌더러에 포함되어 있지 않다.
 
+도가니 내부 용탕은 청크 유체 mesh가 아니라 block entity 상태를 읽어 매 프레임 별도 수평 quad instance로 그린다.
+용탕 표면은 `DroppedItemRenderPath`의 instance buffer 구조를 재사용하지만, 텍스처는 item texture array가 아니라 fluid texture array를 바인딩한다.
+전용 `molten.frag`는 용탕 텍스처를 샘플링하고 scene color와 bloom source에 함께 기록한다.
+현재 표면 크기는 도가니 내부 구멍 기준 `0.60 x 0.60` 블록이고, 높이는 도가니 내부 바닥 `0.20`에서 최대 수면 `0.80`까지 `moltenAmount / 100` 비율로 올라간다.
+수면 중심은 도가니 지형 메쉬와 같은 블록 좌표 중심을 사용한다.
+용탕 수면은 렌더링에서 최소 block light 10으로 보이게 처리하지만, 월드 block light 전파 데이터에는 아직 반영하지 않는다.
+
 ## 포스트 프로세스와 블룸
 
 월드 씬은 swapchain 색상 포맷이 아니라 별도의 scene color target에 먼저 렌더링한다.
@@ -368,7 +376,7 @@ solid 지형은 bloom source를 검정으로 덮어 뒤쪽 bloom을 완전히 �
 - 파티클 index buffer는 quad 패턴이 고정이므로 buffer 생성 시 한 번 채우고 매 프레임 다시 업로드하지 않는다.
 - 파티클 vertex buffer는 persistent mapping 상태로 유지하며, 매 프레임 `ParticleRenderPath`의 재사용 scratch vector에 vertex를 다시 구성한 뒤 mapped pointer로 복사한다.
 
-씬 그리기 순서는 solid 블록, blend 블록, 유체, 3인칭 플레이어, 3인칭 손 아이템, 블록 파괴 파티클, 드랍 아이템, 선택 외곽선, 1인칭 viewmodel 순서다.
+씬 그리기 순서는 solid 블록, blend 블록, 유체, 도가니 용탕 수면, 3인칭 플레이어, 3인칭 손 아이템, 블록 파괴 파티클, 드랍 아이템, 선택 외곽선, 1인칭 viewmodel 순서다.
 1인칭 viewmodel은 마지막에 그리기 직전 scene depth를 clear하고, viewmodel끼리는 depth test/write를 사용한다.
 
 ## 드랍 아이템 렌더링

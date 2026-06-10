@@ -262,6 +262,7 @@ namespace dolbuto
             sectionStart = std::chrono::steady_clock::now();
             client_.worldRuntime.markMeshed(key);
             refreshFireEmittersForChunk(mesh.chunkX, mesh.chunkZ);
+            refreshCrucibleBlockEntitiesForChunk(mesh.chunkX, mesh.chunkZ);
             markMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sectionStart).count();
         }
         game::recordPerfMax(client_.diagnostics.perfMax, game::ClientPerfCounter::TerrainInstall, installMs);
@@ -548,6 +549,7 @@ namespace dolbuto
             static_cast<uint32_t>(MaxFramesInFlight + 1));
         chunk->genState = ChunkGenState::Meshed;
         refreshFireEmittersForChunk(chunkX, chunkZ);
+        refreshCrucibleBlockEntitiesForChunk(chunkX, chunkZ);
     }
 
     void RendererTerrainRuntimeBridge::rebuildEditedChunkMeshes(int blockX, int blockY, int blockZ)
@@ -754,4 +756,34 @@ namespace dolbuto
         }
     }
 
+    void RendererTerrainRuntimeBridge::refreshCrucibleBlockEntitiesForChunk(int chunkX, int chunkZ)
+    {
+        const RuntimeChunk* runtimeChunk = client_.worldRuntime.find(chunkKey(chunkX, chunkZ));
+        if (runtimeChunk == nullptr || !runtimeChunk->data || runtimeChunk->data->blocks.size() != ChunkBlockCount)
+        {
+            return;
+        }
+
+        const std::vector<BlockDefinition>& blocks = client_.content.blockDefinitions();
+        for (int y = 0; y < ChunkSizeY; ++y)
+        {
+            for (int localZ = 0; localZ < ChunkSizeZ; ++localZ)
+            {
+                for (int localX = 0; localX < ChunkSizeX; ++localX)
+                {
+                    const std::size_t index = static_cast<std::size_t>((y * ChunkSizeZ + localZ) * ChunkSizeX + localX);
+                    const uint16_t block = runtimeChunk->data->blocks[index];
+                    if (static_cast<std::size_t>(block) >= blocks.size() ||
+                        blocks[block].renderType != BlockRenderType::Crucible)
+                    {
+                        continue;
+                    }
+
+                    const int worldX = chunkX * ChunkSizeX + localX;
+                    const int worldZ = chunkZ * ChunkSizeZ + localZ;
+                    client_.worldRuntime.ensureCrucibleBlockEntityAtWorld(worldX, y, worldZ);
+                }
+            }
+        }
+    }
 }

@@ -40,6 +40,14 @@ namespace dolbuto::world
             uint16_t remainderCount = 0;
         };
 
+        struct SmeltProcessingResult
+        {
+            bool changed = false;
+            bool completed = false;
+            uint16_t outputFluidId = 0;
+            uint16_t outputAmount = 0;
+        };
+
         DroppedItemRuntime() = default;
         DroppedItemRuntime(WorldRuntime* worldRuntime, const std::vector<ItemDefinition>* itemDefinitions);
 
@@ -91,6 +99,20 @@ namespace dolbuto::world
             const std::vector<std::array<int, 3>>& cells,
             const std::vector<ItemProcessingRecipe>& recipes,
             const std::string& type,
+            uint32_t elapsedTicks,
+            const MarkDirtyFn& markDirty);
+        SmeltProcessingResult processCrucibleSmeltInAabb(
+            float minX,
+            float minY,
+            float minZ,
+            float maxX,
+            float maxY,
+            float maxZ,
+            const std::vector<ItemProcessingRecipe>& recipes,
+            uint16_t heatLevel,
+            uint16_t currentFluidId,
+            uint16_t currentAmount,
+            uint16_t capacity,
             uint32_t elapsedTicks,
             const MarkDirtyFn& markDirty);
         uint16_t replaceTargetItems(

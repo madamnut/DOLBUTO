@@ -29,12 +29,7 @@
             "type": "extruded_sprite",
             "texture": "rock_chunk"
         },
-        "tags": [],
-        "components": {
-            "placeable": {
-                "block": "rock"
-            }
-        }
+        "tags": []
     },
     {
         "id": 31,
@@ -1354,6 +1349,310 @@
         "heldRender": {
             "type": "extruded_sprite",
             "texture": "wood_shavings"
+        },
+        "tags": []
+    },
+    {
+        "id": 60,
+        "key": "unfired_mold_base",
+        "name": "Unfired Mold Base",
+        "stackSize": 1,
+        "slotTexture": "unfired_mold_base",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_mold_base"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_mold_base"
+        },
+        "tags": []
+    },
+    {
+        "id": 61,
+        "key": "unfired_small_plate_mold",
+        "name": "Unfired Small Plate Mold",
+        "stackSize": 1,
+        "slotTexture": "unfired_small_plate_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_small_plate_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_small_plate_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 62,
+        "key": "unfired_plate_mold",
+        "name": "Unfired Plate Mold",
+        "stackSize": 1,
+        "slotTexture": "unfired_plate_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_plate_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_plate_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 63,
+        "key": "unfired_large_plate_mold",
+        "name": "Unfired Large Plate Mold",
+        "stackSize": 1,
+        "slotTexture": "unfired_large_plate_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_large_plate_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_large_plate_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 64,
+        "key": "unfired_small_preform_mold",
+        "name": "Unfired Small Preform Mold",
+        "stackSize": 1,
+        "slotTexture": "unfired_small_preform_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_small_preform_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_small_preform_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 65,
+        "key": "unfired_preform_mold",
+        "name": "Unfired Preform Mold",
+        "stackSize": 1,
+        "slotTexture": "unfired_preform_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_preform_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_preform_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 66,
+        "key": "unfired_large_preform_mold",
+        "name": "Unfired Large Preform Mold",
+        "stackSize": 1,
+        "slotTexture": "unfired_large_preform_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_large_preform_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_large_preform_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 67,
+        "key": "unfired_short_rod_mold",
+        "name": "Unfired Short Rod Mold",
+        "stackSize": 1,
+        "slotTexture": "unfired_short_rod_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_short_rod_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_short_rod_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 68,
+        "key": "unfired_rod_mold",
+        "name": "Unfired Rod Mold",
+        "stackSize": 1,
+        "slotTexture": "unfired_rod_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_rod_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_rod_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 69,
+        "key": "unfired_long_rod_mold",
+        "name": "Unfired Long Rod Mold",
+        "stackSize": 1,
+        "slotTexture": "unfired_long_rod_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_long_rod_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "unfired_long_rod_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 70,
+        "key": "small_plate_mold",
+        "name": "Small Plate Mold",
+        "stackSize": 1,
+        "slotTexture": "small_plate_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "small_plate_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "small_plate_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 71,
+        "key": "plate_mold",
+        "name": "Plate Mold",
+        "stackSize": 1,
+        "slotTexture": "plate_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "plate_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "plate_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 72,
+        "key": "large_plate_mold",
+        "name": "Large Plate Mold",
+        "stackSize": 1,
+        "slotTexture": "large_plate_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "large_plate_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "large_plate_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 73,
+        "key": "small_preform_mold",
+        "name": "Small Preform Mold",
+        "stackSize": 1,
+        "slotTexture": "small_preform_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "small_preform_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "small_preform_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 74,
+        "key": "preform_mold",
+        "name": "Preform Mold",
+        "stackSize": 1,
+        "slotTexture": "preform_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "preform_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "preform_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 75,
+        "key": "large_preform_mold",
+        "name": "Large Preform Mold",
+        "stackSize": 1,
+        "slotTexture": "large_preform_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "large_preform_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "large_preform_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 76,
+        "key": "short_rod_mold",
+        "name": "Short Rod Mold",
+        "stackSize": 1,
+        "slotTexture": "short_rod_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "short_rod_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "short_rod_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 77,
+        "key": "rod_mold",
+        "name": "Rod Mold",
+        "stackSize": 1,
+        "slotTexture": "rod_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "rod_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "rod_mold"
+        },
+        "tags": []
+    },
+    {
+        "id": 78,
+        "key": "long_rod_mold",
+        "name": "Long Rod Mold",
+        "stackSize": 1,
+        "slotTexture": "long_rod_mold",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "long_rod_mold"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "long_rod_mold"
         },
         "tags": []
     }

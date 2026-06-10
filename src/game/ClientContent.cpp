@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -772,6 +773,38 @@ namespace dolbuto::game
             }
         }
 
+        const std::vector<char> fluidDefinitionData = readContentFile(assetDirectory / "data" / "fluids.json");
+        const std::string fluidDefinitionText(fluidDefinitionData.begin(), fluidDefinitionData.end());
+        const std::vector<data::ParsedFluidDefinition> parsedFluids = data::parseFluidDefinitions(fluidDefinitionText);
+        content.fluidDefinitions_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
+        for (const data::ParsedFluidDefinition& definition : parsedFluids)
+        {
+            FluidDefinition fluidDefinition{};
+            fluidDefinition.name = definition.name;
+            fluidDefinition.texture = definition.texture.empty() && definition.name == "water"
+                ? definition.name
+                : definition.texture;
+            fluidDefinition.lightAttenuation = definition.lightAttenuation;
+            if (!fluidDefinition.texture.empty() && fluidDefinition.name != "none")
+            {
+                const auto layerIt = std::find(
+                    content.fluidTextureNames_.begin(),
+                    content.fluidTextureNames_.end(),
+                    fluidDefinition.texture);
+                if (layerIt == content.fluidTextureNames_.end())
+                {
+                    fluidDefinition.textureLayer = static_cast<uint32_t>(content.fluidTextureNames_.size());
+                    content.fluidTextureNames_.push_back(fluidDefinition.texture);
+                }
+                else
+                {
+                    fluidDefinition.textureLayer = static_cast<uint32_t>(std::distance(content.fluidTextureNames_.begin(), layerIt));
+                }
+            }
+            content.fluidDefinitions_[definition.id] = fluidDefinition;
+            content.fluidIdByName_[definition.name] = definition.id;
+        }
+
         const std::filesystem::path interactionPath = assetDirectory / "data" / "recipes" / "interactions.json";
         if (std::filesystem::exists(interactionPath))
         {
@@ -891,35 +924,84 @@ namespace dolbuto::game
             }
         }
 
-        const std::filesystem::path processingPath = assetDirectory / "data" / "recipes" / "processings.json";
-        if (std::filesystem::exists(processingPath))
+        auto addProcessingRecipes = [&](const std::vector<data::ParsedProcessingDefinition>& parsedProcessings, const std::string& fallbackType)
         {
-            const std::vector<char> processingData = readContentFile(processingPath);
-            const std::string processingText(processingData.begin(), processingData.end());
-            const std::vector<data::ParsedProcessingDefinition> parsedProcessings = data::parseProcessingDefinitions(processingText);
             for (const data::ParsedProcessingDefinition& definition : parsedProcessings)
             {
+                const std::string type = definition.type.empty() ? fallbackType : definition.type;
+                if (type.empty())
+                {
+                    log::warn("Processing recipe has no process type: " + definition.input);
+                    continue;
+                }
+
                 const auto inputIt = content.itemIdByKey_.find(definition.input);
                 if (inputIt == content.itemIdByKey_.end())
                 {
-                    log::warn("Processing recipe references unknown input item key: " + definition.type + " -> " + definition.input);
+                    log::warn("Processing recipe references unknown input item key: " + type + " -> " + definition.input);
                     continue;
                 }
 
                 const auto outputIt = content.itemIdByKey_.find(definition.output);
-                if (outputIt == content.itemIdByKey_.end())
+                if (!definition.output.empty() && outputIt == content.itemIdByKey_.end())
                 {
-                    log::warn("Processing recipe references unknown output item key: " + definition.type + " -> " + definition.output);
+                    log::warn("Processing recipe references unknown output item key: " + type + " -> " + definition.output);
                     continue;
+                }
+                uint16_t outputFluidId = 0;
+                if (!definition.outputFluid.empty())
+                {
+                    const auto outputFluidIt = content.fluidIdByName_.find(definition.outputFluid);
+                    if (outputFluidIt == content.fluidIdByName_.end())
+                    {
+                        log::warn("Processing recipe references unknown output fluid key: " + type + " -> " + definition.outputFluid);
+                        continue;
+                    }
+                    outputFluidId = outputFluidIt->second;
                 }
 
                 ItemProcessingRecipe recipe{};
-                recipe.type = definition.type;
+                recipe.type = type;
                 recipe.inputItemId = inputIt->second;
-                recipe.outputItemId = outputIt->second;
+                recipe.outputItemId = definition.output.empty() ? 0 : outputIt->second;
                 recipe.outputCount = definition.outputCount == 0 ? 1 : definition.outputCount;
+                recipe.outputFluidId = outputFluidId;
+                recipe.outputAmount = definition.outputAmount;
+                recipe.requiredHeatLevel = definition.requiredHeatLevel;
                 recipe.requiredTicks = definition.requiredTicks;
                 content.itemProcessingRecipes_.push_back(std::move(recipe));
+            }
+        };
+
+        const std::filesystem::path processingDirectory = assetDirectory / "data" / "recipes" / "processings";
+        if (std::filesystem::exists(processingDirectory) && std::filesystem::is_directory(processingDirectory))
+        {
+            std::vector<std::filesystem::path> processingPaths;
+            for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(processingDirectory))
+            {
+                if (entry.is_regular_file() && entry.path().extension() == ".json")
+                {
+                    processingPaths.push_back(entry.path());
+                }
+            }
+            std::sort(processingPaths.begin(), processingPaths.end());
+            for (const std::filesystem::path& processingPath : processingPaths)
+            {
+                const std::vector<char> processingData = readContentFile(processingPath);
+                const std::string processingText(processingData.begin(), processingData.end());
+                addProcessingRecipes(
+                    data::parseProcessingDefinitions(processingText),
+                    processingPath.stem().string());
+            }
+        }
+        else
+        {
+            const std::filesystem::path processingPath = assetDirectory / "data" / "recipes" / "processings.json";
+            if (std::filesystem::exists(processingPath))
+            {
+                const std::vector<char> processingData = readContentFile(processingPath);
+                const std::string processingText(processingData.begin(), processingData.end());
+                addProcessingRecipes(data::parseProcessingDefinitions(processingText), "");
             }
         }
 
@@ -977,18 +1059,6 @@ namespace dolbuto::game
             {
                 log::warn("Block model slot icon generation failed: " + item.key);
             }
-        }
-
-        const std::vector<char> fluidDefinitionData = readContentFile(assetDirectory / "data" / "fluids.json");
-        const std::string fluidDefinitionText(fluidDefinitionData.begin(), fluidDefinitionData.end());
-        const std::vector<data::ParsedFluidDefinition> parsedFluids = data::parseFluidDefinitions(fluidDefinitionText);
-        content.fluidDefinitions_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
-        for (const data::ParsedFluidDefinition& definition : parsedFluids)
-        {
-            FluidDefinition fluidDefinition{};
-            fluidDefinition.name = definition.name;
-            fluidDefinition.lightAttenuation = definition.lightAttenuation;
-            content.fluidDefinitions_[definition.id] = fluidDefinition;
         }
 
         auto lightAttenuationTables = std::make_shared<LightAttenuationTables>();
@@ -1063,6 +1133,11 @@ namespace dolbuto::game
         return blockIdByName_;
     }
 
+    const std::unordered_map<std::string, uint16_t>& ClientContent::fluidIdByName() const
+    {
+        return fluidIdByName_;
+    }
+
     const std::vector<ItemInteractionRecipe>& ClientContent::itemInteractionRecipes() const
     {
         return itemInteractionRecipes_;
@@ -1076,6 +1151,11 @@ namespace dolbuto::game
     const std::vector<std::string>& ClientContent::blockTextureNames() const
     {
         return blockTextureNames_;
+    }
+
+    const std::vector<std::string>& ClientContent::fluidTextureNames() const
+    {
+        return fluidTextureNames_;
     }
 
     const std::vector<std::string>& ClientContent::itemTextureNames() const

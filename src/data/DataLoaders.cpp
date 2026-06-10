@@ -1184,6 +1184,10 @@ namespace dolbuto::data
             {
                 definition.name = *name;
             }
+            if (const std::optional<std::string> texture = jsonStringField(object, "texture"); texture.has_value())
+            {
+                definition.texture = *texture;
+            }
             if (const std::optional<int> lightAttenuation = jsonIntField(object, "lightAttenuation"); lightAttenuation.has_value())
             {
                 definition.lightAttenuation = static_cast<uint8_t>(std::clamp(*lightAttenuation, 0, 15));
@@ -1284,17 +1288,28 @@ namespace dolbuto::data
             {
                 definition.output = *output;
             }
+            if (const std::optional<std::string> outputFluid = jsonStringField(object, "outputFluid"); outputFluid.has_value())
+            {
+                definition.outputFluid = *outputFluid;
+            }
             if (const std::optional<int> outputCount = jsonIntField(object, "outputCount"); outputCount.has_value())
             {
                 definition.outputCount = static_cast<uint16_t>(std::clamp(*outputCount, 1, static_cast<int>(std::numeric_limits<uint16_t>::max())));
+            }
+            if (const std::optional<int> outputAmount = jsonIntField(object, "outputAmount"); outputAmount.has_value())
+            {
+                definition.outputAmount = static_cast<uint16_t>(std::clamp(*outputAmount, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
+            }
+            if (const std::optional<int> requiredHeatLevel = jsonIntField(object, "requiredHeatLevel"); requiredHeatLevel.has_value())
+            {
+                definition.requiredHeatLevel = static_cast<uint16_t>(std::clamp(*requiredHeatLevel, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
             }
             if (const std::optional<int> requiredTicks = jsonIntField(object, "requiredTicks"); requiredTicks.has_value())
             {
                 definition.requiredTicks = static_cast<uint32_t>(std::max(*requiredTicks, 0));
             }
-            if (!definition.type.empty() &&
-                !definition.input.empty() &&
-                !definition.output.empty() &&
+            if (!definition.input.empty() &&
+                (!definition.output.empty() || !definition.outputFluid.empty()) &&
                 definition.requiredTicks > 0)
             {
                 definitions.push_back(std::move(definition));

@@ -35,9 +35,11 @@ namespace dolbuto::game
         const std::vector<ItemDefinition>& itemDefinitions() const;
         const std::unordered_map<std::string, uint16_t>& itemIdByKey() const;
         const std::unordered_map<std::string, uint16_t>& blockIdByName() const;
+        const std::unordered_map<std::string, uint16_t>& fluidIdByName() const;
         const std::vector<ItemInteractionRecipe>& itemInteractionRecipes() const;
         const std::vector<ItemProcessingRecipe>& itemProcessingRecipes() const;
         const std::vector<std::string>& blockTextureNames() const;
+        const std::vector<std::string>& fluidTextureNames() const;
         const std::vector<std::string>& itemTextureNames() const;
         const std::vector<PropModelBinding>& propModelBindings() const;
         const std::unordered_map<uint16_t, assets::PropMesh>& propMeshesByBlock() const;
@@ -52,9 +54,11 @@ namespace dolbuto::game
         std::vector<ItemDefinition> itemDefinitions_;
         std::unordered_map<std::string, uint16_t> itemIdByKey_;
         std::unordered_map<std::string, uint16_t> blockIdByName_;
+        std::unordered_map<std::string, uint16_t> fluidIdByName_;
         std::vector<ItemInteractionRecipe> itemInteractionRecipes_;
         std::vector<ItemProcessingRecipe> itemProcessingRecipes_;
         std::vector<std::string> blockTextureNames_;
+        std::vector<std::string> fluidTextureNames_;
         std::vector<std::string> itemTextureNames_;
         std::vector<PropModelBinding> propModelBindings_;
         std::unordered_map<uint16_t, assets::PropMesh> propMeshesByBlock_;

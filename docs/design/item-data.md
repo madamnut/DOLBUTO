@@ -90,7 +90,7 @@ assets/textures/item/*.png
 - `id`: 부호 없는 숫자 아이템 ID
 - `key`: 안정적인 `snake_case` 아이템 키
 - `name`: 플레이어에게 표시되는 이름
-- `stackSize`: 최대 스택 개수. 현재 내구도 없는 실제 아이템은 `99`, 내구도 있는 아이템은 `1`을 사용한다.
+- `stackSize`: 최대 스택 개수. 일반 소모/재료 아이템은 `99`, 내구도 있는 아이템과 몰드처럼 인스턴스 상태를 가질 수 있는 아이템은 `1`을 사용한다.
 - `slotTexture`: 확장자를 제외한 인벤토리/핫바 슬롯 텍스처 이름. `slotRender`를 생략하거나 `sprite`로 둘 때 사용한다.
 - `slotRender.type`: 인벤토리/핫바 슬롯 아이콘 렌더 타입. 현재 `sprite`, `block_model`을 사용한다.
 - `slotRender.texture`: `sprite` 슬롯 아이콘에서 `slotTexture`를 대체할 텍스처 이름
@@ -142,6 +142,7 @@ assets/textures/item/*.png
 `components.fuel.heatLevel`은 해당 연료가 낼 수 있는 처리 온도 단계다. `burnTimeTicks > 0`이고 `heatLevel`을 생략하면 런타임에서 1로 처리한다.
 현재는 0레벨 연료를 구분하지 않으며, 실제 연료 단계는 1부터 시작한다.
 `heatLevel = 1`은 약한 식물성/얇은 연료, `heatLevel = 2`는 목질 연료, `heatLevel = 3`은 숯/석탄 같은 고열 연료로 사용한다.
+`heatLevel = 4`는 coke 같은 차후 고온 연료용으로 예약하며, 현재 등록된 연료 아이템에는 아직 없다.
 `components.fuel.remainder`는 해당 연료로 추가된 연소 시간이 끝나는 시점에 드랍되는 부산물이다.
 재 생성량은 런타임 계산식이 아니라 아이템 데이터에 명시한다.
 현재 게임 시간은 초당 20틱 기준이며, 연료로 쓰는 아이템은 최소 100틱 이상을 사용한다.
@@ -199,6 +200,11 @@ fire 셀에 있는 아이템은 연료로 소비될 수 있고, fire 중심 같�
 `firing`은 leak이 정확히 1개인 작업 공간에서 `heatLevel >= 3` 연료를 소비했을 때 진행되며, 현재 굽기 전 점토 아이템을 구운 결과물로 변환한다.
 둘 다 처리 시간은 600틱이다.
 `grog`는 구운 점토를 잘게 부순 내화 보강재이며, `clay_brick`을 `smash`하면 4개, `clay_pot`을 `smash`하면 8개를 얻는다.
+
+`smelt`는 도가니 내부 드랍 아이템을 금속 용탕으로 바꾸는 processing이다.
+불은 위 블록에 열 단계만 제공하고, 실제 처리 대상 선택과 진행도 증가는 도가니 block entity가 맡는다.
+현재 금속 원재료는 10초 동안 처리되면 도가니 내부의 같은 금속 용탕량을 `10` 증가시킨다.
+도가니는 한 번에 한 종류의 용탕만 담을 수 있으므로 이미 용탕이 들어 있으면 같은 금속 원재료만 계속 처리한다.
 
 ## 드랍 아이템 물리와 렌더링
 
@@ -264,11 +270,17 @@ dirt_pile.png
 grog.png
 grass_scrap.png
 leaf.png
+large_plate_mold.png
+large_preform_mold.png
+long_rod_mold.png
 long_wooden_stick.png
 long_plant_twine.png
+mold_base.png
+plate_mold.png
 plant_fiber.png
 plant_twine.png
 plant.png
+preform_mold.png
 raw_copper.png
 raw_gold.png
 raw_iron.png
@@ -278,16 +290,30 @@ raw_silver.png
 raw_tin.png
 raw_zinc.png
 rock_chunk.png
+rod_mold.png
 sand_pile.png
 seed.png
 short_plant_twine.png
+short_rod_mold.png
 short_wooden_stick.png
+small_plate_mold.png
+small_preform_mold.png
 stone_pounder.png
 stone_shard.png
 tar.png
 unfired_clay_brick.png
 unfired_clay_pot.png
+unfired_large_plate_mold.png
+unfired_large_preform_mold.png
+unfired_long_rod_mold.png
+unfired_mold_base.png
+unfired_plate_mold.png
+unfired_preform_mold.png
 unfired_refractory_clay_brick.png
+unfired_rod_mold.png
+unfired_short_rod_mold.png
+unfired_small_plate_mold.png
+unfired_small_preform_mold.png
 wood_shavings.png
 wooden_peg.png
 wooden_plank.png
@@ -296,6 +322,8 @@ wooden_stick.png
 
 점토/가공 재료 계열 일반 아이템은 `extruded_sprite` 렌더 타입과 `stackSize = 99`를 사용한다.
 도가니 아이템은 `block_model`, `modelShape = "crucible"`, `modelTexture`를 사용해 재질만 바꾼 도가니 형상으로 표시한다.
+몰드 아이템은 `extruded_sprite` 렌더 타입과 `stackSize = 1`을 사용한다.
+현재 `mold_base.png`는 더미 텍스처로만 두고, 실제 아이템 데이터에는 `unfired_mold_base`만 등록한다.
 
 ```text
 clay_pile                              id 43
@@ -313,6 +341,27 @@ wood_shavings                          id 54
 unfired_refractory_clay_crucible       id 55
 refractory_clay_crucible               id 56
 dirt_half_slab                         id 57
+torch                                  id 58
+lit_torch                              id 59
+unfired_mold_base                      id 60
+unfired_small_plate_mold               id 61
+unfired_plate_mold                     id 62
+unfired_large_plate_mold               id 63
+unfired_small_preform_mold             id 64
+unfired_preform_mold                   id 65
+unfired_large_preform_mold             id 66
+unfired_short_rod_mold                 id 67
+unfired_rod_mold                       id 68
+unfired_long_rod_mold                  id 69
+small_plate_mold                       id 70
+plate_mold                             id 71
+large_plate_mold                       id 72
+small_preform_mold                     id 73
+preform_mold                           id 74
+large_preform_mold                     id 75
+short_rod_mold                         id 76
+rod_mold                               id 77
+long_rod_mold                          id 78
 ```
 
 ## 현재 아이템 목록
@@ -536,7 +585,7 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 - `sprite` 슬롯 렌더는 비어 있지 않은 `slotTexture` 또는 `slotRender.texture`를 사용한다.
 - `extruded_sprite` 렌더 타입은 비어 있지 않은 `droppedRender.texture`, `heldRender.texture`를 사용한다.
 - `key`, `slotTexture`, `slotRender.texture`, `droppedRender.texture`, `heldRender.texture`는 소문자 `snake_case`를 사용해야 한다. 생성 슬롯 텍스처는 `generated/{item_key}_slot` 경로를 사용한다.
-- 내구도 없는 실제 아이템의 `stackSize`는 `99`, 내구도 있는 아이템의 `stackSize`는 `1`이어야 한다.
+- 일반 소모/재료 아이템의 `stackSize`는 `99`, 내구도 있는 아이템과 몰드처럼 인스턴스 상태를 가질 수 있는 아이템의 `stackSize`는 `1`이어야 한다.
 - `droppedRender.type`, `heldRender.type`은 유효한 아이템 렌더 타입이어야 한다.
 - `block_model` 렌더 타입은 `modelBlock`으로 렌더 대상 블록을 찾고, 생략 시 `components.placeable.block`을 사용한다.
 - `slotRender.type = "block_model"`은 같은 표시 대상 블록으로 슬롯 아이콘 대상 블록을 찾는다.
@@ -564,6 +613,7 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 삽입에 실패하면 드랍 아이템은 월드에 남는다.
 드랍 아이템 엔티티는 소유 청크 payload에 `entityId`, 로컬 위치, 속도, 접지 플래그, `itemId`, `count`, `durability`, `burnTicksRemaining`, `processingTicks`, `processingType`을 저장한다.
 `processingTicks`와 `processingType`은 [[recipe/processings]]의 시간 기반 처리 진행도이며, 같은 아이템이라도 내구도, 잔여 연소 시간, 진행도, 처리 종류가 다른 드랍 스택은 병합하지 않는다.
+현재 `processingType`은 `0 none`, `1 pyrolysis`, `2 firing`, `3 smelt`를 사용한다.
 획득 진행 상태와 렌더 전용 회전/스핀은 저장하지 않는다.
 
 ## 런타임 인벤토리
@@ -685,7 +735,6 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 현재 설치 아이템 기준:
 
 ```text
-rock_chunk: components.placeable.block rock
 packed_dirt: components.placeable.block dirt
 dirt_slab: components.placeable.block dirt_slab
 dirt_half_slab: components.placeable.block dirt_half_slab, modelBlock dirt, modelShape half_slab

@@ -1,0 +1,22 @@
+[
+    {
+        "input": "unfired_clay_brick",
+        "output": "clay_brick",
+        "requiredTicks": 600
+    },
+    {
+        "input": "unfired_clay_pot",
+        "output": "clay_pot",
+        "requiredTicks": 600
+    },
+    {
+        "input": "unfired_refractory_clay_brick",
+        "output": "refractory_clay_brick",
+        "requiredTicks": 600
+    },
+    {
+        "input": "unfired_refractory_clay_crucible",
+        "output": "refractory_clay_crucible",
+        "requiredTicks": 600
+    }
+]

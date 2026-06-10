@@ -1,0 +1,44 @@
+[
+    {
+        "input": "raw_tin",
+        "outputFluid": "molten_tin",
+        "outputAmount": 10,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "raw_zinc",
+        "outputFluid": "molten_zinc",
+        "outputAmount": 10,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "raw_silver",
+        "outputFluid": "molten_silver",
+        "outputAmount": 10,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "raw_gold",
+        "outputFluid": "molten_gold",
+        "outputAmount": 10,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "raw_copper",
+        "outputFluid": "molten_copper",
+        "outputAmount": 10,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "raw_iron",
+        "outputFluid": "molten_iron",
+        "outputAmount": 10,
+        "requiredHeatLevel": 4,
+        "requiredTicks": 200
+    }
+]
