@@ -5,6 +5,15 @@
 
 namespace dolbuto::gameplay
 {
+    namespace
+    {
+        bool isMoltenCarrier(const ItemDefinition& definition)
+        {
+            return std::find(definition.useActions.begin(), definition.useActions.end(), "scoop") != definition.useActions.end() ||
+                std::find(definition.useActions.begin(), definition.useActions.end(), "pour") != definition.useActions.end();
+        }
+    }
+
     size_t PlayerInventory::slotCount() const
     {
         return slots_.size();
@@ -106,11 +115,15 @@ namespace dolbuto::gameplay
             target.count = moved;
             target.durability = stack.durability;
             target.burnTicksRemaining = stack.burnTicksRemaining;
+            target.moltenFluidId = stack.moltenFluidId;
+            target.moltenAmount = stack.moltenAmount;
             stack.count = static_cast<uint16_t>(stack.count - moved);
             if (stack.count == 0)
             {
                 stack.durability = 0;
                 stack.burnTicksRemaining = 0;
+                stack.moltenFluidId = 0;
+                stack.moltenAmount = 0;
             }
         }
 
@@ -264,6 +277,10 @@ namespace dolbuto::gameplay
         {
             return false;
         }
+        if (slot.moltenFluidId != stack.moltenFluidId || slot.moltenAmount != stack.moltenAmount)
+        {
+            return false;
+        }
         return slot.count < itemDefinitions[slot.itemId].stackSize;
     }
 
@@ -334,6 +351,8 @@ namespace dolbuto::gameplay
             cursorStack_.count = taken;
             cursorStack_.durability = target.durability;
             cursorStack_.burnTicksRemaining = target.burnTicksRemaining;
+            cursorStack_.moltenFluidId = target.moltenFluidId;
+            cursorStack_.moltenAmount = target.moltenAmount;
             target.count = static_cast<uint16_t>(target.count - taken);
             if (target.count == 0)
             {
@@ -348,6 +367,8 @@ namespace dolbuto::gameplay
             target.count = 1;
             target.durability = cursorStack_.durability;
             target.burnTicksRemaining = cursorStack_.burnTicksRemaining;
+            target.moltenFluidId = cursorStack_.moltenFluidId;
+            target.moltenAmount = cursorStack_.moltenAmount;
             cursorStack_.count = static_cast<uint16_t>(cursorStack_.count - 1u);
             if (cursorStack_.count == 0)
             {
@@ -451,6 +472,20 @@ namespace dolbuto::gameplay
         else
         {
             stack.burnTicksRemaining = 0;
+        }
+        if (isMoltenCarrier(definition))
+        {
+            stack.count = std::min<uint16_t>(stack.count, 1u);
+            if (stack.moltenAmount == 0)
+            {
+                stack.moltenFluidId = 0;
+            }
+            stack.moltenAmount = std::min<uint16_t>(stack.moltenAmount, 10u);
+        }
+        else
+        {
+            stack.moltenFluidId = 0;
+            stack.moltenAmount = 0;
         }
         return stack;
     }

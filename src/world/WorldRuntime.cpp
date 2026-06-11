@@ -788,6 +788,58 @@ namespace dolbuto::world
         return &chunk->data->blockEntities.back();
     }
 
+    BlockEntity* WorldRuntime::ensureMoldBlockEntityAtWorld(int x, int y, int z)
+    {
+        if (y < 0 || y >= ChunkSizeY)
+        {
+            return nullptr;
+        }
+
+        const int chunkX = floorDiv(x, ChunkSizeX);
+        const int chunkZ = floorDiv(z, ChunkSizeZ);
+        RuntimeChunk* chunk = findChunk(chunkX, chunkZ);
+        if (chunk == nullptr || !chunk->data)
+        {
+            return nullptr;
+        }
+
+        const uint8_t localX = static_cast<uint8_t>(positiveModulo(x, ChunkSizeX));
+        const uint8_t localZ = static_cast<uint8_t>(positiveModulo(z, ChunkSizeZ));
+        const uint16_t localY = static_cast<uint16_t>(y);
+        for (BlockEntity& entity : chunk->data->blockEntities)
+        {
+            if (entity.localX == localX && entity.localZ == localZ && entity.y == localY)
+            {
+                bool changed = false;
+                if (entity.type != BlockEntityType::Mold)
+                {
+                    entity = {};
+                    entity.type = BlockEntityType::Mold;
+                    entity.localX = localX;
+                    entity.localZ = localZ;
+                    entity.y = localY;
+                    changed = true;
+                }
+                scheduleBlockTickAtWorld(x, y, z, BlockTickReasonSelfBlockChanged);
+                if (changed)
+                {
+                    markDataDirty(*chunk);
+                }
+                return &entity;
+            }
+        }
+
+        BlockEntity entity{};
+        entity.type = BlockEntityType::Mold;
+        entity.localX = localX;
+        entity.localZ = localZ;
+        entity.y = localY;
+        chunk->data->blockEntities.push_back(entity);
+        scheduleBlockTickAtWorld(x, y, z, BlockTickReasonSelfBlockChanged);
+        markDataDirty(*chunk);
+        return &chunk->data->blockEntities.back();
+    }
+
     bool WorldRuntime::removeBlockEntityAtWorld(int x, int y, int z)
     {
         if (y < 0 || y >= ChunkSizeY)

@@ -68,16 +68,9 @@ namespace dolbuto
         constexpr size_t PlayerInventorySlotCount = gameplay::PlayerInventory::SlotCount;
         constexpr size_t PlayerStatsFileSize = sizeof(uint16_t) * 6u;
         constexpr size_t PlayerStateBaseFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t) * 2u + PlayerStatsFileSize;
-        constexpr size_t PlayerInventoryLegacyFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 2u;
-        constexpr size_t PlayerInventoryDurabilityFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 3u;
-        constexpr size_t PlayerInventoryFileSize = PlayerInventorySlotCount * sizeof(uint16_t) * 4u;
-        constexpr size_t PlayerOffhandDurabilityFileSize = sizeof(uint16_t) * 3u;
-        constexpr size_t PlayerOffhandFileSize = sizeof(uint16_t) * 4u;
-        constexpr size_t PlayerStateLegacyFileSize = PlayerStateBaseFileSize + PlayerInventoryLegacyFileSize;
-        constexpr size_t PlayerStateDurabilityInventoryFileSize = PlayerStateBaseFileSize + PlayerInventoryDurabilityFileSize;
-        constexpr size_t PlayerStateDurabilityFileSize = PlayerStateDurabilityInventoryFileSize + PlayerOffhandDurabilityFileSize;
-        constexpr size_t PlayerStateInventoryFileSize = PlayerStateBaseFileSize + PlayerInventoryFileSize;
-        constexpr size_t PlayerStateFileSize = PlayerStateInventoryFileSize + PlayerOffhandFileSize;
+        constexpr size_t PlayerStackStateBaseFileSize = sizeof(uint16_t) * 4u + sizeof(uint8_t);
+        constexpr size_t PlayerStateFileSize = PlayerStateBaseFileSize + (PlayerInventorySlotCount + 1u) * PlayerStackStateBaseFileSize;
+        constexpr uint8_t ItemStackStateMolten = 1u << 0u;
         constexpr size_t WorldStateFileSize = sizeof(uint64_t) * 4u;
         constexpr uint64_t TicksPerMinute = 20;
         constexpr uint64_t MinutesPerHour = 60;
@@ -570,6 +563,36 @@ namespace dolbuto
             double value = 0.0;
             std::memcpy(&value, &bits, sizeof(value));
             return value;
+        }
+
+        void writeItemStackState(std::vector<uint8_t>& bytes, const ItemStack& stack)
+        {
+            uint8_t flags = 0;
+            if (stack.moltenFluidId != 0 && stack.moltenAmount != 0)
+            {
+                flags |= ItemStackStateMolten;
+            }
+            writeU8(bytes, flags);
+            if ((flags & ItemStackStateMolten) != 0)
+            {
+                writeU16(bytes, stack.moltenFluidId);
+                writeU16(bytes, stack.moltenAmount);
+            }
+        }
+
+        void readItemStackState(const std::vector<uint8_t>& bytes, size_t& offset, ItemStack& stack)
+        {
+            const uint8_t flags = readU8(bytes, offset);
+            if ((flags & ItemStackStateMolten) != 0)
+            {
+                stack.moltenFluidId = readU16(bytes, offset);
+                stack.moltenAmount = readU16(bytes, offset);
+            }
+            else
+            {
+                stack.moltenFluidId = 0;
+                stack.moltenAmount = 0;
+            }
         }
     }
 
@@ -2577,11 +2600,8 @@ namespace dolbuto
         file.seekg(0, std::ios::end);
         const std::streamoff fileSize = file.tellg();
         file.seekg(0, std::ios::beg);
-        if (fileSize != static_cast<std::streamoff>(PlayerStateFileSize) &&
-            fileSize != static_cast<std::streamoff>(PlayerStateInventoryFileSize) &&
-            fileSize != static_cast<std::streamoff>(PlayerStateDurabilityFileSize) &&
-            fileSize != static_cast<std::streamoff>(PlayerStateDurabilityInventoryFileSize) &&
-            fileSize != static_cast<std::streamoff>(PlayerStateLegacyFileSize))
+        constexpr size_t PlayerStateMinFileSize = PlayerStateBaseFileSize + (PlayerInventorySlotCount + 1u) * PlayerStackStateBaseFileSize;
+        if (fileSize < static_cast<std::streamoff>(PlayerStateMinFileSize))
         {
             log::warn("Player state file has unsupported size, using default player state.");
             previousPlayerPosition_ = playerPosition_;
@@ -2617,27 +2637,20 @@ namespace dolbuto
             stats.maxThirst = readU16(bytes, offset);
             stats.clamp();
             std::array<ItemStack, PlayerInventorySlotCount> inventorySlots{};
-            const bool hasBurnTicks = bytes.size() == PlayerStateFileSize || bytes.size() == PlayerStateInventoryFileSize;
-            const bool hasDurability = hasBurnTicks ||
-                bytes.size() == PlayerStateDurabilityFileSize ||
-                bytes.size() == PlayerStateDurabilityInventoryFileSize;
-            const bool hasOffhandSlot = bytes.size() == PlayerStateFileSize || bytes.size() == PlayerStateDurabilityFileSize;
-            const bool offhandHasBurnTicks = bytes.size() == PlayerStateFileSize;
             for (ItemStack& slot : inventorySlots)
             {
                 slot.itemId = readU16(bytes, offset);
                 slot.count = readU16(bytes, offset);
-                slot.durability = hasDurability ? readU16(bytes, offset) : 0;
-                slot.burnTicksRemaining = hasBurnTicks ? readU16(bytes, offset) : 0;
+                slot.durability = readU16(bytes, offset);
+                slot.burnTicksRemaining = readU16(bytes, offset);
+                readItemStackState(bytes, offset, slot);
             }
             ItemStack offhandSlot{};
-            if (hasOffhandSlot)
-            {
-                offhandSlot.itemId = readU16(bytes, offset);
-                offhandSlot.count = readU16(bytes, offset);
-                offhandSlot.durability = readU16(bytes, offset);
-                offhandSlot.burnTicksRemaining = offhandHasBurnTicks ? readU16(bytes, offset) : 0;
-            }
+            offhandSlot.itemId = readU16(bytes, offset);
+            offhandSlot.count = readU16(bytes, offset);
+            offhandSlot.durability = readU16(bytes, offset);
+            offhandSlot.burnTicksRemaining = readU16(bytes, offset);
+            readItemStackState(bytes, offset, offhandSlot);
 
             if (!std::isfinite(x) ||
                 !std::isfinite(y) ||
@@ -2745,12 +2758,14 @@ namespace dolbuto
                 writeU16(bytes, slot.count);
                 writeU16(bytes, slot.durability);
                 writeU16(bytes, slot.burnTicksRemaining);
+                writeItemStackState(bytes, slot);
             }
             const ItemStack offhandSlot = runtime_ != nullptr ? runtime_->gameplay().offhandSlot() : ItemStack{};
             writeU16(bytes, offhandSlot.itemId);
             writeU16(bytes, offhandSlot.count);
             writeU16(bytes, offhandSlot.durability);
             writeU16(bytes, offhandSlot.burnTicksRemaining);
+            writeItemStackState(bytes, offhandSlot);
 
             std::ofstream file(playerStatePath(), std::ios::binary | std::ios::trunc);
             if (!file.is_open())

@@ -127,6 +127,10 @@ namespace dolbuto::game
             {
                 return {1.0f, 1.0f, 1.0f, false, true};
             }
+            if (value == "small_crucible")
+            {
+                return {0.5f, 0.5f, 0.5f, false, true};
+            }
             throw std::runtime_error("Unknown item block model shape: " + value);
         }
 
@@ -188,6 +192,10 @@ namespace dolbuto::game
             if (value == "crucible")
             {
                 return BlockRenderType::Crucible;
+            }
+            if (value == "mold")
+            {
+                return BlockRenderType::Mold;
             }
             return BlockRenderType::None;
         }
@@ -471,6 +479,10 @@ namespace dolbuto::game
             itemDefinition.slotTexture = slotTexture;
             itemDefinition.droppedTexture = droppedTexture;
             itemDefinition.heldTexture = heldTexture;
+            itemDefinition.droppedBottomTexture = definition.droppedBottomTexture;
+            itemDefinition.droppedTopTexture = definition.droppedTopTexture;
+            itemDefinition.heldBottomTexture = definition.heldBottomTexture;
+            itemDefinition.heldTopTexture = definition.heldTopTexture;
             itemDefinition.useActions = definition.useActions;
             itemDefinition.breakActions = definition.breakActions;
             itemDefinition.placeActions = definition.placeActions;
@@ -502,6 +514,22 @@ namespace dolbuto::game
             if (heldTexture != "none")
             {
                 itemDefinition.heldTextureLayer = layerForItemTexture(heldTexture);
+            }
+            if (itemDefinition.droppedBottomTexture != "none")
+            {
+                itemDefinition.droppedBottomTextureLayer = layerForItemTexture(itemDefinition.droppedBottomTexture);
+            }
+            if (itemDefinition.droppedTopTexture != "none")
+            {
+                itemDefinition.droppedTopTextureLayer = layerForItemTexture(itemDefinition.droppedTopTexture);
+            }
+            if (itemDefinition.heldBottomTexture != "none")
+            {
+                itemDefinition.heldBottomTextureLayer = layerForItemTexture(itemDefinition.heldBottomTexture);
+            }
+            if (itemDefinition.heldTopTexture != "none")
+            {
+                itemDefinition.heldTopTextureLayer = layerForItemTexture(itemDefinition.heldTopTexture);
             }
             content.itemDefinitions_[definition.id] = itemDefinition;
             if (!definition.key.empty())

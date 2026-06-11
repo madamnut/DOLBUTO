@@ -859,6 +859,14 @@ namespace dolbuto::data
                 {
                     definition.droppedTexture = *texture;
                 }
+                if (const std::optional<std::string> bottomTexture = jsonStringField(*droppedRender, "bottomTexture"); bottomTexture.has_value())
+                {
+                    definition.droppedBottomTexture = *bottomTexture;
+                }
+                if (const std::optional<std::string> topTexture = jsonStringField(*droppedRender, "topTexture"); topTexture.has_value())
+                {
+                    definition.droppedTopTexture = *topTexture;
+                }
             }
             if (const std::optional<std::string> heldRender = jsonObjectField(object, "heldRender"); heldRender.has_value())
             {
@@ -869,6 +877,14 @@ namespace dolbuto::data
                 if (const std::optional<std::string> texture = jsonStringField(*heldRender, "texture"); texture.has_value())
                 {
                     definition.heldTexture = *texture;
+                }
+                if (const std::optional<std::string> bottomTexture = jsonStringField(*heldRender, "bottomTexture"); bottomTexture.has_value())
+                {
+                    definition.heldBottomTexture = *bottomTexture;
+                }
+                if (const std::optional<std::string> topTexture = jsonStringField(*heldRender, "topTexture"); topTexture.has_value())
+                {
+                    definition.heldTopTexture = *topTexture;
                 }
             }
             const std::optional<std::string> components = jsonObjectField(object, "components");

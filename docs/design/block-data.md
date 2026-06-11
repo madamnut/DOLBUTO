@@ -69,6 +69,22 @@ UV는 현재 배치된 AABB에 맞춰 다시 늘리지 않고 기준 조각의 �
 블록에 `interactActions`가 있으면 기본 우클릭은 블록 액션을 우선하며, `Shift + 우클릭`은 손에 든 아이템의 블록 대상 `components.useActions`를 우선한다.
 현재 `bow_drill`의 `ignite`는 대상 블록 윗칸이 비어 있고 대상 블록이 충돌 블록이면 `fire`를 그 윗칸에 설치한다.
 
+구운 몰드 블록은 `renderType: "mold"`를 사용하고, 아래 지지 블록이 있어야 유지되는 bottom attachment 블록이다.
+몰드 블록은 `BlockEntityType::Mold` 상태를 가질 수 있으며, `moltenFluidId`, `moltenAmount`, `coolingTicks`를 저장한다.
+작은 도가니의 `pour` 동작으로 몰드에 용탕을 붓고, 몰드 요구량을 채우면 200틱 동안 냉각한 뒤 해당 몰드 위에 cast part 아이템 1개를 드랍하고 내부 상태를 비운다.
+몰드 자체는 내구도를 가지지 않고 재사용된다.
+
+현재 몰드 요구량:
+
+```text
+small_plate_mold, small_preform_mold  10
+plate_mold, preform_mold              20
+large_plate_mold, large_preform_mold  30
+short_rod_mold                         5
+rod_mold                              10
+long_rod_mold                         15
+```
+
 ## 블록 파괴
 
 블록 정의는 블록 파괴용 `hardness`, `breakLevel`, `breakAction` 값을 포함한다.
@@ -315,6 +331,8 @@ crucible block entity만 남고 실제 블록이 도가니가 아니면 stale �
 
 ## 방향성 랜덤 회전
 
+구운 몰드 9종도 `bottom` 부착 블록이며, 설치 시점과 block tick에서 아래 지지 블록이 `collision = true`인지 확인한다.
+
 `directional`이 `false`이면 지형 메싱에서 래핑된 월드 좌표 기반의 결정적 4방향 랜덤 회전을 적용한다.
 큐브 블록은 윗면 UV를 회전한다.
 `cross` 블록은 교차 평면을 블록 중심 기준으로 회전한다.
@@ -377,6 +395,15 @@ fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 bounds 박스
 25    quarter_stripped_log
 26    refractory_clay_crucible
 27    dirt_half_slab
+28    small_plate_mold
+29    plate_mold
+30    large_plate_mold
+31    small_preform_mold
+32    preform_mold
+33    large_preform_mold
+34    short_rod_mold
+35    rod_mold
+36    long_rod_mold
 10000 plant
 20000 stone
 20001 branch
@@ -385,7 +412,7 @@ fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 bounds 박스
 
 ## 주요 속성
 
-- `renderType`: `none`, `cube`, `cross`, `prop`, `fire`, `slab`, `half_slab`, `crucible`
+- `renderType`: `none`, `cube`, `cross`, `prop`, `fire`, `slab`, `half_slab`, `crucible`, `mold`
 - `directional`: 방향성을 가지는지 여부
 - `collision`: 플레이어 충돌 여부
 - `ao`: 메싱 AO 적용 여부
@@ -403,6 +430,13 @@ fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 bounds 박스
 `crucible`은 바닥 `1.0 x 0.2 x 1.0`과 네 벽으로 구성된 위가 열린 렌더 타입이다.
 내부 빈 공간은 대략 `0.6 x 0.8 x 0.6`이며, 충돌/레이캐스트/선택 아웃라인은 전체 큐브가 아니라 바닥과 네 벽 AABB를 사용한다.
 도가니는 장치성 블록이고 내부가 비어 있으므로 조명 전파에서는 일반 투명 통과값인 `lightAttenuation = 1`을 사용한다.
+
+`mold`는 바닥에 놓는 낮은 몰드 렌더 타입이다.
+한 셀 중앙의 `0.625 x 0.125 x 0.625` AABB를 선택/충돌 기준으로 사용한다.
+렌더링은 cuboid가 아니라 아이템 몰드와 같은 alpha 기반 extruded sprite mesh를 사용한다.
+`mold_bottom`을 아래 `0.0625` 높이 레이어로, 각 몰드의 `*_mold_top`을 위 `0.0625` 높이 레이어로 변환해 terrain mesh에 넣는다.
+몰드 텍스처는 `32 x 32` 이미지 전체 UV를 사용하며, 실제 보이는 평면과 옆면은 중앙 `20 x 20` 영역의 alpha 실루엣에서 나온다.
+구운 몰드 9종은 `attachment.face = "bottom"`을 사용하며, 설치 시점과 block tick에서 아래 지지 블록이 `collision = true`인지 확인한다.
 
 `alphaMode = "blend"` 블록은 일반 solid 지형 mesh가 아니라 별도 blend subchunk mesh로 분리된다.
 blend 블록은 terrain texture array를 그대로 사용하며, `alphaBlend` 값을 packed terrain material에 담아 fragment shader에서 최종 alpha에 곱한다.

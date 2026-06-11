@@ -113,8 +113,9 @@ assets/textures/item/*.png
 - `components.slotGauge.source`: 인벤토리/핫바 슬롯 하단 게이지에 표시할 런타임 값. 현재 `durability`, `burnTicks`를 사용한다.
 - `components.placeable.block`: 우클릭 설치로 배치할 블록 이름
 - `modelBlock`: `block_model` 아이템 렌더링에 사용할 블록 이름. 생략하면 `components.placeable.block`을 사용한다.
-- `modelShape`: `block_model` 아이템 렌더링 형상. 현재 `source`, `cube`, `slab`, `half_slab`, `quarter_log`, `crucible`을 사용한다.
+- `modelShape`: `block_model` 아이템 렌더링 형상. 현재 `source`, `cube`, `slab`, `half_slab`, `quarter_log`, `crucible`, `small_crucible`을 사용한다.
 - `modelTexture`: `block_model` 아이템이 블록 ID 대신 재질 텍스처만 직접 사용할 때 참조하는 block texture 이름
+- `droppedRender.bottomTexture`, `droppedRender.topTexture`, `heldRender.bottomTexture`, `heldRender.topTexture`: 월드/손 렌더에서 두 장의 `extruded_sprite` 메시를 겹쳐 그릴 때 사용할 아래/위 item texture 이름
 
 `id = 0`은 `none`용으로 예약한다.
 실제 아이템은 `id = 1`부터 시작하며, 구체적으로 빈 구간을 남길 이유가 없으면 순차적으로 배정한다.
@@ -128,6 +129,7 @@ assets/textures/item/*.png
 `modelShape = "half_slab"`은 표시 대상 블록을 `0.5 x 0.5 x 1.0` 크기로 렌더링한다.
 `modelShape = "quarter_log"`는 반통나무를 수직으로 한 번 더 자른 `0.5 x 0.5 x 1.0` 크기로 렌더링한다.
 `modelShape = "crucible"`은 바닥과 네 벽으로 구성된 위가 열린 도가니 형상으로 렌더링한다.
+`modelShape = "small_crucible"`은 같은 도가니 형상을 `0.5 x 0.5 x 0.5` 크기로 렌더링한다.
 설치된 `dirt_half_slab`과 `quarter_stripped_log` 블록은 `renderType: "half_slab"`과 `stateKind: "attach_grid"`를 사용해 같은 크기의 배치 가능 조각으로 처리한다.
 `quarter_log`의 새로 생긴 수직 절단면 한쪽은 `modelBlock` 블록 재질의 `verticalSection` 레이어를 전체 UV로 사용하고, 나머지 바깥 옆면은 기존 side 텍스처의 아래 절반을 사용한다.
 
@@ -205,6 +207,17 @@ fire 셀에 있는 아이템은 연료로 소비될 수 있고, fire 중심 같�
 불은 위 블록에 열 단계만 제공하고, 실제 처리 대상 선택과 진행도 증가는 도가니 block entity가 맡는다.
 현재 금속 원재료는 10초 동안 처리되면 도가니 내부의 같은 금속 용탕량을 `10` 증가시킨다.
 도가니는 한 번에 한 종류의 용탕만 담을 수 있으므로 이미 용탕이 들어 있으면 같은 금속 원재료만 계속 처리한다.
+
+구운 작은 도가니 `refractory_clay_small_crucible`은 휴대용 용탕 운반 아이템이다.
+`components.useActions = ["scoop", "pour"]`를 사용하며, `ItemStack`의 동적 상태 `moltenFluidId`, `moltenAmount`로 내부 용탕 종류와 양을 저장한다.
+용량은 `10`이고, 비어 있으면 `moltenFluidId = 0`, `moltenAmount = 0`으로 정규화한다.
+플레이어/월드 저장은 item id/count/durability/burnTicks 뒤에 `stateFlags`를 쓰고, 용탕 상태가 있을 때만 `moltenFluidId`, `moltenAmount` payload를 추가한다.
+일반 아이템은 용탕 상태를 저장하지 않으며, 인벤토리 정규화 단계에서 해당 값을 0으로 지운다.
+
+금속 cast part 아이템은 `tin_small_plate` 같은 `metal_form` 키를 사용한다.
+현재 금속은 `tin`, `zinc`, `silver`, `gold`, `copper`, `iron`이고, form은 `small_plate`, `plate`, `large_plate`, `small_preform`, `preform`, `large_preform`, `short_rod`, `rod`, `long_rod`이다.
+스프라이트는 개별 파일을 직접 관리하지 않고 `assets/textures/item/cast_parts_{metal}.png` 3x3 아틀라스를 실행 시 `assets/textures/item/generated/{metal}_{form}.png`로 자른 뒤 item texture array에 넣는다.
+아틀라스 셀 배치는 좌상단부터 오른쪽으로 `small_plate`, `short_rod`, `long_rod`, 다음 줄 `large_preform`, `large_plate`, `rod`, 마지막 줄 `small_preform`, `plate`, `preform`이다.
 
 ## 드랍 아이템 물리와 렌더링
 
@@ -321,9 +334,16 @@ wooden_stick.png
 ```
 
 점토/가공 재료 계열 일반 아이템은 `extruded_sprite` 렌더 타입과 `stackSize = 99`를 사용한다.
-도가니 아이템은 `block_model`, `modelShape = "crucible"`, `modelTexture`를 사용해 재질만 바꾼 도가니 형상으로 표시한다.
+도가니 아이템은 `block_model`, `modelShape = "crucible"` 또는 `modelShape = "small_crucible"`, `modelTexture`를 사용해 재질만 바꾼 도가니 형상으로 표시한다.
+작은 도가니 아이템은 설치 블록이 아닌 용탕 운반용 아이템으로 취급하며, 향후 내부 용탕 상태를 가질 수 있으므로 `stackSize = 1`을 사용한다.
 몰드 아이템은 `extruded_sprite` 렌더 타입과 `stackSize = 1`을 사용한다.
-현재 `mold_base.png`는 더미 텍스처로만 두고, 실제 아이템 데이터에는 `unfired_mold_base`만 등록한다.
+몰드 아이템의 슬롯 이미지는 기존 단일 `slotTexture`를 사용하고, 손에 들거나 땅에 떨어진 렌더링은 `mold_bottom` 또는 `unfired_mold_bottom` 아래 레이어와 `*_mold_top` 위 레이어를 겹친다.
+두 레이어는 각각 기존 `extruded_sprite` 두께를 가지므로 렌더링상 단일 스프라이트보다 두껍게 보이지만, 드랍 아이템 물리 AABB는 기존 `extruded_sprite` 기준을 유지한다.
+현재 실제 몰드 베이스 아이템은 `unfired_mold_base`만 등록한다.
+금속 주조 산출물은 금속 6종과 몰드 9종의 조합으로 총 54개를 등록한다.
+키는 `{metal}_{form}` 형식을 사용하며, 금속은 `tin`, `zinc`, `silver`, `gold`, `copper`, `iron`이고 형태는 `small_plate`, `plate`, `large_plate`, `small_preform`, `preform`, `large_preform`, `short_rod`, `rod`, `long_rod` 순서다.
+이 산출물은 현재 모두 일반 재료 아이템으로 취급해 `extruded_sprite` 렌더 타입과 `stackSize = 99`를 사용한다.
+스프라이트 파일은 `assets/textures/item/{item_key}.png`를 기준으로 찾으며, 파일이 없으면 런타임 렌더링에서 `assets/textures/item/default.png`를 대신 사용한다.
 
 ```text
 clay_pile                              id 43
@@ -362,6 +382,14 @@ large_preform_mold                     id 75
 short_rod_mold                         id 76
 rod_mold                               id 77
 long_rod_mold                          id 78
+unfired_refractory_clay_small_crucible id 79
+refractory_clay_small_crucible         id 80
+tin_* cast parts                       id 81-89
+zinc_* cast parts                      id 90-98
+silver_* cast parts                    id 99-107
+gold_* cast parts                      id 108-116
+copper_* cast parts                    id 117-125
+iron_* cast parts                      id 126-134
 ```
 
 ## 현재 아이템 목록
@@ -748,10 +776,20 @@ quarter_stripped_log: components.placeable.block quarter_stripped_log
 primal_workbench: components.placeable.block primal_workbench
 wooden_box: components.placeable.block wooden_box
 refractory_clay_crucible: components.placeable.block refractory_clay_crucible
+small_plate_mold: components.placeable.block small_plate_mold
+plate_mold: components.placeable.block plate_mold
+large_plate_mold: components.placeable.block large_plate_mold
+small_preform_mold: components.placeable.block small_preform_mold
+preform_mold: components.placeable.block preform_mold
+large_preform_mold: components.placeable.block large_preform_mold
+short_rod_mold: components.placeable.block short_rod_mold
+rod_mold: components.placeable.block rod_mold
+long_rod_mold: components.placeable.block long_rod_mold
 ```
 
 `half_stripped_log`, `quarter_stripped_log`는 `modelBlock: "stripped_log"`와 `modelShape`를 사용해 표시 형태를 정하고, 각각 `slab`, `half_slab` 배치 블록으로 설치된다.
 `dirt_half_slab`은 `modelBlock: "dirt"`, `modelShape: "half_slab"`을 사용해 흙 재질의 작은 조각으로 표시하고 `half_slab` 배치 블록으로 설치된다.
+구운 몰드 아이템 9종은 `placeActions = ["place"]`와 `components.placeable.block`을 사용해 같은 이름의 `mold` 블록으로 설치된다.
 
 현재 석기 아이템 기준:
 

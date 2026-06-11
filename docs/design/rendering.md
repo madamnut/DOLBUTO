@@ -12,7 +12,7 @@
 - 선택 블록 검정 테두리
 - 하늘, 해, 달, 크로스헤어
 - 디버그 텍스트
-- 도가니 내부 용탕 수면
+- 도가니와 몰드 내부 용탕 수면
 
 ## 지형 메쉬
 
@@ -133,7 +133,13 @@ CPU는 매 프레임 vertex buffer를 덮어쓰지 않고, 현재 in-flight fram
 왼손 `extruded_sprite` viewmodel은 local geometry X를 반전해 alpha 기반 extruded mesh와 텍스처 실루엣이 함께 거울상으로 맞도록 한다.
 왼손 `block_model` viewmodel은 geometry를 뒤집지 않고 UV X만 반전한다.
 `block_model` 든 아이템은 `modelBlock` 또는 fallback `placeBlock` 블록의 텍스처 layer를 사용하는 작은 블록 mesh로 렌더링한다.
-대상 블록이 `slab`이거나 아이템의 `modelShape`가 `slab`, `quarter_log`이면 해당 X/Y/Z 크기의 bottom 기준 mesh와 생성 슬롯 아이콘을 사용한다.
+대상 블록이 `slab`이거나 아이템의 `modelShape`가 크기를 지정하면 해당 X/Y/Z 크기의 mesh와 생성 슬롯 아이콘을 사용한다.
+몰드 아이템의 슬롯 이미지는 단일 스프라이트를 사용하지만, 손/드랍 렌더링은 `bottomTexture`와 `topTexture`로 만든 두 개의 `extruded_sprite` 메시를 Y 방향으로 쌓은 단일 item mesh를 사용한다.
+이 layered 몰드 mesh는 로컬 텍스처 레이어를 vertex에 직접 기록하므로 인스턴스의 단일 texture layer 대신 아래/위 레이어별 item texture를 샘플한다.
+설치된 몰드 블록도 같은 bottom/top 스프라이트를 블록 공간의 두 레이어로 변환해 렌더링한다.
+몰드 안 용탕 수면은 top 스프라이트 가운데 20x20 영역에서 투명한 픽셀을 캐비티로 보고 별도 수평 메쉬를 만든다.
+수위는 아래 레이어 윗면에서 시작해 몰드 전체 높이까지 `moltenAmount / requiredAmount` 비율로 올라간다.
+아이템 스프라이트 텍스처가 아직 준비되지 않은 경우 item texture array, 드랍/손 extruded mesh, RmlUi 슬롯 이미지는 `assets/textures/item/default.png`를 대신 사용한다.
 `config/viewmodel.json`은 손/아이템 viewmodel의 view-space 위치, 스케일, 회전값을 제공하고, `RendererConfigBridge`가 `ClientRuntimeState::viewmodelConfig`로 로드한다.
 `heldItem`은 `extruded_sprite` 든 아이템에 사용하고, `heldBlockModelItem`은 `block_model` 든 아이템에 사용한다.
 왼손 아이템도 같은 설정을 사용하되 X 좌표와 `rotationY`/`rotationZ` 부호를 반전한다.
@@ -251,6 +257,11 @@ groundness/smoothness/weirdness/PV overlay texture pixel은 같은 builder가 `T
 `crucible` 렌더 타입은 한 셀 안에 바닥과 네 벽 cuboid를 따로 만든다.
 각 cuboid 면의 조명은 셀 외곽에 닿은 면이면 해당 방향 이웃 셀을 샘플하고, 도가니 내부를 향하는 셀 내부 면이면 도가니가 있는 현재 셀의 조명을 샘플한다.
 따라서 도가니를 벽에 붙여도 내부 반대편 면이 벽 칸 조명을 잘못 받아 어두워지지 않는다.
+
+`mold` 렌더 타입은 아이템 몰드와 같은 alpha 기반 extruded sprite mesh를 terrain mesh에 넣어 그린다.
+텍스처는 `assets/textures/item`의 몰드 bottom/top 이미지를 terrain texture array에도 올려 재사용한다.
+아래 레이어는 `mold_bottom`, 위 레이어는 각 몰드의 `*_mold_top` alpha 실루엣을 따라 옆면을 생성하며, 두 레이어는 각각 `0.0625` 높이로 쌓인다.
+텍스처는 `32 x 32` 이미지 전체 UV를 사용하고, 실제 보이는 크기는 중앙 `20 x 20` alpha 영역에 의해 블록 중앙의 `0.625 x 0.125 x 0.625` 범위로 맞춰진다.
 
 ## 불 렌더링
 

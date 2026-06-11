@@ -819,6 +819,285 @@
         "breakAction": "dig"
     },
     {
+        "id": 28,
+        "name": "small_plate_mold",
+        "renderType": "mold",
+        "hardness": 0.3,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "cutout",
+        "textures": {
+            "top": "item/small_plate_mold_top",
+            "bottom": "item/mold_bottom"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "small_plate_mold",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
+    },
+    {
+        "id": 29,
+        "name": "plate_mold",
+        "renderType": "mold",
+        "hardness": 0.3,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "cutout",
+        "textures": {
+            "top": "item/plate_mold_top",
+            "bottom": "item/mold_bottom"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "plate_mold",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
+    },
+    {
+        "id": 30,
+        "name": "large_plate_mold",
+        "renderType": "mold",
+        "hardness": 0.3,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "cutout",
+        "textures": {
+            "top": "item/large_plate_mold_top",
+            "bottom": "item/mold_bottom"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "large_plate_mold",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
+    },
+    {
+        "id": 31,
+        "name": "small_preform_mold",
+        "renderType": "mold",
+        "hardness": 0.3,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "cutout",
+        "textures": {
+            "top": "item/small_preform_mold_top",
+            "bottom": "item/mold_bottom"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "small_preform_mold",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
+    },
+    {
+        "id": 32,
+        "name": "preform_mold",
+        "renderType": "mold",
+        "hardness": 0.3,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "cutout",
+        "textures": {
+            "top": "item/preform_mold_top",
+            "bottom": "item/mold_bottom"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "preform_mold",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
+    },
+    {
+        "id": 33,
+        "name": "large_preform_mold",
+        "renderType": "mold",
+        "hardness": 0.3,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "cutout",
+        "textures": {
+            "top": "item/large_preform_mold_top",
+            "bottom": "item/mold_bottom"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "large_preform_mold",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
+    },
+    {
+        "id": 34,
+        "name": "short_rod_mold",
+        "renderType": "mold",
+        "hardness": 0.3,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "cutout",
+        "textures": {
+            "top": "item/short_rod_mold_top",
+            "bottom": "item/mold_bottom"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "short_rod_mold",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
+    },
+    {
+        "id": 35,
+        "name": "rod_mold",
+        "renderType": "mold",
+        "hardness": 0.3,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "cutout",
+        "textures": {
+            "top": "item/rod_mold_top",
+            "bottom": "item/mold_bottom"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "rod_mold",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
+    },
+    {
+        "id": 36,
+        "name": "long_rod_mold",
+        "renderType": "mold",
+        "hardness": 0.3,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "cutout",
+        "textures": {
+            "top": "item/long_rod_mold_top",
+            "bottom": "item/mold_bottom"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "long_rod_mold",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
+    },
+    {
         "id": 10000,
         "name": "plant",
         "renderType": "cross",

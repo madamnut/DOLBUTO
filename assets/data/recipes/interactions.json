@@ -257,6 +257,31 @@
         ]
     },
     {
+        "action": "handcraft",
+        "target": "refractory_clay_pile",
+        "targetCount": 2,
+        "candidates": [
+            "unfired_refractory_clay_small_crucible",
+            "unfired_mold_base"
+        ]
+    },
+    {
+        "action": "carve",
+        "target": "unfired_mold_base",
+        "targetCount": 1,
+        "candidates": [
+            "unfired_small_plate_mold",
+            "unfired_plate_mold",
+            "unfired_large_plate_mold",
+            "unfired_small_preform_mold",
+            "unfired_preform_mold",
+            "unfired_large_preform_mold",
+            "unfired_short_rod_mold",
+            "unfired_rod_mold",
+            "unfired_long_rod_mold"
+        ]
+    },
+    {
         "action": "smash",
         "target": "clay_brick",
         "min": 4,

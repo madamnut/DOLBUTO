@@ -18,5 +18,55 @@
         "input": "unfired_refractory_clay_crucible",
         "output": "refractory_clay_crucible",
         "requiredTicks": 600
+    },
+    {
+        "input": "unfired_refractory_clay_small_crucible",
+        "output": "refractory_clay_small_crucible",
+        "requiredTicks": 600
+    },
+    {
+        "input": "unfired_small_plate_mold",
+        "output": "small_plate_mold",
+        "requiredTicks": 600
+    },
+    {
+        "input": "unfired_plate_mold",
+        "output": "plate_mold",
+        "requiredTicks": 600
+    },
+    {
+        "input": "unfired_large_plate_mold",
+        "output": "large_plate_mold",
+        "requiredTicks": 600
+    },
+    {
+        "input": "unfired_small_preform_mold",
+        "output": "small_preform_mold",
+        "requiredTicks": 600
+    },
+    {
+        "input": "unfired_preform_mold",
+        "output": "preform_mold",
+        "requiredTicks": 600
+    },
+    {
+        "input": "unfired_large_preform_mold",
+        "output": "large_preform_mold",
+        "requiredTicks": 600
+    },
+    {
+        "input": "unfired_short_rod_mold",
+        "output": "short_rod_mold",
+        "requiredTicks": 600
+    },
+    {
+        "input": "unfired_rod_mold",
+        "output": "rod_mold",
+        "requiredTicks": 600
+    },
+    {
+        "input": "unfired_long_rod_mold",
+        "output": "long_rod_mold",
+        "requiredTicks": 600
     }
 ]

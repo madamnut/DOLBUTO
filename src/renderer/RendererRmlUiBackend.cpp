@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <utility>
 #include <vector>
@@ -19,6 +20,12 @@ namespace dolbuto
     {
         constexpr size_t MaxUiVertices = 262144;
         constexpr size_t MaxUiIndices = 393216;
+
+        bool isItemTexturePath(const std::filesystem::path& path)
+        {
+            const std::string normalized = path.generic_string();
+            return normalized.find("/textures/item/") != std::string::npos;
+        }
 
         UiVertex transformUiVertex(const UiVertex& vertex, const Rml::Matrix4f& transform, Rml::Vector2f translation)
         {
@@ -194,11 +201,28 @@ namespace dolbuto
                 }
             }
         }
+        if (!std::filesystem::exists(texturePath) && isItemTexturePath(texturePath))
+        {
+            const std::filesystem::path defaultItemTexturePath = assetDirectory_ / "textures" / "item" / "default.png";
+            if (std::filesystem::exists(defaultItemTexturePath))
+            {
+                texturePath = defaultItemTexturePath;
+            }
+        }
 
         int width = 0;
         int height = 0;
         int channels = 0;
         stbi_uc* pixels = stbi_load(texturePath.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
+        if (pixels == nullptr && isItemTexturePath(texturePath))
+        {
+            const std::filesystem::path defaultItemTexturePath = assetDirectory_ / "textures" / "item" / "default.png";
+            if (texturePath != defaultItemTexturePath && std::filesystem::exists(defaultItemTexturePath))
+            {
+                texturePath = defaultItemTexturePath;
+                pixels = stbi_load(texturePath.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
+            }
+        }
         if (pixels == nullptr)
         {
             log::warn("RmlUi texture load failed: " + texturePath.string());

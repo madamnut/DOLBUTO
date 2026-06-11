@@ -2,10 +2,15 @@
 
 #include "renderer/ItemSpriteMeshBuilder.h"
 
+#include <stb_image.h>
+#include <stb_image_write.h>
+
 #include <algorithm>
 #include <array>
+#include <filesystem>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace dolbuto
@@ -15,6 +20,100 @@ namespace dolbuto
         float blockModelExtent(float explicitExtent, float fallback)
         {
             return std::clamp(explicitExtent > 0.0f ? explicitExtent : fallback, 0.0625f, 1.0f);
+        }
+
+        std::filesystem::path itemTexturePathOrDefault(const std::filesystem::path& itemTextureDir, const std::string& textureName)
+        {
+            const std::filesystem::path texturePath = itemTextureDir / (textureName + ".png");
+            if (std::filesystem::exists(texturePath))
+            {
+                return texturePath;
+            }
+            return itemTextureDir / "default.png";
+        }
+
+        void generateCastPartSprites(const std::filesystem::path& itemTextureDir)
+        {
+            struct Cell
+            {
+                const char* form;
+                int x = 0;
+                int y = 0;
+            };
+            static constexpr std::array<const char*, 7> Metals{
+                "tin",
+                "zinc",
+                "silver",
+                "gold",
+                "copper",
+                "iron",
+                "bronze"
+            };
+            static constexpr std::array<Cell, 9> Cells{{
+                {"small_plate", 0, 0},
+                {"short_rod", 1, 0},
+                {"long_rod", 2, 0},
+                {"large_preform", 0, 1},
+                {"large_plate", 1, 1},
+                {"rod", 2, 1},
+                {"small_preform", 0, 2},
+                {"plate", 1, 2},
+                {"preform", 2, 2}
+            }};
+
+            const std::filesystem::path generatedDir = itemTextureDir / "generated";
+            std::filesystem::create_directories(generatedDir);
+            for (const char* metal : Metals)
+            {
+                const std::filesystem::path atlasPath = itemTextureDir / ("cast_parts_" + std::string(metal) + ".png");
+                if (!std::filesystem::exists(atlasPath))
+                {
+                    continue;
+                }
+
+                int width = 0;
+                int height = 0;
+                int channels = 0;
+                stbi_uc* pixels = stbi_load(atlasPath.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
+                if (pixels == nullptr || width < 96 || height < 96)
+                {
+                    if (pixels != nullptr)
+                    {
+                        stbi_image_free(pixels);
+                    }
+                    continue;
+                }
+
+                const auto atlasWriteTime = std::filesystem::last_write_time(atlasPath);
+                for (const Cell& cell : Cells)
+                {
+                    const std::string key = std::string(metal) + "_" + cell.form;
+                    const std::filesystem::path outputPath = generatedDir / (key + ".png");
+                    if (std::filesystem::exists(outputPath) &&
+                        std::filesystem::last_write_time(outputPath) >= atlasWriteTime)
+                    {
+                        continue;
+                    }
+
+                    std::array<unsigned char, 32 * 32 * 4> output{};
+                    for (int y = 0; y < 32; ++y)
+                    {
+                        for (int x = 0; x < 32; ++x)
+                        {
+                            const int sourceX = cell.x * 32 + x;
+                            const int sourceY = cell.y * 32 + y;
+                            const size_t sourceIndex = (static_cast<size_t>(sourceY) * static_cast<size_t>(width) + static_cast<size_t>(sourceX)) * 4u;
+                            const size_t targetIndex = (static_cast<size_t>(y) * 32u + static_cast<size_t>(x)) * 4u;
+                            output[targetIndex + 0u] = pixels[sourceIndex + 0u];
+                            output[targetIndex + 1u] = pixels[sourceIndex + 1u];
+                            output[targetIndex + 2u] = pixels[sourceIndex + 2u];
+                            output[targetIndex + 3u] = pixels[sourceIndex + 3u];
+                        }
+                    }
+                    stbi_write_png(outputPath.string().c_str(), 32, 32, 4, output.data(), 32 * 4);
+                }
+                stbi_image_free(pixels);
+            }
         }
 
         DroppedItemRenderPath::ItemSpriteMesh buildBlockModelItemMesh(
@@ -85,11 +184,23 @@ namespace dolbuto
             if (renderType == BlockRenderType::Crucible)
             {
                 const uint32_t textureLayer = layers.faces[0];
-                addCuboid(-0.5f, -0.5f, -0.5f, 0.5f, -0.3f, 0.5f, textureLayer);
-                addCuboid(-0.5f, -0.3f, -0.5f, 0.5f, 0.5f, -0.3f, textureLayer);
-                addCuboid(-0.5f, -0.3f, 0.3f, 0.5f, 0.5f, 0.5f, textureLayer);
-                addCuboid(-0.5f, -0.3f, -0.3f, -0.3f, 0.5f, 0.3f, textureLayer);
-                addCuboid(0.3f, -0.3f, -0.3f, 0.5f, 0.5f, 0.3f, textureLayer);
+                const float width = blockModelExtent(explicitWidth, 1.0f);
+                const float height = blockModelExtent(explicitHeight, 1.0f);
+                const float depth = blockModelExtent(explicitDepth, 1.0f);
+                const float minX = -0.5f * width;
+                const float maxX = 0.5f * width;
+                const float minY = -0.5f;
+                const float maxY = minY + height;
+                const float minZ = -0.5f * depth;
+                const float maxZ = 0.5f * depth;
+                const float floorTop = minY + height * 0.2f;
+                const float wallThicknessX = width * 0.2f;
+                const float wallThicknessZ = depth * 0.2f;
+                addCuboid(minX, minY, minZ, maxX, floorTop, maxZ, textureLayer);
+                addCuboid(minX, floorTop, minZ, maxX, maxY, minZ + wallThicknessZ, textureLayer);
+                addCuboid(minX, floorTop, maxZ - wallThicknessZ, maxX, maxY, maxZ, textureLayer);
+                addCuboid(minX, floorTop, minZ + wallThicknessZ, minX + wallThicknessX, maxY, maxZ - wallThicknessZ, textureLayer);
+                addCuboid(maxX - wallThicknessX, floorTop, minZ + wallThicknessZ, maxX, maxY, maxZ - wallThicknessZ, textureLayer);
                 return mesh;
             }
 
@@ -153,6 +264,8 @@ namespace dolbuto
         const std::filesystem::path fluidTextureDir = assetDirectory / "textures" / "fluid";
         const std::filesystem::path itemTextureDir = assetDirectory / "textures" / "item";
         const std::filesystem::path smokeTextureDir = assetDirectory / "textures" / "particle" / "smoke";
+        generateCastPartSprites(itemTextureDir);
+        store.moltenSurfaceMeshes.resize(2);
 
         store.sun = gpuResources.createTexture((assetDirectory / "textures" / "sky" / "Sun.png").string());
         store.moon = gpuResources.createTexture((assetDirectory / "textures" / "sky" / "Moon.png").string());
@@ -167,7 +280,15 @@ namespace dolbuto
         blockTexturePaths.reserve(content.blockTextureNames().size());
         for (const std::string& textureName : content.blockTextureNames())
         {
-            blockTexturePaths.push_back((blockTextureDir / (textureName + ".png")).string());
+            constexpr std::string_view ItemTexturePrefix = "item/";
+            if (textureName.rfind(ItemTexturePrefix, 0) == 0)
+            {
+                blockTexturePaths.push_back(itemTexturePathOrDefault(itemTextureDir, textureName.substr(ItemTexturePrefix.size())).string());
+            }
+            else
+            {
+                blockTexturePaths.push_back((blockTextureDir / (textureName + ".png")).string());
+            }
         }
         store.terrainTextureArray = gpuResources.createTextureArray(blockTexturePaths);
         std::vector<std::string> fluidTexturePaths;
@@ -214,7 +335,7 @@ namespace dolbuto
             itemTexturePaths.reserve(content.itemTextureNames().size());
             for (const std::string& textureName : content.itemTextureNames())
             {
-                itemTexturePaths.push_back((itemTextureDir / (textureName + ".png")).string());
+                itemTexturePaths.push_back(itemTexturePathOrDefault(itemTextureDir, textureName).string());
             }
             store.itemTextureArray = gpuResources.createTextureArray(itemTexturePaths);
         }
@@ -257,14 +378,73 @@ namespace dolbuto
                 }
                 continue;
             }
-            if (definition.droppedTexture == "none")
+            const bool hasDroppedLayeredTexture = definition.droppedBottomTexture != "none" && definition.droppedTopTexture != "none";
+            const bool hasHeldLayeredTexture = definition.heldBottomTexture != "none" && definition.heldTopTexture != "none";
+            if (definition.droppedTexture == "none" && !hasDroppedLayeredTexture && !hasHeldLayeredTexture)
             {
                 continue;
             }
-            store.itemSpriteMeshes[itemId] = ItemSpriteMeshBuilder::build(itemTextureDir / (definition.droppedTexture + ".png"));
+            if (hasDroppedLayeredTexture)
+            {
+                store.itemSpriteMeshes[itemId] = ItemSpriteMeshBuilder::buildLayered(
+                    itemTexturePathOrDefault(itemTextureDir, definition.droppedBottomTexture),
+                    definition.droppedBottomTextureLayer,
+                    itemTexturePathOrDefault(itemTextureDir, definition.droppedTopTexture),
+                    definition.droppedTopTextureLayer);
+            }
+            else if (hasHeldLayeredTexture)
+            {
+                store.itemSpriteMeshes[itemId] = ItemSpriteMeshBuilder::buildLayered(
+                    itemTexturePathOrDefault(itemTextureDir, definition.heldBottomTexture),
+                    definition.heldBottomTextureLayer,
+                    itemTexturePathOrDefault(itemTextureDir, definition.heldTopTexture),
+                    definition.heldTopTextureLayer);
+            }
+            else
+            {
+                store.itemSpriteMeshes[itemId] = ItemSpriteMeshBuilder::build(itemTexturePathOrDefault(itemTextureDir, definition.droppedTexture));
+            }
         }
 
         store.propMeshesByBlock = content.propMeshesByBlock();
+
+        auto texturePathForBlockLayer = [&](uint32_t textureLayer)
+        {
+            const std::vector<std::string>& textureNames = content.blockTextureNames();
+            if (static_cast<size_t>(textureLayer) >= textureNames.size())
+            {
+                return blockTextureDir / "rock.png";
+            }
+
+            constexpr std::string_view ItemTexturePrefix = "item/";
+            const std::string& textureName = textureNames[textureLayer];
+            if (textureName.rfind(ItemTexturePrefix, 0) == 0)
+            {
+                return itemTexturePathOrDefault(itemTextureDir, textureName.substr(ItemTexturePrefix.size()));
+            }
+            return blockTextureDir / (textureName + ".png");
+        };
+
+        const std::vector<BlockDefinition>& blockDefinitions = content.blockDefinitions();
+        const std::vector<BlockTextureLayers>& blockTextureLayers = content.blockTextureLayers();
+        for (uint32_t blockId = 0; blockId < blockDefinitions.size() && blockId < blockTextureLayers.size(); ++blockId)
+        {
+            if (blockDefinitions[blockId].renderType != BlockRenderType::Mold)
+            {
+                continue;
+            }
+
+            const uint32_t topTextureLayer = blockTextureLayers[blockId].faces[0];
+            const uint32_t bottomTextureLayer = blockTextureLayers[blockId].faces[1];
+            store.moldMeshesByBlock[static_cast<uint16_t>(blockId)] = ItemSpriteMeshBuilder::buildBlockMold(
+                texturePathForBlockLayer(bottomTextureLayer),
+                bottomTextureLayer,
+                texturePathForBlockLayer(topTextureLayer),
+                topTextureLayer);
+            const uint16_t moltenMeshId = static_cast<uint16_t>(store.moltenSurfaceMeshes.size());
+            store.moldMoltenSurfaceMeshIdsByBlock[static_cast<uint16_t>(blockId)] = moltenMeshId;
+            store.moltenSurfaceMeshes.push_back(ItemSpriteMeshBuilder::buildMoldCavitySurface(texturePathForBlockLayer(topTextureLayer)));
+        }
 
         return store;
     }
@@ -291,5 +471,6 @@ namespace dolbuto
         gpuResources.destroyTexture(itemTextureArray);
         itemSpriteMeshes.clear();
         propMeshesByBlock.clear();
+        moldMeshesByBlock.clear();
     }
 }

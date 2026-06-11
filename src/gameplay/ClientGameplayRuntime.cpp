@@ -8,6 +8,7 @@
 #include <cmath>
 #include <iterator>
 #include <stdexcept>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 
@@ -20,6 +21,103 @@ namespace dolbuto::gameplay
         bool recipeTargetsBlock(const ItemInteractionRecipe& recipe, uint16_t block)
         {
             return recipe.targetAnyBlock || recipe.targetBlockId == block;
+        }
+
+        bool itemHasUseAction(const ItemDefinition& definition, const std::string& action)
+        {
+            return std::find(definition.useActions.begin(), definition.useActions.end(), action) != definition.useActions.end();
+        }
+
+        std::string moldFormFromBlockName(const std::string& name)
+        {
+            static constexpr std::array<std::string_view, 9> Forms{
+                "small_plate",
+                "plate",
+                "large_plate",
+                "small_preform",
+                "preform",
+                "large_preform",
+                "short_rod",
+                "rod",
+                "long_rod"
+            };
+            for (std::string_view form : Forms)
+            {
+                const std::string suffix = std::string(form) + "_mold";
+                if (name == suffix)
+                {
+                    return std::string(form);
+                }
+            }
+            return {};
+        }
+
+        uint16_t moldRequiredAmount(std::string_view form)
+        {
+            if (form == "small_plate" || form == "small_preform")
+            {
+                return 10;
+            }
+            if (form == "plate" || form == "preform")
+            {
+                return 20;
+            }
+            if (form == "large_plate" || form == "large_preform")
+            {
+                return 30;
+            }
+            if (form == "short_rod")
+            {
+                return 5;
+            }
+            if (form == "rod")
+            {
+                return 10;
+            }
+            if (form == "long_rod")
+            {
+                return 15;
+            }
+            return 0;
+        }
+
+        std::string metalKeyFromMoltenFluid(uint16_t fluidId)
+        {
+            switch (fluidId)
+            {
+            case 1000: return "tin";
+            case 1001: return "zinc";
+            case 1002: return "silver";
+            case 1003: return "gold";
+            case 1004: return "copper";
+            case 1005: return "iron";
+            default: return {};
+            }
+        }
+
+        uint16_t itemIdByKey(const std::vector<ItemDefinition>& definitions, const std::string& key)
+        {
+            for (size_t i = 0; i < definitions.size(); ++i)
+            {
+                if (definitions[i].key == key)
+                {
+                    return static_cast<uint16_t>(i);
+                }
+            }
+            return 0;
+        }
+
+        uint16_t castPartItemId(
+            const std::vector<ItemDefinition>& definitions,
+            uint16_t moltenFluidId,
+            std::string_view form)
+        {
+            const std::string metal = metalKeyFromMoltenFluid(moltenFluidId);
+            if (metal.empty() || form.empty())
+            {
+                return 0;
+            }
+            return itemIdByKey(definitions, metal + "_" + std::string(form));
         }
 
         uint16_t attachStateForPlacement(const BlockRaycastHit& hit)
@@ -306,6 +404,14 @@ namespace dolbuto::gameplay
 
         const BlockDefinition& placedDefinition = blockDefinition(placeBlockId);
         const uint16_t placementState = placementStateForBlock(placedDefinition, hit, direction);
+        if (placedDefinition.attachmentFace == BlockAttachmentFace::Bottom)
+        {
+            const uint16_t support = blockAtWorld ? blockAtWorld(hit.previousBlockX, hit.previousBlockY - 1, hit.previousBlockZ) : BlockAir;
+            if (support == BlockAir || !blockDefinition(support).collision)
+            {
+                return {};
+            }
+        }
         if (BlockInteractionSystem::blockIntersectsPlayerCollider(
                 hit.previousBlockX,
                 hit.previousBlockY,
@@ -794,6 +900,65 @@ namespace dolbuto::gameplay
             (void)block;
         };
 
+        auto processMold = [&](const world::WorldRuntime::BlockTickCell& cell, uint16_t block)
+        {
+            BlockEntity* entity = worldRuntime_->blockEntityAtWorld(cell.x, cell.y, cell.z);
+            if (entity == nullptr || entity->type != BlockEntityType::Mold)
+            {
+                entity = worldRuntime_->ensureMoldBlockEntityAtWorld(cell.x, cell.y, cell.z);
+            }
+            if (entity == nullptr || entity->type != BlockEntityType::Mold)
+            {
+                return;
+            }
+
+            const std::string form = moldFormFromBlockName(blockDefinition(block).name);
+            const uint16_t requiredAmount = moldRequiredAmount(form);
+            if (requiredAmount == 0 || entity->moltenFluidId == 0 || entity->moltenAmount == 0)
+            {
+                return;
+            }
+
+            if (entity->moltenAmount < requiredAmount)
+            {
+                return;
+            }
+
+            constexpr uint16_t CoolingTicks = 200;
+            if (entity->coolingTicks < CoolingTicks)
+            {
+                ++entity->coolingTicks;
+                markBlockEntityDirty(cell.x, cell.z);
+                worldRuntime_->scheduleBlockTickAtWorld(
+                    cell.x,
+                    cell.y,
+                    cell.z,
+                    world::WorldRuntime::BlockTickReasonSelfBlockChanged);
+                return;
+            }
+
+            const uint16_t resultItemId = castPartItemId(itemDefinitions(), entity->moltenFluidId, form);
+            if (resultItemId == 0)
+            {
+                return;
+            }
+
+            ItemStack output{};
+            output.itemId = resultItemId;
+            output.count = 1;
+            if (spawnFireOutput(cell.x, cell.y + 1, cell.z, output))
+            {
+                entity = worldRuntime_->blockEntityAtWorld(cell.x, cell.y, cell.z);
+                if (entity != nullptr && entity->type == BlockEntityType::Mold)
+                {
+                    entity->moltenFluidId = 0;
+                    entity->moltenAmount = 0;
+                    entity->coolingTicks = 0;
+                    markBlockEntityDirty(cell.x, cell.z);
+                }
+            }
+        };
+
         auto processFireBurn = [&](const world::WorldRuntime::BlockTickCell& cell, uint16_t block)
         {
             BlockEntity* entity = worldRuntime_->blockEntityAtWorld(cell.x, cell.y, cell.z);
@@ -928,6 +1093,11 @@ namespace dolbuto::gameplay
                 processCrucible(cell, block);
                 continue;
             }
+            if (block != BlockAir && blockDefinition(block).renderType == BlockRenderType::Mold)
+            {
+                processMold(cell, block);
+                continue;
+            }
             if (worldRuntime_->blockEntityAtWorld(cell.x, cell.y, cell.z) != nullptr)
             {
                 worldRuntime_->removeBlockEntityAtWorld(cell.x, cell.y, cell.z);
@@ -1006,6 +1176,8 @@ namespace dolbuto::gameplay
         dropStack.count = dropCount;
         dropStack.durability = slot.durability;
         dropStack.burnTicksRemaining = slot.burnTicksRemaining;
+        dropStack.moltenFluidId = slot.moltenFluidId;
+        dropStack.moltenAmount = slot.moltenAmount;
 
         WorldEntity item = droppedItemRuntime_.createManualDropEntity(dropStack, sourcePosition, direction);
         if (!droppedItemRuntime_.addWorldEntity(std::move(item), markDirty))
@@ -1066,6 +1238,14 @@ namespace dolbuto::gameplay
         }
         const BlockDefinition& placedDefinition = blockDefinition(heldDefinition.placeBlockId);
         const uint16_t placementState = placementStateForBlock(placedDefinition, hit, direction);
+        if (placedDefinition.attachmentFace == BlockAttachmentFace::Bottom)
+        {
+            const uint16_t support = blockAtWorld ? blockAtWorld(hit.previousBlockX, hit.previousBlockY - 1, hit.previousBlockZ) : BlockAir;
+            if (support == BlockAir || !blockDefinition(support).collision)
+            {
+                return {};
+            }
+        }
         if (BlockInteractionSystem::blockIntersectsPlayerCollider(
                 hit.previousBlockX,
                 hit.previousBlockY,
@@ -1166,6 +1346,22 @@ namespace dolbuto::gameplay
                 }
                 if (heldHasBlockTargetAction)
                 {
+                    break;
+                }
+                const BlockDefinition& targetDefinition = blockDefinition(interactionBlock);
+                if (heldAction == "scoop" &&
+                    targetDefinition.renderType == BlockRenderType::Crucible &&
+                    heldStack.moltenAmount < 10)
+                {
+                    heldHasBlockTargetAction = true;
+                    break;
+                }
+                if (heldAction == "pour" &&
+                    targetDefinition.renderType == BlockRenderType::Mold &&
+                    heldStack.moltenFluidId != 0 &&
+                    heldStack.moltenAmount != 0)
+                {
+                    heldHasBlockTargetAction = true;
                     break;
                 }
             }
@@ -1357,6 +1553,78 @@ namespace dolbuto::gameplay
             return candidates;
         };
 
+        auto specialBlockCandidatesForAction = [&](const std::string& action)
+        {
+            std::vector<ItemInteractionCandidate> candidates;
+            if (heldStack.itemId == 0 ||
+                heldStack.count == 0 ||
+                static_cast<std::size_t>(heldStack.itemId) >= definitions.size())
+            {
+                return candidates;
+            }
+
+            const ItemDefinition& heldDefinition = definitions[heldStack.itemId];
+            if (!itemHasUseAction(heldDefinition, action))
+            {
+                return candidates;
+            }
+
+            if (action == "scoop" && definition.renderType == BlockRenderType::Crucible)
+            {
+                const BlockEntity* entity = worldRuntime_ != nullptr
+                    ? worldRuntime_->blockEntityAtWorld(hit.blockX, hit.blockY, hit.blockZ)
+                    : nullptr;
+                const bool canScoop = entity != nullptr &&
+                    entity->type == BlockEntityType::Crucible &&
+                    entity->moltenFluidId != 0 &&
+                    entity->moltenAmount != 0 &&
+                    heldStack.moltenAmount < 10 &&
+                    (heldStack.moltenFluidId == 0 || heldStack.moltenFluidId == entity->moltenFluidId);
+
+                ItemInteractionCandidate candidate{};
+                candidate.enabled = canScoop;
+                candidate.outputs.push_back(ItemInteractionOutput{heldStack.itemId, 1, 1});
+                candidate.displayName = "Scoop";
+                candidate.specialAction = "scoop_crucible";
+                candidates.push_back(std::move(candidate));
+                return candidates;
+            }
+
+            if (action == "pour" && definition.renderType == BlockRenderType::Mold)
+            {
+                const std::string form = moldFormFromBlockName(definition.name);
+                const uint16_t requiredAmount = moldRequiredAmount(form);
+                const uint16_t resultItemId = castPartItemId(definitions, heldStack.moltenFluidId, form);
+                if (requiredAmount == 0 || resultItemId == 0)
+                {
+                    return candidates;
+                }
+
+                const BlockEntity* entity = worldRuntime_ != nullptr
+                    ? worldRuntime_->blockEntityAtWorld(hit.blockX, hit.blockY, hit.blockZ)
+                    : nullptr;
+                const bool moldAcceptsFluid = entity == nullptr ||
+                    entity->type != BlockEntityType::Mold ||
+                    entity->moltenFluidId == 0 ||
+                    entity->moltenFluidId == heldStack.moltenFluidId;
+                const uint16_t currentAmount = entity != nullptr && entity->type == BlockEntityType::Mold
+                    ? entity->moltenAmount
+                    : 0;
+                const bool canPour = heldStack.moltenFluidId != 0 &&
+                    heldStack.moltenAmount != 0 &&
+                    moldAcceptsFluid &&
+                    currentAmount < requiredAmount;
+
+                ItemInteractionCandidate candidate{};
+                candidate.enabled = canPour;
+                candidate.outputs.push_back(ItemInteractionOutput{resultItemId, 1, 1});
+                candidate.displayName = definitions[resultItemId].name;
+                candidate.specialAction = "pour_mold:" + form;
+                candidates.push_back(std::move(candidate));
+            }
+            return candidates;
+        };
+
         ItemInteractionMenu menu{};
         menu.hasUseTarget = true;
         if (hasInteractionBlock && !preferHeldItemBlockActions)
@@ -1415,6 +1683,11 @@ namespace dolbuto::gameplay
             for (const std::string& heldAction : heldUseActions)
             {
                 std::vector<ItemInteractionCandidate> candidates = blockCandidatesForAction(heldAction);
+                std::vector<ItemInteractionCandidate> specialCandidates = specialBlockCandidatesForAction(heldAction);
+                candidates.insert(
+                    candidates.end(),
+                    std::make_move_iterator(specialCandidates.begin()),
+                    std::make_move_iterator(specialCandidates.end()));
                 if (candidates.empty())
                 {
                     continue;
@@ -1477,7 +1750,7 @@ namespace dolbuto::gameplay
 
         const ItemInteractionCandidate candidate = pendingItemInteraction_.actions[actionIndex].candidates[candidateIndex];
         const ItemInteractionActionMenu actionMenu = pendingItemInteraction_.actions[actionIndex];
-        if ((candidate.outputs.empty() && candidate.placeBlockId == 0) || !candidate.enabled)
+        if ((candidate.outputs.empty() && candidate.placeBlockId == 0 && candidate.specialAction.empty()) || !candidate.enabled)
         {
             pendingItemInteraction_ = {};
             return result;
@@ -1529,6 +1802,139 @@ namespace dolbuto::gameplay
             consumesDurability = false;
         }
         pendingItemInteraction_ = {};
+        auto markBlockEntityDirtyAt = [&](int x, int z)
+        {
+            if (worldRuntime_ == nullptr || !markDirty)
+            {
+                return;
+            }
+            const int chunkX = world::WorldRuntime::floorDiv(x, world::WorldRuntime::ChunkSizeX);
+            const int chunkZ = world::WorldRuntime::floorDiv(z, world::WorldRuntime::ChunkSizeZ);
+            RuntimeChunk* chunk = worldRuntime_->findChunk(chunkX, chunkZ);
+            if (chunk != nullptr)
+            {
+                markDirty(*chunk);
+            }
+        };
+
+        if (!candidate.specialAction.empty())
+        {
+            if (!blockInteraction || worldRuntime_ == nullptr)
+            {
+                return result;
+            }
+
+            if (candidate.specialAction == "scoop_crucible")
+            {
+                BlockEntity* entity = worldRuntime_->blockEntityAtWorld(blockX, blockY, blockZ);
+                if (entity == nullptr ||
+                    entity->type != BlockEntityType::Crucible ||
+                    entity->moltenFluidId == 0 ||
+                    entity->moltenAmount == 0 ||
+                    heldStack.itemId == 0 ||
+                    heldStack.count == 0 ||
+                    static_cast<std::size_t>(heldStack.itemId) >= definitions.size() ||
+                    !itemHasUseAction(definitions[heldStack.itemId], "scoop") ||
+                    heldStack.moltenAmount >= 10 ||
+                    (heldStack.moltenFluidId != 0 && heldStack.moltenFluidId != entity->moltenFluidId))
+                {
+                    return result;
+                }
+
+                const uint16_t moved = std::min<uint16_t>(
+                    static_cast<uint16_t>(10u - heldStack.moltenAmount),
+                    entity->moltenAmount);
+                if (moved == 0)
+                {
+                    return result;
+                }
+
+                ItemStack replacement = heldStack;
+                replacement.moltenFluidId = entity->moltenFluidId;
+                replacement.moltenAmount = static_cast<uint16_t>(replacement.moltenAmount + moved);
+                entity->moltenAmount = static_cast<uint16_t>(entity->moltenAmount - moved);
+                if (entity->moltenAmount == 0)
+                {
+                    entity->moltenFluidId = 0;
+                }
+                if (!playerInventory_.replaceSlot(heldSlotIndex, replacement, definitions))
+                {
+                    return result;
+                }
+
+                markBlockEntityDirtyAt(blockX, blockZ);
+                result.executed = true;
+                result.inventoryChanged = true;
+                return result;
+            }
+
+            constexpr std::string_view PourMoldPrefix = "pour_mold:";
+            if (candidate.specialAction.rfind("pour_mold:", 0) == 0)
+            {
+                if (heldStack.itemId == 0 ||
+                    heldStack.count == 0 ||
+                    heldStack.moltenFluidId == 0 ||
+                    heldStack.moltenAmount == 0 ||
+                    static_cast<std::size_t>(heldStack.itemId) >= definitions.size() ||
+                    !itemHasUseAction(definitions[heldStack.itemId], "pour"))
+                {
+                    return result;
+                }
+
+                const std::string form = candidate.specialAction.substr(PourMoldPrefix.size());
+                const uint16_t requiredAmount = moldRequiredAmount(form);
+                if (requiredAmount == 0)
+                {
+                    return result;
+                }
+
+                BlockEntity* entity = worldRuntime_->ensureMoldBlockEntityAtWorld(blockX, blockY, blockZ);
+                if (entity == nullptr ||
+                    entity->type != BlockEntityType::Mold ||
+                    (entity->moltenFluidId != 0 && entity->moltenFluidId != heldStack.moltenFluidId) ||
+                    entity->moltenAmount >= requiredAmount)
+                {
+                    return result;
+                }
+
+                const uint16_t moved = std::min<uint16_t>(
+                    heldStack.moltenAmount,
+                    static_cast<uint16_t>(requiredAmount - entity->moltenAmount));
+                if (moved == 0)
+                {
+                    return result;
+                }
+
+                ItemStack replacement = heldStack;
+                entity->moltenFluidId = heldStack.moltenFluidId;
+                entity->moltenAmount = static_cast<uint16_t>(entity->moltenAmount + moved);
+                replacement.moltenAmount = static_cast<uint16_t>(replacement.moltenAmount - moved);
+                if (replacement.moltenAmount == 0)
+                {
+                    replacement.moltenFluidId = 0;
+                }
+                if (!playerInventory_.replaceSlot(heldSlotIndex, replacement, definitions))
+                {
+                    return result;
+                }
+
+                if (entity->moltenAmount >= requiredAmount)
+                {
+                    entity->coolingTicks = 0;
+                    worldRuntime_->scheduleBlockTickAtWorld(
+                        blockX,
+                        blockY,
+                        blockZ,
+                        world::WorldRuntime::BlockTickReasonSelfBlockChanged);
+                }
+                markBlockEntityDirtyAt(blockX, blockZ);
+                result.executed = true;
+                result.inventoryChanged = true;
+                return result;
+            }
+
+            return result;
+        }
         if (candidate.resultTargetsHeldItem)
         {
             if (!blockInteraction || candidate.outputs.empty())

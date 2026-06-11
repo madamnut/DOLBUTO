@@ -41,13 +41,20 @@ namespace dolbuto
     {
         particleRenderPath_.createBuffers();
         droppedItemRenderPath_.createBuffers(rendererAssets_.itemSpriteMeshes);
-        std::vector<DroppedItemRenderPath::ItemSpriteMesh> moltenMeshes(2);
+        std::vector<DroppedItemRenderPath::ItemSpriteMesh> moltenMeshes = rendererAssets_.moltenSurfaceMeshes;
+        if (moltenMeshes.size() < 2)
+        {
+            moltenMeshes.resize(2);
+        }
         DroppedItemRenderPath::ItemSpriteQuad surface{};
         surface.positions = {{{-0.5f, 0.0f, -0.5f}, {-0.5f, 0.0f, 0.5f}, {0.5f, 0.0f, 0.5f}, {0.5f, 0.0f, -0.5f}}};
         surface.uvs = {{{{0.0f, 0.0f}}, {{0.0f, 1.0f}}, {{1.0f, 1.0f}}, {{1.0f, 0.0f}}}};
         surface.ao = 1.0f;
         surface.textureLayer = -1.0f;
-        moltenMeshes[1].quads.push_back(surface);
+        if (moltenMeshes[1].quads.empty())
+        {
+            moltenMeshes[1].quads.push_back(surface);
+        }
         crucibleMoltenRenderPath_.createBuffers(moltenMeshes);
         radialMenuRenderPath_.createBuffers();
     }

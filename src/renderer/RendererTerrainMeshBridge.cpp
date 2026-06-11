@@ -34,7 +34,8 @@ namespace dolbuto
         const TerrainGeometryBuilder geometryBuilder(
             content_.blockDefinitions(),
             content_.blockTextureLayers(),
-            assets_.propMeshesByBlock);
+            assets_.propMeshesByBlock,
+            assets_.moldMeshesByBlock);
 
         world::TerrainMesher mesher;
         TerrainSubchunkBuildData result = mesher.buildEditedSubchunkMesh(
@@ -76,7 +77,8 @@ namespace dolbuto
         const TerrainGeometryBuilder geometryBuilder(
             content_.blockDefinitions(),
             content_.blockTextureLayers(),
-            assets_.propMeshesByBlock);
+            assets_.propMeshesByBlock,
+            assets_.moldMeshesByBlock);
 
         return world::TerrainMesher().buildChunkMesh(
             chunks,

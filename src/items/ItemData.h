@@ -12,6 +12,8 @@ namespace dolbuto
         uint16_t count = 0;
         uint16_t durability = 0;
         uint16_t burnTicksRemaining = 0;
+        uint16_t moltenFluidId = 0;
+        uint16_t moltenAmount = 0;
     };
 
     enum class ItemRenderType : uint8_t
@@ -40,6 +42,10 @@ namespace dolbuto
         std::string slotTexture = "none";
         std::string droppedTexture = "none";
         std::string heldTexture = "none";
+        std::string droppedBottomTexture = "none";
+        std::string droppedTopTexture = "none";
+        std::string heldBottomTexture = "none";
+        std::string heldTopTexture = "none";
         std::vector<std::string> useActions;
         std::vector<std::string> breakActions;
         std::vector<std::string> placeActions;
@@ -62,6 +68,10 @@ namespace dolbuto
         bool burnTicksOnlyWhileHeld = false;
         uint32_t droppedTextureLayer = 0;
         uint32_t heldTextureLayer = 0;
+        uint32_t droppedBottomTextureLayer = 0;
+        uint32_t droppedTopTextureLayer = 0;
+        uint32_t heldBottomTextureLayer = 0;
+        uint32_t heldTopTextureLayer = 0;
         float blockModelWidth = 0.0f;
         float blockModelHeight = 0.0f;
         float blockModelDepth = 0.0f;
@@ -96,6 +106,7 @@ namespace dolbuto
         std::string placeBlockPlacement;
         std::string displayName;
         std::string iconTexture;
+        std::string specialAction;
     };
 
     struct ItemInteractionRecipe

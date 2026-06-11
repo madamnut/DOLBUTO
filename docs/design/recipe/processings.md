@@ -72,6 +72,16 @@ unfired_clay_brick -> clay_brick                       x1, 600 ticks
 unfired_clay_pot -> clay_pot                           x1, 600 ticks
 unfired_refractory_clay_brick -> refractory_clay_brick x1, 600 ticks
 unfired_refractory_clay_crucible -> refractory_clay_crucible x1, 600 ticks
+unfired_refractory_clay_small_crucible -> refractory_clay_small_crucible x1, 600 ticks
+unfired_small_plate_mold -> small_plate_mold           x1, 600 ticks
+unfired_plate_mold -> plate_mold                       x1, 600 ticks
+unfired_large_plate_mold -> large_plate_mold           x1, 600 ticks
+unfired_small_preform_mold -> small_preform_mold       x1, 600 ticks
+unfired_preform_mold -> preform_mold                   x1, 600 ticks
+unfired_large_preform_mold -> large_preform_mold       x1, 600 ticks
+unfired_short_rod_mold -> short_rod_mold               x1, 600 ticks
+unfired_rod_mold -> rod_mold                           x1, 600 ticks
+unfired_long_rod_mold -> long_rod_mold                 x1, 600 ticks
 ```
 
 ## Pyrolysis

@@ -33,7 +33,10 @@ namespace dolbuto
         Texture smokeParticleTextureArray;
         Texture itemTextureArray;
         std::vector<DroppedItemRenderPath::ItemSpriteMesh> itemSpriteMeshes;
+        std::vector<DroppedItemRenderPath::ItemSpriteMesh> moltenSurfaceMeshes;
         std::unordered_map<uint16_t, assets::PropMesh> propMeshesByBlock;
+        std::unordered_map<uint16_t, DroppedItemRenderPath::ItemSpriteMesh> moldMeshesByBlock;
+        std::unordered_map<uint16_t, uint16_t> moldMoltenSurfaceMeshIdsByBlock;
 
         static RendererAssetStore load(
             const std::filesystem::path& assetDirectory,

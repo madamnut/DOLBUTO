@@ -37,6 +37,21 @@ refractory_clay_pile x1 + handcraft/craft
 refractory_clay_pile x4 + handcraft/craft
 -> unfired_refractory_clay_crucible
 
+refractory_clay_pile x2 + handcraft/craft
+-> unfired_refractory_clay_small_crucible
+-> unfired_mold_base
+
+unfired_mold_base x1 + carve
+-> unfired_small_plate_mold
+-> unfired_plate_mold
+-> unfired_large_plate_mold
+-> unfired_small_preform_mold
+-> unfired_preform_mold
+-> unfired_large_preform_mold
+-> unfired_short_rod_mold
+-> unfired_rod_mold
+-> unfired_long_rod_mold
+
 clay_brick x1 + smash
 -> grog x4
 

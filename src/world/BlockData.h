@@ -32,7 +32,8 @@ namespace dolbuto
         Fire,
         Slab,
         HalfSlab,
-        Crucible
+        Crucible,
+        Mold
     };
 
     enum class BlockFaceOcclusion : uint8_t

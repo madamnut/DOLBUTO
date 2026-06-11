@@ -233,6 +233,12 @@ namespace dolbuto::gameplay
             return hit;
         }
 
+        bool rayIntersectsMoldBlock(DVec3 origin, Vec3 direction, int x, int y, int z, double& distance)
+        {
+            const world::block_visual::LocalAabb aabb = world::block_visual::moldWorldAabb(x, y, z);
+            return rayIntersectsAabb(origin, direction, aabb.min, aabb.max, distance);
+        }
+
         bool rayIntersectsCrossBlock(DVec3 origin, Vec3 direction, int x, int y, int z, const BlockDefinition& definition, double& distance)
         {
             bool hit = false;
@@ -338,6 +344,10 @@ namespace dolbuto::gameplay
             if (definition.renderType == BlockRenderType::Crucible)
             {
                 return rayIntersectsCrucibleBlock(origin, direction, x, y, z, distance);
+            }
+            if (definition.renderType == BlockRenderType::Mold)
+            {
+                return rayIntersectsMoldBlock(origin, direction, x, y, z, distance);
             }
             return false;
         }

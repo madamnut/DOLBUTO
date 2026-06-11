@@ -58,10 +58,12 @@ namespace dolbuto
     TerrainGeometryBuilder::TerrainGeometryBuilder(
         const std::vector<BlockDefinition>& blockDefinitions,
         const std::vector<BlockTextureLayers>& blockTextureLayers,
-        const std::unordered_map<uint16_t, assets::PropMesh>& propMeshesByBlock) :
+        const std::unordered_map<uint16_t, assets::PropMesh>& propMeshesByBlock,
+        const std::unordered_map<uint16_t, DroppedItemRenderPath::ItemSpriteMesh>& moldMeshesByBlock) :
         blockDefinitions_(blockDefinitions),
         blockTextureLayers_(blockTextureLayers),
-        propMeshesByBlock_(propMeshesByBlock)
+        propMeshesByBlock_(propMeshesByBlock),
+        moldMeshesByBlock_(moldMeshesByBlock)
     {
     }
 
@@ -527,6 +529,58 @@ namespace dolbuto
             appendCuboid(buildData, x, y, z, block, 0.0f, 0.2f, 0.8f, 1.0f, 1.0f, 1.0f);
             appendCuboid(buildData, x, y, z, block, 0.0f, 0.2f, 0.2f, 0.2f, 1.0f, 0.8f);
             appendCuboid(buildData, x, y, z, block, 0.8f, 0.2f, 0.2f, 1.0f, 1.0f, 0.8f);
+        };
+
+        auto appendMoldBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block)
+        {
+            const auto meshIt = moldMeshesByBlock_.find(block);
+            if (meshIt == moldMeshesByBlock_.end())
+            {
+                return;
+            }
+
+            const DroppedItemRenderPath::ItemSpriteMesh& mesh = meshIt->second;
+            const float mipDistanceScale = blockDefinition(block).mipDistanceScale;
+            const float alphaBlend = blockAlphaBlend(block);
+            const uint8_t packedLight = lightAt(x - worldXStart, y, z - worldZStart);
+
+            for (const DroppedItemRenderPath::ItemSpriteQuad& sourceQuad : mesh.quads)
+            {
+                std::array<TerrainVertex, 4> quad{};
+                for (size_t vertexIndex = 0; vertexIndex < quad.size(); ++vertexIndex)
+                {
+                    const Vec3& position = sourceQuad.positions[vertexIndex];
+                    TerrainVertex& vertex = quad[vertexIndex];
+                    vertex.x = static_cast<float>(x) + position.x;
+                    vertex.y = static_cast<float>(y) + position.y;
+                    vertex.z = static_cast<float>(z) + position.z;
+                    vertex.u = sourceQuad.uvs[vertexIndex][0];
+                    vertex.v = sourceQuad.uvs[vertexIndex][1];
+                    vertex.ao = sourceQuad.ao;
+                    vertex.textureLayer = sourceQuad.textureLayer >= 0.0f ? sourceQuad.textureLayer : static_cast<float>(blockFaceTextureLayer(block, 0));
+                    vertex.mipDistanceScale = mipDistanceScale;
+                    vertex.alphaBlend = alphaBlend;
+                    vertex.packedLight = packedLight;
+                }
+
+                const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
+                buildData.vertices.push_back(quad[0]);
+                buildData.vertices.push_back(quad[1]);
+                buildData.vertices.push_back(quad[2]);
+                buildData.vertices.push_back(quad[3]);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 1);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex + 3);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 2);
+                buildData.indices.push_back(baseIndex + 1);
+                buildData.indices.push_back(baseIndex);
+                buildData.indices.push_back(baseIndex + 3);
+                buildData.indices.push_back(baseIndex + 2);
+            }
         };
 
         auto appendCrossBlock = [&](TerrainBuildData& buildData, int x, int y, int z, uint16_t block, uint32_t textureLayer, float mipDistanceScale, float alphaBlend)
@@ -1498,6 +1552,10 @@ namespace dolbuto
                     else if (blockDefinition(block).renderType == BlockRenderType::Crucible)
                     {
                         appendCrucibleBlock(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, block);
+                    }
+                    else if (blockDefinition(block).renderType == BlockRenderType::Mold)
+                    {
+                        appendMoldBlock(meshForBlock(block), worldXStart + localX, y, worldZStart + localZ, block);
                     }
                 }
             }

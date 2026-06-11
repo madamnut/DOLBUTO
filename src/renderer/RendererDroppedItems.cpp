@@ -10,9 +10,12 @@
 #include "world/WorldRuntime.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace dolbuto
@@ -28,6 +31,59 @@ namespace dolbuto
         constexpr float BlockModelDroppedItemSize = world::DroppedItemSystem::BlockModelDroppedItemSize;
         constexpr float HeldExtrudedSpriteBaseWidth = 0.34f;
         constexpr float HeldExtrudedSpriteBaseThickness = 0.035f;
+
+        std::string moldFormFromBlockName(const std::string& name)
+        {
+            static constexpr std::array<std::string_view, 9> Forms{
+                "small_plate",
+                "plate",
+                "large_plate",
+                "small_preform",
+                "preform",
+                "large_preform",
+                "short_rod",
+                "rod",
+                "long_rod"
+            };
+            for (std::string_view form : Forms)
+            {
+                const std::string suffix = std::string(form) + "_mold";
+                if (name == suffix)
+                {
+                    return std::string(form);
+                }
+            }
+            return {};
+        }
+
+        uint16_t moldRequiredAmount(std::string_view form)
+        {
+            if (form == "small_plate" || form == "small_preform")
+            {
+                return 10;
+            }
+            if (form == "plate" || form == "preform")
+            {
+                return 20;
+            }
+            if (form == "large_plate" || form == "large_preform")
+            {
+                return 30;
+            }
+            if (form == "short_rod")
+            {
+                return 5;
+            }
+            if (form == "rod")
+            {
+                return 10;
+            }
+            if (form == "long_rod")
+            {
+                return 15;
+            }
+            return 0;
+        }
 
         struct Mat4
         {
@@ -473,10 +529,10 @@ namespace dolbuto
                 continue;
             }
 
+            const std::vector<BlockDefinition>& blockDefinitions = client_.content.blockDefinitions();
             for (const BlockEntity& entity : chunk.data->blockEntities)
             {
-                if (entity.type != BlockEntityType::Crucible ||
-                    entity.moltenFluidId == 0 ||
+                if (entity.moltenFluidId == 0 ||
                     entity.moltenAmount == 0 ||
                     static_cast<std::size_t>(entity.moltenFluidId) >= fluids.size())
                 {
@@ -484,24 +540,63 @@ namespace dolbuto
                 }
 
                 const FluidDefinition& fluid = fluids[entity.moltenFluidId];
-                const float fill = std::clamp(static_cast<float>(entity.moltenAmount) / Capacity, 0.0f, 1.0f);
                 const int worldX = chunk.chunkX * world::WorldRuntime::ChunkSizeX + entity.localX;
                 const int worldZ = chunk.chunkZ * world::WorldRuntime::ChunkSizeZ + entity.localZ;
                 const uint8_t packedLight = client_.worldRuntime.lightAtWorld(worldX, entity.y, worldZ);
 
-                DroppedItemRenderPath::RenderInstance renderInstance{};
-                renderInstance.itemId = 1;
-                renderInstance.instance.centerX = static_cast<float>(worldX);
-                renderInstance.instance.centerY = static_cast<float>(entity.y) + InnerBottomY + (InnerTopY - InnerBottomY) * fill;
-                renderInstance.instance.centerZ = static_cast<float>(worldZ);
-                renderInstance.instance.textureLayer = static_cast<float>(fluid.textureLayer);
-                renderInstance.instance.mipDistanceScale = 1.0f;
-                renderInstance.instance.scaleX = InnerSize;
-                renderInstance.instance.scaleY = 1.0f;
-                renderInstance.instance.scaleZ = InnerSize;
-                renderInstance.instance.skyLight = static_cast<float>(world::skyLightFromPacked(packedLight)) / 15.0f;
-                renderInstance.instance.blockLight = static_cast<float>(std::max<uint8_t>(world::blockLightFromPacked(packedLight), 10)) / 15.0f;
-                instances.push_back(renderInstance);
+                if (entity.type == BlockEntityType::Crucible)
+                {
+                    const float fill = std::clamp(static_cast<float>(entity.moltenAmount) / Capacity, 0.0f, 1.0f);
+                    DroppedItemRenderPath::RenderInstance renderInstance{};
+                    renderInstance.itemId = 1;
+                    renderInstance.instance.centerX = static_cast<float>(worldX);
+                    renderInstance.instance.centerY = static_cast<float>(entity.y) + InnerBottomY + (InnerTopY - InnerBottomY) * fill;
+                    renderInstance.instance.centerZ = static_cast<float>(worldZ);
+                    renderInstance.instance.textureLayer = static_cast<float>(fluid.textureLayer);
+                    renderInstance.instance.mipDistanceScale = 1.0f;
+                    renderInstance.instance.scaleX = InnerSize;
+                    renderInstance.instance.scaleY = 1.0f;
+                    renderInstance.instance.scaleZ = InnerSize;
+                    renderInstance.instance.skyLight = static_cast<float>(world::skyLightFromPacked(packedLight)) / 15.0f;
+                    renderInstance.instance.blockLight = static_cast<float>(std::max<uint8_t>(world::blockLightFromPacked(packedLight), 10)) / 15.0f;
+                    instances.push_back(renderInstance);
+                    continue;
+                }
+
+                if (entity.type == BlockEntityType::Mold)
+                {
+                    const uint16_t block = client_.worldRuntime.blockAtWorld(worldX, entity.y, worldZ);
+                    if (static_cast<std::size_t>(block) >= blockDefinitions.size() ||
+                        blockDefinitions[block].renderType != BlockRenderType::Mold)
+                    {
+                        continue;
+                    }
+
+                    const std::string form = moldFormFromBlockName(blockDefinitions[block].name);
+                    const uint16_t requiredAmount = moldRequiredAmount(form);
+                    const auto meshIt = rendererAssets_.moldMoltenSurfaceMeshIdsByBlock.find(block);
+                    if (requiredAmount == 0 ||
+                        meshIt == rendererAssets_.moldMoltenSurfaceMeshIdsByBlock.end() ||
+                        !crucibleMoltenRenderPath_.meshReady(meshIt->second))
+                    {
+                        continue;
+                    }
+
+                    const float fill = std::clamp(static_cast<float>(entity.moltenAmount) / static_cast<float>(requiredAmount), 0.0f, 1.0f);
+                    DroppedItemRenderPath::RenderInstance renderInstance{};
+                    renderInstance.itemId = meshIt->second;
+                    renderInstance.instance.centerX = static_cast<float>(worldX);
+                    renderInstance.instance.centerY = static_cast<float>(entity.y) + 0.0625f + 0.0625f * fill;
+                    renderInstance.instance.centerZ = static_cast<float>(worldZ);
+                    renderInstance.instance.textureLayer = static_cast<float>(fluid.textureLayer);
+                    renderInstance.instance.mipDistanceScale = 1.0f;
+                    renderInstance.instance.scaleX = 1.0f;
+                    renderInstance.instance.scaleY = 1.0f;
+                    renderInstance.instance.scaleZ = 1.0f;
+                    renderInstance.instance.skyLight = static_cast<float>(world::skyLightFromPacked(packedLight)) / 15.0f;
+                    renderInstance.instance.blockLight = static_cast<float>(std::max<uint8_t>(world::blockLightFromPacked(packedLight), 10)) / 15.0f;
+                    instances.push_back(renderInstance);
+                }
             }
         }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "assets/PropModelLoader.h"
+#include "renderer/DroppedItemRenderPath.h"
 #include "renderer/TerrainTypes.h"
 #include "world/BlockData.h"
 #include "world/TerrainMesher.h"
@@ -19,7 +20,8 @@ namespace dolbuto
         TerrainGeometryBuilder(
             const std::vector<BlockDefinition>& blockDefinitions,
             const std::vector<BlockTextureLayers>& blockTextureLayers,
-            const std::unordered_map<uint16_t, assets::PropMesh>& propMeshesByBlock);
+            const std::unordered_map<uint16_t, assets::PropMesh>& propMeshesByBlock,
+            const std::unordered_map<uint16_t, DroppedItemRenderPath::ItemSpriteMesh>& moldMeshesByBlock);
 
         TerrainSubchunkBuildData buildSubchunkMesh(
             const std::shared_ptr<ChunkData>& chunk,
@@ -38,5 +40,6 @@ namespace dolbuto
         const std::vector<BlockDefinition>& blockDefinitions_;
         const std::vector<BlockTextureLayers>& blockTextureLayers_;
         const std::unordered_map<uint16_t, assets::PropMesh>& propMeshesByBlock_;
+        const std::unordered_map<uint16_t, DroppedItemRenderPath::ItemSpriteMesh>& moldMeshesByBlock_;
     };
 }

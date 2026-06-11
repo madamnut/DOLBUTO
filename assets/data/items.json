@@ -1376,11 +1376,15 @@
         "slotTexture": "unfired_small_plate_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_small_plate_mold"
+            "texture": "unfired_small_plate_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_small_plate_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_small_plate_mold"
+            "texture": "unfired_small_plate_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_small_plate_mold_top"
         },
         "tags": []
     },
@@ -1392,11 +1396,15 @@
         "slotTexture": "unfired_plate_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_plate_mold"
+            "texture": "unfired_plate_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_plate_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_plate_mold"
+            "texture": "unfired_plate_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_plate_mold_top"
         },
         "tags": []
     },
@@ -1408,11 +1416,15 @@
         "slotTexture": "unfired_large_plate_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_large_plate_mold"
+            "texture": "unfired_large_plate_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_large_plate_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_large_plate_mold"
+            "texture": "unfired_large_plate_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_large_plate_mold_top"
         },
         "tags": []
     },
@@ -1424,11 +1436,15 @@
         "slotTexture": "unfired_small_preform_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_small_preform_mold"
+            "texture": "unfired_small_preform_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_small_preform_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_small_preform_mold"
+            "texture": "unfired_small_preform_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_small_preform_mold_top"
         },
         "tags": []
     },
@@ -1440,11 +1456,15 @@
         "slotTexture": "unfired_preform_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_preform_mold"
+            "texture": "unfired_preform_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_preform_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_preform_mold"
+            "texture": "unfired_preform_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_preform_mold_top"
         },
         "tags": []
     },
@@ -1456,11 +1476,15 @@
         "slotTexture": "unfired_large_preform_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_large_preform_mold"
+            "texture": "unfired_large_preform_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_large_preform_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_large_preform_mold"
+            "texture": "unfired_large_preform_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_large_preform_mold_top"
         },
         "tags": []
     },
@@ -1472,11 +1496,15 @@
         "slotTexture": "unfired_short_rod_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_short_rod_mold"
+            "texture": "unfired_short_rod_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_short_rod_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_short_rod_mold"
+            "texture": "unfired_short_rod_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_short_rod_mold_top"
         },
         "tags": []
     },
@@ -1488,11 +1516,15 @@
         "slotTexture": "unfired_rod_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_rod_mold"
+            "texture": "unfired_rod_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_rod_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_rod_mold"
+            "texture": "unfired_rod_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_rod_mold_top"
         },
         "tags": []
     },
@@ -1504,11 +1536,15 @@
         "slotTexture": "unfired_long_rod_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_long_rod_mold"
+            "texture": "unfired_long_rod_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_long_rod_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_long_rod_mold"
+            "texture": "unfired_long_rod_mold",
+            "bottomTexture": "unfired_mold_bottom",
+            "topTexture": "unfired_long_rod_mold_top"
         },
         "tags": []
     },
@@ -1520,13 +1556,25 @@
         "slotTexture": "small_plate_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "small_plate_mold"
+            "texture": "small_plate_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "small_plate_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "small_plate_mold"
+            "texture": "small_plate_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "small_plate_mold_top"
         },
-        "tags": []
+        "tags": [],
+        "components": {
+            "placeActions": [
+                "place"
+            ],
+            "placeable": {
+                "block": "small_plate_mold"
+            }
+        }
     },
     {
         "id": 71,
@@ -1536,13 +1584,25 @@
         "slotTexture": "plate_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "plate_mold"
+            "texture": "plate_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "plate_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "plate_mold"
+            "texture": "plate_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "plate_mold_top"
         },
-        "tags": []
+        "tags": [],
+        "components": {
+            "placeActions": [
+                "place"
+            ],
+            "placeable": {
+                "block": "plate_mold"
+            }
+        }
     },
     {
         "id": 72,
@@ -1552,13 +1612,25 @@
         "slotTexture": "large_plate_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "large_plate_mold"
+            "texture": "large_plate_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "large_plate_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "large_plate_mold"
+            "texture": "large_plate_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "large_plate_mold_top"
         },
-        "tags": []
+        "tags": [],
+        "components": {
+            "placeActions": [
+                "place"
+            ],
+            "placeable": {
+                "block": "large_plate_mold"
+            }
+        }
     },
     {
         "id": 73,
@@ -1568,13 +1640,25 @@
         "slotTexture": "small_preform_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "small_preform_mold"
+            "texture": "small_preform_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "small_preform_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "small_preform_mold"
+            "texture": "small_preform_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "small_preform_mold_top"
         },
-        "tags": []
+        "tags": [],
+        "components": {
+            "placeActions": [
+                "place"
+            ],
+            "placeable": {
+                "block": "small_preform_mold"
+            }
+        }
     },
     {
         "id": 74,
@@ -1584,13 +1668,25 @@
         "slotTexture": "preform_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "preform_mold"
+            "texture": "preform_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "preform_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "preform_mold"
+            "texture": "preform_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "preform_mold_top"
         },
-        "tags": []
+        "tags": [],
+        "components": {
+            "placeActions": [
+                "place"
+            ],
+            "placeable": {
+                "block": "preform_mold"
+            }
+        }
     },
     {
         "id": 75,
@@ -1600,13 +1696,25 @@
         "slotTexture": "large_preform_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "large_preform_mold"
+            "texture": "large_preform_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "large_preform_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "large_preform_mold"
+            "texture": "large_preform_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "large_preform_mold_top"
         },
-        "tags": []
+        "tags": [],
+        "components": {
+            "placeActions": [
+                "place"
+            ],
+            "placeable": {
+                "block": "large_preform_mold"
+            }
+        }
     },
     {
         "id": 76,
@@ -1616,13 +1724,25 @@
         "slotTexture": "short_rod_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "short_rod_mold"
+            "texture": "short_rod_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "short_rod_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "short_rod_mold"
+            "texture": "short_rod_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "short_rod_mold_top"
         },
-        "tags": []
+        "tags": [],
+        "components": {
+            "placeActions": [
+                "place"
+            ],
+            "placeable": {
+                "block": "short_rod_mold"
+            }
+        }
     },
     {
         "id": 77,
@@ -1632,13 +1752,25 @@
         "slotTexture": "rod_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "rod_mold"
+            "texture": "rod_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "rod_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "rod_mold"
+            "texture": "rod_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "rod_mold_top"
         },
-        "tags": []
+        "tags": [],
+        "components": {
+            "placeActions": [
+                "place"
+            ],
+            "placeable": {
+                "block": "rod_mold"
+            }
+        }
     },
     {
         "id": 78,
@@ -1648,12 +1780,1038 @@
         "slotTexture": "long_rod_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "long_rod_mold"
+            "texture": "long_rod_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "long_rod_mold_top"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "long_rod_mold"
+            "texture": "long_rod_mold",
+            "bottomTexture": "mold_bottom",
+            "topTexture": "long_rod_mold_top"
         },
+        "tags": [],
+        "components": {
+            "placeActions": [
+                "place"
+            ],
+            "placeable": {
+                "block": "long_rod_mold"
+            }
+        }
+    },
+    {
+        "id": 79,
+        "key": "unfired_refractory_clay_small_crucible",
+        "name": "Unfired Refractory Clay Small Crucible",
+        "stackSize": 1,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "modelShape": "small_crucible",
+        "modelTexture": "refractory_clay",
         "tags": []
+    },
+    {
+        "id": 80,
+        "key": "refractory_clay_small_crucible",
+        "name": "Refractory Clay Small Crucible",
+        "stackSize": 1,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "modelShape": "small_crucible",
+        "modelTexture": "fired_refractory_clay",
+        "tags": [],
+        "components": {
+            "useActions": [
+                "scoop",
+                "pour"
+            ]
+        }
+    },
+    {
+        "id": 81,
+        "key": "tin_small_plate",
+        "name": "Tin Small Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/tin_small_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_small_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_small_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 82,
+        "key": "tin_plate",
+        "name": "Tin Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/tin_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 83,
+        "key": "tin_large_plate",
+        "name": "Tin Large Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/tin_large_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_large_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_large_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 84,
+        "key": "tin_small_preform",
+        "name": "Tin Small Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/tin_small_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_small_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_small_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 85,
+        "key": "tin_preform",
+        "name": "Tin Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/tin_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 86,
+        "key": "tin_large_preform",
+        "name": "Tin Large Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/tin_large_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_large_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_large_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 87,
+        "key": "tin_short_rod",
+        "name": "Tin Short Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/tin_short_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_short_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_short_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 88,
+        "key": "tin_rod",
+        "name": "Tin Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/tin_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 89,
+        "key": "tin_long_rod",
+        "name": "Tin Long Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/tin_long_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_long_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/tin_long_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 90,
+        "key": "zinc_small_plate",
+        "name": "Zinc Small Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/zinc_small_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_small_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_small_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 91,
+        "key": "zinc_plate",
+        "name": "Zinc Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/zinc_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 92,
+        "key": "zinc_large_plate",
+        "name": "Zinc Large Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/zinc_large_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_large_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_large_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 93,
+        "key": "zinc_small_preform",
+        "name": "Zinc Small Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/zinc_small_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_small_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_small_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 94,
+        "key": "zinc_preform",
+        "name": "Zinc Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/zinc_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 95,
+        "key": "zinc_large_preform",
+        "name": "Zinc Large Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/zinc_large_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_large_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_large_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 96,
+        "key": "zinc_short_rod",
+        "name": "Zinc Short Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/zinc_short_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_short_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_short_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 97,
+        "key": "zinc_rod",
+        "name": "Zinc Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/zinc_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 98,
+        "key": "zinc_long_rod",
+        "name": "Zinc Long Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/zinc_long_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_long_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/zinc_long_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 99,
+        "key": "silver_small_plate",
+        "name": "Silver Small Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/silver_small_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_small_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_small_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 100,
+        "key": "silver_plate",
+        "name": "Silver Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/silver_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 101,
+        "key": "silver_large_plate",
+        "name": "Silver Large Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/silver_large_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_large_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_large_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 102,
+        "key": "silver_small_preform",
+        "name": "Silver Small Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/silver_small_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_small_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_small_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 103,
+        "key": "silver_preform",
+        "name": "Silver Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/silver_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 104,
+        "key": "silver_large_preform",
+        "name": "Silver Large Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/silver_large_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_large_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_large_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 105,
+        "key": "silver_short_rod",
+        "name": "Silver Short Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/silver_short_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_short_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_short_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 106,
+        "key": "silver_rod",
+        "name": "Silver Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/silver_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 107,
+        "key": "silver_long_rod",
+        "name": "Silver Long Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/silver_long_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_long_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/silver_long_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 108,
+        "key": "gold_small_plate",
+        "name": "Gold Small Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/gold_small_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_small_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_small_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 109,
+        "key": "gold_plate",
+        "name": "Gold Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/gold_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 110,
+        "key": "gold_large_plate",
+        "name": "Gold Large Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/gold_large_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_large_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_large_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 111,
+        "key": "gold_small_preform",
+        "name": "Gold Small Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/gold_small_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_small_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_small_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 112,
+        "key": "gold_preform",
+        "name": "Gold Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/gold_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 113,
+        "key": "gold_large_preform",
+        "name": "Gold Large Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/gold_large_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_large_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_large_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 114,
+        "key": "gold_short_rod",
+        "name": "Gold Short Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/gold_short_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_short_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_short_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 115,
+        "key": "gold_rod",
+        "name": "Gold Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/gold_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 116,
+        "key": "gold_long_rod",
+        "name": "Gold Long Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/gold_long_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_long_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/gold_long_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 117,
+        "key": "copper_small_plate",
+        "name": "Copper Small Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/copper_small_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_small_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_small_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 118,
+        "key": "copper_plate",
+        "name": "Copper Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/copper_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 119,
+        "key": "copper_large_plate",
+        "name": "Copper Large Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/copper_large_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_large_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_large_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 120,
+        "key": "copper_small_preform",
+        "name": "Copper Small Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/copper_small_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_small_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_small_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 121,
+        "key": "copper_preform",
+        "name": "Copper Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/copper_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 122,
+        "key": "copper_large_preform",
+        "name": "Copper Large Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/copper_large_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_large_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_large_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 123,
+        "key": "copper_short_rod",
+        "name": "Copper Short Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/copper_short_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_short_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_short_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 124,
+        "key": "copper_rod",
+        "name": "Copper Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/copper_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 125,
+        "key": "copper_long_rod",
+        "name": "Copper Long Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/copper_long_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_long_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/copper_long_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 126,
+        "key": "iron_small_plate",
+        "name": "Iron Small Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/iron_small_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_small_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_small_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 127,
+        "key": "iron_plate",
+        "name": "Iron Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/iron_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 128,
+        "key": "iron_large_plate",
+        "name": "Iron Large Plate",
+        "stackSize": 99,
+        "slotTexture": "generated/iron_large_plate",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_large_plate"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_large_plate"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 129,
+        "key": "iron_small_preform",
+        "name": "Iron Small Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/iron_small_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_small_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_small_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 130,
+        "key": "iron_preform",
+        "name": "Iron Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/iron_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 131,
+        "key": "iron_large_preform",
+        "name": "Iron Large Preform",
+        "stackSize": 99,
+        "slotTexture": "generated/iron_large_preform",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_large_preform"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_large_preform"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 132,
+        "key": "iron_short_rod",
+        "name": "Iron Short Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/iron_short_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_short_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_short_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 133,
+        "key": "iron_rod",
+        "name": "Iron Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/iron_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
+    },
+    {
+        "id": 134,
+        "key": "iron_long_rod",
+        "name": "Iron Long Rod",
+        "stackSize": 99,
+        "slotTexture": "generated/iron_long_rod",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_long_rod"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "generated/iron_long_rod"
+        },
+        "tags": [
+            "metal_cast"
+        ]
     }
 ]

@@ -80,7 +80,8 @@ namespace dolbuto
     {
         None = 0,
         Fire = 1,
-        Crucible = 2
+        Crucible = 2,
+        Mold = 3
     };
 
     enum class FireMode : uint8_t
@@ -103,6 +104,7 @@ namespace dolbuto
         uint16_t burnRemainderCount = 0;
         uint16_t moltenFluidId = 0;
         uint16_t moltenAmount = 0;
+        uint16_t coolingTicks = 0;
     };
 
     struct ChunkBlockData

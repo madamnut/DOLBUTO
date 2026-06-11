@@ -27,6 +27,10 @@ namespace dolbuto::world::block_collision
         {
             return block_visual::halfSlabWorldAabb(x, y, z, blockState);
         }
+        if (definition.renderType == BlockRenderType::Mold)
+        {
+            return block_visual::moldWorldAabb(x, y, z);
+        }
 
         return block_visual::LocalAabb{
             Vec3{static_cast<float>(x) - 0.5f, static_cast<float>(y), static_cast<float>(z) - 0.5f},

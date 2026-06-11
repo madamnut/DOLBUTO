@@ -69,6 +69,10 @@ namespace dolbuto::data
         std::string slotRenderTexture = "none";
         std::string droppedTexture = "none";
         std::string heldTexture = "none";
+        std::string droppedBottomTexture = "none";
+        std::string droppedTopTexture = "none";
+        std::string heldBottomTexture = "none";
+        std::string heldTopTexture = "none";
         std::string droppedRender = "extruded_sprite";
         std::string heldRender = "extruded_sprite";
         std::vector<std::string> useActions;
