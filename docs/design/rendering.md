@@ -424,8 +424,10 @@ item instance buffer는 frame-in-flight별 영역을 나누고, 각 프레임 �
 
 인벤토리/핫바 슬롯 아이콘은 RmlUi `<img>`로 표시한다.
 `sprite` 슬롯 아이콘은 `assets/textures/item/{slotTexture}.png`를 직접 사용한다.
-`block_model` 슬롯 아이콘은 콘텐츠 로딩 중 `assets::writeBlockItemIcon`이 `modelBlock` 또는 fallback `placeBlock` 블록 텍스처를 합성해 `assets/textures/item/generated/{item_key}_slot.png` 파일로 만든다.
+`block_model` 슬롯 아이콘은 콘텐츠 로딩 중 `assets::writeBlockItemIcon`이 `modelBlock` 또는 fallback `placeBlock` 기준의 실제 로컬 3D quad mesh를 만든 뒤, 기존 슬롯 아이콘과 같은 고정 아이소메트릭 카메라로 소프트웨어 투영해 `assets/textures/item/generated/{item_key}_slot.png` 파일로 굽는다.
 UI는 생성된 텍스처도 일반 슬롯 이미지와 같은 경로로 읽는다.
+슬롯 아이콘 생성기는 64x64 RGBA 이미지와 depth buffer를 사용해 각 quad를 삼각형으로 래스터라이즈하므로 도가니 내부 벽/바닥처럼 6면 큐브 합성으로 표현되지 않는 형상도 같은 경로로 처리한다.
+생성된 PNG가 이미 있으면 다음 실행에서 다시 굽지 않고 재사용한다. 아이콘을 다시 확인하려면 사용자가 해당 `generated/*_slot.png` 파일을 직접 지운 뒤 실행한다.
 아이템 슬롯 아이콘도 `modelShape`의 X/Y/Z 크기를 반영하므로 `quarter_log`는 반블럭보다 낮은 조각이 아니라 수직으로 한 번 더 자른 긴 1/4 통나무 조각으로 보인다.
 `quarter_log`의 한쪽 수직 절단면은 `modelBlock` 블록 재질의 `verticalSection` 레이어를 전체 UV로 사용한다.
 현재 `quarter_stripped_log`는 `stripped_log`의 `verticalSection = stripped_log_section_vertical` 설정을 절단면 텍스처로 사용한다.

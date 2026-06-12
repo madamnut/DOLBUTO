@@ -1312,6 +1312,26 @@ namespace dolbuto::data
             {
                 definition.outputCount = static_cast<uint16_t>(std::clamp(*outputCount, 1, static_cast<int>(std::numeric_limits<uint16_t>::max())));
             }
+            if (const std::optional<std::string> byproducts = jsonArrayField(object, "byproducts"); byproducts.has_value())
+            {
+                for (const std::string& byproductValue : jsonTopLevelArrayValues(*byproducts))
+                {
+                    if (const std::optional<ParsedInteractionIngredient> byproduct = parseInteractionIngredient(byproductValue); byproduct.has_value())
+                    {
+                        definition.byproducts.push_back(*byproduct);
+                    }
+                }
+            }
+            if (const std::optional<std::string> extraOutputs = jsonArrayField(object, "extraOutputs"); extraOutputs.has_value())
+            {
+                for (const std::string& outputValue : jsonTopLevelArrayValues(*extraOutputs))
+                {
+                    if (const std::optional<ParsedInteractionIngredient> byproduct = parseInteractionIngredient(outputValue); byproduct.has_value())
+                    {
+                        definition.byproducts.push_back(*byproduct);
+                    }
+                }
+            }
             if (const std::optional<int> outputAmount = jsonIntField(object, "outputAmount"); outputAmount.has_value())
             {
                 definition.outputAmount = static_cast<uint16_t>(std::clamp(*outputAmount, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));

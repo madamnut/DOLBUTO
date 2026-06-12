@@ -31,6 +31,21 @@ assets/data/recipes/processings/
 }
 ```
 
+주 산출물 외에 부산물 아이템을 함께 드랍하는 processing은 `byproducts`를 사용한다.
+
+```json
+{
+  "input": "coal",
+  "output": "coke",
+  "outputCount": 1,
+  "byproducts": [
+    { "item": "coal_tar", "count": 2 }
+  ],
+  "requiredHeatLevel": 3,
+  "requiredTicks": 1200
+}
+```
+
 용탕처럼 아이템 대신 유체 상태를 증가시키는 processing은 다음 형식을 사용한다.
 
 ```json
@@ -96,7 +111,8 @@ log -> charcoal                  x4, 600 ticks
 stripped_log -> charcoal         x4, 600 ticks
 half_stripped_log -> charcoal    x3, 600 ticks
 quarter_stripped_log -> charcoal x2, 600 ticks
-bark_strip -> tar                x1, 600 ticks
+bark_strip -> wood_tar           x1, 600 ticks
+coal -> coke                     x1 + coal_tar x2, heat 3, 1200 ticks
 ```
 
 ## Smelt

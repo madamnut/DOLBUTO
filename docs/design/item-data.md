@@ -123,7 +123,8 @@ assets/textures/item/*.png
 `modelBlock`을 생략하면 설치 아이템처럼 `components.placeable.block`으로 지정된 블록을 사용한다.
 아이템 데이터에는 별도 `block`이나 `viewModel` 필드를 두지 않는다.
 `slotRender.type = "block_model"`도 같은 표시용 블록 텍스처를 사용한다.
-콘텐츠 로딩 시 해당 블록의 위/옆면 텍스처를 합성해 `assets/textures/item/generated/{item_key}_slot.png` 아이콘을 만들고, UI는 기존 슬롯 이미지 경로처럼 이 생성 텍스처를 참조한다.
+콘텐츠 로딩 시 해당 블록 모델의 실제 로컬 3D quad mesh를 고정 아이소메트릭 카메라로 투영해 `assets/textures/item/generated/{item_key}_slot.png` 아이콘을 만들고, UI는 기존 슬롯 이미지 경로처럼 이 생성 텍스처를 참조한다.
+생성 아이콘은 같은 PNG가 이미 있으면 다음 실행에서 재사용한다.
 `modelShape`가 `source`이거나 생략된 상태에서 표시 대상 블록이 `renderType: "slab"`이면 슬롯/든 아이템/드랍 아이템의 블록 모델도 기본 bottom 반블럭 형태로 만든다.
 `modelShape = "slab"`은 표시 대상 블록을 `1.0 x 0.5 x 1.0` 크기로 렌더링한다.
 `modelShape = "half_slab"`은 표시 대상 블록을 `0.5 x 0.5 x 1.0` 크기로 렌더링한다.
@@ -144,7 +145,7 @@ assets/textures/item/*.png
 `components.fuel.heatLevel`은 해당 연료가 낼 수 있는 처리 온도 단계다. `burnTimeTicks > 0`이고 `heatLevel`을 생략하면 런타임에서 1로 처리한다.
 현재는 0레벨 연료를 구분하지 않으며, 실제 연료 단계는 1부터 시작한다.
 `heatLevel = 1`은 약한 식물성/얇은 연료, `heatLevel = 2`는 목질 연료, `heatLevel = 3`은 숯/석탄 같은 고열 연료로 사용한다.
-`heatLevel = 4`는 coke 같은 차후 고온 연료용으로 예약하며, 현재 등록된 연료 아이템에는 아직 없다.
+`heatLevel = 4`는 coke 같은 고온 제련용 상위 연료로 사용한다.
 `components.fuel.remainder`는 해당 연료로 추가된 연소 시간이 끝나는 시점에 드랍되는 부산물이다.
 재 생성량은 런타임 계산식이 아니라 아이템 데이터에 명시한다.
 현재 게임 시간은 초당 20틱 기준이며, 연료로 쓰는 아이템은 최소 100틱 이상을 사용한다.
@@ -192,15 +193,18 @@ quarter_stripped_log                               450            2          ash
 wooden_plank                                       225            2          ash x1
 wooden_peg                                         100            2          ash x1
 charcoal, coal                                     2400           3          ash x4
+coke                                               3600           4          ash x4
 ```
 
 ## Fire Processing
 
 fire 셀에 있는 아이템은 연료로 소비될 수 있고, fire 중심 같은 Y층 `3 x 3` 작업 공간 안에서 fire 셀을 제외한 BFS 내부 셀의 아이템은 [[recipe/processings]] 대상이 될 수 있다.
 `pyrolysis`는 leak이 없는 밀폐 작업 공간에서 진행되며, 현재 `log`, `stripped_log`, `half_stripped_log`, `quarter_stripped_log`를 `charcoal`로 변환한다.
-`bark_strip`은 같은 `pyrolysis` 처리에서 `tar` 1개로 변환된다.
+`bark_strip`은 같은 `pyrolysis` 처리에서 `wood_tar` 1개로 변환된다.
+`coal`은 `heatLevel >= 3` 연료가 타는 밀폐 `pyrolysis` 처리에서 1200틱 뒤 `coke` 1개와 부산물 `coal_tar` 2개로 변환된다.
 `firing`은 leak이 정확히 1개인 작업 공간에서 `heatLevel >= 3` 연료를 소비했을 때 진행되며, 현재 굽기 전 점토 아이템을 구운 결과물로 변환한다.
-둘 다 처리 시간은 600틱이다.
+목재 숯/우드타르 처리와 점토 굽기는 처리 시간 600틱을 사용한다.
+일반 item-to-item processing은 `requiredHeatLevel`이 있으면 현재 fire block entity의 `fireHeatLevel`이 그 이상일 때만 진행된다.
 `grog`는 구운 점토를 잘게 부순 내화 보강재이며, `clay_brick`을 `smash`하면 4개, `clay_pot`을 `smash`하면 8개를 얻는다.
 
 `smelt`는 도가니 내부 드랍 아이템을 금속 용탕으로 바꾸는 processing이다.
@@ -209,7 +213,7 @@ fire 셀에 있는 아이템은 연료로 소비될 수 있고, fire 중심 같�
 도가니는 한 번에 한 종류의 용탕만 담을 수 있으므로 이미 용탕이 들어 있으면 같은 금속 원재료만 계속 처리한다.
 
 구운 작은 도가니 `refractory_clay_small_crucible`은 휴대용 용탕 운반 아이템이다.
-`components.useActions = ["scoop", "pour"]`를 사용하며, `ItemStack`의 동적 상태 `moltenFluidId`, `moltenAmount`로 내부 용탕 종류와 양을 저장한다.
+`components.useActions = ["fill", "pour"]`를 사용하며, `ItemStack`의 동적 상태 `moltenFluidId`, `moltenAmount`로 내부 용탕 종류와 양을 저장한다.
 용량은 `10`이고, 비어 있으면 `moltenFluidId = 0`, `moltenAmount = 0`으로 정규화한다.
 플레이어/월드 저장은 item id/count/durability/burnTicks 뒤에 `stateFlags`를 쓰고, 용탕 상태가 있을 때만 `moltenFluidId`, `moltenAmount` payload를 추가한다.
 일반 아이템은 용탕 상태를 저장하지 않으며, 인벤토리 정규화 단계에서 해당 값을 0으로 지운다.
@@ -218,6 +222,17 @@ fire 셀에 있는 아이템은 연료로 소비될 수 있고, fire 중심 같�
 현재 금속은 `tin`, `zinc`, `silver`, `gold`, `copper`, `iron`이고, form은 `small_plate`, `plate`, `large_plate`, `small_preform`, `preform`, `large_preform`, `short_rod`, `rod`, `long_rod`이다.
 스프라이트는 개별 파일을 직접 관리하지 않고 `assets/textures/item/cast_parts_{metal}.png` 3x3 아틀라스를 실행 시 `assets/textures/item/generated/{metal}_{form}.png`로 자른 뒤 item texture array에 넣는다.
 아틀라스 셀 배치는 좌상단부터 오른쪽으로 `small_plate`, `short_rod`, `long_rod`, 다음 줄 `large_preform`, `large_plate`, `rod`, 마지막 줄 `small_preform`, `plate`, `preform`이다.
+cast part 아이템은 다시 도가니에 넣으면 같은 `smelt` 처리로 원래 금속 용탕으로 재용해된다.
+필요 열 단계와 처리 시간은 해당 금속 원재료 smelt와 같고, 되돌아가는 용탕량은 몰드 요구량과 동일하다.
+
+```text
+small_plate, small_preform  10
+plate, preform              20
+large_plate, large_preform  30
+short_rod                    5
+rod                         10
+long_rod                    15
+```
 
 ## 드랍 아이템 물리와 렌더링
 
@@ -299,6 +314,8 @@ raw_gold.png
 raw_iron.png
 refractory_clay_brick.png
 refractory_clay_pile.png
+coal_tar.png
+coke.png
 raw_silver.png
 raw_tin.png
 raw_zinc.png
@@ -313,7 +330,7 @@ small_plate_mold.png
 small_preform_mold.png
 stone_pounder.png
 stone_shard.png
-tar.png
+wood_tar.png
 unfired_clay_brick.png
 unfired_clay_pot.png
 unfired_large_plate_mold.png
@@ -356,7 +373,7 @@ refractory_clay_pile                   id 49
 unfired_refractory_clay_brick          id 50
 refractory_clay_brick                  id 51
 ash                                    id 52
-tar                                    id 53
+wood_tar                               id 53
 wood_shavings                          id 54
 unfired_refractory_clay_crucible       id 55
 refractory_clay_crucible               id 56
@@ -390,6 +407,8 @@ silver_* cast parts                    id 99-107
 gold_* cast parts                      id 108-116
 copper_* cast parts                    id 117-125
 iron_* cast parts                      id 126-134
+coke                                  id 135
+coal_tar                              id 136
 ```
 
 ## 현재 아이템 목록

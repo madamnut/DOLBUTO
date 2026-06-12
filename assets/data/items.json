@@ -1322,17 +1322,17 @@
     },
     {
         "id": 53,
-        "key": "tar",
-        "name": "Tar",
+        "key": "wood_tar",
+        "name": "Wood Tar",
         "stackSize": 99,
-        "slotTexture": "tar",
+        "slotTexture": "wood_tar",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "tar"
+            "texture": "wood_tar"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "tar"
+            "texture": "wood_tar"
         },
         "tags": []
     },
@@ -1349,6 +1349,48 @@
         "heldRender": {
             "type": "extruded_sprite",
             "texture": "wood_shavings"
+        },
+        "tags": []
+    },
+    {
+        "id": 135,
+        "key": "coke",
+        "name": "Coke",
+        "stackSize": 99,
+        "slotTexture": "coke",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "coke"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "coke"
+        },
+        "tags": [],
+        "components": {
+            "fuel": {
+                "burnTimeTicks": 3600,
+                "heatLevel": 4,
+                "remainder": {
+                    "item": "ash",
+                    "count": 4
+                }
+            }
+        }
+    },
+    {
+        "id": 136,
+        "key": "coal_tar",
+        "name": "Coal Tar",
+        "stackSize": 99,
+        "slotTexture": "coal_tar",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "coal_tar"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "coal_tar"
         },
         "tags": []
     },
@@ -1837,7 +1879,7 @@
         "tags": [],
         "components": {
             "useActions": [
-                "scoop",
+                "fill",
                 "pour"
             ]
         }

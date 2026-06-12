@@ -9,7 +9,7 @@ namespace dolbuto::gameplay
     {
         bool isMoltenCarrier(const ItemDefinition& definition)
         {
-            return std::find(definition.useActions.begin(), definition.useActions.end(), "scoop") != definition.useActions.end() ||
+            return std::find(definition.useActions.begin(), definition.useActions.end(), "fill") != definition.useActions.end() ||
                 std::find(definition.useActions.begin(), definition.useActions.end(), "pour") != definition.useActions.end();
         }
     }

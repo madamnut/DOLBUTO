@@ -138,6 +138,7 @@ namespace dolbuto::data
         std::string output;
         std::string outputFluid;
         uint16_t outputCount = 1;
+        std::vector<ParsedInteractionIngredient> byproducts;
         uint16_t outputAmount = 0;
         uint16_t requiredHeatLevel = 0;
         uint32_t requiredTicks = 0;

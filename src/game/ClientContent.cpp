@@ -993,6 +993,20 @@ namespace dolbuto::game
                 recipe.inputItemId = inputIt->second;
                 recipe.outputItemId = definition.output.empty() ? 0 : outputIt->second;
                 recipe.outputCount = definition.outputCount == 0 ? 1 : definition.outputCount;
+                for (const data::ParsedInteractionIngredient& byproductDefinition : definition.byproducts)
+                {
+                    const auto byproductIt = content.itemIdByKey_.find(byproductDefinition.item);
+                    if (byproductIt == content.itemIdByKey_.end())
+                    {
+                        log::warn("Processing recipe references unknown byproduct item key: " + type + " -> " + byproductDefinition.item);
+                        continue;
+                    }
+
+                    ItemProcessingOutput byproduct{};
+                    byproduct.itemId = byproductIt->second;
+                    byproduct.count = byproductDefinition.count == 0 ? 1 : byproductDefinition.count;
+                    recipe.byproducts.push_back(byproduct);
+                }
                 recipe.outputFluidId = outputFluidId;
                 recipe.outputAmount = definition.outputAmount;
                 recipe.requiredHeatLevel = definition.requiredHeatLevel;

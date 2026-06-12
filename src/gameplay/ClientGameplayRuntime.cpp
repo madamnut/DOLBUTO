@@ -1006,6 +1006,7 @@ namespace dolbuto::gameplay
                                 volume.processingCells,
                                 processingRecipes,
                                 processingType,
+                                entity->fireHeatLevel,
                                 ProcessingIntervalTicks,
                                 markDirty);
                         }
@@ -1349,7 +1350,7 @@ namespace dolbuto::gameplay
                     break;
                 }
                 const BlockDefinition& targetDefinition = blockDefinition(interactionBlock);
-                if (heldAction == "scoop" &&
+                if (heldAction == "fill" &&
                     targetDefinition.renderType == BlockRenderType::Crucible &&
                     heldStack.moltenAmount < 10)
                 {
@@ -1569,12 +1570,12 @@ namespace dolbuto::gameplay
                 return candidates;
             }
 
-            if (action == "scoop" && definition.renderType == BlockRenderType::Crucible)
+            if (action == "fill" && definition.renderType == BlockRenderType::Crucible)
             {
                 const BlockEntity* entity = worldRuntime_ != nullptr
                     ? worldRuntime_->blockEntityAtWorld(hit.blockX, hit.blockY, hit.blockZ)
                     : nullptr;
-                const bool canScoop = entity != nullptr &&
+                const bool canFill = entity != nullptr &&
                     entity->type == BlockEntityType::Crucible &&
                     entity->moltenFluidId != 0 &&
                     entity->moltenAmount != 0 &&
@@ -1582,10 +1583,10 @@ namespace dolbuto::gameplay
                     (heldStack.moltenFluidId == 0 || heldStack.moltenFluidId == entity->moltenFluidId);
 
                 ItemInteractionCandidate candidate{};
-                candidate.enabled = canScoop;
+                candidate.enabled = canFill;
                 candidate.outputs.push_back(ItemInteractionOutput{heldStack.itemId, 1, 1});
-                candidate.displayName = "Scoop";
-                candidate.specialAction = "scoop_crucible";
+                candidate.displayName = "Fill";
+                candidate.specialAction = "fill_crucible";
                 candidates.push_back(std::move(candidate));
                 return candidates;
             }
@@ -1824,7 +1825,7 @@ namespace dolbuto::gameplay
                 return result;
             }
 
-            if (candidate.specialAction == "scoop_crucible")
+            if (candidate.specialAction == "fill_crucible")
             {
                 BlockEntity* entity = worldRuntime_->blockEntityAtWorld(blockX, blockY, blockZ);
                 if (entity == nullptr ||
@@ -1834,7 +1835,7 @@ namespace dolbuto::gameplay
                     heldStack.itemId == 0 ||
                     heldStack.count == 0 ||
                     static_cast<std::size_t>(heldStack.itemId) >= definitions.size() ||
-                    !itemHasUseAction(definitions[heldStack.itemId], "scoop") ||
+                    !itemHasUseAction(definitions[heldStack.itemId], "fill") ||
                     heldStack.moltenAmount >= 10 ||
                     (heldStack.moltenFluidId != 0 && heldStack.moltenFluidId != entity->moltenFluidId))
                 {

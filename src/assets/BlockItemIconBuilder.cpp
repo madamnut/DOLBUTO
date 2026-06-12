@@ -10,6 +10,9 @@
 #include <cstdint>
 #include <filesystem>
 #include <initializer_list>
+#include <limits>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace dolbuto::assets
@@ -29,6 +32,28 @@ namespace dolbuto::assets
         {
             float x = 0.0f;
             float y = 0.0f;
+        };
+
+        struct Vec3
+        {
+            float x = 0.0f;
+            float y = 0.0f;
+            float z = 0.0f;
+        };
+
+        struct IconQuad
+        {
+            std::array<Vec3, 4> positions{};
+            std::array<Vec2, 4> uvs{};
+            uint32_t layer = 0;
+            float shade = 1.0f;
+        };
+
+        struct ProjectedVertex
+        {
+            Vec2 position{};
+            Vec2 uv{};
+            float depth = 0.0f;
         };
 
         bool loadTexture(const std::filesystem::path& path, Image& image)
@@ -55,16 +80,16 @@ namespace dolbuto::assets
             return true;
         }
 
-        const Image* imageForLayer(uint32_t layer, const std::array<Image, 3>& images, const std::array<uint32_t, 3>& layers)
+        std::filesystem::path texturePathForLayer(
+            const std::filesystem::path& blockTextureDirectory,
+            const std::vector<std::string>& blockTextureNames,
+            uint32_t layer)
         {
-            for (std::size_t i = 0; i < layers.size(); ++i)
+            if (static_cast<std::size_t>(layer) >= blockTextureNames.size())
             {
-                if (layers[i] == layer && !images[i].pixels.empty())
-                {
-                    return &images[i];
-                }
+                return {};
             }
-            return nullptr;
+            return blockTextureDirectory / (blockTextureNames[layer] + ".png");
         }
 
         float edge(Vec2 a, Vec2 b, Vec2 p)
@@ -72,14 +97,28 @@ namespace dolbuto::assets
             return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
         }
 
-        void blendPixel(std::vector<unsigned char>& output, int x, int y, const unsigned char* source, float shade)
+        void blendPixel(
+            std::vector<unsigned char>& output,
+            std::vector<float>& depthBuffer,
+            int x,
+            int y,
+            float depth,
+            const unsigned char* source,
+            float shade)
         {
-            if (x < 0 || y < 0 || x >= IconSize || y >= IconSize || source[3] == 0)
+            if (x < 0 || y < 0 || x >= IconSize || y >= IconSize || source[3] < 16)
             {
                 return;
             }
 
-            const std::size_t index = (static_cast<std::size_t>(y) * IconSize + static_cast<std::size_t>(x)) * 4u;
+            const std::size_t pixelIndex = static_cast<std::size_t>(y) * IconSize + static_cast<std::size_t>(x);
+            if (depth >= depthBuffer[pixelIndex] - 0.0001f)
+            {
+                return;
+            }
+            depthBuffer[pixelIndex] = depth;
+
+            const std::size_t index = pixelIndex * 4u;
             const float sourceAlpha = static_cast<float>(source[3]) / 255.0f;
             const float destAlpha = static_cast<float>(output[index + 3u]) / 255.0f;
             const float outAlpha = sourceAlpha + destAlpha * (1.0f - sourceAlpha);
@@ -100,64 +139,219 @@ namespace dolbuto::assets
 
         void drawTriangle(
             std::vector<unsigned char>& output,
+            std::vector<float>& depthBuffer,
             const Image& texture,
-            std::array<Vec2, 3> positions,
-            std::array<Vec2, 3> uvs,
+            std::array<ProjectedVertex, 3> vertices,
             float shade)
         {
-            const float area = edge(positions[0], positions[1], positions[2]);
+            const float area = edge(vertices[0].position, vertices[1].position, vertices[2].position);
             if (std::abs(area) <= 0.0001f)
             {
                 return;
             }
 
-            const int minX = std::clamp(static_cast<int>(std::floor(std::min({positions[0].x, positions[1].x, positions[2].x}))), 0, IconSize - 1);
-            const int maxX = std::clamp(static_cast<int>(std::ceil(std::max({positions[0].x, positions[1].x, positions[2].x}))), 0, IconSize - 1);
-            const int minY = std::clamp(static_cast<int>(std::floor(std::min({positions[0].y, positions[1].y, positions[2].y}))), 0, IconSize - 1);
-            const int maxY = std::clamp(static_cast<int>(std::ceil(std::max({positions[0].y, positions[1].y, positions[2].y}))), 0, IconSize - 1);
+            const int minX = std::clamp(static_cast<int>(std::floor(std::min({
+                vertices[0].position.x,
+                vertices[1].position.x,
+                vertices[2].position.x
+            }))), 0, IconSize - 1);
+            const int maxX = std::clamp(static_cast<int>(std::ceil(std::max({
+                vertices[0].position.x,
+                vertices[1].position.x,
+                vertices[2].position.x
+            }))), 0, IconSize - 1);
+            const int minY = std::clamp(static_cast<int>(std::floor(std::min({
+                vertices[0].position.y,
+                vertices[1].position.y,
+                vertices[2].position.y
+            }))), 0, IconSize - 1);
+            const int maxY = std::clamp(static_cast<int>(std::ceil(std::max({
+                vertices[0].position.y,
+                vertices[1].position.y,
+                vertices[2].position.y
+            }))), 0, IconSize - 1);
 
             for (int y = minY; y <= maxY; ++y)
             {
                 for (int x = minX; x <= maxX; ++x)
                 {
                     const Vec2 p{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f};
-                    const float w0 = edge(positions[1], positions[2], p) / area;
-                    const float w1 = edge(positions[2], positions[0], p) / area;
-                    const float w2 = edge(positions[0], positions[1], p) / area;
+                    const float w0 = edge(vertices[1].position, vertices[2].position, p) / area;
+                    const float w1 = edge(vertices[2].position, vertices[0].position, p) / area;
+                    const float w2 = edge(vertices[0].position, vertices[1].position, p) / area;
                     if (w0 < -0.0001f || w1 < -0.0001f || w2 < -0.0001f)
                     {
                         continue;
                     }
 
-                    const float u = std::clamp(uvs[0].x * w0 + uvs[1].x * w1 + uvs[2].x * w2, 0.0f, 1.0f);
-                    const float v = std::clamp(uvs[0].y * w0 + uvs[1].y * w1 + uvs[2].y * w2, 0.0f, 1.0f);
+                    const float u = std::clamp(vertices[0].uv.x * w0 + vertices[1].uv.x * w1 + vertices[2].uv.x * w2, 0.0f, 1.0f);
+                    const float v = std::clamp(vertices[0].uv.y * w0 + vertices[1].uv.y * w1 + vertices[2].uv.y * w2, 0.0f, 1.0f);
+                    const float depth = vertices[0].depth * w0 + vertices[1].depth * w1 + vertices[2].depth * w2;
                     const int sourceX = std::clamp(static_cast<int>(u * static_cast<float>(texture.width - 1) + 0.5f), 0, texture.width - 1);
                     const int sourceY = std::clamp(static_cast<int>(v * static_cast<float>(texture.height - 1) + 0.5f), 0, texture.height - 1);
                     const std::size_t sourceIndex = (static_cast<std::size_t>(sourceY) * static_cast<std::size_t>(texture.width) + static_cast<std::size_t>(sourceX)) * 4u;
-                    blendPixel(output, x, y, texture.pixels.data() + sourceIndex, shade);
+                    blendPixel(output, depthBuffer, x, y, depth, texture.pixels.data() + sourceIndex, shade);
                 }
             }
         }
 
-        void drawQuad(
-            std::vector<unsigned char>& output,
-            const Image& texture,
-            std::array<Vec2, 4> positions,
+        float modelExtent(float explicitExtent, float fallback)
+        {
+            return std::clamp(explicitExtent > 0.0f ? explicitExtent : fallback, 0.0625f, 1.0f);
+        }
+
+        Vec2 uv(float u, float v)
+        {
+            return Vec2{std::clamp(u, 0.0f, 1.0f), std::clamp(v, 0.0f, 1.0f)};
+        }
+
+        void addQuad(
+            std::vector<IconQuad>& quads,
+            std::array<Vec3, 4> positions,
             std::array<Vec2, 4> uvs,
+            uint32_t layer,
             float shade)
         {
-            drawTriangle(
-                output,
-                texture,
-                std::array<Vec2, 3>{positions[0], positions[1], positions[2]},
-                std::array<Vec2, 3>{uvs[0], uvs[1], uvs[2]},
-                shade);
-            drawTriangle(
-                output,
-                texture,
-                std::array<Vec2, 3>{positions[0], positions[2], positions[3]},
-                std::array<Vec2, 3>{uvs[0], uvs[2], uvs[3]},
-                shade);
+            IconQuad quad{};
+            quad.positions = positions;
+            quad.uvs = uvs;
+            quad.layer = layer;
+            quad.shade = shade;
+            quads.push_back(quad);
+        }
+
+        void addCuboid(
+            std::vector<IconQuad>& quads,
+            const BlockTextureLayers& layers,
+            bool useVerticalSection,
+            float minX,
+            float minY,
+            float minZ,
+            float maxX,
+            float maxY,
+            float maxZ)
+        {
+            const float sideTopV = 1.0f - maxY;
+            const float sideBottomV = 1.0f - minY;
+            const uint32_t eastLayer = useVerticalSection ? layers.verticalSection : layers.faces[2];
+
+            addQuad(
+                quads,
+                {{{minX, maxY, minZ}, {maxX, maxY, minZ}, {maxX, maxY, maxZ}, {minX, maxY, maxZ}}},
+                {uv(minX, minZ), uv(maxX, minZ), uv(maxX, maxZ), uv(minX, maxZ)},
+                layers.faces[0],
+                1.0f);
+            addQuad(
+                quads,
+                {{{minX, minY, maxZ}, {maxX, minY, maxZ}, {maxX, minY, minZ}, {minX, minY, minZ}}},
+                {uv(minX, maxZ), uv(maxX, maxZ), uv(maxX, minZ), uv(minX, minZ)},
+                layers.faces[1],
+                0.55f);
+            addQuad(
+                quads,
+                {{{maxX, minY, minZ}, {maxX, maxY, minZ}, {maxX, maxY, maxZ}, {maxX, minY, maxZ}}},
+                {uv(minZ, sideBottomV), uv(minZ, sideTopV), uv(maxZ, sideTopV), uv(maxZ, sideBottomV)},
+                eastLayer,
+                useVerticalSection ? 0.90f : 0.82f);
+            addQuad(
+                quads,
+                {{{minX, minY, maxZ}, {minX, maxY, maxZ}, {minX, maxY, minZ}, {minX, minY, minZ}}},
+                {uv(minZ, sideBottomV), uv(minZ, sideTopV), uv(maxZ, sideTopV), uv(maxZ, sideBottomV)},
+                layers.faces[3],
+                0.68f);
+            addQuad(
+                quads,
+                {{{maxX, minY, maxZ}, {minX, minY, maxZ}, {minX, maxY, maxZ}, {maxX, maxY, maxZ}}},
+                {uv(maxX, sideBottomV), uv(minX, sideBottomV), uv(minX, sideTopV), uv(maxX, sideTopV)},
+                layers.faces[4],
+                0.86f);
+            addQuad(
+                quads,
+                {{{minX, minY, minZ}, {maxX, minY, minZ}, {maxX, maxY, minZ}, {minX, maxY, minZ}}},
+                {uv(minX, sideBottomV), uv(maxX, sideBottomV), uv(maxX, sideTopV), uv(minX, sideTopV)},
+                layers.faces[5],
+                0.64f);
+        }
+
+        std::vector<IconQuad> buildModelQuads(
+            const BlockTextureLayers& layers,
+            BlockRenderType renderType,
+            float modelWidth,
+            float modelHeight,
+            float modelDepth,
+            bool useVerticalSection,
+            float& width,
+            float& height,
+            float& depth)
+        {
+            width = modelExtent(modelWidth, 1.0f);
+            height = modelExtent(
+                modelHeight,
+                (renderType == BlockRenderType::Slab || renderType == BlockRenderType::HalfSlab) ? 0.5f : 1.0f);
+            depth = modelExtent(modelDepth, 1.0f);
+            const float minX = (1.0f - width) * 0.5f;
+            const float maxX = minX + width;
+            const float minZ = (1.0f - depth) * 0.5f;
+            const float maxZ = minZ + depth;
+
+            std::vector<IconQuad> quads;
+            if (renderType == BlockRenderType::Crucible)
+            {
+                const float floorTop = height * 0.2f;
+                const float wallThicknessX = width * 0.2f;
+                const float wallThicknessZ = depth * 0.2f;
+                addCuboid(quads, layers, false, minX, 0.0f, minZ, maxX, floorTop, maxZ);
+                addCuboid(quads, layers, false, minX, floorTop, minZ, maxX, height, minZ + wallThicknessZ);
+                addCuboid(quads, layers, false, minX, floorTop, maxZ - wallThicknessZ, maxX, height, maxZ);
+                addCuboid(quads, layers, false, minX, floorTop, minZ + wallThicknessZ, minX + wallThicknessX, height, maxZ - wallThicknessZ);
+                addCuboid(quads, layers, false, maxX - wallThicknessX, floorTop, minZ + wallThicknessZ, maxX, height, maxZ - wallThicknessZ);
+                return quads;
+            }
+
+            addCuboid(quads, layers, useVerticalSection, minX, 0.0f, minZ, maxX, height, maxZ);
+            return quads;
+        }
+
+        ProjectedVertex projectVertex(Vec3 position, Vec2 uv, float width, float height, float depth)
+        {
+            const float topY = 8.0f + (1.0f - height) * 24.0f;
+            const float originX = 32.0f + (20.0f * depth - 20.0f * width) * 0.5f;
+
+            ProjectedVertex result{};
+            result.position.x = originX + 20.0f * position.x - 20.0f * position.z;
+            result.position.y = topY + 12.0f * position.x + 12.0f * position.z + 24.0f * (height - position.y);
+            result.uv = uv;
+            result.depth = -position.x - position.z - position.y;
+            return result;
+        }
+
+        bool loadImagesForQuads(
+            const std::filesystem::path& blockTextureDirectory,
+            const std::vector<std::string>& blockTextureNames,
+            const std::vector<IconQuad>& quads,
+            std::unordered_map<uint32_t, Image>& images)
+        {
+            for (const IconQuad& quad : quads)
+            {
+                if (images.find(quad.layer) != images.end())
+                {
+                    continue;
+                }
+
+                const std::filesystem::path texturePath = texturePathForLayer(blockTextureDirectory, blockTextureNames, quad.layer);
+                if (texturePath.empty())
+                {
+                    return false;
+                }
+
+                Image image{};
+                if (!loadTexture(texturePath, image))
+                {
+                    return false;
+                }
+                images.emplace(quad.layer, std::move(image));
+            }
+            return true;
         }
     }
 
@@ -172,162 +366,55 @@ namespace dolbuto::assets
         bool useVerticalSection,
         const std::filesystem::path& outputPath)
     {
-        const std::array<uint32_t, 3> visibleLayers = {
-            layers.faces[0],
-            layers.faces[3],
-            useVerticalSection ? layers.verticalSection : layers.faces[4]
-        };
-
-        std::array<Image, 3> images{};
-        for (std::size_t i = 0; i < visibleLayers.size(); ++i)
+        float width = 1.0f;
+        float height = 1.0f;
+        float depth = 1.0f;
+        const std::vector<IconQuad> quads = buildModelQuads(
+            layers,
+            renderType,
+            modelWidth,
+            modelHeight,
+            modelDepth,
+            useVerticalSection,
+            width,
+            height,
+            depth);
+        if (quads.empty())
         {
-            if (static_cast<std::size_t>(visibleLayers[i]) >= blockTextureNames.size())
-            {
-                return false;
-            }
-
-            const std::filesystem::path texturePath = blockTextureDirectory / (blockTextureNames[visibleLayers[i]] + ".png");
-            if (!loadTexture(texturePath, images[i]))
-            {
-                return false;
-            }
+            return false;
         }
 
-        const Image* top = imageForLayer(layers.faces[0], images, visibleLayers);
-        const Image* left = imageForLayer(layers.faces[3], images, visibleLayers);
-        const Image* right = imageForLayer(useVerticalSection ? layers.verticalSection : layers.faces[4], images, visibleLayers);
-        if (top == nullptr || left == nullptr || right == nullptr)
+        if (std::filesystem::exists(outputPath))
+        {
+            return true;
+        }
+
+        std::unordered_map<uint32_t, Image> images;
+        if (!loadImagesForQuads(blockTextureDirectory, blockTextureNames, quads, images))
         {
             return false;
         }
 
         std::vector<unsigned char> output(static_cast<std::size_t>(IconSize) * IconSize * 4u, 0u);
-        const float width = std::clamp(modelWidth > 0.0f ? modelWidth : 1.0f, 0.0625f, 1.0f);
-        const float height = std::clamp(
-            modelHeight > 0.0f ? modelHeight : (renderType == BlockRenderType::Slab ? 0.5f : 1.0f),
-            0.0625f,
-            1.0f);
-        const float depth = std::clamp(modelDepth > 0.0f ? modelDepth : 1.0f, 0.0625f, 1.0f);
-        const float topOffset = (1.0f - height) * 24.0f;
-        const float topY = 8.0f + topOffset;
-        const float widthX = 20.0f * width;
-        const float widthY = 12.0f * width;
-        const float depthX = 20.0f * depth;
-        const float depthY = 12.0f * depth;
-        const float originX = 32.0f + (depthX - widthX) * 0.5f;
-        const float sideDown = 24.0f * height;
-        const Vec2 top0{originX, topY};
-        const Vec2 top1{originX + widthX, topY + widthY};
-        const Vec2 top2{originX + widthX - depthX, topY + widthY + depthY};
-        const Vec2 top3{originX - depthX, topY + depthY};
-        const std::array<Vec2, 4> leftPositions{
-            top3,
-            top2,
-            Vec2{top2.x, top2.y + sideDown},
-            Vec2{top3.x, top3.y + sideDown}
-        };
-        const std::array<Vec2, 4> rightPositions{
-            top2,
-            top1,
-            Vec2{top1.x, top1.y + sideDown},
-            Vec2{top2.x, top2.y + sideDown}
-        };
-        const std::array<Vec2, 4> topPositions{
-            top0,
-            top1,
-            top2,
-            top3
-        };
-        const std::array<Vec2, 4> sideUvs{
-            Vec2{0.0f, 1.0f - height},
-            Vec2{1.0f, 1.0f - height},
-            Vec2{1.0f, 1.0f},
-            Vec2{0.0f, 1.0f}
-        };
-        const std::array<Vec2, 4> sectionUvs{
-            Vec2{0.0f, 0.0f},
-            Vec2{1.0f, 0.0f},
-            Vec2{1.0f, 1.0f},
-            Vec2{0.0f, 1.0f}
-        };
-        if (renderType == BlockRenderType::Crucible)
+        std::vector<float> depthBuffer(static_cast<std::size_t>(IconSize) * IconSize, std::numeric_limits<float>::infinity());
+
+        for (const IconQuad& quad : quads)
         {
-            auto topPoint = [&](float u, float v)
+            const auto imageIt = images.find(quad.layer);
+            if (imageIt == images.end())
             {
-                return Vec2{
-                    top0.x * (1.0f - u) * (1.0f - v) +
-                        top1.x * u * (1.0f - v) +
-                        top2.x * u * v +
-                        top3.x * (1.0f - u) * v,
-                    top0.y * (1.0f - u) * (1.0f - v) +
-                        top1.y * u * (1.0f - v) +
-                        top2.y * u * v +
-                        top3.y * (1.0f - u) * v
-                };
-            };
-            auto topUv = [](float u, float v)
-            {
-                return Vec2{u, v};
-            };
-            auto drawTopRegion = [&](float u0, float v0, float u1, float v1)
-            {
-                drawQuad(
-                    output,
-                    *top,
-                    std::array<Vec2, 4>{
-                        topPoint(u0, v0),
-                        topPoint(u1, v0),
-                        topPoint(u1, v1),
-                        topPoint(u0, v1)
-                    },
-                    std::array<Vec2, 4>{
-                        topUv(u0, v0),
-                        topUv(u1, v0),
-                        topUv(u1, v1),
-                        topUv(u0, v1)
-                    },
-                    1.0f);
-            };
-
-            drawQuad(output, *left, leftPositions, sideUvs, 0.70f);
-            drawQuad(output, *right, rightPositions, sideUvs, 0.86f);
-            drawTopRegion(0.0f, 0.0f, 1.0f, 0.2f);
-            drawTopRegion(0.0f, 0.8f, 1.0f, 1.0f);
-            drawTopRegion(0.0f, 0.2f, 0.2f, 0.8f);
-            drawTopRegion(0.8f, 0.2f, 1.0f, 0.8f);
-
-            std::error_code error;
-            std::filesystem::create_directories(outputPath.parent_path(), error);
-            if (error)
-            {
-                return false;
+                continue;
             }
 
-            return stbi_write_png(outputPath.string().c_str(), IconSize, IconSize, 4, output.data(), IconSize * 4) != 0;
+            const std::array<ProjectedVertex, 4> projected{
+                projectVertex(quad.positions[0], quad.uvs[0], width, height, depth),
+                projectVertex(quad.positions[1], quad.uvs[1], width, height, depth),
+                projectVertex(quad.positions[2], quad.uvs[2], width, height, depth),
+                projectVertex(quad.positions[3], quad.uvs[3], width, height, depth)
+            };
+            drawTriangle(output, depthBuffer, imageIt->second, {projected[0], projected[1], projected[2]}, quad.shade);
+            drawTriangle(output, depthBuffer, imageIt->second, {projected[0], projected[2], projected[3]}, quad.shade);
         }
-        drawQuad(
-            output,
-            *left,
-            leftPositions,
-            sideUvs,
-            0.70f);
-        drawQuad(
-            output,
-            *right,
-            rightPositions,
-            useVerticalSection ? sectionUvs : sideUvs,
-            0.86f);
-        drawQuad(
-            output,
-            *top,
-            topPositions,
-            std::array<Vec2, 4>{
-                Vec2{0.5f * width, 0.0f},
-                Vec2{width, 0.5f * depth},
-                Vec2{0.5f * width, depth},
-                Vec2{0.0f, 0.5f * depth}
-            },
-            1.0f);
 
         std::error_code error;
         std::filesystem::create_directories(outputPath.parent_path(), error);
@@ -336,6 +423,10 @@ namespace dolbuto::assets
             return false;
         }
 
-        return stbi_write_png(outputPath.string().c_str(), IconSize, IconSize, 4, output.data(), IconSize * 4) != 0;
+        if (stbi_write_png(outputPath.string().c_str(), IconSize, IconSize, 4, output.data(), IconSize * 4) == 0)
+        {
+            return false;
+        }
+        return true;
     }
 }

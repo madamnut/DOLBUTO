@@ -25,8 +25,21 @@
     },
     {
         "input": "bark_strip",
-        "output": "tar",
+        "output": "wood_tar",
         "outputCount": 1,
         "requiredTicks": 600
+    },
+    {
+        "input": "coal",
+        "output": "coke",
+        "outputCount": 1,
+        "byproducts": [
+            {
+                "item": "coal_tar",
+                "count": 2
+            }
+        ],
+        "requiredHeatLevel": 3,
+        "requiredTicks": 1200
     }
 ]

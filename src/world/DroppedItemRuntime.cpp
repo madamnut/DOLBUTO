@@ -93,6 +93,37 @@ namespace dolbuto::world
             item.renderSpinZ = ProcessingSpin;
             DroppedItemSystem::setGrounded(item, false);
         }
+
+        template <typename AllocateEntityIdFn>
+        void appendProcessingByproducts(
+            std::vector<WorldEntity>& outputs,
+            const WorldEntity& source,
+            const ItemProcessingRecipe& recipe,
+            const std::vector<ItemDefinition>& definitions,
+            AllocateEntityIdFn allocateEntityId)
+        {
+            for (const ItemProcessingOutput& byproduct : recipe.byproducts)
+            {
+                if (byproduct.itemId == 0 ||
+                    byproduct.count == 0 ||
+                    static_cast<std::size_t>(byproduct.itemId) >= definitions.size())
+                {
+                    continue;
+                }
+
+                WorldEntity output = source;
+                output.entityId = allocateEntityId();
+                output.droppedItem.stack = ItemStack{
+                    byproduct.itemId,
+                    byproduct.count,
+                    definitions[byproduct.itemId].maxDurability
+                };
+                output.droppedItem.processingTicks = 0;
+                output.droppedItem.processingType = 0;
+                bounceProcessedItem(output);
+                outputs.push_back(std::move(output));
+            }
+        }
     }
 
     DroppedItemRuntime::DroppedItemRuntime(WorldRuntime* worldRuntime, const std::vector<ItemDefinition>* itemDefinitions)
@@ -790,6 +821,7 @@ namespace dolbuto::world
         float maxZ,
         const std::vector<ItemProcessingRecipe>& recipes,
         const std::string& type,
+        uint16_t heatLevel,
         uint32_t elapsedTicks,
         const MarkDirtyFn& markDirty)
     {
@@ -830,6 +862,7 @@ namespace dolbuto::world
                         candidate.inputItemId == item.droppedItem.stack.itemId &&
                         candidate.outputItemId != 0 &&
                         static_cast<std::size_t>(candidate.outputItemId) < definitions.size() &&
+                        candidate.requiredHeatLevel <= heatLevel &&
                         candidate.requiredTicks > 0)
                     {
                         recipe = &candidate;
@@ -862,6 +895,7 @@ namespace dolbuto::world
                         item.droppedItem.processingTicks = 0;
                         item.droppedItem.processingType = 0;
                         bounceProcessedItem(item);
+                        appendProcessingByproducts(completedOutputs, item, *recipe, definitions, [&]() { return allocateEntityId(); });
                     }
                     else
                     {
@@ -875,6 +909,7 @@ namespace dolbuto::world
                         output.droppedItem.processingType = 0;
                         bounceProcessedItem(output);
                         completedOutputs.push_back(output);
+                        appendProcessingByproducts(completedOutputs, output, *recipe, definitions, [&]() { return allocateEntityId(); });
                     }
                 }
                 chunkChanged = true;
@@ -902,6 +937,7 @@ namespace dolbuto::world
         const std::vector<std::array<int, 3>>& cells,
         const std::vector<ItemProcessingRecipe>& recipes,
         const std::string& type,
+        uint16_t heatLevel,
         uint32_t elapsedTicks,
         const MarkDirtyFn& markDirty)
     {
@@ -962,6 +998,7 @@ namespace dolbuto::world
                         candidate.inputItemId == item.droppedItem.stack.itemId &&
                         candidate.outputItemId != 0 &&
                         static_cast<std::size_t>(candidate.outputItemId) < definitions.size() &&
+                        candidate.requiredHeatLevel <= heatLevel &&
                         candidate.requiredTicks > 0)
                     {
                         recipe = &candidate;
@@ -994,6 +1031,7 @@ namespace dolbuto::world
                         item.droppedItem.processingTicks = 0;
                         item.droppedItem.processingType = 0;
                         bounceProcessedItem(item);
+                        appendProcessingByproducts(completedOutputs, item, *recipe, definitions, [&]() { return allocateEntityId(); });
                     }
                     else
                     {
@@ -1007,6 +1045,7 @@ namespace dolbuto::world
                         output.droppedItem.processingType = 0;
                         bounceProcessedItem(output);
                         completedOutputs.push_back(output);
+                        appendProcessingByproducts(completedOutputs, output, *recipe, definitions, [&]() { return allocateEntityId(); });
                     }
                 }
                 chunkChanged = true;

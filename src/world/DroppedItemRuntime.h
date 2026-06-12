@@ -93,12 +93,14 @@ namespace dolbuto::world
             float maxZ,
             const std::vector<ItemProcessingRecipe>& recipes,
             const std::string& type,
+            uint16_t heatLevel,
             uint32_t elapsedTicks,
             const MarkDirtyFn& markDirty);
         bool processItemsInCells(
             const std::vector<std::array<int, 3>>& cells,
             const std::vector<ItemProcessingRecipe>& recipes,
             const std::string& type,
+            uint16_t heatLevel,
             uint32_t elapsedTicks,
             const MarkDirtyFn& markDirty);
         SmeltProcessingResult processCrucibleSmeltInAabb(

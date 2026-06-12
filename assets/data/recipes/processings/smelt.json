@@ -40,5 +40,383 @@
         "outputAmount": 10,
         "requiredHeatLevel": 4,
         "requiredTicks": 200
+    },
+    {
+        "input": "tin_small_plate",
+        "outputFluid": "molten_tin",
+        "outputAmount": 10,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "tin_plate",
+        "outputFluid": "molten_tin",
+        "outputAmount": 20,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "tin_large_plate",
+        "outputFluid": "molten_tin",
+        "outputAmount": 30,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "tin_small_preform",
+        "outputFluid": "molten_tin",
+        "outputAmount": 10,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "tin_preform",
+        "outputFluid": "molten_tin",
+        "outputAmount": 20,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "tin_large_preform",
+        "outputFluid": "molten_tin",
+        "outputAmount": 30,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "tin_short_rod",
+        "outputFluid": "molten_tin",
+        "outputAmount": 5,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "tin_rod",
+        "outputFluid": "molten_tin",
+        "outputAmount": 10,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "tin_long_rod",
+        "outputFluid": "molten_tin",
+        "outputAmount": 15,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "zinc_small_plate",
+        "outputFluid": "molten_zinc",
+        "outputAmount": 10,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "zinc_plate",
+        "outputFluid": "molten_zinc",
+        "outputAmount": 20,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "zinc_large_plate",
+        "outputFluid": "molten_zinc",
+        "outputAmount": 30,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "zinc_small_preform",
+        "outputFluid": "molten_zinc",
+        "outputAmount": 10,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "zinc_preform",
+        "outputFluid": "molten_zinc",
+        "outputAmount": 20,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "zinc_large_preform",
+        "outputFluid": "molten_zinc",
+        "outputAmount": 30,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "zinc_short_rod",
+        "outputFluid": "molten_zinc",
+        "outputAmount": 5,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "zinc_rod",
+        "outputFluid": "molten_zinc",
+        "outputAmount": 10,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "zinc_long_rod",
+        "outputFluid": "molten_zinc",
+        "outputAmount": 15,
+        "requiredHeatLevel": 2,
+        "requiredTicks": 200
+    },
+    {
+        "input": "silver_small_plate",
+        "outputFluid": "molten_silver",
+        "outputAmount": 10,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "silver_plate",
+        "outputFluid": "molten_silver",
+        "outputAmount": 20,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "silver_large_plate",
+        "outputFluid": "molten_silver",
+        "outputAmount": 30,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "silver_small_preform",
+        "outputFluid": "molten_silver",
+        "outputAmount": 10,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "silver_preform",
+        "outputFluid": "molten_silver",
+        "outputAmount": 20,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "silver_large_preform",
+        "outputFluid": "molten_silver",
+        "outputAmount": 30,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "silver_short_rod",
+        "outputFluid": "molten_silver",
+        "outputAmount": 5,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "silver_rod",
+        "outputFluid": "molten_silver",
+        "outputAmount": 10,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "silver_long_rod",
+        "outputFluid": "molten_silver",
+        "outputAmount": 15,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "gold_small_plate",
+        "outputFluid": "molten_gold",
+        "outputAmount": 10,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "gold_plate",
+        "outputFluid": "molten_gold",
+        "outputAmount": 20,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "gold_large_plate",
+        "outputFluid": "molten_gold",
+        "outputAmount": 30,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "gold_small_preform",
+        "outputFluid": "molten_gold",
+        "outputAmount": 10,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "gold_preform",
+        "outputFluid": "molten_gold",
+        "outputAmount": 20,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "gold_large_preform",
+        "outputFluid": "molten_gold",
+        "outputAmount": 30,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "gold_short_rod",
+        "outputFluid": "molten_gold",
+        "outputAmount": 5,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "gold_rod",
+        "outputFluid": "molten_gold",
+        "outputAmount": 10,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "gold_long_rod",
+        "outputFluid": "molten_gold",
+        "outputAmount": 15,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "copper_small_plate",
+        "outputFluid": "molten_copper",
+        "outputAmount": 10,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "copper_plate",
+        "outputFluid": "molten_copper",
+        "outputAmount": 20,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "copper_large_plate",
+        "outputFluid": "molten_copper",
+        "outputAmount": 30,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "copper_small_preform",
+        "outputFluid": "molten_copper",
+        "outputAmount": 10,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "copper_preform",
+        "outputFluid": "molten_copper",
+        "outputAmount": 20,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "copper_large_preform",
+        "outputFluid": "molten_copper",
+        "outputAmount": 30,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "copper_short_rod",
+        "outputFluid": "molten_copper",
+        "outputAmount": 5,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "copper_rod",
+        "outputFluid": "molten_copper",
+        "outputAmount": 10,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "copper_long_rod",
+        "outputFluid": "molten_copper",
+        "outputAmount": 15,
+        "requiredHeatLevel": 3,
+        "requiredTicks": 200
+    },
+    {
+        "input": "iron_small_plate",
+        "outputFluid": "molten_iron",
+        "outputAmount": 10,
+        "requiredHeatLevel": 4,
+        "requiredTicks": 200
+    },
+    {
+        "input": "iron_plate",
+        "outputFluid": "molten_iron",
+        "outputAmount": 20,
+        "requiredHeatLevel": 4,
+        "requiredTicks": 200
+    },
+    {
+        "input": "iron_large_plate",
+        "outputFluid": "molten_iron",
+        "outputAmount": 30,
+        "requiredHeatLevel": 4,
+        "requiredTicks": 200
+    },
+    {
+        "input": "iron_small_preform",
+        "outputFluid": "molten_iron",
+        "outputAmount": 10,
+        "requiredHeatLevel": 4,
+        "requiredTicks": 200
+    },
+    {
+        "input": "iron_preform",
+        "outputFluid": "molten_iron",
+        "outputAmount": 20,
+        "requiredHeatLevel": 4,
+        "requiredTicks": 200
+    },
+    {
+        "input": "iron_large_preform",
+        "outputFluid": "molten_iron",
+        "outputAmount": 30,
+        "requiredHeatLevel": 4,
+        "requiredTicks": 200
+    },
+    {
+        "input": "iron_short_rod",
+        "outputFluid": "molten_iron",
+        "outputAmount": 5,
+        "requiredHeatLevel": 4,
+        "requiredTicks": 200
+    },
+    {
+        "input": "iron_rod",
+        "outputFluid": "molten_iron",
+        "outputAmount": 10,
+        "requiredHeatLevel": 4,
+        "requiredTicks": 200
+    },
+    {
+        "input": "iron_long_rod",
+        "outputFluid": "molten_iron",
+        "outputAmount": 15,
+        "requiredHeatLevel": 4,
+        "requiredTicks": 200
     }
 ]

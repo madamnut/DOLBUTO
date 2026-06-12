@@ -121,12 +121,19 @@ namespace dolbuto
         std::vector<ItemInteractionCandidate> candidates;
     };
 
+    struct ItemProcessingOutput
+    {
+        uint16_t itemId = 0;
+        uint16_t count = 1;
+    };
+
     struct ItemProcessingRecipe
     {
         std::string type;
         uint16_t inputItemId = 0;
         uint16_t outputItemId = 0;
         uint16_t outputCount = 1;
+        std::vector<ItemProcessingOutput> byproducts;
         uint16_t outputFluidId = 0;
         uint16_t outputAmount = 0;
         uint16_t requiredHeatLevel = 0;
