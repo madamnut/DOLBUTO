@@ -264,12 +264,13 @@ bedrock 높이는 전역 난수를 사용해 1~4 범위로 만든다.
 
 전역 0~255 난수를 식생 판단에 사용한다.
 
-- plant: `0 ~ 151`
-- stone prop: `152 ~ 159`
+- plant: `0 ~ 147`
+- large stone pile prop: `148 ~ 151`
+- stone pile prop: `152 ~ 159`
 - branch prop: `160 ~ 167`
 - tree: `168 ~ 170`
 
-grass 위에는 같은 0~255 식생 난수 구간에 따라 plant, stone prop, branch prop, tree 중 하나가 배타적으로 생성된다.
+grass 위에는 같은 0~255 식생 난수 구간에 따라 plant, large stone pile prop, stone pile prop, branch prop, tree 중 하나가 배타적으로 생성된다.
 tree는 grass 위에 log와 leaves를 배치한다.
 
 ## 나무와 feature resolve

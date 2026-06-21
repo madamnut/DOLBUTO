@@ -504,7 +504,8 @@ namespace dolbuto::gameplay
         const BlockDefinition& definition,
         DVec3 playerPosition,
         double heightScale,
-        uint16_t blockState)
+        uint16_t blockState,
+        const assets::PropMesh* propMesh)
     {
         if (!definition.collision)
         {
@@ -522,14 +523,23 @@ namespace dolbuto::gameplay
         const double minZ = playerPosition.z - HalfWidth;
         const double maxZ = playerPosition.z + HalfWidth;
 
-        return blockIntersectsAabb(
+        world::block_visual::LocalAabb propLocalAabb{};
+        const world::block_visual::LocalAabb* propLocalAabbPtr = nullptr;
+        if (definition.renderType == BlockRenderType::Prop && propMesh != nullptr && propMesh->hasBounds)
+        {
+            propLocalAabb = world::block_visual::LocalAabb{propMesh->boundsMin, propMesh->boundsMax};
+            propLocalAabbPtr = &propLocalAabb;
+        }
+
+        return world::block_collision::blockIntersectsAabb(
             x,
             y,
             z,
             definition,
             DVec3{minX, minY, minZ},
             DVec3{maxX, maxY, maxZ},
-            blockState);
+            blockState,
+            propLocalAabbPtr);
     }
 
     bool BlockInteractionSystem::raycastBlock(

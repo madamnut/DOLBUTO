@@ -4,6 +4,7 @@
 #include "renderer/ParticleRenderPath.h"
 #include "game/ClientRuntimeState.h"
 #include "renderer/RendererVulkanState.h"
+#include "world/BlockVisualShape.h"
 
 #include <array>
 #include <cstddef>
@@ -411,6 +412,16 @@ namespace dolbuto
                             [this](uint16_t block) -> const BlockDefinition&
                             {
                                 return blockDefinition(block);
+                            },
+                            [this](uint16_t block, world::block_visual::LocalAabb& out)
+                            {
+                                const assets::PropMesh* mesh = client_.content.propMeshForBlock(block);
+                                if (mesh == nullptr || !mesh->hasBounds)
+                                {
+                                    return false;
+                                }
+                                out = world::block_visual::LocalAabb{mesh->boundsMin, mesh->boundsMax};
+                                return true;
                             }))
                     {
                         return true;

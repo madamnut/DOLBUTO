@@ -17,8 +17,18 @@ namespace dolbuto::world::block_collision
             min.z < blockMax.z - Epsilon;
     }
 
-    inline block_visual::LocalAabb blockWorldAabb(int x, int y, int z, const BlockDefinition& definition, uint16_t blockState)
+    inline block_visual::LocalAabb blockWorldAabb(
+        int x,
+        int y,
+        int z,
+        const BlockDefinition& definition,
+        uint16_t blockState,
+        const block_visual::LocalAabb* propLocalAabb = nullptr)
     {
+        if (definition.renderType == BlockRenderType::Prop && propLocalAabb != nullptr)
+        {
+            return block_visual::transformLocalAabb(definition, x, y, z, *propLocalAabb);
+        }
         if (definition.renderType == BlockRenderType::Slab)
         {
             return block_visual::slabWorldAabb(x, y, z, blockState);
@@ -45,7 +55,8 @@ namespace dolbuto::world::block_collision
         const BlockDefinition& definition,
         DVec3 min,
         DVec3 max,
-        uint16_t blockState)
+        uint16_t blockState,
+        const block_visual::LocalAabb* propLocalAabb = nullptr)
     {
         if (!definition.collision)
         {
@@ -66,7 +77,7 @@ namespace dolbuto::world::block_collision
             return intersects;
         }
 
-        const block_visual::LocalAabb aabb = blockWorldAabb(x, y, z, definition, blockState);
+        const block_visual::LocalAabb aabb = blockWorldAabb(x, y, z, definition, blockState, propLocalAabb);
         return aabbIntersects(
             min,
             max,

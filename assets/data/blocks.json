@@ -34,9 +34,21 @@
         },
         "drops": [
             {
-                "item": "rock_chunk",
-                "min": 4,
-                "max": 4,
+                "item": "large_stone",
+                "min": 1,
+                "max": 2,
+                "chance": 1
+            },
+            {
+                "item": "stone",
+                "min": 0,
+                "max": 1,
+                "chance": 1
+            },
+            {
+                "item": "small_stone",
+                "min": 0,
+                "max": 1,
                 "chance": 1
             }
         ],
@@ -443,9 +455,21 @@
         },
         "drops": [
             {
-                "item": "rock_chunk",
-                "min": 4,
-                "max": 4,
+                "item": "large_stone",
+                "min": 1,
+                "max": 2,
+                "chance": 1
+            },
+            {
+                "item": "stone",
+                "min": 0,
+                "max": 1,
+                "chance": 1
+            },
+            {
+                "item": "small_stone",
+                "min": 0,
+                "max": 1,
                 "chance": 1
             },
             {
@@ -479,9 +503,21 @@
         },
         "drops": [
             {
-                "item": "rock_chunk",
-                "min": 4,
-                "max": 4,
+                "item": "large_stone",
+                "min": 1,
+                "max": 2,
+                "chance": 1
+            },
+            {
+                "item": "stone",
+                "min": 0,
+                "max": 1,
+                "chance": 1
+            },
+            {
+                "item": "small_stone",
+                "min": 0,
+                "max": 1,
                 "chance": 1
             },
             {
@@ -515,9 +551,21 @@
         },
         "drops": [
             {
-                "item": "rock_chunk",
-                "min": 4,
-                "max": 4,
+                "item": "large_stone",
+                "min": 1,
+                "max": 2,
+                "chance": 1
+            },
+            {
+                "item": "stone",
+                "min": 0,
+                "max": 1,
+                "chance": 1
+            },
+            {
+                "item": "small_stone",
+                "min": 0,
+                "max": 1,
                 "chance": 1
             },
             {
@@ -551,9 +599,21 @@
         },
         "drops": [
             {
-                "item": "rock_chunk",
-                "min": 4,
-                "max": 4,
+                "item": "large_stone",
+                "min": 1,
+                "max": 2,
+                "chance": 1
+            },
+            {
+                "item": "stone",
+                "min": 0,
+                "max": 1,
+                "chance": 1
+            },
+            {
+                "item": "small_stone",
+                "min": 0,
+                "max": 1,
                 "chance": 1
             },
             {
@@ -587,9 +647,21 @@
         },
         "drops": [
             {
-                "item": "rock_chunk",
-                "min": 4,
-                "max": 4,
+                "item": "large_stone",
+                "min": 1,
+                "max": 2,
+                "chance": 1
+            },
+            {
+                "item": "stone",
+                "min": 0,
+                "max": 1,
+                "chance": 1
+            },
+            {
+                "item": "small_stone",
+                "min": 0,
+                "max": 1,
                 "chance": 1
             },
             {
@@ -623,9 +695,21 @@
         },
         "drops": [
             {
-                "item": "rock_chunk",
-                "min": 4,
-                "max": 4,
+                "item": "large_stone",
+                "min": 1,
+                "max": 2,
+                "chance": 1
+            },
+            {
+                "item": "stone",
+                "min": 0,
+                "max": 1,
+                "chance": 1
+            },
+            {
+                "item": "small_stone",
+                "min": 0,
+                "max": 1,
                 "chance": 1
             },
             {
@@ -659,9 +743,21 @@
         },
         "drops": [
             {
-                "item": "rock_chunk",
-                "min": 4,
-                "max": 4,
+                "item": "large_stone",
+                "min": 1,
+                "max": 2,
+                "chance": 1
+            },
+            {
+                "item": "stone",
+                "min": 0,
+                "max": 1,
+                "chance": 1
+            },
+            {
+                "item": "small_stone",
+                "min": 0,
+                "max": 1,
                 "chance": 1
             },
             {
@@ -825,7 +921,7 @@
         "hardness": 0.3,
         "directional": false,
         "mipDistanceScale": 1,
-        "collision": false,
+        "collision": true,
         "ao": false,
         "faceOcclusion": "none",
         "sameBlockFaceCulling": false,
@@ -856,7 +952,7 @@
         "hardness": 0.3,
         "directional": false,
         "mipDistanceScale": 1,
-        "collision": false,
+        "collision": true,
         "ao": false,
         "faceOcclusion": "none",
         "sameBlockFaceCulling": false,
@@ -887,7 +983,7 @@
         "hardness": 0.3,
         "directional": false,
         "mipDistanceScale": 1,
-        "collision": false,
+        "collision": true,
         "ao": false,
         "faceOcclusion": "none",
         "sameBlockFaceCulling": false,
@@ -918,7 +1014,7 @@
         "hardness": 0.3,
         "directional": false,
         "mipDistanceScale": 1,
-        "collision": false,
+        "collision": true,
         "ao": false,
         "faceOcclusion": "none",
         "sameBlockFaceCulling": false,
@@ -949,7 +1045,7 @@
         "hardness": 0.3,
         "directional": false,
         "mipDistanceScale": 1,
-        "collision": false,
+        "collision": true,
         "ao": false,
         "faceOcclusion": "none",
         "sameBlockFaceCulling": false,
@@ -980,7 +1076,7 @@
         "hardness": 0.3,
         "directional": false,
         "mipDistanceScale": 1,
-        "collision": false,
+        "collision": true,
         "ao": false,
         "faceOcclusion": "none",
         "sameBlockFaceCulling": false,
@@ -1011,7 +1107,7 @@
         "hardness": 0.3,
         "directional": false,
         "mipDistanceScale": 1,
-        "collision": false,
+        "collision": true,
         "ao": false,
         "faceOcclusion": "none",
         "sameBlockFaceCulling": false,
@@ -1042,7 +1138,7 @@
         "hardness": 0.3,
         "directional": false,
         "mipDistanceScale": 1,
-        "collision": false,
+        "collision": true,
         "ao": false,
         "faceOcclusion": "none",
         "sameBlockFaceCulling": false,
@@ -1073,7 +1169,7 @@
         "hardness": 0.3,
         "directional": false,
         "mipDistanceScale": 1,
-        "collision": false,
+        "collision": true,
         "ao": false,
         "faceOcclusion": "none",
         "sameBlockFaceCulling": false,
@@ -1131,7 +1227,7 @@
     },
     {
         "id": 20000,
-        "name": "stone",
+        "name": "stone_pile",
         "renderType": "prop",
         "hardness": 0,
         "directional": false,
@@ -1143,7 +1239,7 @@
         "sameBlockFaceCulling": false,
         "alphaMode": "opaque",
         "prop": {
-            "model": "stone",
+            "model": "stone_pile",
             "texture": "rock"
         },
         "attachment": {
@@ -1151,9 +1247,15 @@
         },
         "drops": [
             {
-                "item": "stone_shard",
+                "item": "small_stone",
                 "min": 1,
-                "max": 1,
+                "max": 2,
+                "chance": 1
+            },
+            {
+                "item": "stone",
+                "min": 1,
+                "max": 2,
                 "chance": 1
             }
         ],
@@ -1192,6 +1294,108 @@
         "lightAttenuation": 1,
         "breakLevel": 0,
         "breakAction": "chop"
+    },
+    {
+        "id": 20002,
+        "name": "large_stone_pile",
+        "renderType": "prop",
+        "hardness": 0,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": false,
+        "ao": false,
+        "randomOffset": true,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "opaque",
+        "prop": {
+            "model": "large_stone_pile",
+            "texture": "rock"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "stone",
+                "min": 1,
+                "max": 2,
+                "chance": 1
+            },
+            {
+                "item": "large_stone",
+                "min": 1,
+                "max": 2,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
+    },
+    {
+        "id": 20003,
+        "name": "stone_anvil",
+        "renderType": "prop",
+        "hardness": 0,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": false,
+        "randomOffset": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "opaque",
+        "prop": {
+            "model": "stone_anvil",
+            "texture": "rock"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "stone_anvil",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
+    },
+    {
+        "id": 20004,
+        "name": "stone_mortar",
+        "renderType": "prop",
+        "hardness": 0,
+        "directional": false,
+        "mipDistanceScale": 1,
+        "collision": true,
+        "ao": false,
+        "randomOffset": false,
+        "faceOcclusion": "none",
+        "sameBlockFaceCulling": false,
+        "alphaMode": "opaque",
+        "prop": {
+            "model": "stone_mortar",
+            "texture": "rock"
+        },
+        "attachment": {
+            "face": "bottom"
+        },
+        "drops": [
+            {
+                "item": "stone_mortar",
+                "min": 1,
+                "max": 1,
+                "chance": 1
+            }
+        ],
+        "lightAttenuation": 1,
+        "breakLevel": 0,
+        "breakAction": "smash"
     },
     {
         "id": 65535,

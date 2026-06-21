@@ -39,26 +39,21 @@ assets/textures/item/*.png
 ```json
 {
   "id": 1,
-  "key": "rock_chunk",
-  "name": "Rock Chunk",
+  "key": "small_stone",
+  "name": "Small Stone",
   "stackSize": 99,
-  "slotTexture": "rock_chunk",
+  "slotTexture": "small_stone",
   "droppedRender": {
     "type": "extruded_sprite",
-    "texture": "rock_chunk"
+    "texture": "small_stone"
   },
   "heldRender": {
     "type": "extruded_sprite",
-    "texture": "rock_chunk"
+    "texture": "small_stone"
   },
   "tags": [],
   "components": {
-    "useActions": ["ignite"],
-    "breakActions": ["smash"],
-    "breakLevel": 2,
-    "durability": {
-      "max": 64
-    },
+    "useActions": ["chip"],
     "fuel": {
       "burnTimeTicks": 2400,
       "heatLevel": 2,
@@ -241,7 +236,9 @@ long_rod                    15
 현재 드랍 `extruded_sprite`는 렌더 크기와 물리 AABB를 분리한다.
 기본 렌더 크기는 `0.5 x 0.05 x 0.5`이고, 플레이어 접촉 획득, 레이캐스트 대상 지정, 작업 영역 감지는 이 렌더 bounds를 사용한다.
 기본 물리 AABB는 `0.2 x 0.05 x 0.2`이며, 지형 충돌, 드랍 아이템끼리 충돌, 아이템 위에 쌓이는 판정, 블록 설치 후 밀어내기에는 이 작은 물리 bounds를 사용한다.
-드랍된 `block_model` 아이템은 `modelBlock` 또는 fallback `components.placeable.block` 블록의 6면 텍스처를 사용하는 작은 블록 mesh로 렌더링하며, 기본 렌더 크기와 기본 물리 AABB는 모두 `0.2 x 0.2 x 0.2`다.
+드랍된 `block_model` 아이템은 `modelBlock` 또는 fallback `components.placeable.block` 블록의 6면 텍스처를 사용하는 작은 블록 mesh로 렌더링한다.
+표시 대상 블록이 `renderType = "prop"`이고 prop mesh가 로드되어 있으면, 드랍/손 렌더링은 해당 `.dpm` prop mesh를 `block_model` 아이템 렌더 크기에 맞춰 사용한다.
+드랍된 `block_model` 아이템의 기본 렌더 크기와 기본 물리 AABB는 모두 `0.2 x 0.2 x 0.2`이며, prop mesh 표시 아이템도 드랍 물리는 이 공통 AABB를 유지한다.
 표시 대상이 `slab`이거나 `modelShape`가 `slab`, `quarter_log`이면 해당 X/Y/Z 크기의 블록 모델을 사용하되 드랍 물리 AABB는 기존 `block_model` 기본값을 유지한다.
 드랍 아이템 런타임 위치는 아이템의 중앙 하단 접점이다.
 
@@ -319,7 +316,7 @@ coke.png
 raw_silver.png
 raw_tin.png
 raw_zinc.png
-rock_chunk.png
+small_stone.png
 rod_mold.png
 sand_pile.png
 seed.png
@@ -328,8 +325,11 @@ short_rod_mold.png
 short_wooden_stick.png
 small_plate_mold.png
 small_preform_mold.png
-stone_pounder.png
-stone_shard.png
+stone_point.png
+stone_maul.png
+stone_pestle.png
+stone.png
+large_stone.png
 wood_tar.png
 unfired_clay_brick.png
 unfired_clay_pot.png
@@ -349,6 +349,22 @@ wooden_peg.png
 wooden_plank.png
 wooden_stick.png
 ```
+
+확정 전 AI 생성 아이템 스프라이트는 활성 로딩 경로와 분리해 다음 위치에 임시 보관한다.
+
+```text
+assets/textures/AIGenerated/*.png
+```
+
+현재 임시 보관 파일은 `small_stone.png`, `stone.png`, `large_stone.png`, `stone_blade.png`, `stone_scraper.png`, `stone_point.png`다.
+`stone_blade_transparent_raw.png`, `stone_scraper_transparent_raw.png`, `stone_point_transparent_raw.png`, `stone_chopper_transparent_raw.png`, `stone_maul_transparent_raw.png`, `stone_pestle_transparent_raw.png`, `stone_anvil_transparent_raw.png`, `stone_mortar_transparent_raw.png`, `stone_mortar_shallow_transparent_raw.png`, `small_stone_derivatives_transparent_raw_sheet.png`, `stone_tools_medium_transparent_raw_sheet.png`, `stone_tools_large_transparent_raw_sheet.png`는 크기 조정 전 원본 투명 배경 검토용 파일이다.
+게임에서 사용하기로 확정한 뒤 `assets/textures/item/`으로 옮기고 아이템 데이터에 등록한다.
+돌 크기의 시각 기준은 `small_stone`이 주먹 하나, `stone`이 주먹 2~3개, `large_stone`이 사람 머리 정도다.
+세 임시 스프라이트는 `32 x 32` 논리 픽셀 그리드에서 큰 단색 픽셀 군집으로 먼저 설계하고, 최대 10색의 공통 팔레트를 사용한다.
+현재 `small_stone` 파생 초안은 `stone_blade`, `stone_scraper`, `stone_point` 3종이며, 임시 스프라이트만 준비한 상태다.
+현재 `stone` 파생 초안은 `stone_chopper`, `stone_maul`, `stone_pestle` 3종이며, 원본 투명 배경 검토용 임시 스프라이트만 준비한 상태다.
+현재 `large_stone` 파생 초안은 `stone_anvil`, `stone_mortar` 2종이며, 원본 투명 배경 검토용 임시 스프라이트만 준비한 상태다.
+`stone_mortar_shallow_transparent_raw.png`는 깊은 그릇형이 아닌 낮은 자연석과 얕은 홈 방향의 재시도본이다.
 
 점토/가공 재료 계열 일반 아이템은 `extruded_sprite` 렌더 타입과 `stackSize = 99`를 사용한다.
 도가니 아이템은 `block_model`, `modelShape = "crucible"` 또는 `modelShape = "small_crucible"`, `modelTexture`를 사용해 재질만 바꾼 도가니 형상으로 표시한다.
@@ -438,25 +454,18 @@ assets/data/recipes/interactions.json
 [
   {
     "action": "chip",
-    "target": "stone_shard",
-    "candidates": ["stone_chopper"]
-  },
-  {
-    "action": "smash",
-    "target": "stone_shard",
-    "min": 1,
-    "max": 2,
-    "candidates": ["stone_flake"]
-  },
-  {
-    "action": "grind",
-    "target": "stone_shard",
-    "candidates": ["stone_pounder"]
+    "target": "small_stone",
+    "candidates": ["stone_blade", "stone_scraper", "stone_point"]
   },
   {
     "action": "chip",
-    "target": "stone_flake",
-    "candidates": ["stone_blade", "stone_scraper"]
+    "target": "stone",
+    "candidates": ["stone_chopper", "stone_maul", "stone_pestle"]
+  },
+  {
+    "action": "chip",
+    "target": "large_stone",
+    "candidates": ["stone_anvil", "stone_mortar"]
   },
   {
     "action": "scrape",
@@ -695,69 +704,23 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 ```json
 {
   "rock": [
-    { "item": "rock_chunk", "min": 4, "max": 4, "chance": 1.0 }
+    { "item": "large_stone", "min": 1, "max": 2, "chance": 1.0 },
+    { "item": "stone", "min": 0, "max": 1, "chance": 1.0 },
+    { "item": "small_stone", "min": 0, "max": 1, "chance": 1.0 }
   ],
-  "coal_ore": [
-    { "item": "rock_chunk", "min": 4, "max": 4, "chance": 1.0 },
-    { "item": "coal", "min": 1, "max": 1, "chance": 1.0 }
+  "*_ore": [
+    { "item": "large_stone", "min": 1, "max": 2, "chance": 1.0 },
+    { "item": "stone", "min": 0, "max": 1, "chance": 1.0 },
+    { "item": "small_stone", "min": 0, "max": 1, "chance": 1.0 },
+    { "item": "coal/raw_*", "min": 1, "max": 1, "chance": 1.0 }
   ],
-  "copper_ore": [
-    { "item": "rock_chunk", "min": 4, "max": 4, "chance": 1.0 },
-    { "item": "raw_copper", "min": 1, "max": 1, "chance": 1.0 }
+  "stone_pile": [
+    { "item": "small_stone", "min": 1, "max": 2, "chance": 1.0 },
+    { "item": "stone", "min": 1, "max": 2, "chance": 1.0 }
   ],
-  "iron_ore": [
-    { "item": "rock_chunk", "min": 4, "max": 4, "chance": 1.0 },
-    { "item": "raw_iron", "min": 1, "max": 1, "chance": 1.0 }
-  ],
-  "tin_ore": [
-    { "item": "rock_chunk", "min": 4, "max": 4, "chance": 1.0 },
-    { "item": "raw_tin", "min": 1, "max": 1, "chance": 1.0 }
-  ],
-  "zinc_ore": [
-    { "item": "rock_chunk", "min": 4, "max": 4, "chance": 1.0 },
-    { "item": "raw_zinc", "min": 1, "max": 1, "chance": 1.0 }
-  ],
-  "silver_ore": [
-    { "item": "rock_chunk", "min": 4, "max": 4, "chance": 1.0 },
-    { "item": "raw_silver", "min": 1, "max": 1, "chance": 1.0 }
-  ],
-  "gold_ore": [
-    { "item": "rock_chunk", "min": 4, "max": 4, "chance": 1.0 },
-    { "item": "raw_gold", "min": 1, "max": 1, "chance": 1.0 }
-  ],
-  "dirt": [
-    { "item": "dirt_pile", "min": 4, "max": 4, "chance": 1.0 }
-  ],
-  "sand": [
-    { "item": "sand_pile", "min": 1, "max": 2, "chance": 1.0 }
-  ],
-  "sandstone": [],
-  "mud": [],
-  "clay": [
-    { "item": "clay_pile", "min": 4, "max": 4, "chance": 1.0 }
-  ],
-  "log": [
-    { "item": "log", "min": 1, "max": 1, "chance": 1.0 }
-  ],
-  "stripped_log": [
-    { "item": "stripped_log", "min": 1, "max": 1, "chance": 1.0 }
-  ],
-  "grass": [
-    { "item": "dirt_pile", "min": 4, "max": 4, "chance": 1.0 },
-    { "item": "grass_scrap", "min": 2, "max": 4, "chance": 1.0 },
-    { "item": "seed", "min": 1, "max": 1, "chance": 0.05 }
-  ],
-  "plant": [
-    { "item": "plant", "min": 1, "max": 1, "chance": 1.0 }
-  ],
-  "stone": [
-    { "item": "stone_shard", "min": 1, "max": 1, "chance": 1.0 }
-  ],
-  "branch": [
-    { "item": "branch", "min": 1, "max": 1, "chance": 1.0 }
-  ],
-  "leaves": [
-    { "item": "leaf", "min": 1, "max": 1, "chance": 1.0 }
+  "large_stone_pile": [
+    { "item": "stone", "min": 1, "max": 2, "chance": 1.0 },
+    { "item": "large_stone", "min": 1, "max": 2, "chance": 1.0 }
   ]
 }
 ```
@@ -813,13 +776,17 @@ long_rod_mold: components.placeable.block long_rod_mold
 현재 석기 아이템 기준:
 
 ```text
-stone_shard: components.useActions chip/smash/grind, components.breakActions smash, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
-stone_flake: components.useActions chip, components.durability.max 64, components.slotGauge.source durability
-stone_chopper: components.useActions smash/split, components.breakActions chop/dig, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
+small_stone: stackSize 1, components.useActions chip, components.durability.max 64, components.slotGauge.source durability
+stone: stackSize 1, components.useActions chip, components.durability.max 64, components.slotGauge.source durability
+large_stone: stackSize 1, components.useActions chip, components.breakActions smash, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
 stone_blade: components.useActions cut/carve, components.breakActions cut, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
-stone_scraper: components.useActions scrape/pierce, components.durability.max 64, components.slotGauge.source durability
-stone_pounder: components.useActions pound/smash, components.breakActions smash, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
-bow_drill: components.useActions ignite, components.durability.max 4, components.slotGauge.source durability
+stone_scraper: components.useActions scrape, components.durability.max 64, components.slotGauge.source durability
+stone_point: components.useActions pierce, components.durability.max 64, components.slotGauge.source durability
+stone_chopper: components.useActions chop/split, components.breakActions chop, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
+stone_maul: components.useActions smash/pound, components.breakActions smash, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
+stone_pestle: stackSize 1, no actions, components.durability.max 64, components.slotGauge.source durability
+stone_anvil, stone_mortar: stackSize 1, no durability, block_model placeable items
+bow_drill: components.useActions ignite, components.durability.max 16, components.slotGauge.source durability
 torch: components.useActions light, components.burnableLight.maxTicks, components.slotGauge.source burnTicks
 lit_torch: components.useActions ignite/extinguish, components.burnableLight, components.slotGauge.source burnTicks
 ```

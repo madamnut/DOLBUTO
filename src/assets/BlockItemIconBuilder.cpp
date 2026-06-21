@@ -1,4 +1,5 @@
 #include "assets/BlockItemIconBuilder.h"
+#include "assets/PropModelLoader.h"
 
 #include <stb_image.h>
 #include <stb_image_write.h>
@@ -273,6 +274,73 @@ namespace dolbuto::assets
                 0.64f);
         }
 
+        float propShade(Vec3 a, Vec3 b, Vec3 c)
+        {
+            const Vec3 ab{b.x - a.x, b.y - a.y, b.z - a.z};
+            const Vec3 ac{c.x - a.x, c.y - a.y, c.z - a.z};
+            Vec3 normal{
+                ab.y * ac.z - ab.z * ac.y,
+                ab.z * ac.x - ab.x * ac.z,
+                ab.x * ac.y - ab.y * ac.x
+            };
+            const float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+            if (length > 0.0001f)
+            {
+                normal.x /= length;
+                normal.y /= length;
+                normal.z /= length;
+            }
+            return std::clamp(0.62f + std::max(normal.y, 0.0f) * 0.32f + std::max(normal.x, 0.0f) * 0.10f + std::max(normal.z, 0.0f) * 0.08f, 0.55f, 1.0f);
+        }
+
+        std::vector<IconQuad> buildPropModelQuads(
+            const BlockTextureLayers& layers,
+            const PropMesh& mesh,
+            float& width,
+            float& height,
+            float& depth)
+        {
+            if (!mesh.hasBounds || mesh.quads.empty())
+            {
+                return {};
+            }
+
+            width = modelExtent(mesh.boundsMax.x - mesh.boundsMin.x, 1.0f);
+            height = modelExtent(mesh.boundsMax.y - mesh.boundsMin.y, 1.0f);
+            depth = modelExtent(mesh.boundsMax.z - mesh.boundsMin.z, 1.0f);
+
+            std::vector<IconQuad> quads;
+            quads.reserve(mesh.quads.size() / PropQuadRenderFloatCount);
+            for (size_t offset = 0; offset + PropQuadRenderFloatCount <= mesh.quads.size(); offset += PropQuadRenderFloatCount)
+            {
+                std::array<Vec3, 4> positions{};
+                std::array<Vec2, 4> uvs{};
+                for (size_t vertex = 0; vertex < 4u; ++vertex)
+                {
+                    const size_t positionOffset = offset + vertex * 3u;
+                    positions[vertex] = Vec3{
+                        mesh.quads[positionOffset + 0u],
+                        mesh.quads[positionOffset + 1u],
+                        mesh.quads[positionOffset + 2u]
+                    };
+                }
+                const size_t uvBase = offset + 12u;
+                for (size_t vertex = 0; vertex < 4u; ++vertex)
+                {
+                    const size_t uvOffset = uvBase + vertex * 2u;
+                    uvs[vertex] = uv(mesh.quads[uvOffset + 0u], mesh.quads[uvOffset + 1u]);
+                }
+
+                addQuad(
+                    quads,
+                    positions,
+                    uvs,
+                    layers.faces[0],
+                    propShade(positions[0], positions[1], positions[2]));
+            }
+            return quads;
+        }
+
         std::vector<IconQuad> buildModelQuads(
             const BlockTextureLayers& layers,
             BlockRenderType renderType,
@@ -280,10 +348,16 @@ namespace dolbuto::assets
             float modelHeight,
             float modelDepth,
             bool useVerticalSection,
+            const PropMesh* propMesh,
             float& width,
             float& height,
             float& depth)
         {
+            if (renderType == BlockRenderType::Prop && propMesh != nullptr)
+            {
+                return buildPropModelQuads(layers, *propMesh, width, height, depth);
+            }
+
             width = modelExtent(modelWidth, 1.0f);
             height = modelExtent(
                 modelHeight,
@@ -364,7 +438,8 @@ namespace dolbuto::assets
         float modelHeight,
         float modelDepth,
         bool useVerticalSection,
-        const std::filesystem::path& outputPath)
+        const std::filesystem::path& outputPath,
+        const PropMesh* propMesh)
     {
         float width = 1.0f;
         float height = 1.0f;
@@ -376,6 +451,7 @@ namespace dolbuto::assets
             modelHeight,
             modelDepth,
             useVerticalSection,
+            propMesh,
             width,
             height,
             depth);

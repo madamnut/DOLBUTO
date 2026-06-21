@@ -943,7 +943,8 @@ namespace dolbuto::world
         int z,
         DVec3 min,
         DVec3 max,
-        const BlockDefinitionProvider& blockDefinition) const
+        const BlockDefinitionProvider& blockDefinition,
+        const PropLocalAabbProvider& propLocalAabb) const
     {
         if (y < 0)
         {
@@ -980,7 +981,14 @@ namespace dolbuto::world
 
         const uint16_t block = chunk->data->blocks[index];
         const uint16_t blockState = index < chunk->data->blockStates.size() ? chunk->data->blockStates[index] : 0;
-        return block_collision::blockIntersectsAabb(x, y, z, blockDefinition(block), min, max, blockState);
+        const BlockDefinition& definition = blockDefinition(block);
+        block_visual::LocalAabb propAabb{};
+        const block_visual::LocalAabb* propAabbPtr = nullptr;
+        if (definition.renderType == BlockRenderType::Prop && propLocalAabb && propLocalAabb(block, propAabb))
+        {
+            propAabbPtr = &propAabb;
+        }
+        return block_collision::blockIntersectsAabb(x, y, z, definition, min, max, blockState, propAabbPtr);
     }
 
     bool WorldRuntime::setBlockAtWorld(int x, int y, int z, uint16_t block)

@@ -124,7 +124,7 @@ Sandbox 모드의 블록 파괴는 도구 내구도를 소비하지 않는다.
 air      -1.0
 bedrock  -1.0
 plant     0.0
-stone     0.0
+stone_pile 0.0
 branch    0.0
 leaves    0.5
 mud       0.7
@@ -160,12 +160,13 @@ fire                            breakLevel 0 / none
 branch prop                     breakLevel 0 / chop
 leaves, plant                   breakLevel 0 / cut
 ice                             breakLevel 2 / smash
-stone prop                      breakLevel 0 / smash
+stone pile prop, large stone pile prop    breakLevel 0 / smash
+stone anvil prop, stone mortar prop      breakLevel 0 / smash
 air, bedrock                    breakLevel 0 / none
 ```
 
-현재 `rock`은 파괴되면 `rock_chunk` 4개를 확정 드랍한다.
-현재 광물 블록은 파괴되면 `rock_chunk` 4개와 광물별 원재료 1개를 확정 드랍한다. `coal_ore`는 `coal`, 금속 광물은 `raw_copper`, `raw_iron`, `raw_tin`, `raw_zinc`, `raw_silver`, `raw_gold`를 사용한다.
+현재 `rock`은 파괴되면 `large_stone` 1~2개를 확정 드랍하고, `stone` 0~1개와 `small_stone` 0~1개를 추가 드랍한다.
+현재 광물 블록은 같은 돌 부산물과 광물별 원재료 1개를 확정 드랍한다. `coal_ore`는 `coal`, 금속 광물은 `raw_copper`, `raw_iron`, `raw_tin`, `raw_zinc`, `raw_silver`, `raw_gold`를 사용한다.
 현재 `dirt`는 파괴되면 `dirt_pile` 4개를 확정 드랍한다.
 현재 `grass`는 파괴되면 `dirt_pile` 4개와 `grass_scrap` 2~4개를 확정 드랍하며, `seed`는 낮은 확률 드랍을 유지한다.
 현재 `log`는 파괴되면 `log` 아이템 1개를 드랍한다.
@@ -238,7 +239,7 @@ support 블록이 없으면 해당 잎은 일반 블록 파괴와 같은 방식�
 현재 초기값:
 
 ```text
-air, plant, stone prop, branch prop  1
+air, plant, stone pile prop, large stone pile prop, branch prop  1
 slab, half_slab, crucible            1
 leaves, ice                          2
 그 외 불투명 블록                    15
@@ -304,7 +305,7 @@ crucible block entity만 남고 실제 블록이 도가니가 아니면 stale �
 값이 true이면 렌더링되는 메쉬만 X/Z 방향으로 `-0.2 ~ +0.2` 블록만큼 이동한다.
 오프셋은 래핑된 월드 좌표와 기존 배치 salt에서 결정적으로 계산한다.
 저장된 블록 데이터, 충돌, 생성, 블록 정체성은 바뀌지 않는다.
-현재 사용 블록은 `plant`, `stone`, `branch`다.
+현재 사용 블록은 `plant`, `stone_pile`, `large_stone_pile`, `branch`다.
 
 ## 부착 블록
 
@@ -327,7 +328,7 @@ crucible block entity만 남고 실제 블록이 도가니가 아니면 stale �
 이때 드랍, 파티클, 사운드, 편집 메쉬 갱신을 모두 수행한다.
 연쇄 파괴는 즉시 재귀 처리하지 않고, 제거된 좌표와 그 6방향 이웃이 다음 블록 tick에 다시 등록되는 방식으로 이어진다.
 
-현재 `plant`, `stone` prop, `branch` prop, `fire`는 `bottom` 부착 블록이다.
+현재 `plant`, `stone_pile` prop, `large_stone_pile` prop, `branch` prop, `fire`는 `bottom` 부착 블록이다.
 
 ## 방향성 랜덤 회전
 
@@ -405,8 +406,11 @@ fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 bounds 박스
 35    rod_mold
 36    long_rod_mold
 10000 plant
-20000 stone
+20000 stone_pile
 20001 branch
+20002 large_stone_pile
+20003 stone_anvil
+20004 stone_mortar
 65535 bedrock
 ```
 
@@ -433,6 +437,7 @@ fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 bounds 박스
 
 `mold`는 바닥에 놓는 낮은 몰드 렌더 타입이다.
 한 셀 중앙의 `0.625 x 0.125 x 0.625` AABB를 선택/충돌 기준으로 사용한다.
+구운 몰드 9종은 `collision = true`이며, 내부 홈 모양은 충돌에서 무시하고 배치된 몰드의 외곽 판 형태만 낮은 AABB로 처리한다.
 렌더링은 cuboid가 아니라 아이템 몰드와 같은 alpha 기반 extruded sprite mesh를 사용한다.
 `mold_bottom`을 아래 `0.0625` 높이 레이어로, 각 몰드의 `*_mold_top`을 위 `0.0625` 높이 레이어로 변환해 terrain mesh에 넣는다.
 몰드 텍스처는 `32 x 32` 이미지 전체 UV를 사용하며, 실제 보이는 평면과 옆면은 중앙 `20 x 20` 영역의 alpha 실루엣에서 나온다.
@@ -646,14 +651,18 @@ fluids: uint16_t packed fluid 배열
 현재 초안 ID:
 
 ```text
-20000 stone
+20000 stone_pile
 20001 branch
+20002 large_stone_pile
 ```
 
 소품 블록은 `prop.model`로 모델을 선택하고, `prop.texture`로 블록 텍스처 이름 하나를 선택한다.
 소스 모델은 `assets/textures/block/model/{model}.glb`에 저장한다.
 런타임/캐시 모델은 `assets/textures/block/model/{model}.dpm`에 저장한다.
 텍스처는 `assets/textures/block/{texture}.png`에 저장한다.
+소품 모델 UV는 일반 블록과 같은 텍셀 밀도를 기준으로 맞춘다.
+현재 블록 텍스처는 `32 x 32`이므로 모델의 `16` Blockbench unit, 즉 `1` 블록 길이가 UV `1.0`에 대응한다.
+예를 들어 `0.375` 블록 폭의 stone_pile 면은 UV 폭 `0.375`에 맞추고, large_stone_pile을 구성하는 `0.5` 블록 폭 면은 UV 폭 `0.5`에 맞춘다.
 
 시작 시 렌더러는 블록 데이터가 사용하는 소품 모델 이름을 수집하고 `src/assets/PropModelLoader.h/.cpp`에 변환/로드를 위임한다.
 `{model}.dpm`이 없거나, 파일 크기 기준으로 유효하지 않거나, `{model}.glb`보다 오래된 경우 `.glb` 파일을 `.dpm`으로 변환하려고 시도한다.
@@ -677,21 +686,25 @@ GLB 삼각형 쌍은 변환 중 다시 쿼드로 병합한다.
 ```json
 {
   "id": 20000,
-  "name": "stone",
+  "name": "stone_pile",
   "renderType": "prop",
   "collision": false,
   "faceOcclusion": "none",
   "alphaMode": "opaque",
   "prop": {
-    "model": "stone",
+    "model": "stone_pile",
     "texture": "rock"
   },
   "drops": [
-    { "item": "stone_shard", "min": 1, "max": 1, "chance": 1.0 }
+    { "item": "small_stone", "min": 1, "max": 2, "chance": 1.0 },
+    { "item": "stone", "min": 1, "max": 2, "chance": 1.0 }
   ]
 }
 ```
 
+
+
+`stone_anvil`과 `stone_mortar`는 플레이어가 설치하는 prop 블록이다. 둘 다 `collision = true`, `randomOffset = false`, `attachment.face = "bottom"`을 사용하고, 파괴 시 같은 이름의 아이템을 1개 드랍한다. prop 블록 충돌은 full block AABB가 아니라 해당 prop `.dpm` mesh의 local bounds를 렌더 변환과 같은 랜덤 회전/오프셋 규칙으로 world AABB화해서 판정한다. 아이템 슬롯 아이콘은 `block_model` 경로에서 해당 prop `.dpm` mesh를 고정 아이소메트릭 카메라로 투영해 생성한다.
 ```json
 {
   "id": 20001,

@@ -393,8 +393,9 @@ solid 지형은 bloom source를 검정으로 덮어 뒤쪽 bloom을 완전히 �
 ## 드랍 아이템 렌더링
 
 드랍 아이템은 전용 item pipeline으로 렌더링한다.
-아이템 스프라이트에서 만든 로컬 extruded mesh와 `block_model`용 작은 큐브 mesh는 시작 시 정적 vertex/index buffer에 한 번 업로드한다.
-로컬 extruded mesh 생성은 `ItemSpriteMeshBuilder`가 담당하고, `block_model` mesh는 `modelBlock` 또는 fallback `placeBlock` 블록의 6면 텍스처 layer를 사용해 구성한다.
+아이템 스프라이트에서 만든 로컬 extruded mesh와 `block_model`용 작은 블록/prop mesh는 시작 시 정적 vertex/index buffer에 한 번 업로드한다.
+로컬 extruded mesh 생성은 `ItemSpriteMeshBuilder`가 담당한다.
+`block_model` mesh는 `modelBlock` 또는 fallback `placeBlock` 블록의 6면 텍스처 layer를 사용해 구성하되, 표시 대상 블록이 `renderType = "prop"`이고 prop mesh가 로드되어 있으면 해당 `.dpm` prop mesh를 사용한다.
 결과 타입은 모두 `DroppedItemRenderPath::ItemSpriteMesh`이다.
 프레임마다 CPU가 아이템 쿼드 정점을 다시 펼치지 않고, 드랍 아이템 위치/회전/텍스처 layer만 담은 instance buffer를 갱신한다.
 instance buffer는 persistent mapping 상태로 유지해 매 프레임 `vkMapMemory`/`vkUnmapMemory`를 반복하지 않는다.

@@ -2,6 +2,7 @@
 
 #include "camera/Camera.h"
 #include "world/BlockData.h"
+#include "world/BlockVisualShape.h"
 #include "world/WorldTypes.h"
 
 #include <array>
@@ -20,6 +21,7 @@ namespace dolbuto::world
     public:
         using RuntimeChunkMap = std::unordered_map<uint64_t, RuntimeChunk>;
         using BlockDefinitionProvider = std::function<const BlockDefinition&(uint16_t)>;
+        using PropLocalAabbProvider = std::function<bool(uint16_t, block_visual::LocalAabb&)>;
 
         struct EditedSubchunk
         {
@@ -146,7 +148,14 @@ namespace dolbuto::world
         bool removeBlockEntityAtWorld(int x, int y, int z);
         uint8_t lightAtWorld(int x, int y, int z) const;
         bool terrainCellBlocksPlayer(int x, int y, int z, const BlockDefinitionProvider& blockDefinition) const;
-        bool terrainCellIntersectsAabb(int x, int y, int z, DVec3 min, DVec3 max, const BlockDefinitionProvider& blockDefinition) const;
+        bool terrainCellIntersectsAabb(
+            int x,
+            int y,
+            int z,
+            DVec3 min,
+            DVec3 max,
+            const BlockDefinitionProvider& blockDefinition,
+            const PropLocalAabbProvider& propLocalAabb = {}) const;
         bool setBlockAtWorld(int x, int y, int z, uint16_t block);
         bool setBlockStateAtWorld(int x, int y, int z, uint16_t state);
         void scheduleBlockTickAtWorld(int x, int y, int z, uint32_t reasons);

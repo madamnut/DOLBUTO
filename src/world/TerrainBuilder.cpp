@@ -49,8 +49,9 @@ namespace dolbuto::world
         constexpr uint16_t BlockLeaves = 9;
         constexpr uint16_t BlockIce = 11;
         constexpr uint16_t BlockPlant = 10000;
-        constexpr uint16_t BlockStoneProp = 20000;
+        constexpr uint16_t BlockStonePileProp = 20000;
         constexpr uint16_t BlockBranchProp = 20001;
+        constexpr uint16_t BlockLargeStonePileProp = 20002;
         constexpr uint16_t BlockBedrock = 65535;
         constexpr uint16_t FluidNone = 0;
         constexpr uint16_t FluidWater = 1;
@@ -61,7 +62,8 @@ namespace dolbuto::world
         constexpr uint8_t ClimateMaxByte = 255;
         constexpr uint32_t BedrockHeightSalt = 0xBEEFBEDu;
         constexpr uint32_t PlantPlacementSalt = 0x9A7D3E21u;
-        constexpr uint8_t PlantPlacementMax = 151;
+        constexpr uint8_t PlantPlacementMax = 147;
+        constexpr uint8_t LargeStonePlacementMax = 151;
         constexpr uint8_t StonePlacementMax = 159;
         constexpr uint8_t BranchPlacementMax = 167;
         constexpr uint8_t TreePlacementMin = 168;
@@ -526,9 +528,13 @@ namespace dolbuto::world
                     {
                         placedBlock = BlockPlant;
                     }
+                    else if (placement <= LargeStonePlacementMax)
+                    {
+                        placedBlock = BlockLargeStonePileProp;
+                    }
                     else if (placement <= StonePlacementMax)
                     {
-                        placedBlock = BlockStoneProp;
+                        placedBlock = BlockStonePileProp;
                     }
                     else if (placement <= BranchPlacementMax)
                     {

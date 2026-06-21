@@ -87,7 +87,8 @@ namespace dolbuto::gameplay
             const BlockDefinition& definition,
             DVec3 playerPosition,
             double heightScale,
-            uint16_t blockState = 0);
+            uint16_t blockState = 0,
+            const assets::PropMesh* propMesh = nullptr);
 
         static bool blockIntersectsAabb(
             int x,

@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <filesystem>
 #include <limits>
 #include <string>
@@ -122,7 +123,8 @@ namespace dolbuto
             float explicitWidth,
             float explicitHeight,
             float explicitDepth,
-            bool useVerticalSection)
+            bool useVerticalSection,
+            const assets::PropMesh* propMesh)
         {
             DroppedItemRenderPath::ItemSpriteMesh mesh{};
             auto addQuad = [&](std::array<Vec3, 4> positions, std::array<std::array<float, 2>, 4> uvs, uint32_t textureLayer, float ao)
@@ -134,6 +136,62 @@ namespace dolbuto
                 quad.textureLayer = static_cast<float>(textureLayer);
                 mesh.quads.push_back(quad);
             };
+            auto propAo = [](const std::array<Vec3, 4>& positions)
+            {
+                const Vec3 ab{
+                    positions[1].x - positions[0].x,
+                    positions[1].y - positions[0].y,
+                    positions[1].z - positions[0].z
+                };
+                const Vec3 ac{
+                    positions[2].x - positions[0].x,
+                    positions[2].y - positions[0].y,
+                    positions[2].z - positions[0].z
+                };
+                Vec3 normal{
+                    ab.y * ac.z - ab.z * ac.y,
+                    ab.z * ac.x - ab.x * ac.z,
+                    ab.x * ac.y - ab.y * ac.x
+                };
+                const float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+                if (length > 0.0001f)
+                {
+                    normal.x /= length;
+                    normal.y /= length;
+                    normal.z /= length;
+                }
+                return std::clamp(0.68f + std::max(normal.y, 0.0f) * 0.24f + std::max(normal.x, 0.0f) * 0.06f, 0.62f, 1.0f);
+            };
+            if (renderType == BlockRenderType::Prop && propMesh != nullptr && !propMesh->quads.empty())
+            {
+                const uint32_t textureLayer = layers.faces[0];
+                mesh.quads.reserve(propMesh->quads.size() / assets::PropQuadRenderFloatCount);
+                for (size_t offset = 0; offset + assets::PropQuadRenderFloatCount <= propMesh->quads.size(); offset += assets::PropQuadRenderFloatCount)
+                {
+                    std::array<Vec3, 4> positions{};
+                    std::array<std::array<float, 2>, 4> uvs{};
+                    for (size_t vertex = 0; vertex < 4u; ++vertex)
+                    {
+                        const size_t positionOffset = offset + vertex * 3u;
+                        positions[vertex] = Vec3{
+                            propMesh->quads[positionOffset + 0u] - 0.5f,
+                            propMesh->quads[positionOffset + 1u] - 0.5f,
+                            propMesh->quads[positionOffset + 2u] - 0.5f
+                        };
+                    }
+                    const size_t uvBase = offset + 12u;
+                    for (size_t vertex = 0; vertex < 4u; ++vertex)
+                    {
+                        const size_t uvOffset = uvBase + vertex * 2u;
+                        uvs[vertex] = {{
+                            propMesh->quads[uvOffset + 0u],
+                            propMesh->quads[uvOffset + 1u]
+                        }};
+                    }
+                    addQuad(positions, uvs, textureLayer, propAo(positions));
+                }
+                return mesh;
+            }
             auto addCuboid = [&](
                 float minX,
                 float minY,
@@ -374,7 +432,10 @@ namespace dolbuto
                         definition.blockModelWidth,
                         definition.blockModelHeight,
                         definition.blockModelDepth,
-                        definition.useBlockModelVerticalSection);
+                        definition.useBlockModelVerticalSection,
+                        itemRenderType == BlockRenderType::Prop
+                            ? content.propMeshForBlock(definition.modelBlockId)
+                            : nullptr);
                 }
                 continue;
             }

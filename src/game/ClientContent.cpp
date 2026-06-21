@@ -1081,6 +1081,15 @@ namespace dolbuto::game
                 iconLayers = content.blockTextureLayers_[item.modelBlockId];
                 iconRenderType = content.blockDefinitions_[item.modelBlockId].renderType;
             }
+            const assets::PropMesh* iconPropMesh = nullptr;
+            if (iconRenderType == BlockRenderType::Prop)
+            {
+                const auto propMeshIt = content.propMeshesByBlock_.find(item.modelBlockId);
+                if (propMeshIt != content.propMeshesByBlock_.end())
+                {
+                    iconPropMesh = &propMeshIt->second;
+                }
+            }
 
             const std::string generatedTexture = "generated/" + item.key + "_slot";
             const std::filesystem::path outputPath = assetDirectory / "textures" / "item" / (generatedTexture + ".png");
@@ -1093,7 +1102,8 @@ namespace dolbuto::game
                 item.blockModelHeight,
                 item.blockModelDepth,
                 item.useBlockModelVerticalSection,
-                outputPath))
+                outputPath,
+                iconPropMesh))
             {
                 item.slotTexture = generatedTexture;
             }

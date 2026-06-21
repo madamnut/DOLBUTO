@@ -17,19 +17,88 @@
     },
     {
         "id": 1,
-        "key": "rock_chunk",
-        "name": "Rock Chunk",
-        "stackSize": 99,
-        "slotTexture": "rock_chunk",
+        "key": "small_stone",
+        "name": "Small Stone",
+        "stackSize": 1,
+        "slotTexture": "small_stone",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "rock_chunk"
+            "texture": "small_stone"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "rock_chunk"
+            "texture": "small_stone"
         },
-        "tags": []
+        "tags": [],
+        "components": {
+            "useActions": [
+                "chip"
+            ],
+            "durability": {
+                "max": 64
+            },
+            "slotGauge": {
+                "source": "durability"
+            }
+        }
+    },
+    {
+        "id": 13,
+        "key": "stone",
+        "name": "Stone",
+        "stackSize": 1,
+        "slotTexture": "stone",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "stone"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "stone"
+        },
+        "tags": [],
+        "components": {
+            "useActions": [
+                "chip"
+            ],
+            "durability": {
+                "max": 64
+            },
+            "slotGauge": {
+                "source": "durability"
+            }
+        }
+    },
+    {
+        "id": 14,
+        "key": "large_stone",
+        "name": "Large Stone",
+        "stackSize": 1,
+        "slotTexture": "large_stone",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "large_stone"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "large_stone"
+        },
+        "tags": [],
+        "components": {
+            "useActions": [
+                "chip"
+            ],
+            "breakActions": [
+                "smash"
+            ],
+            "breakLevel": 2,
+            "durability": {
+                "max": 64
+            },
+            "slotGauge": {
+                "source": "durability"
+            }
+        }
     },
     {
         "id": 31,
@@ -556,66 +625,6 @@
         }
     },
     {
-        "id": 13,
-        "key": "stone_shard",
-        "name": "Stone Shard",
-        "stackSize": 1,
-        "slotTexture": "stone_shard",
-        "droppedRender": {
-            "type": "extruded_sprite",
-            "texture": "stone_shard"
-        },
-        "heldRender": {
-            "type": "extruded_sprite",
-            "texture": "stone_shard"
-        },
-        "tags": [],
-        "components": {
-            "useActions": [
-                "chip",
-                "smash",
-                "grind"
-            ],
-            "breakActions": [
-                "smash"
-            ],
-            "breakLevel": 2,
-            "durability": {
-                "max": 64
-            },
-            "slotGauge": {
-                "source": "durability"
-            }
-        }
-    },
-    {
-        "id": 14,
-        "key": "stone_flake",
-        "name": "Stone Flake",
-        "stackSize": 1,
-        "slotTexture": "stone_flake",
-        "droppedRender": {
-            "type": "extruded_sprite",
-            "texture": "stone_flake"
-        },
-        "heldRender": {
-            "type": "extruded_sprite",
-            "texture": "stone_flake"
-        },
-        "tags": [],
-        "components": {
-            "useActions": [
-                "chip"
-            ],
-            "durability": {
-                "max": 64
-            },
-            "slotGauge": {
-                "source": "durability"
-            }
-        }
-    },
-    {
         "id": 15,
         "key": "stone_chopper",
         "name": "Stone Chopper",
@@ -632,12 +641,11 @@
         "tags": [],
         "components": {
             "useActions": [
-                "smash",
+                "chop",
                 "split"
             ],
             "breakActions": [
-                "chop",
-                "dig"
+                "chop"
             ],
             "breakLevel": 2,
             "durability": {
@@ -697,8 +705,7 @@
         "tags": [],
         "components": {
             "useActions": [
-                "scrape",
-                "pierce"
+                "scrape"
             ],
             "durability": {
                 "max": 64
@@ -710,23 +717,50 @@
     },
     {
         "id": 27,
-        "key": "stone_pounder",
-        "name": "Stone Pounder",
+        "key": "stone_point",
+        "name": "Stone Point",
         "stackSize": 1,
-        "slotTexture": "stone_pounder",
+        "slotTexture": "stone_point",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "stone_pounder"
+            "texture": "stone_point"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "stone_pounder"
+            "texture": "stone_point"
         },
         "tags": [],
         "components": {
             "useActions": [
-                "pound",
-                "smash"
+                "pierce"
+            ],
+            "durability": {
+                "max": 64
+            },
+            "slotGauge": {
+                "source": "durability"
+            }
+        }
+    },
+    {
+        "id": 137,
+        "key": "stone_maul",
+        "name": "Stone Maul",
+        "stackSize": 1,
+        "slotTexture": "stone_maul",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_maul"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_maul"
+        },
+        "tags": [],
+        "components": {
+            "useActions": [
+                "smash",
+                "pound"
             ],
             "breakActions": [
                 "smash"
@@ -737,6 +771,72 @@
             },
             "slotGauge": {
                 "source": "durability"
+            }
+        }
+    },
+    {
+        "id": 138,
+        "key": "stone_pestle",
+        "name": "Stone Pestle",
+        "stackSize": 1,
+        "slotTexture": "stone_pestle",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_pestle"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "stone_pestle"
+        },
+        "tags": [],
+        "components": {
+            "durability": {
+                "max": 64
+            },
+            "slotGauge": {
+                "source": "durability"
+            }
+        }
+    },
+    {
+        "id": 139,
+        "key": "stone_anvil",
+        "name": "Stone Anvil",
+        "stackSize": 1,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "tags": [],
+        "components": {
+            "placeable": {
+                "block": "stone_anvil"
+            }
+        }
+    },
+    {
+        "id": 140,
+        "key": "stone_mortar",
+        "name": "Stone Mortar",
+        "stackSize": 1,
+        "slotRender": {
+            "type": "block_model"
+        },
+        "droppedRender": {
+            "type": "block_model"
+        },
+        "heldRender": {
+            "type": "block_model"
+        },
+        "tags": [],
+        "components": {
+            "placeable": {
+                "block": "stone_mortar"
             }
         }
     },
@@ -1052,7 +1152,7 @@
                 "ignite"
             ],
             "durability": {
-                "max": 4
+                "max": 16
             },
             "slotGauge": {
                 "source": "durability"

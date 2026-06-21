@@ -1,33 +1,28 @@
 [
     {
         "action": "chip",
-        "target": "stone_shard",
+        "target": "small_stone",
         "candidates": [
-            "stone_chopper"
-        ]
-    },
-    {
-        "action": "smash",
-        "target": "stone_shard",
-        "min": 1,
-        "max": 2,
-        "candidates": [
-            "stone_flake"
-        ]
-    },
-    {
-        "action": "grind",
-        "target": "stone_shard",
-        "candidates": [
-            "stone_pounder"
+            "stone_blade",
+            "stone_scraper",
+            "stone_point"
         ]
     },
     {
         "action": "chip",
-        "target": "stone_flake",
+        "target": "stone",
         "candidates": [
-            "stone_blade",
-            "stone_scraper"
+            "stone_chopper",
+            "stone_maul",
+            "stone_pestle"
+        ]
+    },
+    {
+        "action": "chip",
+        "target": "large_stone",
+        "candidates": [
+            "stone_anvil",
+            "stone_mortar"
         ]
     },
     {

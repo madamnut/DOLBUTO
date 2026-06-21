@@ -25,8 +25,8 @@
 ```json
 {
   "action": "chip",
-  "target": "stone_flake",
-  "candidates": ["stone_blade", "stone_scraper"]
+  "target": "small_stone",
+  "candidates": ["stone_blade", "stone_scraper", "stone_point"]
 }
 ```
 
@@ -35,11 +35,9 @@
 
 ```json
 {
-  "action": "smash",
-  "target": "stone_shard",
-  "min": 1,
-  "max": 2,
-  "candidates": ["stone_flake"]
+  "action": "chip",
+  "target": "large_stone",
+  "candidates": ["stone_anvil", "stone_mortar"]
 }
 ```
 
@@ -98,17 +96,14 @@
 ## 현재 제작 흐름
 
 ```text
-stone_shard + chip
--> stone_chopper
+small_stone + chip
+-> stone_blade / stone_scraper / stone_point 후보
 
-stone_shard + smash
--> stone_flake x1~2
+stone + chip
+-> stone_chopper / stone_maul / stone_pestle 후보
 
-stone_shard + grind
--> stone_pounder
-
-stone_flake + chip
--> stone_blade / stone_scraper 후보
+large_stone + chip
+-> stone_anvil / stone_mortar 후보
 
 plant + scrape
 -> plant_fiber
@@ -219,12 +214,12 @@ lit_torch + extinguish on block
 현재 우클릭 작업 액션:
 
 ```text
-stone_shard: chip, smash, grind
-stone_flake: chip
-stone_chopper: smash, split
+small_stone: chip
+stone: chip
+stone_chopper: chop, split
 stone_blade: cut, carve
-stone_scraper: scrape, pierce
-stone_pounder: pound, smash
+stone_scraper: scrape
+stone_maul: smash, pound
 bow_drill: ignite
 base hand action: handcraft
 ```
@@ -232,11 +227,11 @@ base hand action: handcraft
 현재 좌클릭 파괴 액션:
 
 ```text
-stone_shard: smash
-stone_chopper: chop, dig
+large_stone: smash
+stone_chopper: chop
 stone_blade: cut
-stone_pounder: smash
-stone_flake, stone_scraper: 없음
+stone_maul: smash
+stone_scraper, stone_point, stone_pestle, stone_anvil, stone_mortar: 없음
 ```
 
 관련 문서: [[ui]], [[player]], [[item-data]]

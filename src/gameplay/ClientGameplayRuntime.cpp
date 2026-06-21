@@ -419,7 +419,8 @@ namespace dolbuto::gameplay
                 placedDefinition,
                 playerPosition,
                 playerHeightScale,
-                placementState))
+                placementState,
+                propMesh ? propMesh(placeBlockId) : nullptr))
         {
             return {};
         }
@@ -1254,7 +1255,8 @@ namespace dolbuto::gameplay
                 placedDefinition,
                 playerPosition,
                 playerHeightScale,
-                placementState))
+                placementState,
+                propMesh ? propMesh(heldDefinition.placeBlockId) : nullptr))
         {
             return {};
         }

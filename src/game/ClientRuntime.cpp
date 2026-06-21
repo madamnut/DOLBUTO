@@ -119,6 +119,18 @@ namespace dolbuto::game
             return state.worldRuntime.blockAtWorld(x, y, z);
         }
 
+        bool propLocalAabb(const ClientRuntimeState& state, uint16_t block, world::block_visual::LocalAabb& out)
+        {
+            const assets::PropMesh* mesh = state.content.propMeshForBlock(block);
+            if (mesh == nullptr || !mesh->hasBounds)
+            {
+                return false;
+            }
+
+            out = world::block_visual::LocalAabb{mesh->boundsMin, mesh->boundsMax};
+            return true;
+        }
+
         struct ClimateDebugSample
         {
             float temperature = 0.0f;
@@ -148,6 +160,10 @@ namespace dolbuto::game
                 [&state](uint16_t block) -> const BlockDefinition&
                 {
                     return blockDefinition(state, block);
+                },
+                [&state](uint16_t block, world::block_visual::LocalAabb& out)
+                {
+                    return propLocalAabb(state, block, out);
                 });
         }
 
@@ -220,6 +236,18 @@ namespace dolbuto::game
                         if (definition.renderType == BlockRenderType::Crucible)
                         {
                             world::block_visual::forEachCrucibleWorldAabb(x, y, z, considerAabb);
+                        }
+                        else if (definition.renderType == BlockRenderType::Prop)
+                        {
+                            world::block_visual::LocalAabb local{};
+                            if (propLocalAabb(state, block, local))
+                            {
+                                considerAabb(world::block_visual::transformLocalAabb(definition, x, y, z, local));
+                            }
+                            else
+                            {
+                                considerAabb(world::block_collision::blockWorldAabb(x, y, z, definition, blockState));
+                            }
                         }
                         else
                         {

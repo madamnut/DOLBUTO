@@ -8,6 +8,8 @@
 
 namespace dolbuto::assets
 {
+    struct PropMesh;
+
     bool writeBlockItemIcon(
         const std::filesystem::path& blockTextureDirectory,
         const std::vector<std::string>& blockTextureNames,
@@ -17,5 +19,6 @@ namespace dolbuto::assets
         float modelHeight,
         float modelDepth,
         bool useVerticalSection,
-        const std::filesystem::path& outputPath);
+        const std::filesystem::path& outputPath,
+        const PropMesh* propMesh = nullptr);
 }

@@ -7,6 +7,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 namespace dolbuto::world::block_visual
 {
@@ -132,6 +133,35 @@ namespace dolbuto::world::block_visual
             static_cast<float>(y) + localY,
             static_cast<float>(z) - 0.5f + offset[1] + rotated[1]
         };
+    }
+
+    inline LocalAabb transformLocalAabb(const BlockDefinition& definition, int x, int y, int z, const LocalAabb& local)
+    {
+        LocalAabb result{
+            Vec3{std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()},
+            Vec3{std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()}
+        };
+        const std::array<Vec3, 8> corners{{
+            {local.min.x, local.min.y, local.min.z},
+            {local.min.x, local.min.y, local.max.z},
+            {local.min.x, local.max.y, local.min.z},
+            {local.min.x, local.max.y, local.max.z},
+            {local.max.x, local.min.y, local.min.z},
+            {local.max.x, local.min.y, local.max.z},
+            {local.max.x, local.max.y, local.min.z},
+            {local.max.x, local.max.y, local.max.z}
+        }};
+        for (const Vec3& corner : corners)
+        {
+            const Vec3 world = transformLocalPoint(definition, x, y, z, corner.x, corner.y, corner.z);
+            result.min.x = std::min(result.min.x, world.x);
+            result.min.y = std::min(result.min.y, world.y);
+            result.min.z = std::min(result.min.z, world.z);
+            result.max.x = std::max(result.max.x, world.x);
+            result.max.y = std::max(result.max.y, world.y);
+            result.max.z = std::max(result.max.z, world.z);
+        }
+        return result;
     }
 
     inline BlockAttachState attachState(uint16_t blockState)
