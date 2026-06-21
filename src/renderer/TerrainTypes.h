@@ -41,6 +41,7 @@ namespace dolbuto
     {
         VkBuffer vertexBuffer = VK_NULL_HANDLE;
         VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
+        VkDeviceSize vertexBufferSize = 0;
         VkBuffer indexBuffer = VK_NULL_HANDLE;
         VkDeviceMemory indexMemory = VK_NULL_HANDLE;
         VkDescriptorSet vertexDescriptorSet = VK_NULL_HANDLE;

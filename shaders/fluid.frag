@@ -38,6 +38,7 @@ float dynamicLight()
 
 void main()
 {
+    float chunkFade = clamp(pushData.dynamicLightParams.y, 0.0, 1.0);
     float cameraDistance = length(fragWorldPosition);
     float mipLevel = fragMipDistanceScale > 0.0 ? clamp(floor(cameraDistance / (64.0 * fragMipDistanceScale)), 0.0, 5.0) : 0.0;
     vec4 color = textureLod(fluidTexture, vec3(fragUv, fragTextureLayer), mipLevel);
@@ -49,7 +50,7 @@ void main()
     float skyLight = fragSkyLight * pushData.fluidWaterParams.y;
     float finalLight = lightCurve(max(max(skyLight, fragBlockLight), dynamicLight()));
     color.rgb *= fragAo * finalLight;
-    float outputAlpha = color.a * pushData.fluidWaterParams.x;
+    float outputAlpha = color.a * pushData.fluidWaterParams.x * chunkFade;
     outColor = vec4(color.rgb, outputAlpha);
     outBloom = vec4(0.0, 0.0, 0.0, outputAlpha);
 }

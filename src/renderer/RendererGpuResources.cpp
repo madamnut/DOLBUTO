@@ -902,6 +902,40 @@ namespace dolbuto
         vkFreeCommandBuffers(device(), commandPool(), 1, &commandBuffer);
     }
 
+    VkFence VulkanResourceManager::submitSingleTimeCommandsAsync(VkCommandBuffer commandBuffer) const
+    {
+        vkEndCommandBuffer(commandBuffer);
+
+        VkFenceCreateInfo fenceInfo{};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+        VkFence fence = VK_NULL_HANDLE;
+        if (vkCreateFence(device(), &fenceInfo, nullptr, &fence) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create upload fence.");
+        }
+
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer;
+
+        if (vkQueueSubmit(graphicsQueue(), 1, &submitInfo, fence) != VK_SUCCESS)
+        {
+            vkDestroyFence(device(), fence, nullptr);
+            throw std::runtime_error("Failed to submit upload command buffer.");
+        }
+        return fence;
+    }
+
+    void VulkanResourceManager::freeSingleTimeCommandBuffer(VkCommandBuffer commandBuffer) const
+    {
+        if (commandBuffer != VK_NULL_HANDLE)
+        {
+            vkFreeCommandBuffers(device(), commandPool(), 1, &commandBuffer);
+        }
+    }
+
     void VulkanResourceManager::generateMipmaps(VkImage image, int32_t width, int32_t height, uint32_t mipLevels, uint32_t layerCount) const
     {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();

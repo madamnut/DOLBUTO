@@ -40,6 +40,8 @@ float dynamicLight()
 
 void main()
 {
+    float chunkFade = clamp(pushData.dynamicLightParams.y, 0.0, 1.0);
+    bool opaqueTerrain = fragAlphaBlend >= 0.999;
     float cameraDistance = length(fragWorldPosition);
     float mipLevel = fragMipDistanceScale > 0.0 ? clamp(floor(cameraDistance / (64.0 * fragMipDistanceScale)), 0.0, 5.0) : 0.0;
     float textureLayer = fragTextureLayer;
@@ -72,7 +74,7 @@ void main()
         float waterMix = clamp(fragWaterTint * max(pushData.fluidWaterParams.x, 0.35), 0.0, 0.75);
         color.rgb = mix(color.rgb, waterColor * finalLight, waterMix);
     }
-    float outputAlpha = fragAlphaBlend >= 0.999 ? 1.0 : color.a * fragAlphaBlend;
+    float outputAlpha = opaqueTerrain ? chunkFade : color.a * fragAlphaBlend * chunkFade;
     outColor = vec4(color.rgb, outputAlpha);
     outBloom = fireAnimated ? vec4(color.rgb, outputAlpha) : vec4(0.0, 0.0, 0.0, outputAlpha);
 }

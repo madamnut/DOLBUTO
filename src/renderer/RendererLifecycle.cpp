@@ -256,6 +256,10 @@ namespace dolbuto
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.terrainBlendPipeline, nullptr);
         }
+        if (vulkan_.terrainFadePipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.terrainFadePipeline, nullptr);
+        }
         if (vulkan_.fluidPipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.fluidPipeline, nullptr);

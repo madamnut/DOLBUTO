@@ -88,6 +88,8 @@ namespace dolbuto
             uint32_t mipLevels = 1,
             uint32_t layerCount = 1) const;
         VkCommandBuffer beginSingleTimeCommands() const;
+        VkFence submitSingleTimeCommandsAsync(VkCommandBuffer commandBuffer) const;
+        void freeSingleTimeCommandBuffer(VkCommandBuffer commandBuffer) const;
         void endSingleTimeCommands(VkCommandBuffer commandBuffer) const;
 
     private:

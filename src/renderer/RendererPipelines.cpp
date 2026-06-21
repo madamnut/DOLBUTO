@@ -693,6 +693,12 @@ namespace dolbuto
         colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         colorBlend.alphaBlendOp = VK_BLEND_OP_ADD;
         sceneColorBlends = {colorBlend, colorBlend};
+
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.terrainFadePipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create terrain fade pipeline.");
+        }
+
         depthStencil.depthWriteEnable = VK_FALSE;
 
         if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.terrainBlendPipeline) != VK_SUCCESS)

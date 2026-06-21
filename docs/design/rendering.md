@@ -36,6 +36,13 @@
 - terrain vertex shader가 SSBO에서 quad record를 읽어 6개의 가상 vertex를 생성한다.
 - packed terrain quad는 packed light 값도 함께 보관하고, shader는 skylight nibble을 꺼내 지형/유체 색에 곱한다.
 - terrain은 index buffer 없이 `vkCmdDraw`를 사용한다.
+- 지형 메쉬 업로드는 terrain 전용 one-time command buffer를 제출하되 그래픽 큐 전체 idle을 기다리지 않는다. 업로드 staging buffer와 command buffer는 `VkFence`가 완료된 뒤 정리한다.
+- 전체 청크 메쉬 설치는 solid, blend, fluid subchunk 업로드를 하나의 staging buffer와 command buffer submit으로 묶는다.
+- terrain upload staging buffer는 매 업로드마다 파괴하지 않고, fence 완료 후 크기 기준 free pool로 반환해 다음 업로드에서 재사용한다.
+- terrain device-local vertex buffer는 청크 교체/retire로 더 이상 사용하지 않을 때 바로 파괴하지 않고, 크기 기준 free pool로 반환해 이후 terrain mesh 업로드에서 재사용한다.
+- terrain vertex descriptor set도 청크 교체/retire 후 free list로 반환하고, 새 terrain mesh에 다시 할당해 buffer binding만 갱신한다.
+- 업로드가 끝나기 전에 청크가 retire되면 해당 destination buffer가 pending upload에 남아 있는 동안 GPU 리소스 파괴를 보류한다.
+- 새로 설치된 전체 청크 메쉬는 `0.5`초 동안 smoothstep 진행률로 페이드인한다. 완료된 solid 청크는 기존 opaque pipeline으로 그리고, 페이드 중인 solid 청크는 depth test/write를 유지하는 별도 single-pass alpha blend pipeline으로 한 번만 그린다. blend 지형과 유체는 기존 alpha에 진행률을 곱한다. 블록 편집에 따른 서브청크 교체는 페이드를 다시 시작하지 않는다.
 - player는 별도 vertex/index 경로를 유지한다.
 - 플레이어 스킨, 1인칭 손, 손에 든 아이템, 드랍 아이템, 블록 파괴 파티클도 지형과 같은 packed light/`skyBrightness`/block light curve를 사용한다. 플레이어 관련 viewmodel은 플레이어 위치의 light를 사용하고, 드랍 아이템과 파티클은 각 렌더 위치의 light를 샘플링한다.
 - 선택 핫바 슬롯 또는 왼손 슬롯에 `portableLightEmission > 0`인 아이템이 있으면, 렌더 프레임은 1인칭 카메라 위치를 중심으로 하는 휴대 다이나믹 라이트를 추가한다.

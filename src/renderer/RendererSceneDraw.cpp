@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <cstdint>
@@ -190,6 +191,9 @@ namespace dolbuto
         push.fluidWaterParams[2] = terrainTextureLayerFor(client_.content.blockTextureNames(), "fire/fire_00");
         push.fluidWaterParams[3] = static_cast<float>(FireAnimationFrameCount);
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
+        push.dynamicLightParams[1] = 1.0f;
+        const double terrainFadeNowSeconds = std::chrono::duration<double>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
 
         uint32_t visibleDrawCount = 0;
         uint32_t visibleFaceCount = 0;
@@ -203,14 +207,36 @@ namespace dolbuto
 
         if (drawBlocks)
         {
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, wireframe ? vulkan_.terrainWireframePipeline : vulkan_.terrainPipeline);
             vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainPipelineLayout, 0, 1, &rendererAssets_.terrainTextureArray.descriptorSet, 0, nullptr);
-            addVisibleStats(terrainRenderPath_.drawSolid(commandBuffer, vulkan_.terrainPipelineLayout, terrainView));
-            if (!wireframe)
+            if (wireframe)
             {
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainWireframePipeline);
+                addVisibleStats(terrainRenderPath_.drawSolid(
+                    commandBuffer,
+                    vulkan_.terrainPipelineLayout,
+                    terrainView,
+                    terrainFadeNowSeconds,
+                    TerrainRenderPath::ChunkFadeSelection::All));
+            }
+            else
+            {
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainPipeline);
+                addVisibleStats(terrainRenderPath_.drawSolid(
+                    commandBuffer,
+                    vulkan_.terrainPipelineLayout,
+                    terrainView,
+                    terrainFadeNowSeconds,
+                    TerrainRenderPath::ChunkFadeSelection::Complete));
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainFadePipeline);
+                addVisibleStats(terrainRenderPath_.drawSolid(
+                    commandBuffer,
+                    vulkan_.terrainPipelineLayout,
+                    terrainView,
+                    terrainFadeNowSeconds,
+                    TerrainRenderPath::ChunkFadeSelection::Active));
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainBlendPipeline);
-                addVisibleStats(terrainRenderPath_.drawBlend(commandBuffer, vulkan_.terrainPipelineLayout, terrainView));
+                addVisibleStats(terrainRenderPath_.drawBlend(commandBuffer, vulkan_.terrainPipelineLayout, terrainView, terrainFadeNowSeconds));
             }
         }
 
@@ -219,7 +245,7 @@ namespace dolbuto
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.fluidPipeline);
             vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainPipelineLayout, 0, 1, &rendererAssets_.fluidTextureArray.descriptorSet, 0, nullptr);
-            addVisibleStats(terrainRenderPath_.drawFluids(commandBuffer, vulkan_.terrainPipelineLayout, terrainView));
+            addVisibleStats(terrainRenderPath_.drawFluids(commandBuffer, vulkan_.terrainPipelineLayout, terrainView, terrainFadeNowSeconds));
         }
 
         if (drawBlocks && !drawFluids && (visibleDrawCount != client_.diagnostics.terrainDrawCount ||

@@ -1,6 +1,9 @@
 #include "renderer/TerrainRenderPath.h"
 
+#include "renderer/RendererTypes.h"
+
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -16,6 +19,12 @@ namespace dolbuto
         constexpr int SubchunkSize = 16;
         constexpr float TerrainPositionPackScale = 256.0f;
         constexpr float TerrainUvPackScale = 256.0f;
+        constexpr double TerrainChunkFadeDurationSeconds = 0.5;
+
+        double steadySeconds()
+        {
+            return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        }
     }
 
     TerrainRenderPath::TerrainRenderPath(
@@ -76,6 +85,313 @@ namespace dolbuto
     void TerrainRenderPath::reserve(std::size_t capacity)
     {
         chunks_.reserve(capacity);
+    }
+
+    TerrainRenderPath::StagingBuffer TerrainRenderPath::acquireStagingBuffer(VkDeviceSize size)
+    {
+        std::size_t bestIndex = freeStagingBuffers_.size();
+        VkDeviceSize bestSize = 0;
+        for (std::size_t i = 0; i < freeStagingBuffers_.size(); ++i)
+        {
+            const VkDeviceSize candidateSize = freeStagingBuffers_[i].size;
+            if (candidateSize < size)
+            {
+                continue;
+            }
+            if (bestIndex == freeStagingBuffers_.size() || candidateSize < bestSize)
+            {
+                bestIndex = i;
+                bestSize = candidateSize;
+            }
+        }
+
+        if (bestIndex != freeStagingBuffers_.size())
+        {
+            StagingBuffer staging = freeStagingBuffers_[bestIndex];
+            freeStagingBuffers_.erase(freeStagingBuffers_.begin() + static_cast<std::ptrdiff_t>(bestIndex));
+            return staging;
+        }
+
+        StagingBuffer staging{};
+        staging.size = size;
+        gpuResources().createBuffer(
+            size,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            staging.buffer,
+            staging.memory);
+        return staging;
+    }
+
+    void TerrainRenderPath::releaseStagingBuffer(StagingBuffer&& staging)
+    {
+        if (staging.buffer == VK_NULL_HANDLE || staging.memory == VK_NULL_HANDLE || staging.size == 0)
+        {
+            return;
+        }
+        freeStagingBuffers_.push_back(staging);
+        staging = {};
+    }
+
+    void TerrainRenderPath::destroyStagingBuffer(StagingBuffer& staging)
+    {
+        const VkDevice logicalDevice = device();
+        if (staging.buffer != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(logicalDevice, staging.buffer, nullptr);
+            staging.buffer = VK_NULL_HANDLE;
+        }
+        if (staging.memory != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(logicalDevice, staging.memory, nullptr);
+            staging.memory = VK_NULL_HANDLE;
+        }
+        staging.size = 0;
+    }
+
+    void TerrainRenderPath::destroyStagingPool()
+    {
+        for (StagingBuffer& staging : freeStagingBuffers_)
+        {
+            destroyStagingBuffer(staging);
+        }
+        freeStagingBuffers_.clear();
+    }
+
+    void TerrainRenderPath::acquireTerrainVertexBuffer(VkDeviceSize size, TerrainMesh& mesh)
+    {
+        std::size_t bestIndex = freeTerrainVertexBuffers_.size();
+        VkDeviceSize bestSize = 0;
+        for (std::size_t i = 0; i < freeTerrainVertexBuffers_.size(); ++i)
+        {
+            const VkDeviceSize candidateSize = freeTerrainVertexBuffers_[i].size;
+            if (candidateSize < size)
+            {
+                continue;
+            }
+            if (bestIndex == freeTerrainVertexBuffers_.size() || candidateSize < bestSize)
+            {
+                bestIndex = i;
+                bestSize = candidateSize;
+            }
+        }
+
+        if (bestIndex != freeTerrainVertexBuffers_.size())
+        {
+            TerrainVertexBuffer buffer = freeTerrainVertexBuffers_[bestIndex];
+            freeTerrainVertexBuffers_.erase(freeTerrainVertexBuffers_.begin() + static_cast<std::ptrdiff_t>(bestIndex));
+            mesh.vertexBuffer = buffer.buffer;
+            mesh.vertexMemory = buffer.memory;
+            mesh.vertexBufferSize = buffer.size;
+            return;
+        }
+
+        gpuResources().createBuffer(
+            size,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            mesh.vertexBuffer,
+            mesh.vertexMemory);
+        mesh.vertexBufferSize = size;
+    }
+
+    void TerrainRenderPath::releaseTerrainVertexBuffer(TerrainMesh& mesh)
+    {
+        if (mesh.vertexBuffer == VK_NULL_HANDLE || mesh.vertexMemory == VK_NULL_HANDLE || mesh.vertexBufferSize == 0)
+        {
+            return;
+        }
+        TerrainVertexBuffer buffer{};
+        buffer.buffer = mesh.vertexBuffer;
+        buffer.memory = mesh.vertexMemory;
+        buffer.size = mesh.vertexBufferSize;
+        freeTerrainVertexBuffers_.push_back(buffer);
+        mesh.vertexBuffer = VK_NULL_HANDLE;
+        mesh.vertexMemory = VK_NULL_HANDLE;
+        mesh.vertexBufferSize = 0;
+    }
+
+    void TerrainRenderPath::destroyTerrainVertexBuffer(TerrainVertexBuffer& buffer)
+    {
+        const VkDevice logicalDevice = device();
+        if (buffer.buffer != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(logicalDevice, buffer.buffer, nullptr);
+            buffer.buffer = VK_NULL_HANDLE;
+        }
+        if (buffer.memory != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(logicalDevice, buffer.memory, nullptr);
+            buffer.memory = VK_NULL_HANDLE;
+        }
+        buffer.size = 0;
+    }
+
+    void TerrainRenderPath::destroyTerrainVertexBufferPool()
+    {
+        for (TerrainVertexBuffer& buffer : freeTerrainVertexBuffers_)
+        {
+            destroyTerrainVertexBuffer(buffer);
+        }
+        freeTerrainVertexBuffers_.clear();
+    }
+
+    VkDescriptorSet TerrainRenderPath::acquireTerrainVertexDescriptorSet()
+    {
+        if (!freeTerrainVertexDescriptorSets_.empty())
+        {
+            const VkDescriptorSet descriptorSet = freeTerrainVertexDescriptorSets_.back();
+            freeTerrainVertexDescriptorSets_.pop_back();
+            return descriptorSet;
+        }
+
+        VkDescriptorSetAllocateInfo setInfo{};
+        setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        setInfo.descriptorPool = descriptorPool();
+        setInfo.descriptorSetCount = 1;
+        const VkDescriptorSetLayout layout = terrainVertexDescriptorSetLayout();
+        setInfo.pSetLayouts = &layout;
+
+        VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+        if (vkAllocateDescriptorSets(device(), &setInfo, &descriptorSet) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to allocate terrain vertex descriptor set.");
+        }
+        return descriptorSet;
+    }
+
+    void TerrainRenderPath::releaseTerrainVertexDescriptorSet(TerrainMesh& mesh)
+    {
+        if (mesh.vertexDescriptorSet == VK_NULL_HANDLE)
+        {
+            return;
+        }
+        freeTerrainVertexDescriptorSets_.push_back(mesh.vertexDescriptorSet);
+        mesh.vertexDescriptorSet = VK_NULL_HANDLE;
+    }
+
+    void TerrainRenderPath::destroyTerrainVertexDescriptorSetPool()
+    {
+        if (!freeTerrainVertexDescriptorSets_.empty() && descriptorPool() != VK_NULL_HANDLE)
+        {
+            vkFreeDescriptorSets(
+                device(),
+                descriptorPool(),
+                static_cast<uint32_t>(freeTerrainVertexDescriptorSets_.size()),
+                freeTerrainVertexDescriptorSets_.data());
+        }
+        freeTerrainVertexDescriptorSets_.clear();
+    }
+
+    void TerrainRenderPath::enqueueTerrainUpload(
+        VkCommandBuffer commandBuffer,
+        StagingBuffer staging,
+        std::vector<VkBuffer> destinationBuffers)
+    {
+        PendingTerrainUpload upload{};
+        upload.commandBuffer = commandBuffer;
+        upload.staging = staging;
+        upload.destinationBuffers = std::move(destinationBuffers);
+        try
+        {
+            upload.fence = gpuResources().submitSingleTimeCommandsAsync(commandBuffer);
+        }
+        catch (...)
+        {
+            releaseStagingBuffer(std::move(staging));
+            gpuResources().freeSingleTimeCommandBuffer(commandBuffer);
+            throw;
+        }
+        pendingUploads_.push_back(std::move(upload));
+    }
+
+    void TerrainRenderPath::destroyUploadResources(PendingTerrainUpload& upload)
+    {
+        const VkDevice logicalDevice = device();
+        releaseStagingBuffer(std::move(upload.staging));
+        if (upload.fence != VK_NULL_HANDLE)
+        {
+            vkDestroyFence(logicalDevice, upload.fence, nullptr);
+            upload.fence = VK_NULL_HANDLE;
+        }
+        gpuResources().freeSingleTimeCommandBuffer(upload.commandBuffer);
+        upload.commandBuffer = VK_NULL_HANDLE;
+        upload.destinationBuffers.clear();
+    }
+
+    void TerrainRenderPath::processCompletedUploads()
+    {
+        for (auto it = pendingUploads_.begin(); it != pendingUploads_.end();)
+        {
+            const VkResult status = vkGetFenceStatus(device(), it->fence);
+            if (status == VK_NOT_READY)
+            {
+                ++it;
+                continue;
+            }
+            if (status != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to query terrain upload fence.");
+            }
+
+            destroyUploadResources(*it);
+            it = pendingUploads_.erase(it);
+        }
+    }
+
+    void TerrainRenderPath::waitForPendingUploads()
+    {
+        for (PendingTerrainUpload& upload : pendingUploads_)
+        {
+            if (upload.fence != VK_NULL_HANDLE)
+            {
+                vkWaitForFences(device(), 1, &upload.fence, VK_TRUE, UINT64_MAX);
+            }
+            destroyUploadResources(upload);
+        }
+        pendingUploads_.clear();
+    }
+
+    bool TerrainRenderPath::meshUploadPending(const TerrainMesh& mesh) const
+    {
+        if (mesh.vertexBuffer == VK_NULL_HANDLE)
+        {
+            return false;
+        }
+        for (const PendingTerrainUpload& upload : pendingUploads_)
+        {
+            if (std::find(upload.destinationBuffers.begin(), upload.destinationBuffers.end(), mesh.vertexBuffer) != upload.destinationBuffers.end())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool TerrainRenderPath::chunkUploadPending(const ChunkRenderData& chunk) const
+    {
+        for (const TerrainMesh& mesh : chunk.solidSubchunks)
+        {
+            if (meshUploadPending(mesh))
+            {
+                return true;
+            }
+        }
+        for (const TerrainMesh& mesh : chunk.blendSubchunks)
+        {
+            if (meshUploadPending(mesh))
+            {
+                return true;
+            }
+        }
+        for (const TerrainMesh& mesh : chunk.fluidSubchunks)
+        {
+            if (meshUploadPending(mesh))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     bool TerrainRenderPath::chunkMeshReady(uint64_t key, const RuntimeChunk* runtimeChunk) const
@@ -158,9 +474,8 @@ namespace dolbuto
         renderData.revision = mesh.revision;
         renderData.chunkX = mesh.chunkX;
         renderData.chunkZ = mesh.chunkZ;
-        createChunkTerrainBuffers(mesh.solidSubchunks, renderData.solidSubchunks);
-        createChunkTerrainBuffers(mesh.blendSubchunks, renderData.blendSubchunks);
-        createChunkTerrainBuffers(mesh.fluidSubchunks, renderData.fluidSubchunks);
+        renderData.fadeStartSeconds = steadySeconds();
+        createChunkTerrainBuffersBatch(mesh, renderData);
     }
 
     void TerrainRenderPath::replaceEditedSubchunk(
@@ -206,6 +521,7 @@ namespace dolbuto
 
     uint32_t TerrainRenderPath::processRetired(uint32_t maxDestroy)
     {
+        processCompletedUploads();
         uint32_t destroyedCount = 0;
         for (auto it = retiredChunks_.begin(); it != retiredChunks_.end();)
         {
@@ -220,6 +536,11 @@ namespace dolbuto
                 ++it;
                 continue;
             }
+            if (chunkUploadPending(it->chunk))
+            {
+                ++it;
+                continue;
+            }
             destroyChunkRenderData(it->chunk);
             it = retiredChunks_.erase(it);
             ++destroyedCount;
@@ -229,6 +550,8 @@ namespace dolbuto
 
     void TerrainRenderPath::destroyAll()
     {
+        waitForPendingUploads();
+        destroyStagingPool();
         for (auto& entry : chunks_)
         {
             destroyChunkRenderData(entry.second);
@@ -239,6 +562,8 @@ namespace dolbuto
         }
         chunks_.clear();
         retiredChunks_.clear();
+        destroyTerrainVertexBufferPool();
+        destroyTerrainVertexDescriptorSetPool();
         stats_ = {};
     }
 
@@ -289,6 +614,29 @@ namespace dolbuto
         stats_.drawCount = drawCount;
         stats_.faceCount = faceCount;
         stats_.vertexCount = vertexCount;
+    }
+
+    float TerrainRenderPath::chunkFadeProgress(const ChunkRenderData& chunk, double nowSeconds) const
+    {
+        if (chunk.fadeStartSeconds < 0.0)
+        {
+            return 1.0f;
+        }
+        const float progress = static_cast<float>((nowSeconds - chunk.fadeStartSeconds) / TerrainChunkFadeDurationSeconds);
+        const float clamped = std::clamp(progress, 0.0f, 1.0f);
+        return clamped * clamped * (3.0f - 2.0f * clamped);
+    }
+
+    void TerrainRenderPath::pushChunkFade(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, float fade) const
+    {
+        constexpr uint32_t FadeOffset = static_cast<uint32_t>(offsetof(TerrainPush, dynamicLightParams) + sizeof(float));
+        vkCmdPushConstants(
+            commandBuffer,
+            terrainPipelineLayout,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            FadeOffset,
+            sizeof(float),
+            &fade);
     }
 
     bool TerrainRenderPath::subchunkVisible(const ChunkRenderData& chunk, std::size_t subchunkY, float subchunkHeight, const View& view) const
@@ -359,12 +707,28 @@ namespace dolbuto
         vkCmdDraw(commandBuffer, mesh.indexCount, 1, 0, 0);
     }
 
-    TerrainRenderPath::Stats TerrainRenderPath::drawSolid(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const View& view) const
+    TerrainRenderPath::Stats TerrainRenderPath::drawSolid(
+        VkCommandBuffer commandBuffer,
+        VkPipelineLayout terrainPipelineLayout,
+        const View& view,
+        double fadeNowSeconds,
+        ChunkFadeSelection fadeSelection) const
     {
         Stats visibleStats{};
+        float boundFade = -1.0f;
         for (const auto& entry : chunks_)
         {
             const ChunkRenderData& chunk = entry.second;
+            const float fade = chunkFadeProgress(chunk, fadeNowSeconds);
+            if (fadeSelection == ChunkFadeSelection::Complete && fade < 1.0f)
+            {
+                continue;
+            }
+            if (fadeSelection == ChunkFadeSelection::Active && fade >= 1.0f)
+            {
+                continue;
+            }
+            bool chunkFadeBound = false;
             for (std::size_t subchunkY = 0; subchunkY < chunk.solidSubchunks.size(); ++subchunkY)
             {
                 const TerrainMesh& mesh = chunk.solidSubchunks[subchunkY];
@@ -377,6 +741,16 @@ namespace dolbuto
                     continue;
                 }
 
+                if (!chunkFadeBound)
+                {
+                    if (std::abs(fade - boundFade) > 0.0001f)
+                    {
+                        pushChunkFade(commandBuffer, terrainPipelineLayout, fade);
+                        boundFade = fade;
+                    }
+                    chunkFadeBound = true;
+                }
+
                 drawTerrainMeshBound(commandBuffer, terrainPipelineLayout, mesh);
                 ++visibleStats.drawCount;
                 visibleStats.faceCount += mesh.indexCount / 6;
@@ -386,12 +760,19 @@ namespace dolbuto
         return visibleStats;
     }
 
-    TerrainRenderPath::Stats TerrainRenderPath::drawBlend(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const View& view) const
+    TerrainRenderPath::Stats TerrainRenderPath::drawBlend(
+        VkCommandBuffer commandBuffer,
+        VkPipelineLayout terrainPipelineLayout,
+        const View& view,
+        double fadeNowSeconds) const
     {
         Stats visibleStats{};
+        float boundFade = -1.0f;
         for (const auto& entry : chunks_)
         {
             const ChunkRenderData& chunk = entry.second;
+            const float fade = chunkFadeProgress(chunk, fadeNowSeconds);
+            bool chunkFadeBound = false;
             for (std::size_t subchunkY = 0; subchunkY < chunk.blendSubchunks.size(); ++subchunkY)
             {
                 const TerrainMesh& mesh = chunk.blendSubchunks[subchunkY];
@@ -404,6 +785,16 @@ namespace dolbuto
                     continue;
                 }
 
+                if (!chunkFadeBound)
+                {
+                    if (std::abs(fade - boundFade) > 0.0001f)
+                    {
+                        pushChunkFade(commandBuffer, terrainPipelineLayout, fade);
+                        boundFade = fade;
+                    }
+                    chunkFadeBound = true;
+                }
+
                 drawTerrainMeshBound(commandBuffer, terrainPipelineLayout, mesh);
                 ++visibleStats.drawCount;
                 visibleStats.faceCount += mesh.indexCount / 6;
@@ -413,12 +804,19 @@ namespace dolbuto
         return visibleStats;
     }
 
-    TerrainRenderPath::Stats TerrainRenderPath::drawFluids(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const View& view) const
+    TerrainRenderPath::Stats TerrainRenderPath::drawFluids(
+        VkCommandBuffer commandBuffer,
+        VkPipelineLayout terrainPipelineLayout,
+        const View& view,
+        double fadeNowSeconds) const
     {
         Stats visibleStats{};
+        float boundFade = -1.0f;
         for (const auto& entry : chunks_)
         {
             const ChunkRenderData& chunk = entry.second;
+            const float fade = chunkFadeProgress(chunk, fadeNowSeconds);
+            bool chunkFadeBound = false;
             for (std::size_t subchunkY = 0; subchunkY < chunk.fluidSubchunks.size(); ++subchunkY)
             {
                 const TerrainMesh& mesh = chunk.fluidSubchunks[subchunkY];
@@ -429,6 +827,16 @@ namespace dolbuto
                 if (!subchunkVisible(chunk, subchunkY, static_cast<float>(SubchunkSize + 1), view))
                 {
                     continue;
+                }
+
+                if (!chunkFadeBound)
+                {
+                    if (std::abs(fade - boundFade) > 0.0001f)
+                    {
+                        pushChunkFade(commandBuffer, terrainPipelineLayout, fade);
+                        boundFade = fade;
+                    }
+                    chunkFadeBound = true;
                 }
 
                 drawTerrainMeshBound(commandBuffer, terrainPipelineLayout, mesh);
@@ -584,6 +992,7 @@ namespace dolbuto
             vkMapMemory(logicalDevice, mesh.indexMemory, 0, indexBufferSize, 0, &data);
             std::memcpy(data, buildData.indices.data(), static_cast<std::size_t>(indexBufferSize));
             vkUnmapMemory(logicalDevice, mesh.indexMemory);
+            mesh.vertexBufferSize = vertexBufferSize;
             return;
         }
 
@@ -596,28 +1005,18 @@ namespace dolbuto
         mesh.vertexCount = static_cast<uint32_t>(packedQuads.size());
         mesh.indexCount = static_cast<uint32_t>(packedQuads.size() * 6u);
 
-        VkBuffer stagingBuffer = VK_NULL_HANDLE;
-        VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
         const VkDeviceSize vertexBufferSize = sizeof(PackedTerrainQuad) * packedQuads.size();
         const VkDeviceSize stagingSize = vertexBufferSize;
-        gpuResources().createBuffer(
-            stagingSize,
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            stagingBuffer,
-            stagingMemory);
+
+        acquireTerrainVertexBuffer(vertexBufferSize, mesh);
+
+        processCompletedUploads();
+        StagingBuffer staging = acquireStagingBuffer(stagingSize);
 
         void* data = nullptr;
-        vkMapMemory(logicalDevice, stagingMemory, 0, stagingSize, 0, &data);
+        vkMapMemory(logicalDevice, staging.memory, 0, stagingSize, 0, &data);
         std::memcpy(data, packedQuads.data(), static_cast<std::size_t>(vertexBufferSize));
-        vkUnmapMemory(logicalDevice, stagingMemory);
-
-        gpuResources().createBuffer(
-            vertexBufferSize,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            mesh.vertexBuffer,
-            mesh.vertexMemory);
+        vkUnmapMemory(logicalDevice, staging.memory);
 
         VkCommandBuffer commandBuffer = gpuResources().beginSingleTimeCommands();
 
@@ -625,7 +1024,7 @@ namespace dolbuto
         vertexCopy.srcOffset = 0;
         vertexCopy.dstOffset = 0;
         vertexCopy.size = vertexBufferSize;
-        vkCmdCopyBuffer(commandBuffer, stagingBuffer, mesh.vertexBuffer, 1, &vertexCopy);
+        vkCmdCopyBuffer(commandBuffer, staging.buffer, mesh.vertexBuffer, 1, &vertexCopy);
 
         VkBufferMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -647,17 +1046,16 @@ namespace dolbuto
             0,
             nullptr);
 
-        gpuResources().endSingleTimeCommands(commandBuffer);
-        vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
-        vkFreeMemory(logicalDevice, stagingMemory, nullptr);
+        enqueueTerrainUpload(commandBuffer, std::move(staging), std::vector<VkBuffer>{mesh.vertexBuffer});
         createTerrainVertexDescriptorSet(mesh, vertexBufferSize);
     }
 
-    void TerrainRenderPath::createChunkTerrainBuffers(const std::array<TerrainBuildData, SubchunkCount>& buildData, std::array<TerrainMesh, SubchunkCount>& meshes)
+    void TerrainRenderPath::createChunkTerrainBuffersBatch(const CompletedChunkMesh& buildData, ChunkRenderData& renderData)
     {
         struct PendingUpload
         {
-            std::size_t subchunkY = 0;
+            TerrainMesh* mesh = nullptr;
+            std::vector<PackedTerrainQuad> quads;
             VkDeviceSize vertexSize = 0;
             VkDeviceSize vertexOffset = 0;
         };
@@ -668,40 +1066,47 @@ namespace dolbuto
         };
 
         std::vector<PendingUpload> uploads;
-        uploads.reserve(buildData.size());
-        std::array<std::vector<PackedTerrainQuad>, SubchunkCount> packedSubchunks{};
+        uploads.reserve(SubchunkCount * 3u);
+        std::vector<VkBuffer> destinationBuffers;
+        destinationBuffers.reserve(SubchunkCount * 3u);
         VkDeviceSize stagingSize = 0;
-        for (std::size_t subchunkY = 0; subchunkY < buildData.size(); ++subchunkY)
+
+        auto appendUploads = [&](const std::array<TerrainBuildData, SubchunkCount>& sources, std::array<TerrainMesh, SubchunkCount>& meshes)
         {
-            const TerrainBuildData& source = buildData[subchunkY];
-            if (source.vertices.empty() || source.indices.empty())
+            for (std::size_t subchunkY = 0; subchunkY < sources.size(); ++subchunkY)
             {
-                continue;
+                const TerrainBuildData& source = sources[subchunkY];
+                if (source.vertices.empty() || source.indices.empty())
+                {
+                    continue;
+                }
+
+                std::vector<PackedTerrainQuad> packedQuads = buildPackedTerrainQuads(source);
+                if (packedQuads.empty())
+                {
+                    continue;
+                }
+
+                TerrainMesh& mesh = meshes[subchunkY];
+                mesh.vertexCount = static_cast<uint32_t>(packedQuads.size());
+                mesh.indexCount = static_cast<uint32_t>(packedQuads.size() * 6u);
+
+                PendingUpload upload{};
+                upload.mesh = &mesh;
+                upload.vertexSize = sizeof(PackedTerrainQuad) * packedQuads.size();
+                upload.vertexOffset = alignCopyOffset(stagingSize);
+                upload.quads = std::move(packedQuads);
+                stagingSize = upload.vertexOffset + upload.vertexSize;
+
+                acquireTerrainVertexBuffer(upload.vertexSize, mesh);
+                destinationBuffers.push_back(mesh.vertexBuffer);
+                uploads.push_back(std::move(upload));
             }
-            packedSubchunks[subchunkY] = buildPackedTerrainQuads(source);
-            if (packedSubchunks[subchunkY].empty())
-            {
-                continue;
-            }
+        };
 
-            TerrainMesh& mesh = meshes[subchunkY];
-            mesh.vertexCount = static_cast<uint32_t>(packedSubchunks[subchunkY].size());
-            mesh.indexCount = static_cast<uint32_t>(packedSubchunks[subchunkY].size() * 6u);
-
-            PendingUpload upload{};
-            upload.subchunkY = subchunkY;
-            upload.vertexSize = sizeof(PackedTerrainQuad) * packedSubchunks[subchunkY].size();
-            upload.vertexOffset = alignCopyOffset(stagingSize);
-            stagingSize = upload.vertexOffset + upload.vertexSize;
-            uploads.push_back(upload);
-
-            gpuResources().createBuffer(
-                upload.vertexSize,
-                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                mesh.vertexBuffer,
-                mesh.vertexMemory);
-        }
+        appendUploads(buildData.solidSubchunks, renderData.solidSubchunks);
+        appendUploads(buildData.blendSubchunks, renderData.blendSubchunks);
+        appendUploads(buildData.fluidSubchunks, renderData.fluidSubchunks);
 
         if (uploads.empty())
         {
@@ -709,36 +1114,29 @@ namespace dolbuto
         }
 
         const VkDevice logicalDevice = device();
-        VkBuffer stagingBuffer = VK_NULL_HANDLE;
-        VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
-        gpuResources().createBuffer(
-            stagingSize,
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            stagingBuffer,
-            stagingMemory);
+        processCompletedUploads();
+        StagingBuffer staging = acquireStagingBuffer(stagingSize);
 
         void* data = nullptr;
-        vkMapMemory(logicalDevice, stagingMemory, 0, stagingSize, 0, &data);
+        vkMapMemory(logicalDevice, staging.memory, 0, stagingSize, 0, &data);
         for (const PendingUpload& upload : uploads)
         {
-            const std::vector<PackedTerrainQuad>& source = packedSubchunks[upload.subchunkY];
-            std::memcpy(static_cast<char*>(data) + upload.vertexOffset, source.data(), static_cast<std::size_t>(upload.vertexSize));
+            std::memcpy(static_cast<char*>(data) + upload.vertexOffset, upload.quads.data(), static_cast<std::size_t>(upload.vertexSize));
         }
-        vkUnmapMemory(logicalDevice, stagingMemory);
+        vkUnmapMemory(logicalDevice, staging.memory);
 
         VkCommandBuffer commandBuffer = gpuResources().beginSingleTimeCommands();
         std::vector<VkBufferMemoryBarrier> barriers;
         barriers.reserve(uploads.size());
         for (const PendingUpload& upload : uploads)
         {
-            const TerrainMesh& mesh = meshes[upload.subchunkY];
+            const TerrainMesh& mesh = *upload.mesh;
 
             VkBufferCopy vertexCopy{};
             vertexCopy.srcOffset = upload.vertexOffset;
             vertexCopy.dstOffset = 0;
             vertexCopy.size = upload.vertexSize;
-            vkCmdCopyBuffer(commandBuffer, stagingBuffer, mesh.vertexBuffer, 1, &vertexCopy);
+            vkCmdCopyBuffer(commandBuffer, staging.buffer, mesh.vertexBuffer, 1, &vertexCopy);
 
             VkBufferMemoryBarrier vertexBarrier{};
             vertexBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -763,13 +1161,11 @@ namespace dolbuto
             0,
             nullptr);
 
-        gpuResources().endSingleTimeCommands(commandBuffer);
-        vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
-        vkFreeMemory(logicalDevice, stagingMemory, nullptr);
+        enqueueTerrainUpload(commandBuffer, std::move(staging), std::move(destinationBuffers));
 
         for (const PendingUpload& upload : uploads)
         {
-            createTerrainVertexDescriptorSet(meshes[upload.subchunkY], upload.vertexSize);
+            createTerrainVertexDescriptorSet(*upload.mesh, upload.vertexSize);
         }
     }
 
@@ -780,17 +1176,7 @@ namespace dolbuto
             return;
         }
 
-        VkDescriptorSetAllocateInfo setInfo{};
-        setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        setInfo.descriptorPool = descriptorPool();
-        setInfo.descriptorSetCount = 1;
-        const VkDescriptorSetLayout layout = terrainVertexDescriptorSetLayout();
-        setInfo.pSetLayouts = &layout;
-
-        if (vkAllocateDescriptorSets(device(), &setInfo, &mesh.vertexDescriptorSet) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to allocate terrain vertex descriptor set.");
-        }
+        mesh.vertexDescriptorSet = acquireTerrainVertexDescriptorSet();
 
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = mesh.vertexBuffer;
@@ -810,11 +1196,15 @@ namespace dolbuto
     void TerrainRenderPath::destroyTerrainMesh(TerrainMesh& mesh)
     {
         const VkDevice logicalDevice = device();
-        if (mesh.vertexDescriptorSet != VK_NULL_HANDLE && descriptorPool() != VK_NULL_HANDLE)
+        releaseTerrainVertexDescriptorSet(mesh);
+        if (mesh.vertexBuffer != VK_NULL_HANDLE
+            && mesh.indexBuffer == VK_NULL_HANDLE
+            && mesh.vertexMemory != VK_NULL_HANDLE
+            && mesh.vertexBufferSize != 0)
         {
-            vkFreeDescriptorSets(logicalDevice, descriptorPool(), 1, &mesh.vertexDescriptorSet);
+            releaseTerrainVertexBuffer(mesh);
         }
-        if (mesh.vertexBuffer != VK_NULL_HANDLE)
+        else if (mesh.vertexBuffer != VK_NULL_HANDLE)
         {
             vkDestroyBuffer(logicalDevice, mesh.vertexBuffer, nullptr);
         }
