@@ -117,6 +117,138 @@ namespace dolbuto
             }
         }
 
+        void alphaBlendPixel(unsigned char* target, const unsigned char* source)
+        {
+            const float sourceAlpha = static_cast<float>(source[3]) / 255.0f;
+            if (sourceAlpha <= 0.0f)
+            {
+                return;
+            }
+            const float targetAlpha = static_cast<float>(target[3]) / 255.0f;
+            const float outAlpha = sourceAlpha + targetAlpha * (1.0f - sourceAlpha);
+            if (outAlpha <= 0.0f)
+            {
+                target[0] = target[1] = target[2] = target[3] = 0;
+                return;
+            }
+
+            for (int channel = 0; channel < 3; ++channel)
+            {
+                const float sourceColor = static_cast<float>(source[channel]) / 255.0f;
+                const float targetColor = static_cast<float>(target[channel]) / 255.0f;
+                const float outColor = (sourceColor * sourceAlpha + targetColor * targetAlpha * (1.0f - sourceAlpha)) / outAlpha;
+                target[channel] = static_cast<unsigned char>(std::clamp(outColor * 255.0f, 0.0f, 255.0f));
+            }
+            target[3] = static_cast<unsigned char>(std::clamp(outAlpha * 255.0f, 0.0f, 255.0f));
+        }
+
+        bool loadLayer32(const std::filesystem::path& path, std::array<unsigned char, 32 * 32 * 4>& output)
+        {
+            int width = 0;
+            int height = 0;
+            int channels = 0;
+            stbi_uc* pixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
+            if (pixels == nullptr || width != 32 || height != 32)
+            {
+                if (pixels != nullptr)
+                {
+                    stbi_image_free(pixels);
+                }
+                return false;
+            }
+
+            std::copy(pixels, pixels + output.size(), output.begin());
+            stbi_image_free(pixels);
+            return true;
+        }
+
+        void generateCompositeToolSprites(
+            const std::filesystem::path& itemTextureDir,
+            const std::vector<std::string>& itemTextureNames)
+        {
+            constexpr std::string_view Prefix = "generated/composites/";
+            const std::filesystem::path generatedDir = itemTextureDir / "generated" / "composites";
+            std::filesystem::create_directories(generatedDir);
+
+            for (const std::string& textureName : itemTextureNames)
+            {
+                if (textureName.rfind(Prefix, 0) != 0)
+                {
+                    continue;
+                }
+
+                const std::string key = textureName.substr(Prefix.size());
+                std::array<std::string, 4> parts{};
+                std::size_t partIndex = 0;
+                std::size_t begin = 0;
+                while (partIndex < parts.size())
+                {
+                    const std::size_t separator = key.find("__", begin);
+                    if (separator == std::string::npos)
+                    {
+                        parts[partIndex++] = key.substr(begin);
+                        break;
+                    }
+                    parts[partIndex++] = key.substr(begin, separator - begin);
+                    begin = separator + 2u;
+                }
+                if (partIndex != parts.size())
+                {
+                    continue;
+                }
+
+                const std::string& head = parts[0];
+                const std::string& binding = parts[1];
+                const std::string& handle = parts[2];
+                const std::string& size = parts[3];
+                const std::filesystem::path outputPath = itemTextureDir / (textureName + ".png");
+                const std::array<std::filesystem::path, 3> sourcePaths{{
+                    itemTextureDir / "composites" / "handles" / (handle + "_" + size + ".png"),
+                    itemTextureDir / "composites" / "heads" / (head + "_" + size + ".png"),
+                    itemTextureDir / "composites" / "bindings" / (binding + "_" + size + ".png")
+                }};
+
+                if (std::filesystem::exists(outputPath))
+                {
+                    bool upToDate = true;
+                    const auto outputTime = std::filesystem::last_write_time(outputPath);
+                    for (const std::filesystem::path& sourcePath : sourcePaths)
+                    {
+                        if (std::filesystem::exists(sourcePath) &&
+                            std::filesystem::last_write_time(sourcePath) > outputTime)
+                        {
+                            upToDate = false;
+                            break;
+                        }
+                    }
+                    if (upToDate)
+                    {
+                        continue;
+                    }
+                }
+
+                std::array<unsigned char, 32 * 32 * 4> output{};
+                bool loadedAny = false;
+                for (const std::filesystem::path& sourcePath : sourcePaths)
+                {
+                    std::array<unsigned char, 32 * 32 * 4> layer{};
+                    if (!loadLayer32(sourcePath, layer))
+                    {
+                        continue;
+                    }
+                    loadedAny = true;
+                    for (std::size_t pixel = 0; pixel < 32u * 32u; ++pixel)
+                    {
+                        alphaBlendPixel(output.data() + pixel * 4u, layer.data() + pixel * 4u);
+                    }
+                }
+                if (loadedAny)
+                {
+                    stbi_write_png(outputPath.string().c_str(), 32, 32, 4, output.data(), 32 * 4);
+                }
+            }
+        }
+
         DroppedItemRenderPath::ItemSpriteMesh buildBlockModelItemMesh(
             const BlockTextureLayers& layers,
             BlockRenderType renderType,
@@ -323,6 +455,7 @@ namespace dolbuto
         const std::filesystem::path itemTextureDir = assetDirectory / "textures" / "item";
         const std::filesystem::path smokeTextureDir = assetDirectory / "textures" / "particle" / "smoke";
         generateCastPartSprites(itemTextureDir);
+        generateCompositeToolSprites(itemTextureDir, content.itemTextureNames());
         store.moltenSurfaceMeshes.resize(2);
 
         store.sun = gpuResources.createTexture((assetDirectory / "textures" / "sky" / "Sun.png").string());
@@ -439,32 +572,38 @@ namespace dolbuto
                 }
                 continue;
             }
-            const bool hasDroppedLayeredTexture = definition.droppedBottomTexture != "none" && definition.droppedTopTexture != "none";
-            const bool hasHeldLayeredTexture = definition.heldBottomTexture != "none" && definition.heldTopTexture != "none";
-            if (definition.droppedTexture == "none" && !hasDroppedLayeredTexture && !hasHeldLayeredTexture)
+            if (definition.droppedTexture == "none")
             {
                 continue;
             }
-            if (hasDroppedLayeredTexture)
+            store.itemSpriteMeshes[itemId] = ItemSpriteMeshBuilder::build(itemTexturePathOrDefault(itemTextureDir, definition.droppedTexture));
+        }
+        uint16_t generatedMeshId = 32768;
+        constexpr std::string_view CompositeTexturePrefix = "generated/composites/";
+        for (const std::string& textureName : content.itemTextureNames())
+        {
+            if (textureName.rfind(CompositeTexturePrefix, 0) != 0)
             {
-                store.itemSpriteMeshes[itemId] = ItemSpriteMeshBuilder::buildLayered(
-                    itemTexturePathOrDefault(itemTextureDir, definition.droppedBottomTexture),
-                    definition.droppedBottomTextureLayer,
-                    itemTexturePathOrDefault(itemTextureDir, definition.droppedTopTexture),
-                    definition.droppedTopTextureLayer);
+                continue;
             }
-            else if (hasHeldLayeredTexture)
+            while (generatedMeshId < std::numeric_limits<uint16_t>::max() &&
+                !store.itemSpriteMeshes[generatedMeshId].quads.empty())
             {
-                store.itemSpriteMeshes[itemId] = ItemSpriteMeshBuilder::buildLayered(
-                    itemTexturePathOrDefault(itemTextureDir, definition.heldBottomTexture),
-                    definition.heldBottomTextureLayer,
-                    itemTexturePathOrDefault(itemTextureDir, definition.heldTopTexture),
-                    definition.heldTopTextureLayer);
+                ++generatedMeshId;
             }
-            else
+            if (generatedMeshId == std::numeric_limits<uint16_t>::max())
             {
-                store.itemSpriteMeshes[itemId] = ItemSpriteMeshBuilder::build(itemTexturePathOrDefault(itemTextureDir, definition.droppedTexture));
+                break;
             }
+
+            DroppedItemRenderPath::ItemSpriteMesh mesh = ItemSpriteMeshBuilder::build(itemTexturePathOrDefault(itemTextureDir, textureName));
+            if (mesh.quads.empty())
+            {
+                continue;
+            }
+            store.itemSpriteMeshes[generatedMeshId] = std::move(mesh);
+            store.itemSpriteMeshIdsByTextureName.emplace(textureName, generatedMeshId);
+            ++generatedMeshId;
         }
 
         store.propMeshesByBlock = content.propMeshesByBlock();
@@ -531,7 +670,10 @@ namespace dolbuto
         gpuResources.destroyTexture(sun);
         gpuResources.destroyTexture(itemTextureArray);
         itemSpriteMeshes.clear();
+        itemSpriteMeshIdsByTextureName.clear();
         propMeshesByBlock.clear();
         moldMeshesByBlock.clear();
+        moldMoltenSurfaceMeshIdsByBlock.clear();
+        moltenSurfaceMeshes.clear();
     }
 }

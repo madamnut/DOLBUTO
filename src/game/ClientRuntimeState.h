@@ -310,7 +310,11 @@ namespace dolbuto::game
 
         void initializeContexts()
         {
-            gameplayRuntime.setContext(&worldRuntime, &content.itemDefinitions());
+            gameplayRuntime.setContext(
+                &worldRuntime,
+                &content.itemDefinitions(),
+                &content.assemblyMaterials(),
+                &content.itemTextureLayerByName());
             uiBridge.setContext(&ui, &gameplayRuntime, &content.itemDefinitions());
         }
 

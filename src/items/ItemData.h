@@ -6,6 +6,16 @@
 
 namespace dolbuto
 {
+    struct AssemblyPartDefinition
+    {
+        bool present = false;
+        std::string part;
+        std::string type;
+        std::string material;
+        std::string size;
+        std::vector<std::string> allowedSizes;
+    };
+
     struct ItemStack
     {
         uint16_t itemId = 0;
@@ -14,6 +24,16 @@ namespace dolbuto
         uint16_t burnTicksRemaining = 0;
         uint16_t moltenFluidId = 0;
         uint16_t moltenAmount = 0;
+        uint16_t dynamicMaxDurability = 0;
+        uint16_t dynamicBreakLevel = 0;
+        uint32_t dynamicDroppedTextureLayer = 0;
+        uint32_t dynamicHeldTextureLayer = 0;
+        std::string dynamicName;
+        std::string dynamicSlotTexture;
+        std::string dynamicDroppedTexture;
+        std::string dynamicHeldTexture;
+        std::vector<std::string> dynamicUseActions;
+        std::vector<std::string> dynamicBreakActions;
     };
 
     enum class ItemRenderType : uint8_t
@@ -42,10 +62,6 @@ namespace dolbuto
         std::string slotTexture = "none";
         std::string droppedTexture = "none";
         std::string heldTexture = "none";
-        std::string droppedBottomTexture = "none";
-        std::string droppedTopTexture = "none";
-        std::string heldBottomTexture = "none";
-        std::string heldTopTexture = "none";
         std::vector<std::string> useActions;
         std::vector<std::string> breakActions;
         std::vector<std::string> placeActions;
@@ -68,16 +84,14 @@ namespace dolbuto
         bool burnTicksOnlyWhileHeld = false;
         uint32_t droppedTextureLayer = 0;
         uint32_t heldTextureLayer = 0;
-        uint32_t droppedBottomTextureLayer = 0;
-        uint32_t droppedTopTextureLayer = 0;
-        uint32_t heldBottomTextureLayer = 0;
-        uint32_t heldTopTextureLayer = 0;
         float blockModelWidth = 0.0f;
         float blockModelHeight = 0.0f;
         float blockModelDepth = 0.0f;
         bool useBlockModelVerticalSection = false;
         bool useBlockModelCrucibleShape = false;
         bool hasModelTexture = false;
+        bool dynamicToolTemplate = false;
+        AssemblyPartDefinition assemblyPart;
         ItemSlotRenderType slotRender = ItemSlotRenderType::Sprite;
         ItemRenderType droppedRender = ItemRenderType::ExtrudedSprite;
         ItemRenderType heldRender = ItemRenderType::ExtrudedSprite;
@@ -88,6 +102,12 @@ namespace dolbuto
         uint16_t itemId = 0;
         uint16_t min = 1;
         uint16_t max = 1;
+        std::string deriveType;
+        std::string deriveHead;
+        std::string deriveBinding;
+        std::string deriveHandle;
+        ItemStack stackOverride;
+        bool hasStackOverride = false;
     };
 
     struct ItemInteractionIngredient
@@ -96,11 +116,33 @@ namespace dolbuto
         uint16_t count = 1;
     };
 
+    struct ItemInteractionInput
+    {
+        uint16_t itemId = 0;
+        uint16_t count = 1;
+        std::string alias;
+        AssemblyPartDefinition assemblyPart;
+    };
+
+    struct ItemInteractionConstraint
+    {
+        std::string op;
+        std::string left;
+        std::string right;
+    };
+
+    struct ItemInteractionBoundInput
+    {
+        std::string alias;
+        ItemStack stack;
+    };
+
     struct ItemInteractionCandidate
     {
         bool enabled = true;
         std::vector<ItemInteractionIngredient> ingredients;
         std::vector<ItemInteractionOutput> outputs;
+        std::vector<ItemInteractionBoundInput> boundInputs;
         uint16_t placeBlockId = 0;
         bool resultTargetsHeldItem = false;
         std::string placeBlockPlacement;
@@ -118,7 +160,16 @@ namespace dolbuto
         bool targetAnyBlock = false;
         uint16_t targetCount = 1;
         std::vector<ItemInteractionIngredient> ingredients;
+        std::vector<ItemInteractionInput> inputs;
+        std::vector<ItemInteractionConstraint> constraints;
         std::vector<ItemInteractionCandidate> candidates;
+    };
+
+    struct AssemblyMaterialDefinition
+    {
+        std::string key;
+        std::string displayName;
+        float durabilityMultiplier = 1.0f;
     };
 
     struct ItemProcessingOutput

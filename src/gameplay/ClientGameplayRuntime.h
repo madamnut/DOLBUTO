@@ -94,9 +94,17 @@ namespace dolbuto::gameplay
         using PickupSoundFn = world::DroppedItemRuntime::PickupSoundFn;
 
         ClientGameplayRuntime() = default;
-        ClientGameplayRuntime(world::WorldRuntime* worldRuntime, const std::vector<ItemDefinition>* itemDefinitions);
+        ClientGameplayRuntime(
+            world::WorldRuntime* worldRuntime,
+            const std::vector<ItemDefinition>* itemDefinitions,
+            const std::unordered_map<std::string, AssemblyMaterialDefinition>* assemblyMaterials = nullptr,
+            const std::unordered_map<std::string, uint32_t>* itemTextureLayerByName = nullptr);
 
-        void setContext(world::WorldRuntime* worldRuntime, const std::vector<ItemDefinition>* itemDefinitions);
+        void setContext(
+            world::WorldRuntime* worldRuntime,
+            const std::vector<ItemDefinition>* itemDefinitions,
+            const std::unordered_map<std::string, AssemblyMaterialDefinition>* assemblyMaterials = nullptr,
+            const std::unordered_map<std::string, uint32_t>* itemTextureLayerByName = nullptr);
 
         bool playerColliderIntersectsTerrain(DVec3 playerPosition, double heightScale, const TerrainAabbCollisionPredicate& terrainCellIntersectsPlayer) const;
         bool playerColliderHasSupportBelow(DVec3 playerPosition, const TerrainAabbCollisionPredicate& terrainCellIntersectsPlayer) const;
@@ -230,6 +238,8 @@ namespace dolbuto::gameplay
         };
 
         const std::vector<ItemDefinition>* itemDefinitions_ = nullptr;
+        const std::unordered_map<std::string, AssemblyMaterialDefinition>* assemblyMaterials_ = nullptr;
+        const std::unordered_map<std::string, uint32_t>* itemTextureLayerByName_ = nullptr;
         world::WorldRuntime* worldRuntime_ = nullptr;
         int hotbarSelectedSlot_ = 0;
         BlockBreakingState blockBreaking_;

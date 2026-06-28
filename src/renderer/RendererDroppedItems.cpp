@@ -16,6 +16,7 @@
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace dolbuto
@@ -31,6 +32,26 @@ namespace dolbuto
         constexpr float BlockModelDroppedItemSize = world::DroppedItemSystem::BlockModelDroppedItemSize;
         constexpr float HeldExtrudedSpriteBaseWidth = 0.34f;
         constexpr float HeldExtrudedSpriteBaseThickness = 0.035f;
+
+        uint32_t heldTextureLayerForStack(const ItemStack& stack, const ItemDefinition& definition)
+        {
+            return stack.dynamicHeldTextureLayer != 0
+                ? stack.dynamicHeldTextureLayer
+                : definition.heldTextureLayer;
+        }
+
+        uint16_t dynamicItemMeshIdForTexture(
+            const ItemStack& stack,
+            uint16_t fallbackItemId,
+            const std::unordered_map<std::string, uint16_t>& meshIdsByTextureName)
+        {
+            if (stack.dynamicHeldTexture.empty())
+            {
+                return fallbackItemId;
+            }
+            const auto meshIt = meshIdsByTextureName.find(stack.dynamicHeldTexture);
+            return meshIt != meshIdsByTextureName.end() ? meshIt->second : fallbackItemId;
+        }
 
         std::string moldFormFromBlockName(const std::string& name)
         {
@@ -156,8 +177,10 @@ namespace dolbuto
         }
     }
 
-    void Renderer::drawHeldItem(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, uint16_t heldItemId, uint16_t offhandItemId, float skyBrightness, uint16_t heldPortableLightEmission, uint8_t playerPackedLight)
+    void Renderer::drawHeldItem(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, const ItemStack& heldItemStack, const ItemStack& offhandItemStack, float skyBrightness, uint16_t heldPortableLightEmission, uint8_t playerPackedLight)
     {
+        const uint16_t heldItemId = heldItemStack.count > 0 ? heldItemStack.itemId : 0;
+        const uint16_t offhandItemId = offhandItemStack.count > 0 ? offhandItemStack.itemId : 0;
         if (vulkan_.itemViewmodelPipeline == VK_NULL_HANDLE ||
             !droppedItemRenderPath_.ready() ||
             (heldItemId == 0 && offhandItemId == 0))
@@ -170,11 +193,11 @@ namespace dolbuto
 
         std::vector<DroppedItemRenderPath::RenderInstance> spriteInstances;
         std::vector<DroppedItemRenderPath::RenderInstance> blockInstances;
-        auto appendHeldItem = [&](uint16_t itemId, bool mirrored)
+        auto appendHeldItem = [&](const ItemStack& stack, bool mirrored)
         {
+            const uint16_t itemId = stack.count > 0 ? stack.itemId : 0;
             if (itemId == 0 ||
-                static_cast<std::size_t>(itemId) >= client_.content.itemDefinitions().size() ||
-                !droppedItemRenderPath_.meshReady(itemId))
+                static_cast<std::size_t>(itemId) >= client_.content.itemDefinitions().size())
             {
                 return;
             }
@@ -187,18 +210,25 @@ namespace dolbuto
             }
 
             const bool blockModel = definition.heldRender == ItemRenderType::BlockModel;
+            const uint16_t renderMeshId = blockModel
+                ? itemId
+                : dynamicItemMeshIdForTexture(stack, itemId, rendererAssets_.itemSpriteMeshIdsByTextureName);
+            if (!droppedItemRenderPath_.meshReady(renderMeshId))
+            {
+                return;
+            }
             const auto& heldConfig = blockModel
                 ? client_.viewmodelConfig.heldBlockModelItem
                 : client_.viewmodelConfig.heldItem;
             DroppedItemRenderPath::RenderInstance heldItem{};
-            heldItem.itemId = itemId;
+            heldItem.itemId = renderMeshId;
             heldItem.instance.centerX = mirrored ? -heldConfig.x : heldConfig.x;
             heldItem.instance.centerY = heldConfig.y;
             heldItem.instance.centerZ = heldConfig.z;
             heldItem.instance.rotationX = heldConfig.rotationX;
             heldItem.instance.rotationY = mirrored ? -heldConfig.rotationY : heldConfig.rotationY;
             heldItem.instance.rotationZ = mirrored ? -heldConfig.rotationZ : heldConfig.rotationZ;
-            heldItem.instance.textureLayer = static_cast<float>(definition.heldTextureLayer);
+            heldItem.instance.textureLayer = static_cast<float>(heldTextureLayerForStack(stack, definition));
             heldItem.instance.uvMirrorX = mirrored && blockModel ? 1.0f : 0.0f;
             heldItem.instance.geometryMirrorX = mirrored && !blockModel ? 1.0f : 0.0f;
             heldItem.instance.mipDistanceScale = heldConfig.scale;
@@ -228,8 +258,8 @@ namespace dolbuto
             }
         };
 
-        appendHeldItem(heldItemId, false);
-        appendHeldItem(offhandItemId, true);
+        appendHeldItem(heldItemStack, false);
+        appendHeldItem(offhandItemStack, true);
         if (spriteInstances.empty() && blockInstances.empty())
         {
             return;
@@ -246,6 +276,7 @@ namespace dolbuto
         push.cameraPosition[3] = static_cast<float>(glfwGetTime());
         push.fluidWaterParams[1] = skyBrightness;
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
+        push.dynamicLightParams[1] = 1.0f;
 
         const std::size_t frameInstanceOffset = static_cast<std::size_t>(vulkan_.currentFrame) * ItemInstanceFrameStride +
             world::DroppedItemSystem::MaxDroppedItemRenderInstances + 2u;
@@ -275,8 +306,10 @@ namespace dolbuto
         }
     }
 
-    void Renderer::drawThirdPersonHeldItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission, uint16_t heldItemId, uint16_t offhandItemId, uint8_t playerPackedLight)
+    void Renderer::drawThirdPersonHeldItems(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission, const ItemStack& heldItemStack, const ItemStack& offhandItemStack, uint8_t playerPackedLight)
     {
+        const uint16_t heldItemId = heldItemStack.count > 0 ? heldItemStack.itemId : 0;
+        const uint16_t offhandItemId = offhandItemStack.count > 0 ? offhandItemStack.itemId : 0;
         if (vulkan_.itemPipeline == VK_NULL_HANDLE ||
             !droppedItemRenderPath_.ready() ||
             !playerMeshRenderPath_.ready() ||
@@ -287,12 +320,12 @@ namespace dolbuto
 
         std::vector<DroppedItemRenderPath::RenderInstance> spriteInstances;
         std::vector<DroppedItemRenderPath::RenderInstance> blockInstances;
-        auto appendAttachedItem = [&](uint16_t itemId, const PlayerMeshRenderPath::ItemAttachment& attachment, bool mirrored)
+        auto appendAttachedItem = [&](const ItemStack& stack, const PlayerMeshRenderPath::ItemAttachment& attachment, bool mirrored)
         {
+            const uint16_t itemId = stack.count > 0 ? stack.itemId : 0;
             if (itemId == 0 ||
                 !attachment.valid ||
-                static_cast<std::size_t>(itemId) >= client_.content.itemDefinitions().size() ||
-                !droppedItemRenderPath_.meshReady(itemId))
+                static_cast<std::size_t>(itemId) >= client_.content.itemDefinitions().size())
             {
                 return;
             }
@@ -305,12 +338,19 @@ namespace dolbuto
             }
 
             const bool blockModel = definition.heldRender == ItemRenderType::BlockModel;
+            const uint16_t renderMeshId = blockModel
+                ? itemId
+                : dynamicItemMeshIdForTexture(stack, itemId, rendererAssets_.itemSpriteMeshIdsByTextureName);
+            if (!droppedItemRenderPath_.meshReady(renderMeshId))
+            {
+                return;
+            }
             DroppedItemRenderPath::RenderInstance attachedItem{};
-            attachedItem.itemId = itemId;
+            attachedItem.itemId = renderMeshId;
             attachedItem.instance.centerX = attachment.center.x;
             attachedItem.instance.centerY = attachment.center.y;
             attachedItem.instance.centerZ = attachment.center.z;
-            attachedItem.instance.textureLayer = static_cast<float>(definition.heldTextureLayer);
+            attachedItem.instance.textureLayer = static_cast<float>(heldTextureLayerForStack(stack, definition));
             attachedItem.instance.uvMirrorX = mirrored && blockModel ? 1.0f : 0.0f;
             attachedItem.instance.geometryMirrorX = mirrored && !blockModel ? 1.0f : 0.0f;
             attachedItem.instance.mipDistanceScale = 1.0f;
@@ -348,8 +388,8 @@ namespace dolbuto
             }
         };
 
-        appendAttachedItem(heldItemId, playerMeshRenderPath_.rightItemAttachment(), false);
-        appendAttachedItem(offhandItemId, playerMeshRenderPath_.leftItemAttachment(), true);
+        appendAttachedItem(heldItemStack, playerMeshRenderPath_.rightItemAttachment(), false);
+        appendAttachedItem(offhandItemStack, playerMeshRenderPath_.leftItemAttachment(), true);
         if (spriteInstances.empty() && blockInstances.empty())
         {
             return;
@@ -368,6 +408,7 @@ namespace dolbuto
         push.cameraPosition[3] = static_cast<float>(glfwGetTime());
         push.fluidWaterParams[1] = skyBrightness;
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
+        push.dynamicLightParams[1] = 1.0f;
 
         const std::size_t frameInstanceOffset = static_cast<std::size_t>(vulkan_.currentFrame) * ItemInstanceFrameStride +
             world::DroppedItemSystem::MaxDroppedItemRenderInstances;
@@ -437,6 +478,7 @@ namespace dolbuto
                 client_.gameplayRuntime.droppedItemTrackedChunkCounts(),
                 client_.content.itemDefinitions(),
                 rendererAssets_.itemSpriteMeshes,
+                &rendererAssets_.itemSpriteMeshIdsByTextureName,
                 renderType,
                 aspect,
                 fovRadians,
@@ -476,6 +518,7 @@ namespace dolbuto
         push.fluidWaterParams[0] = client_.renderConfig.fluidWaterAlpha;
         push.fluidWaterParams[1] = skyBrightness;
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
+        push.dynamicLightParams[1] = 1.0f;
 
         const std::size_t frameInstanceOffset = static_cast<std::size_t>(vulkan_.currentFrame) * ItemInstanceFrameStride;
         if (!spriteInstances.empty() && rendererAssets_.itemTextureArray.descriptorSet != VK_NULL_HANDLE)
@@ -618,6 +661,7 @@ namespace dolbuto
         push.cameraPosition[3] = static_cast<float>(glfwGetTime());
         push.fluidWaterParams[1] = skyBrightness;
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
+        push.dynamicLightParams[1] = 1.0f;
 
         crucibleMoltenRenderPath_.draw(
             commandBuffer,

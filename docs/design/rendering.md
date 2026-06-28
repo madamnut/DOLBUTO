@@ -125,8 +125,11 @@ player mesh는 terrain chunk mesh와 별도 indexed vertex buffer 경로이며 `
 뒤로 이동 중에는 movement clip 샘플 시간을 역방향으로 사용한다.
 1인칭 손은 아직 GLB animation clip을 적용하지 않고 neutral pose 기반 transform만 사용한다.
 1인칭 손은 같은 GLB에서 오른팔 아래팔 node만 추출한 별도 vertex/index buffer를 사용한다.
-현재 선택 핫바 아이템은 `ClientFrame`/`RendererFrame`의 `heldItemId`로 전달되고, 왼손 슬롯 아이템은 `offhandItemId`로 전달된다.
+현재 선택 핫바 아이템은 `ClientFrame`/`RendererFrame`의 `heldItemId`와 `heldItemStack`으로 전달되고, 왼손 슬롯 아이템은 `offhandItemId`와 `offhandItemStack`으로 전달된다.
+ID는 기존 빈 슬롯 판정과 정적 아이템 조회에 사용하고, `ItemStack`은 동적 조립 도구처럼 인스턴스별 렌더 상태가 있는 아이템의 texture layer override를 전달하는 데 사용한다.
 `RendererDroppedItems.cpp`는 기존 `DroppedItemRenderPath` item pipeline을 재사용해 3인칭 손 아이템과 1인칭 viewmodel 아이템을 렌더링한다.
+손 아이템 렌더는 `ItemStack.dynamicHeldTextureLayer`가 있으면 이를 먼저 사용하고, 없으면 `ItemDefinition.heldTextureLayer`를 사용한다.
+동적 조립 도구의 `generated/composites/...` 텍스처는 콘텐츠 로딩 중 별도 extruded sprite mesh로도 등록되며, 손 아이템과 월드 드랍 아이템은 해당 texture name이 있으면 정적 템플릿 item id mesh 대신 이 동적 mesh id를 사용한다.
 3인칭 손 아이템은 플레이어 mesh draw 직후 `Attach_R`/`Attach_L` node의 최종 월드 위치와 basis 축을 사용해 월드 item pipeline으로 그린다.
 이때 아이템 로컬 위쪽 축을 맞추기 위해 3인칭 손 아이템에만 Y/Z basis를 뒤집는 180도 보정을 적용한다.
 1인칭 손과 든 아이템은 지형 depth에 묻히지 않도록 그리기 직전에 scene depth attachment를 clear한 뒤 viewmodel pipeline으로 그린다.
@@ -141,8 +144,7 @@ CPU는 매 프레임 vertex buffer를 덮어쓰지 않고, 현재 in-flight fram
 왼손 `block_model` viewmodel은 geometry를 뒤집지 않고 UV X만 반전한다.
 `block_model` 든 아이템은 `modelBlock` 또는 fallback `placeBlock` 블록의 텍스처 layer를 사용하는 작은 블록 mesh로 렌더링한다.
 대상 블록이 `slab`이거나 아이템의 `modelShape`가 크기를 지정하면 해당 X/Y/Z 크기의 mesh와 생성 슬롯 아이콘을 사용한다.
-몰드 아이템의 슬롯 이미지는 단일 스프라이트를 사용하지만, 손/드랍 렌더링은 `bottomTexture`와 `topTexture`로 만든 두 개의 `extruded_sprite` 메시를 Y 방향으로 쌓은 단일 item mesh를 사용한다.
-이 layered 몰드 mesh는 로컬 텍스처 레이어를 vertex에 직접 기록하므로 인스턴스의 단일 texture layer 대신 아래/위 레이어별 item texture를 샘플한다.
+몰드 아이템의 슬롯, 손, 드랍 렌더링은 모두 단일 item texture를 사용하는 일반 `extruded_sprite` 경로를 사용한다.
 설치된 몰드 블록도 같은 bottom/top 스프라이트를 블록 공간의 두 레이어로 변환해 렌더링한다.
 몰드 안 용탕 수면은 top 스프라이트 가운데 20x20 영역에서 투명한 픽셀을 캐비티로 보고 별도 수평 메쉬를 만든다.
 수위는 아래 레이어 윗면에서 시작해 몰드 전체 높이까지 `moltenAmount / requiredAmount` 비율로 올라간다.

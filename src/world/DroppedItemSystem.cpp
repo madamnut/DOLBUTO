@@ -396,6 +396,16 @@ namespace dolbuto::world
                         a.droppedItem.stack.itemId != b.droppedItem.stack.itemId ||
                         a.droppedItem.stack.durability != b.droppedItem.stack.durability ||
                         a.droppedItem.stack.burnTicksRemaining != b.droppedItem.stack.burnTicksRemaining ||
+                        a.droppedItem.stack.dynamicMaxDurability != b.droppedItem.stack.dynamicMaxDurability ||
+                        a.droppedItem.stack.dynamicBreakLevel != b.droppedItem.stack.dynamicBreakLevel ||
+                        a.droppedItem.stack.dynamicDroppedTextureLayer != b.droppedItem.stack.dynamicDroppedTextureLayer ||
+                        a.droppedItem.stack.dynamicHeldTextureLayer != b.droppedItem.stack.dynamicHeldTextureLayer ||
+                        a.droppedItem.stack.dynamicName != b.droppedItem.stack.dynamicName ||
+                        a.droppedItem.stack.dynamicSlotTexture != b.droppedItem.stack.dynamicSlotTexture ||
+                        a.droppedItem.stack.dynamicDroppedTexture != b.droppedItem.stack.dynamicDroppedTexture ||
+                        a.droppedItem.stack.dynamicHeldTexture != b.droppedItem.stack.dynamicHeldTexture ||
+                        a.droppedItem.stack.dynamicUseActions != b.droppedItem.stack.dynamicUseActions ||
+                        a.droppedItem.stack.dynamicBreakActions != b.droppedItem.stack.dynamicBreakActions ||
                         a.droppedItem.processingTicks != b.droppedItem.processingTicks ||
                         a.droppedItem.processingType != b.droppedItem.processingType ||
                         maxStack != otherMaxStack ||

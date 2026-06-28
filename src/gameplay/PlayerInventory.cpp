@@ -117,6 +117,16 @@ namespace dolbuto::gameplay
             target.burnTicksRemaining = stack.burnTicksRemaining;
             target.moltenFluidId = stack.moltenFluidId;
             target.moltenAmount = stack.moltenAmount;
+            target.dynamicMaxDurability = stack.dynamicMaxDurability;
+            target.dynamicBreakLevel = stack.dynamicBreakLevel;
+            target.dynamicDroppedTextureLayer = stack.dynamicDroppedTextureLayer;
+            target.dynamicHeldTextureLayer = stack.dynamicHeldTextureLayer;
+            target.dynamicName = stack.dynamicName;
+            target.dynamicSlotTexture = stack.dynamicSlotTexture;
+            target.dynamicDroppedTexture = stack.dynamicDroppedTexture;
+            target.dynamicHeldTexture = stack.dynamicHeldTexture;
+            target.dynamicUseActions = stack.dynamicUseActions;
+            target.dynamicBreakActions = stack.dynamicBreakActions;
             stack.count = static_cast<uint16_t>(stack.count - moved);
             if (stack.count == 0)
             {
@@ -124,6 +134,16 @@ namespace dolbuto::gameplay
                 stack.burnTicksRemaining = 0;
                 stack.moltenFluidId = 0;
                 stack.moltenAmount = 0;
+                stack.dynamicMaxDurability = 0;
+                stack.dynamicBreakLevel = 0;
+                stack.dynamicDroppedTextureLayer = 0;
+                stack.dynamicHeldTextureLayer = 0;
+                stack.dynamicName.clear();
+                stack.dynamicSlotTexture.clear();
+                stack.dynamicDroppedTexture.clear();
+                stack.dynamicHeldTexture.clear();
+                stack.dynamicUseActions.clear();
+                stack.dynamicBreakActions.clear();
             }
         }
 
@@ -243,7 +263,9 @@ namespace dolbuto::gameplay
             return false;
         }
 
-        const uint16_t maxDurability = itemDefinitions[target.itemId].maxDurability;
+        const uint16_t maxDurability = target.dynamicMaxDurability != 0
+            ? target.dynamicMaxDurability
+            : itemDefinitions[target.itemId].maxDurability;
         if (maxDurability == 0)
         {
             return false;
@@ -278,6 +300,19 @@ namespace dolbuto::gameplay
             return false;
         }
         if (slot.moltenFluidId != stack.moltenFluidId || slot.moltenAmount != stack.moltenAmount)
+        {
+            return false;
+        }
+        if (slot.dynamicMaxDurability != stack.dynamicMaxDurability ||
+            slot.dynamicBreakLevel != stack.dynamicBreakLevel ||
+            slot.dynamicDroppedTextureLayer != stack.dynamicDroppedTextureLayer ||
+            slot.dynamicHeldTextureLayer != stack.dynamicHeldTextureLayer ||
+            slot.dynamicName != stack.dynamicName ||
+            slot.dynamicSlotTexture != stack.dynamicSlotTexture ||
+            slot.dynamicDroppedTexture != stack.dynamicDroppedTexture ||
+            slot.dynamicHeldTexture != stack.dynamicHeldTexture ||
+            slot.dynamicUseActions != stack.dynamicUseActions ||
+            slot.dynamicBreakActions != stack.dynamicBreakActions)
         {
             return false;
         }
@@ -353,6 +388,16 @@ namespace dolbuto::gameplay
             cursorStack_.burnTicksRemaining = target.burnTicksRemaining;
             cursorStack_.moltenFluidId = target.moltenFluidId;
             cursorStack_.moltenAmount = target.moltenAmount;
+            cursorStack_.dynamicMaxDurability = target.dynamicMaxDurability;
+            cursorStack_.dynamicBreakLevel = target.dynamicBreakLevel;
+            cursorStack_.dynamicDroppedTextureLayer = target.dynamicDroppedTextureLayer;
+            cursorStack_.dynamicHeldTextureLayer = target.dynamicHeldTextureLayer;
+            cursorStack_.dynamicName = target.dynamicName;
+            cursorStack_.dynamicSlotTexture = target.dynamicSlotTexture;
+            cursorStack_.dynamicDroppedTexture = target.dynamicDroppedTexture;
+            cursorStack_.dynamicHeldTexture = target.dynamicHeldTexture;
+            cursorStack_.dynamicUseActions = target.dynamicUseActions;
+            cursorStack_.dynamicBreakActions = target.dynamicBreakActions;
             target.count = static_cast<uint16_t>(target.count - taken);
             if (target.count == 0)
             {
@@ -369,6 +414,16 @@ namespace dolbuto::gameplay
             target.burnTicksRemaining = cursorStack_.burnTicksRemaining;
             target.moltenFluidId = cursorStack_.moltenFluidId;
             target.moltenAmount = cursorStack_.moltenAmount;
+            target.dynamicMaxDurability = cursorStack_.dynamicMaxDurability;
+            target.dynamicBreakLevel = cursorStack_.dynamicBreakLevel;
+            target.dynamicDroppedTextureLayer = cursorStack_.dynamicDroppedTextureLayer;
+            target.dynamicHeldTextureLayer = cursorStack_.dynamicHeldTextureLayer;
+            target.dynamicName = cursorStack_.dynamicName;
+            target.dynamicSlotTexture = cursorStack_.dynamicSlotTexture;
+            target.dynamicDroppedTexture = cursorStack_.dynamicDroppedTexture;
+            target.dynamicHeldTexture = cursorStack_.dynamicHeldTexture;
+            target.dynamicUseActions = cursorStack_.dynamicUseActions;
+            target.dynamicBreakActions = cursorStack_.dynamicBreakActions;
             cursorStack_.count = static_cast<uint16_t>(cursorStack_.count - 1u);
             if (cursorStack_.count == 0)
             {
@@ -451,16 +506,29 @@ namespace dolbuto::gameplay
 
         const ItemDefinition& definition = itemDefinitions[stack.itemId];
         stack.count = std::min(stack.count, definition.stackSize);
-        if (definition.maxDurability > 0)
+        const uint16_t maxDurability = stack.dynamicMaxDurability != 0
+            ? stack.dynamicMaxDurability
+            : definition.maxDurability;
+        if (maxDurability > 0)
         {
             stack.count = std::min<uint16_t>(stack.count, 1u);
             stack.durability = stack.durability == 0
-                ? definition.maxDurability
-                : std::min(stack.durability, definition.maxDurability);
+                ? maxDurability
+                : std::min(stack.durability, maxDurability);
         }
         else
         {
             stack.durability = 0;
+            stack.dynamicMaxDurability = 0;
+            stack.dynamicBreakLevel = 0;
+            stack.dynamicDroppedTextureLayer = 0;
+            stack.dynamicHeldTextureLayer = 0;
+            stack.dynamicName.clear();
+            stack.dynamicSlotTexture.clear();
+            stack.dynamicDroppedTexture.clear();
+            stack.dynamicHeldTexture.clear();
+            stack.dynamicUseActions.clear();
+            stack.dynamicBreakActions.clear();
         }
         if (definition.maxBurnTicks > 0)
         {

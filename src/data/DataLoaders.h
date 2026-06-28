@@ -69,10 +69,6 @@ namespace dolbuto::data
         std::string slotRenderTexture = "none";
         std::string droppedTexture = "none";
         std::string heldTexture = "none";
-        std::string droppedBottomTexture = "none";
-        std::string droppedTopTexture = "none";
-        std::string heldBottomTexture = "none";
-        std::string heldTopTexture = "none";
         std::string droppedRender = "extruded_sprite";
         std::string heldRender = "extruded_sprite";
         std::vector<std::string> useActions;
@@ -95,15 +91,26 @@ namespace dolbuto::data
         std::string modelBlock;
         std::string modelShape;
         std::string modelTexture;
+        std::string assemblyPart;
+        std::string assemblyType;
+        std::string assemblyMaterial;
+        std::string assemblySize;
+        std::vector<std::string> assemblyAllowedSizes;
+        bool dynamicToolTemplate = false;
     };
 
     struct ParsedInteractionOutput
     {
         std::string item;
+        std::string key;
         std::string block;
         std::string placement;
         uint16_t min = 1;
         uint16_t max = 1;
+        std::string deriveType;
+        std::string deriveHead;
+        std::string deriveBinding;
+        std::string deriveHandle;
     };
 
     struct ParsedInteractionCandidate
@@ -114,7 +121,27 @@ namespace dolbuto::data
     struct ParsedInteractionIngredient
     {
         std::string item;
+        std::string key;
         uint16_t count = 1;
+    };
+
+    struct ParsedInteractionInput
+    {
+        std::string key;
+        uint16_t count = 1;
+        std::string alias;
+        std::string assemblyPart;
+        std::string assemblyType;
+        std::string assemblyMaterial;
+        std::string assemblySize;
+        std::vector<std::string> assemblyAllowedSizes;
+    };
+
+    struct ParsedInteractionConstraint
+    {
+        std::string op;
+        std::string left;
+        std::string right;
     };
 
     struct ParsedInteractionDefinition
@@ -124,6 +151,8 @@ namespace dolbuto::data
         std::string targetBlock;
         std::vector<ParsedInteractionCandidate> candidates;
         std::vector<ParsedInteractionIngredient> ingredients;
+        std::vector<ParsedInteractionInput> inputs;
+        std::vector<ParsedInteractionConstraint> constraints;
         uint16_t targetCount = 1;
         uint16_t resultCountMin = 1;
         uint16_t resultCountMax = 1;
@@ -144,9 +173,18 @@ namespace dolbuto::data
         uint32_t requiredTicks = 0;
     };
 
+    struct ParsedAssemblyMaterialDefinition
+    {
+        std::string part;
+        std::string key;
+        std::string displayName;
+        float durabilityMultiplier = 1.0f;
+    };
+
     std::vector<ParsedItemDefinition> parseItemDefinitions(const std::string& text);
     std::vector<ParsedBlockDefinition> parseBlockDefinitions(const std::string& text);
     std::vector<ParsedFluidDefinition> parseFluidDefinitions(const std::string& text);
     std::vector<ParsedInteractionDefinition> parseInteractionDefinitions(const std::string& text);
     std::vector<ParsedProcessingDefinition> parseProcessingDefinitions(const std::string& text);
+    std::vector<ParsedAssemblyMaterialDefinition> parseAssemblyMaterialDefinitions(const std::string& text);
 }

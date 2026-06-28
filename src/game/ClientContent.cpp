@@ -465,8 +465,19 @@ namespace dolbuto::game
         };
 
         content.itemDefinitions_.assign(static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1u, {});
+        std::unordered_set<uint16_t> seenItemIds;
+        std::unordered_set<std::string> seenItemKeys;
         for (const data::ParsedItemDefinition& definition : parsedItems)
         {
+            if (!seenItemIds.insert(definition.id).second)
+            {
+                throw std::runtime_error("Duplicate item id in items.json: " + std::to_string(definition.id));
+            }
+            if (!definition.key.empty() && !seenItemKeys.insert(definition.key).second)
+            {
+                throw std::runtime_error("Duplicate item key in items.json: " + definition.key);
+            }
+
             const std::string droppedTexture = definition.droppedTexture != "none" ? definition.droppedTexture : definition.texture;
             const std::string heldTexture = definition.heldTexture != "none" ? definition.heldTexture : droppedTexture;
             const std::string slotTexture = definition.slotRenderTexture != "none"
@@ -479,10 +490,6 @@ namespace dolbuto::game
             itemDefinition.slotTexture = slotTexture;
             itemDefinition.droppedTexture = droppedTexture;
             itemDefinition.heldTexture = heldTexture;
-            itemDefinition.droppedBottomTexture = definition.droppedBottomTexture;
-            itemDefinition.droppedTopTexture = definition.droppedTopTexture;
-            itemDefinition.heldBottomTexture = definition.heldBottomTexture;
-            itemDefinition.heldTopTexture = definition.heldTopTexture;
             itemDefinition.useActions = definition.useActions;
             itemDefinition.breakActions = definition.breakActions;
             itemDefinition.placeActions = definition.placeActions;
@@ -504,6 +511,13 @@ namespace dolbuto::game
             itemDefinition.blockModelDepth = blockModelSize.depth;
             itemDefinition.useBlockModelVerticalSection = blockModelSize.useVerticalSection;
             itemDefinition.useBlockModelCrucibleShape = blockModelSize.useCrucibleShape;
+            itemDefinition.dynamicToolTemplate = definition.dynamicToolTemplate;
+            itemDefinition.assemblyPart.present = !definition.assemblyPart.empty();
+            itemDefinition.assemblyPart.part = definition.assemblyPart;
+            itemDefinition.assemblyPart.type = definition.assemblyType;
+            itemDefinition.assemblyPart.material = definition.assemblyMaterial;
+            itemDefinition.assemblyPart.size = definition.assemblySize;
+            itemDefinition.assemblyPart.allowedSizes = definition.assemblyAllowedSizes;
             itemDefinition.slotRender = parseItemSlotRenderType(definition.slotRender);
             itemDefinition.droppedRender = parseItemRenderType(definition.droppedRender);
             itemDefinition.heldRender = parseItemRenderType(definition.heldRender);
@@ -514,22 +528,6 @@ namespace dolbuto::game
             if (heldTexture != "none")
             {
                 itemDefinition.heldTextureLayer = layerForItemTexture(heldTexture);
-            }
-            if (itemDefinition.droppedBottomTexture != "none")
-            {
-                itemDefinition.droppedBottomTextureLayer = layerForItemTexture(itemDefinition.droppedBottomTexture);
-            }
-            if (itemDefinition.droppedTopTexture != "none")
-            {
-                itemDefinition.droppedTopTextureLayer = layerForItemTexture(itemDefinition.droppedTopTexture);
-            }
-            if (itemDefinition.heldBottomTexture != "none")
-            {
-                itemDefinition.heldBottomTextureLayer = layerForItemTexture(itemDefinition.heldBottomTexture);
-            }
-            if (itemDefinition.heldTopTexture != "none")
-            {
-                itemDefinition.heldTopTextureLayer = layerForItemTexture(itemDefinition.heldTopTexture);
             }
             content.itemDefinitions_[definition.id] = itemDefinition;
             if (!definition.key.empty())
@@ -586,6 +584,63 @@ namespace dolbuto::game
                 }
             }
         }
+
+        const std::filesystem::path assemblyMaterialsPath = assetDirectory / "data" / "assembly_materials.json";
+        if (std::filesystem::exists(assemblyMaterialsPath))
+        {
+            const std::vector<char> assemblyMaterialData = readContentFile(assemblyMaterialsPath);
+            const std::string assemblyMaterialText(assemblyMaterialData.begin(), assemblyMaterialData.end());
+            const std::vector<data::ParsedAssemblyMaterialDefinition> parsedAssemblyMaterials =
+                data::parseAssemblyMaterialDefinitions(assemblyMaterialText);
+            for (const data::ParsedAssemblyMaterialDefinition& definition : parsedAssemblyMaterials)
+            {
+                AssemblyMaterialDefinition material{};
+                material.key = definition.key;
+                material.displayName = definition.displayName;
+                material.durabilityMultiplier = std::max(definition.durabilityMultiplier, 0.0f);
+                content.assemblyMaterials_[definition.part + ":" + definition.key] = std::move(material);
+            }
+        }
+
+        auto containsString = [](const std::vector<std::string>& values, const std::string& value)
+        {
+            return std::find(values.begin(), values.end(), value) != values.end();
+        };
+        for (const ItemDefinition& head : content.itemDefinitions_)
+        {
+            if (!head.assemblyPart.present || head.assemblyPart.part != "head")
+            {
+                continue;
+            }
+            for (const ItemDefinition& binding : content.itemDefinitions_)
+            {
+                if (!binding.assemblyPart.present || binding.assemblyPart.part != "binding" || binding.assemblyPart.size.empty())
+                {
+                    continue;
+                }
+                if (!containsString(head.assemblyPart.allowedSizes, binding.assemblyPart.size))
+                {
+                    continue;
+                }
+                for (const ItemDefinition& handle : content.itemDefinitions_)
+                {
+                    if (!handle.assemblyPart.present ||
+                        handle.assemblyPart.part != "handle" ||
+                        handle.assemblyPart.size != binding.assemblyPart.size)
+                    {
+                        continue;
+                    }
+
+                    layerForItemTexture(
+                        "generated/composites/" +
+                        head.key + "__" +
+                        binding.key + "__" +
+                        handle.key + "__" +
+                        binding.assemblyPart.size);
+                }
+            }
+        }
+        content.itemTextureLayerByName_ = itemTextureLayerByName;
 
         const std::vector<char> blockDefinitionData = readContentFile(assetDirectory / "data" / "blocks.json");
         const std::string blockDefinitionText(blockDefinitionData.begin(), blockDefinitionData.end());
@@ -886,10 +941,11 @@ namespace dolbuto::game
 
                 for (const data::ParsedInteractionIngredient& parsedIngredient : definition.ingredients)
                 {
-                    const auto ingredientIt = content.itemIdByKey_.find(parsedIngredient.item);
+                    const std::string ingredientKey = !parsedIngredient.key.empty() ? parsedIngredient.key : parsedIngredient.item;
+                    const auto ingredientIt = content.itemIdByKey_.find(ingredientKey);
                     if (ingredientIt == content.itemIdByKey_.end())
                     {
-                        log::warn("Interaction references unknown ingredient item key: " + definition.action + " -> " + parsedIngredient.item);
+                        log::warn("Interaction references unknown ingredient item key: " + definition.action + " -> " + ingredientKey);
                         continue;
                     }
 
@@ -898,18 +954,50 @@ namespace dolbuto::game
                         parsedIngredient.count
                     });
                 }
+                for (const data::ParsedInteractionInput& parsedInput : definition.inputs)
+                {
+                    ItemInteractionInput input{};
+                    input.count = parsedInput.count;
+                    input.alias = parsedInput.alias;
+                    if (!parsedInput.key.empty())
+                    {
+                        const auto inputIt = content.itemIdByKey_.find(parsedInput.key);
+                        if (inputIt == content.itemIdByKey_.end())
+                        {
+                            log::warn("Interaction references unknown input item key: " + definition.action + " -> " + parsedInput.key);
+                            continue;
+                        }
+                        input.itemId = inputIt->second;
+                    }
+                    input.assemblyPart.present = !parsedInput.assemblyPart.empty();
+                    input.assemblyPart.part = parsedInput.assemblyPart;
+                    input.assemblyPart.type = parsedInput.assemblyType;
+                    input.assemblyPart.material = parsedInput.assemblyMaterial;
+                    input.assemblyPart.size = parsedInput.assemblySize;
+                    input.assemblyPart.allowedSizes = parsedInput.assemblyAllowedSizes;
+                    recipe.inputs.push_back(std::move(input));
+                }
+                for (const data::ParsedInteractionConstraint& parsedConstraint : definition.constraints)
+                {
+                    recipe.constraints.push_back(ItemInteractionConstraint{
+                        parsedConstraint.op,
+                        parsedConstraint.left,
+                        parsedConstraint.right
+                    });
+                }
                 for (const data::ParsedInteractionCandidate& parsedCandidate : definition.candidates)
                 {
                     ItemInteractionCandidate candidate{};
                     candidate.resultTargetsHeldItem = definition.resultTarget == "held";
                     for (const data::ParsedInteractionOutput& parsedOutput : parsedCandidate.outputs)
                     {
-                        if (!parsedOutput.item.empty())
+                        const std::string outputKey = !parsedOutput.key.empty() ? parsedOutput.key : parsedOutput.item;
+                        if (!outputKey.empty())
                         {
-                            const auto outputIt = content.itemIdByKey_.find(parsedOutput.item);
+                            const auto outputIt = content.itemIdByKey_.find(outputKey);
                             if (outputIt == content.itemIdByKey_.end())
                             {
-                                log::warn("Interaction references unknown candidate item key: " + definition.action + " -> " + parsedOutput.item);
+                                log::warn("Interaction references unknown candidate item key: " + definition.action + " -> " + outputKey);
                                 continue;
                             }
 
@@ -917,6 +1005,10 @@ namespace dolbuto::game
                             output.itemId = outputIt->second;
                             output.min = parsedOutput.min;
                             output.max = parsedOutput.max;
+                            output.deriveType = parsedOutput.deriveType;
+                            output.deriveHead = parsedOutput.deriveHead;
+                            output.deriveBinding = parsedOutput.deriveBinding;
+                            output.deriveHandle = parsedOutput.deriveHandle;
                             candidate.outputs.push_back(output);
                         }
 
@@ -944,7 +1036,7 @@ namespace dolbuto::game
                     }
                 }
                 if (!recipe.action.empty() &&
-                    (recipe.targetItemId != 0 || recipe.targetBlockId != 0 || recipe.targetAnyBlock) &&
+                    (recipe.targetItemId != 0 || recipe.targetBlockId != 0 || recipe.targetAnyBlock || !recipe.inputs.empty()) &&
                     !recipe.candidates.empty())
                 {
                     content.itemInteractionRecipes_.push_back(std::move(recipe));
@@ -1200,6 +1292,11 @@ namespace dolbuto::game
         return itemProcessingRecipes_;
     }
 
+    const std::unordered_map<std::string, AssemblyMaterialDefinition>& ClientContent::assemblyMaterials() const
+    {
+        return assemblyMaterials_;
+    }
+
     const std::vector<std::string>& ClientContent::blockTextureNames() const
     {
         return blockTextureNames_;
@@ -1213,6 +1310,11 @@ namespace dolbuto::game
     const std::vector<std::string>& ClientContent::itemTextureNames() const
     {
         return itemTextureNames_;
+    }
+
+    const std::unordered_map<std::string, uint32_t>& ClientContent::itemTextureLayerByName() const
+    {
+        return itemTextureLayerByName_;
     }
 
     const std::vector<PropModelBinding>& ClientContent::propModelBindings() const

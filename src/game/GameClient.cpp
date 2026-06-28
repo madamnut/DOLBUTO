@@ -71,6 +71,7 @@ namespace dolbuto
         constexpr size_t PlayerStackStateBaseFileSize = sizeof(uint16_t) * 4u + sizeof(uint8_t);
         constexpr size_t PlayerStateFileSize = PlayerStateBaseFileSize + (PlayerInventorySlotCount + 1u) * PlayerStackStateBaseFileSize;
         constexpr uint8_t ItemStackStateMolten = 1u << 0u;
+        constexpr uint8_t ItemStackStateDynamicTool = 1u << 1u;
         constexpr size_t WorldStateFileSize = sizeof(uint64_t) * 4u;
         constexpr uint64_t TicksPerMinute = 20;
         constexpr uint64_t MinutesPerHour = 60;
@@ -572,11 +573,50 @@ namespace dolbuto
             {
                 flags |= ItemStackStateMolten;
             }
+            if (stack.dynamicMaxDurability != 0 ||
+                stack.dynamicBreakLevel != 0 ||
+                !stack.dynamicName.empty() ||
+                !stack.dynamicSlotTexture.empty() ||
+                !stack.dynamicDroppedTexture.empty() ||
+                !stack.dynamicHeldTexture.empty() ||
+                !stack.dynamicUseActions.empty() ||
+                !stack.dynamicBreakActions.empty())
+            {
+                flags |= ItemStackStateDynamicTool;
+            }
             writeU8(bytes, flags);
             if ((flags & ItemStackStateMolten) != 0)
             {
                 writeU16(bytes, stack.moltenFluidId);
                 writeU16(bytes, stack.moltenAmount);
+            }
+            if ((flags & ItemStackStateDynamicTool) != 0)
+            {
+                auto writeString = [&](const std::string& value)
+                {
+                    const uint16_t size = static_cast<uint16_t>(std::min<std::size_t>(value.size(), std::numeric_limits<uint16_t>::max()));
+                    writeU16(bytes, size);
+                    bytes.insert(bytes.end(), value.begin(), value.begin() + size);
+                };
+                auto writeStrings = [&](const std::vector<std::string>& values)
+                {
+                    const uint16_t count = static_cast<uint16_t>(std::min<std::size_t>(values.size(), std::numeric_limits<uint16_t>::max()));
+                    writeU16(bytes, count);
+                    for (uint16_t i = 0; i < count; ++i)
+                    {
+                        writeString(values[i]);
+                    }
+                };
+                writeU16(bytes, stack.dynamicMaxDurability);
+                writeU16(bytes, stack.dynamicBreakLevel);
+                writeU32(bytes, stack.dynamicDroppedTextureLayer);
+                writeU32(bytes, stack.dynamicHeldTextureLayer);
+                writeString(stack.dynamicName);
+                writeString(stack.dynamicSlotTexture);
+                writeString(stack.dynamicDroppedTexture);
+                writeString(stack.dynamicHeldTexture);
+                writeStrings(stack.dynamicUseActions);
+                writeStrings(stack.dynamicBreakActions);
             }
         }
 
@@ -592,6 +632,55 @@ namespace dolbuto
             {
                 stack.moltenFluidId = 0;
                 stack.moltenAmount = 0;
+            }
+            if ((flags & ItemStackStateDynamicTool) != 0)
+            {
+                auto readString = [&]() -> std::string
+                {
+                    const uint16_t size = readU16(bytes, offset);
+                    if (offset + size > bytes.size())
+                    {
+                        offset = bytes.size();
+                        return {};
+                    }
+                    std::string value(reinterpret_cast<const char*>(bytes.data() + offset), size);
+                    offset += size;
+                    return value;
+                };
+                auto readStrings = [&]() -> std::vector<std::string>
+                {
+                    const uint16_t count = readU16(bytes, offset);
+                    std::vector<std::string> values;
+                    values.reserve(count);
+                    for (uint16_t i = 0; i < count; ++i)
+                    {
+                        values.push_back(readString());
+                    }
+                    return values;
+                };
+                stack.dynamicMaxDurability = readU16(bytes, offset);
+                stack.dynamicBreakLevel = readU16(bytes, offset);
+                stack.dynamicDroppedTextureLayer = readU32(bytes, offset);
+                stack.dynamicHeldTextureLayer = readU32(bytes, offset);
+                stack.dynamicName = readString();
+                stack.dynamicSlotTexture = readString();
+                stack.dynamicDroppedTexture = readString();
+                stack.dynamicHeldTexture = readString();
+                stack.dynamicUseActions = readStrings();
+                stack.dynamicBreakActions = readStrings();
+            }
+            else
+            {
+                stack.dynamicMaxDurability = 0;
+                stack.dynamicBreakLevel = 0;
+                stack.dynamicDroppedTextureLayer = 0;
+                stack.dynamicHeldTextureLayer = 0;
+                stack.dynamicName.clear();
+                stack.dynamicSlotTexture.clear();
+                stack.dynamicDroppedTexture.clear();
+                stack.dynamicHeldTexture.clear();
+                stack.dynamicUseActions.clear();
+                stack.dynamicBreakActions.clear();
             }
         }
     }
@@ -934,6 +1023,8 @@ namespace dolbuto
             updatePlayerLookPose(renderBodyYaw, playerHeadYaw, playerHeadPitch);
             uint16_t heldItemId = 0;
             uint16_t offhandItemId = 0;
+            ItemStack heldItemStack{};
+            ItemStack offhandItemStack{};
             uint16_t heldPortableLightEmission = 0;
             if (runtime_ != nullptr)
             {
@@ -942,11 +1033,13 @@ namespace dolbuto
                 if (heldStack.count > 0)
                 {
                     heldItemId = heldStack.itemId;
+                    heldItemStack = heldStack;
                 }
                 const ItemStack offhandStack = runtime_->gameplay().offhandSlot();
                 if (offhandStack.count > 0)
                 {
                     offhandItemId = offhandStack.itemId;
+                    offhandItemStack = offhandStack;
                 }
                 heldPortableLightEmission = runtime_->gameplay().heldPortableLightEmission();
             }
@@ -1001,6 +1094,8 @@ namespace dolbuto
                 showFirstPersonHand,
                 heldItemId,
                 offhandItemId,
+                heldItemStack,
+                offhandItemStack,
                 heldPortableLightEmission,
                 terrainWireframe_,
                 climateOverlayMode_,

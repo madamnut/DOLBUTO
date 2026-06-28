@@ -227,7 +227,9 @@ namespace dolbuto::world
         {
             const ItemDefinition& definition = itemDefinitions()[entity.droppedItem.stack.itemId];
             entity.droppedItem.stack.count = std::min(entity.droppedItem.stack.count, definition.stackSize);
-            const uint16_t maxDurability = definition.maxDurability;
+            const uint16_t maxDurability = entity.droppedItem.stack.dynamicMaxDurability != 0
+                ? entity.droppedItem.stack.dynamicMaxDurability
+                : definition.maxDurability;
             entity.droppedItem.stack.durability = maxDurability == 0
                 ? 0
                 : (entity.droppedItem.stack.durability == 0 ? maxDurability : std::min(entity.droppedItem.stack.durability, maxDurability));
@@ -1183,9 +1185,7 @@ namespace dolbuto::world
 
         struct ResolvedOutput
         {
-            uint16_t itemId = 0;
-            uint16_t count = 0;
-            uint16_t durability = 0;
+            ItemStack stack;
         };
 
         auto spawnStackedOutput = [&](uint16_t itemId, uint32_t count, uint16_t durability)
@@ -1231,11 +1231,14 @@ namespace dolbuto::world
             while (totalCount > 0)
             {
                 const uint16_t stackCount = static_cast<uint16_t>(std::min<uint32_t>(totalCount, outputDefinition.stackSize));
-                resolvedOutputs.push_back(ResolvedOutput{
-                    output.itemId,
-                    stackCount,
-                    interactionResultDurability(target.droppedItem.stack, sourceDefinition, outputDefinition)
-                });
+                ItemStack stack = output.hasStackOverride ? output.stackOverride : ItemStack{};
+                stack.itemId = output.itemId;
+                stack.count = stackCount;
+                if (!output.hasStackOverride)
+                {
+                    stack.durability = interactionResultDurability(target.droppedItem.stack, sourceDefinition, outputDefinition);
+                }
+                resolvedOutputs.push_back(ResolvedOutput{std::move(stack)});
                 totalCount -= stackCount;
             }
         }
@@ -1253,7 +1256,7 @@ namespace dolbuto::world
             target.previousPosition = target.position;
             target.position = resultPosition;
             target.velocity.y = std::max(target.velocity.y, InteractionBounceVelocity);
-            target.droppedItem.stack = ItemStack{primaryOutput.itemId, primaryOutput.count, primaryOutput.durability};
+            target.droppedItem.stack = primaryOutput.stack;
             target.droppedItem.processingTicks = 0;
             target.droppedItem.processingType = 0;
             target.renderSpinX = InteractionSpin;
@@ -1274,7 +1277,7 @@ namespace dolbuto::world
         for (std::size_t outputIndex = firstExtraOutput; outputIndex < resolvedOutputs.size(); ++outputIndex)
         {
             const ResolvedOutput& output = resolvedOutputs[outputIndex];
-            spawnStackedOutput(output.itemId, output.count, output.durability);
+            spawnStackedOutput(output.stack.itemId, output.stack.count, output.stack.durability);
         }
         return applicationCount;
     }
@@ -1331,9 +1334,7 @@ namespace dolbuto::world
 
         struct ResolvedOutput
         {
-            uint16_t itemId = 0;
-            uint16_t count = 0;
-            uint16_t durability = 0;
+            ItemStack stack;
         };
 
         constexpr float InteractionBounceVelocity = 2.4f;
@@ -1360,11 +1361,14 @@ namespace dolbuto::world
             while (totalCount > 0)
             {
                 const uint16_t stackCount = static_cast<uint16_t>(std::min<uint32_t>(totalCount, definitions[output.itemId].stackSize));
-                resolvedOutputs.push_back(ResolvedOutput{
-                    output.itemId,
-                    stackCount,
-                    definitions[output.itemId].maxDurability
-                });
+                ItemStack stack = output.hasStackOverride ? output.stackOverride : ItemStack{};
+                stack.itemId = output.itemId;
+                stack.count = stackCount;
+                if (!output.hasStackOverride)
+                {
+                    stack.durability = definitions[output.itemId].maxDurability;
+                }
+                resolvedOutputs.push_back(ResolvedOutput{std::move(stack)});
                 totalCount -= stackCount;
             }
         }
@@ -1457,7 +1461,7 @@ namespace dolbuto::world
                 InteractionBounceVelocity + velocityDistribution(random) * 0.5f,
                 velocityDistribution(random)
             };
-            extra.droppedItem.stack = ItemStack{output.itemId, output.count, output.durability};
+            extra.droppedItem.stack = output.stack;
             extra.renderSpinX = InteractionSpin;
             extra.renderSpin = InteractionSpin;
             extra.renderSpinZ = InteractionSpin;

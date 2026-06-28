@@ -41,6 +41,8 @@ namespace dolbuto::game
             frame.showFirstPersonHand,
             frame.heldItemId,
             frame.offhandItemId,
+            frame.heldItemStack,
+            frame.offhandItemStack,
             frame.heldPortableLightEmission,
             frame.terrainWireframe,
             frame.climateOverlayMode,

@@ -275,6 +275,7 @@ namespace dolbuto
         push.cameraPosition[3] = 0.0f;
         push.fluidWaterParams[1] = skyBrightness;
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
+        push.dynamicLightParams[1] = 1.0f;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.playerPipeline);
         vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
@@ -301,6 +302,7 @@ namespace dolbuto
         push.cameraPosition[3] = 0.0f;
         push.fluidWaterParams[1] = skyBrightness;
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
+        push.dynamicLightParams[1] = 1.0f;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.playerViewmodelPipeline);
         vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
@@ -331,6 +333,7 @@ namespace dolbuto
         push.fluidWaterParams[0] = client_.renderConfig.fluidWaterAlpha;
         push.fluidWaterParams[1] = skyBrightness;
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
+        push.dynamicLightParams[1] = 1.0f;
 
         ParticleRenderPath::BreakingOverlay overlay{};
         if (drawBreakingOverlay)

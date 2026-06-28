@@ -201,12 +201,23 @@ namespace dolbuto
                 {
                     continue;
                 }
-                if (static_cast<std::size_t>(item.droppedItem.stack.itemId) >= input.itemSpriteMeshes.size() ||
-                    input.itemSpriteMeshes[item.droppedItem.stack.itemId].quads.empty())
+                uint16_t renderMeshId = item.droppedItem.stack.itemId;
+                if (input.renderType == ItemRenderType::ExtrudedSprite &&
+                    input.itemSpriteMeshIdsByTextureName != nullptr &&
+                    !item.droppedItem.stack.dynamicDroppedTexture.empty())
+                {
+                    const auto meshIt = input.itemSpriteMeshIdsByTextureName->find(item.droppedItem.stack.dynamicDroppedTexture);
+                    if (meshIt != input.itemSpriteMeshIdsByTextureName->end())
+                    {
+                        renderMeshId = meshIt->second;
+                    }
+                }
+                if (static_cast<std::size_t>(renderMeshId) >= input.itemSpriteMeshes.size() ||
+                    input.itemSpriteMeshes[renderMeshId].quads.empty())
                 {
                     continue;
                 }
-                if (!input.meshReady(item.droppedItem.stack.itemId))
+                if (!input.meshReady(renderMeshId))
                 {
                     continue;
                 }
@@ -230,7 +241,10 @@ namespace dolbuto
                     world::DroppedItemSystem::renderBoundsForStack(baseRenderStack, input.itemDefinitions);
                 const float itemHeight = renderBounds.height;
                 const float itemWidth = renderBounds.halfWidth * 2.0f;
-                const float layer = static_cast<float>(definition.droppedTextureLayer);
+                const float layer = static_cast<float>(
+                    item.droppedItem.stack.dynamicDroppedTextureLayer != 0
+                        ? item.droppedItem.stack.dynamicDroppedTextureLayer
+                        : definition.droppedTextureLayer);
                 const uint8_t packedLight = input.lightAtWorld
                     ? input.lightAtWorld(
                         blockCoordinateXz(interpolatedPosition.x),
@@ -262,7 +276,7 @@ namespace dolbuto
                         }
                     }
                     DroppedItemRenderPath::RenderInstance renderInstance{};
-                    renderInstance.itemId = item.droppedItem.stack.itemId;
+                    renderInstance.itemId = renderMeshId;
                     renderInstance.instance.centerX = interpolatedPosition.x + offset.x;
                     renderInstance.instance.centerY = copyCenterY;
                     renderInstance.instance.centerZ = interpolatedPosition.z + offset.z;

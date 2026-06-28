@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -33,6 +34,7 @@ namespace dolbuto
         Texture smokeParticleTextureArray;
         Texture itemTextureArray;
         std::vector<DroppedItemRenderPath::ItemSpriteMesh> itemSpriteMeshes;
+        std::unordered_map<std::string, uint16_t> itemSpriteMeshIdsByTextureName;
         std::vector<DroppedItemRenderPath::ItemSpriteMesh> moltenSurfaceMeshes;
         std::unordered_map<uint16_t, assets::PropMesh> propMeshesByBlock;
         std::unordered_map<uint16_t, DroppedItemRenderPath::ItemSpriteMesh> moldMeshesByBlock;

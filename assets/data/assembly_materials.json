@@ -1,0 +1,23 @@
+{
+    "head": [
+        {
+            "key": "stone",
+            "displayName": "Stone",
+            "durabilityMultiplier": 1.0
+        }
+    ],
+    "binding": [
+        {
+            "key": "plant",
+            "displayName": "Plant",
+            "durabilityMultiplier": 0.85
+        }
+    ],
+    "handle": [
+        {
+            "key": "wood",
+            "displayName": "Wood",
+            "durabilityMultiplier": 1.0
+        }
+    ]
+}

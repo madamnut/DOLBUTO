@@ -11,18 +11,6 @@ namespace dolbuto
 {
     namespace
     {
-        void applyLayerAndOffset(DroppedItemRenderPath::ItemSpriteMesh& mesh, uint32_t textureLayer, float yOffset)
-        {
-            for (DroppedItemRenderPath::ItemSpriteQuad& quad : mesh.quads)
-            {
-                quad.textureLayer = static_cast<float>(textureLayer);
-                for (Vec3& position : quad.positions)
-                {
-                    position.y += yOffset;
-                }
-            }
-        }
-
         void applyLayerAndYRange(DroppedItemRenderPath::ItemSpriteMesh& mesh, uint32_t textureLayer, float minY, float maxY)
         {
             const float height = maxY - minY;
@@ -195,21 +183,6 @@ namespace dolbuto
 
         stbi_image_free(loadedPixels);
         return mesh;
-    }
-
-    DroppedItemRenderPath::ItemSpriteMesh ItemSpriteMeshBuilder::buildLayered(
-        const std::filesystem::path& bottomPath,
-        uint32_t bottomTextureLayer,
-        const std::filesystem::path& topPath,
-        uint32_t topTextureLayer)
-    {
-        DroppedItemRenderPath::ItemSpriteMesh bottom = build(bottomPath);
-        DroppedItemRenderPath::ItemSpriteMesh top = build(topPath);
-        applyLayerAndOffset(bottom, bottomTextureLayer, -0.505f);
-        applyLayerAndOffset(top, topTextureLayer, 0.505f);
-
-        bottom.quads.insert(bottom.quads.end(), top.quads.begin(), top.quads.end());
-        return bottom;
     }
 
     DroppedItemRenderPath::ItemSpriteMesh ItemSpriteMeshBuilder::buildBlockMold(

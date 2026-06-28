@@ -2,6 +2,7 @@
 
 #include "camera/Camera.h"
 #include "game/RadialMenuRenderFrame.h"
+#include "items/ItemData.h"
 
 #include <cstdint>
 #include <string_view>
@@ -32,6 +33,8 @@ namespace dolbuto
         bool showFirstPersonHand = false;
         uint16_t heldItemId = 0;
         uint16_t offhandItemId = 0;
+        ItemStack heldItemStack;
+        ItemStack offhandItemStack;
         uint16_t heldPortableLightEmission = 0;
         bool terrainWireframe = false;
         int climateOverlayMode = 0;

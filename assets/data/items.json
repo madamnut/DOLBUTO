@@ -425,6 +425,11 @@
                     "item": "ash",
                     "count": 1
                 }
+            },
+            "assemblyPart": {
+                "part": "binding",
+                "material": "plant",
+                "size": "default"
             }
         }
     },
@@ -450,6 +455,11 @@
                     "item": "ash",
                     "count": 1
                 }
+            },
+            "assemblyPart": {
+                "part": "binding",
+                "material": "plant",
+                "size": "short"
             }
         }
     },
@@ -475,6 +485,11 @@
                     "item": "ash",
                     "count": 1
                 }
+            },
+            "assemblyPart": {
+                "part": "binding",
+                "material": "plant",
+                "size": "long"
             }
         }
     },
@@ -653,6 +668,14 @@
             },
             "slotGauge": {
                 "source": "durability"
+            },
+            "assemblyPart": {
+                "part": "head",
+                "type": "chopper",
+                "material": "stone",
+                "allowedSizes": [
+                    "default"
+                ]
             }
         }
     },
@@ -685,6 +708,14 @@
             },
             "slotGauge": {
                 "source": "durability"
+            },
+            "assemblyPart": {
+                "part": "head",
+                "type": "blade",
+                "material": "stone",
+                "allowedSizes": [
+                    "short"
+                ]
             }
         }
     },
@@ -739,6 +770,16 @@
             },
             "slotGauge": {
                 "source": "durability"
+            },
+            "assemblyPart": {
+                "part": "head",
+                "type": "point",
+                "material": "stone",
+                "allowedSizes": [
+                    "short",
+                    "default",
+                    "long"
+                ]
             }
         }
     },
@@ -759,8 +800,7 @@
         "tags": [],
         "components": {
             "useActions": [
-                "smash",
-                "pound"
+                "smash"
             ],
             "breakActions": [
                 "smash"
@@ -771,6 +811,14 @@
             },
             "slotGauge": {
                 "source": "durability"
+            },
+            "assemblyPart": {
+                "part": "head",
+                "type": "maul",
+                "material": "stone",
+                "allowedSizes": [
+                    "default"
+                ]
             }
         }
     },
@@ -790,11 +838,22 @@
         },
         "tags": [],
         "components": {
+            "useActions": [
+                "pound"
+            ],
             "durability": {
                 "max": 64
             },
             "slotGauge": {
                 "source": "durability"
+            },
+            "assemblyPart": {
+                "part": "head",
+                "type": "pestle",
+                "material": "stone",
+                "allowedSizes": [
+                    "short"
+                ]
             }
         }
     },
@@ -1051,6 +1110,11 @@
                     "item": "ash",
                     "count": 1
                 }
+            },
+            "assemblyPart": {
+                "part": "handle",
+                "material": "wood",
+                "size": "default"
             }
         }
     },
@@ -1077,6 +1141,11 @@
                     "item": "ash",
                     "count": 1
                 }
+            },
+            "assemblyPart": {
+                "part": "handle",
+                "material": "wood",
+                "size": "short"
             }
         }
     },
@@ -1103,6 +1172,11 @@
                     "item": "ash",
                     "count": 2
                 }
+            },
+            "assemblyPart": {
+                "part": "handle",
+                "material": "wood",
+                "size": "long"
             }
         }
     },
@@ -1518,15 +1592,11 @@
         "slotTexture": "unfired_small_plate_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_small_plate_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_small_plate_mold_top"
+            "texture": "unfired_small_plate_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_small_plate_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_small_plate_mold_top"
+            "texture": "unfired_small_plate_mold"
         },
         "tags": []
     },
@@ -1538,15 +1608,11 @@
         "slotTexture": "unfired_plate_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_plate_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_plate_mold_top"
+            "texture": "unfired_plate_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_plate_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_plate_mold_top"
+            "texture": "unfired_plate_mold"
         },
         "tags": []
     },
@@ -1558,15 +1624,11 @@
         "slotTexture": "unfired_large_plate_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_large_plate_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_large_plate_mold_top"
+            "texture": "unfired_large_plate_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_large_plate_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_large_plate_mold_top"
+            "texture": "unfired_large_plate_mold"
         },
         "tags": []
     },
@@ -1578,15 +1640,11 @@
         "slotTexture": "unfired_small_preform_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_small_preform_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_small_preform_mold_top"
+            "texture": "unfired_small_preform_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_small_preform_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_small_preform_mold_top"
+            "texture": "unfired_small_preform_mold"
         },
         "tags": []
     },
@@ -1598,15 +1656,11 @@
         "slotTexture": "unfired_preform_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_preform_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_preform_mold_top"
+            "texture": "unfired_preform_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_preform_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_preform_mold_top"
+            "texture": "unfired_preform_mold"
         },
         "tags": []
     },
@@ -1618,15 +1672,11 @@
         "slotTexture": "unfired_large_preform_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_large_preform_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_large_preform_mold_top"
+            "texture": "unfired_large_preform_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_large_preform_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_large_preform_mold_top"
+            "texture": "unfired_large_preform_mold"
         },
         "tags": []
     },
@@ -1638,15 +1688,11 @@
         "slotTexture": "unfired_short_rod_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_short_rod_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_short_rod_mold_top"
+            "texture": "unfired_short_rod_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_short_rod_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_short_rod_mold_top"
+            "texture": "unfired_short_rod_mold"
         },
         "tags": []
     },
@@ -1658,15 +1704,11 @@
         "slotTexture": "unfired_rod_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_rod_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_rod_mold_top"
+            "texture": "unfired_rod_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_rod_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_rod_mold_top"
+            "texture": "unfired_rod_mold"
         },
         "tags": []
     },
@@ -1678,15 +1720,11 @@
         "slotTexture": "unfired_long_rod_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_long_rod_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_long_rod_mold_top"
+            "texture": "unfired_long_rod_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "unfired_long_rod_mold",
-            "bottomTexture": "unfired_mold_bottom",
-            "topTexture": "unfired_long_rod_mold_top"
+            "texture": "unfired_long_rod_mold"
         },
         "tags": []
     },
@@ -1698,15 +1736,11 @@
         "slotTexture": "small_plate_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "small_plate_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "small_plate_mold_top"
+            "texture": "small_plate_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "small_plate_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "small_plate_mold_top"
+            "texture": "small_plate_mold"
         },
         "tags": [],
         "components": {
@@ -1726,15 +1760,11 @@
         "slotTexture": "plate_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "plate_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "plate_mold_top"
+            "texture": "plate_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "plate_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "plate_mold_top"
+            "texture": "plate_mold"
         },
         "tags": [],
         "components": {
@@ -1754,15 +1784,11 @@
         "slotTexture": "large_plate_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "large_plate_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "large_plate_mold_top"
+            "texture": "large_plate_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "large_plate_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "large_plate_mold_top"
+            "texture": "large_plate_mold"
         },
         "tags": [],
         "components": {
@@ -1782,15 +1808,11 @@
         "slotTexture": "small_preform_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "small_preform_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "small_preform_mold_top"
+            "texture": "small_preform_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "small_preform_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "small_preform_mold_top"
+            "texture": "small_preform_mold"
         },
         "tags": [],
         "components": {
@@ -1810,15 +1832,11 @@
         "slotTexture": "preform_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "preform_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "preform_mold_top"
+            "texture": "preform_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "preform_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "preform_mold_top"
+            "texture": "preform_mold"
         },
         "tags": [],
         "components": {
@@ -1838,15 +1856,11 @@
         "slotTexture": "large_preform_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "large_preform_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "large_preform_mold_top"
+            "texture": "large_preform_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "large_preform_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "large_preform_mold_top"
+            "texture": "large_preform_mold"
         },
         "tags": [],
         "components": {
@@ -1866,15 +1880,11 @@
         "slotTexture": "short_rod_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "short_rod_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "short_rod_mold_top"
+            "texture": "short_rod_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "short_rod_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "short_rod_mold_top"
+            "texture": "short_rod_mold"
         },
         "tags": [],
         "components": {
@@ -1894,15 +1904,11 @@
         "slotTexture": "rod_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "rod_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "rod_mold_top"
+            "texture": "rod_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "rod_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "rod_mold_top"
+            "texture": "rod_mold"
         },
         "tags": [],
         "components": {
@@ -1922,15 +1928,11 @@
         "slotTexture": "long_rod_mold",
         "droppedRender": {
             "type": "extruded_sprite",
-            "texture": "long_rod_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "long_rod_mold_top"
+            "texture": "long_rod_mold"
         },
         "heldRender": {
             "type": "extruded_sprite",
-            "texture": "long_rod_mold",
-            "bottomTexture": "mold_bottom",
-            "topTexture": "long_rod_mold_top"
+            "texture": "long_rod_mold"
         },
         "tags": [],
         "components": {
@@ -2955,5 +2957,29 @@
         "tags": [
             "metal_cast"
         ]
+    },
+    {
+        "id": 141,
+        "key": "head_binding_handle",
+        "name": "Head Binding Handle",
+        "stackSize": 1,
+        "slotTexture": "default",
+        "droppedRender": {
+            "type": "extruded_sprite",
+            "texture": "default"
+        },
+        "heldRender": {
+            "type": "extruded_sprite",
+            "texture": "default"
+        },
+        "tags": [
+            "dynamic_tool"
+        ],
+        "components": {
+            "dynamicToolTemplate": true,
+            "slotGauge": {
+                "source": "durability"
+            }
+        }
     }
 ]

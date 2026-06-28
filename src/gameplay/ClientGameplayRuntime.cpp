@@ -5,7 +5,9 @@
 #include "world/DroppedItemSystem.h"
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
+#include <functional>
 #include <iterator>
 #include <stdexcept>
 #include <string_view>
@@ -26,6 +28,219 @@ namespace dolbuto::gameplay
         bool itemHasUseAction(const ItemDefinition& definition, const std::string& action)
         {
             return std::find(definition.useActions.begin(), definition.useActions.end(), action) != definition.useActions.end();
+        }
+
+        std::vector<std::string> stackUseActions(const ItemStack& stack, const ItemDefinition& definition)
+        {
+            return !stack.dynamicUseActions.empty() ? stack.dynamicUseActions : definition.useActions;
+        }
+
+        bool containsString(const std::vector<std::string>& values, const std::string& value)
+        {
+            return std::find(values.begin(), values.end(), value) != values.end();
+        }
+
+        bool assemblyPartMatches(const AssemblyPartDefinition& condition, const AssemblyPartDefinition& value)
+        {
+            if (condition.present && !value.present)
+            {
+                return false;
+            }
+            if (!condition.part.empty() && condition.part != value.part)
+            {
+                return false;
+            }
+            if (!condition.type.empty() && condition.type != value.type)
+            {
+                return false;
+            }
+            if (!condition.material.empty() && condition.material != value.material)
+            {
+                return false;
+            }
+            if (!condition.size.empty() && condition.size != value.size)
+            {
+                return false;
+            }
+            for (const std::string& allowedSize : condition.allowedSizes)
+            {
+                if (!containsString(value.allowedSizes, allowedSize))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        bool interactionInputMatches(
+            const ItemInteractionInput& input,
+            const ItemStack& stack,
+            const std::vector<ItemDefinition>& definitions)
+        {
+            if (stack.itemId == 0 ||
+                stack.count < input.count ||
+                static_cast<std::size_t>(stack.itemId) >= definitions.size())
+            {
+                return false;
+            }
+            const ItemDefinition& definition = definitions[stack.itemId];
+            if (input.itemId != 0 && input.itemId != stack.itemId)
+            {
+                return false;
+            }
+            if (input.assemblyPart.present && !assemblyPartMatches(input.assemblyPart, definition.assemblyPart))
+            {
+                return false;
+            }
+            return true;
+        }
+
+        const ItemInteractionBoundInput* boundInputByAlias(
+            const std::vector<ItemInteractionBoundInput>& inputs,
+            const std::string& alias)
+        {
+            const auto it = std::find_if(
+                inputs.begin(),
+                inputs.end(),
+                [&](const ItemInteractionBoundInput& input)
+                {
+                    return input.alias == alias;
+                });
+            return it == inputs.end() ? nullptr : &*it;
+        }
+
+        std::string assemblyPathValue(
+            const std::vector<ItemInteractionBoundInput>& inputs,
+            const std::vector<ItemDefinition>& definitions,
+            const std::string& path)
+        {
+            const std::size_t dot = path.find('.');
+            if (dot == std::string::npos)
+            {
+                return {};
+            }
+            const ItemInteractionBoundInput* input = boundInputByAlias(inputs, path.substr(0, dot));
+            if (input == nullptr ||
+                input->stack.itemId == 0 ||
+                static_cast<std::size_t>(input->stack.itemId) >= definitions.size())
+            {
+                return {};
+            }
+            const ItemDefinition& definition = definitions[input->stack.itemId];
+            const std::string suffix = path.substr(dot + 1u);
+            if (suffix == "key")
+            {
+                return definition.key;
+            }
+            if (suffix == "components.assemblyPart.part")
+            {
+                return definition.assemblyPart.part;
+            }
+            if (suffix == "components.assemblyPart.type")
+            {
+                return definition.assemblyPart.type;
+            }
+            if (suffix == "components.assemblyPart.material")
+            {
+                return definition.assemblyPart.material;
+            }
+            if (suffix == "components.assemblyPart.size")
+            {
+                return definition.assemblyPart.size;
+            }
+            return {};
+        }
+
+        const std::vector<std::string>* assemblyPathArray(
+            const std::vector<ItemInteractionBoundInput>& inputs,
+            const std::vector<ItemDefinition>& definitions,
+            const std::string& path)
+        {
+            const std::size_t dot = path.find('.');
+            if (dot == std::string::npos)
+            {
+                return nullptr;
+            }
+            const ItemInteractionBoundInput* input = boundInputByAlias(inputs, path.substr(0, dot));
+            if (input == nullptr ||
+                input->stack.itemId == 0 ||
+                static_cast<std::size_t>(input->stack.itemId) >= definitions.size())
+            {
+                return nullptr;
+            }
+            const ItemDefinition& definition = definitions[input->stack.itemId];
+            return path.substr(dot + 1u) == "components.assemblyPart.allowedSizes"
+                ? &definition.assemblyPart.allowedSizes
+                : nullptr;
+        }
+
+        bool interactionConstraintsMatch(
+            const std::vector<ItemInteractionConstraint>& constraints,
+            const std::vector<ItemInteractionBoundInput>& inputs,
+            const std::vector<ItemDefinition>& definitions)
+        {
+            for (const ItemInteractionConstraint& constraint : constraints)
+            {
+                if (constraint.op == "==")
+                {
+                    if (assemblyPathValue(inputs, definitions, constraint.left) !=
+                        assemblyPathValue(inputs, definitions, constraint.right))
+                    {
+                        return false;
+                    }
+                    continue;
+                }
+                if (constraint.op == "in")
+                {
+                    const std::string value = assemblyPathValue(inputs, definitions, constraint.left);
+                    const std::vector<std::string>* values = assemblyPathArray(inputs, definitions, constraint.right);
+                    if (values == nullptr || !containsString(*values, value))
+                    {
+                        return false;
+                    }
+                    continue;
+                }
+                return false;
+            }
+            return true;
+        }
+
+        std::string toolNameForHead(std::string_view headType, std::string_view size)
+        {
+            if (headType == "blade" && size == "short")
+            {
+                return "Knife";
+            }
+            if (headType == "point" && size == "short")
+            {
+                return "Awl";
+            }
+            if (headType == "point" && size == "default")
+            {
+                return "Javelin";
+            }
+            if (headType == "point" && size == "long")
+            {
+                return "Spear";
+            }
+            if (headType == "chopper" && size == "default")
+            {
+                return "Axe";
+            }
+            if (headType == "pestle" && size == "short")
+            {
+                return "Hammer";
+            }
+            if (headType == "maul" && size == "default")
+            {
+                return "Sledge";
+            }
+            return {};
+        }
+
+        uint16_t effectiveMaxDurability(const ItemStack& stack, const ItemDefinition& definition)
+        {
+            return stack.dynamicMaxDurability != 0 ? stack.dynamicMaxDurability : definition.maxDurability;
         }
 
         std::string moldFormFromBlockName(const std::string& name)
@@ -322,16 +537,28 @@ namespace dolbuto::gameplay
         }
     }
 
-    ClientGameplayRuntime::ClientGameplayRuntime(world::WorldRuntime* worldRuntime, const std::vector<ItemDefinition>* itemDefinitions)
+    ClientGameplayRuntime::ClientGameplayRuntime(
+        world::WorldRuntime* worldRuntime,
+        const std::vector<ItemDefinition>* itemDefinitions,
+        const std::unordered_map<std::string, AssemblyMaterialDefinition>* assemblyMaterials,
+        const std::unordered_map<std::string, uint32_t>* itemTextureLayerByName)
         : itemDefinitions_(itemDefinitions),
+        assemblyMaterials_(assemblyMaterials),
+        itemTextureLayerByName_(itemTextureLayerByName),
         worldRuntime_(worldRuntime),
         droppedItemRuntime_(worldRuntime, itemDefinitions)
     {
     }
 
-    void ClientGameplayRuntime::setContext(world::WorldRuntime* worldRuntime, const std::vector<ItemDefinition>* itemDefinitions)
+    void ClientGameplayRuntime::setContext(
+        world::WorldRuntime* worldRuntime,
+        const std::vector<ItemDefinition>* itemDefinitions,
+        const std::unordered_map<std::string, AssemblyMaterialDefinition>* assemblyMaterials,
+        const std::unordered_map<std::string, uint32_t>* itemTextureLayerByName)
     {
         itemDefinitions_ = itemDefinitions;
+        assemblyMaterials_ = assemblyMaterials;
+        itemTextureLayerByName_ = itemTextureLayerByName;
         worldRuntime_ = worldRuntime;
         droppedItemRuntime_.setContext(worldRuntime, itemDefinitions);
     }
@@ -1306,7 +1533,7 @@ namespace dolbuto::gameplay
             heldStack.count != 0 &&
             static_cast<std::size_t>(heldStack.itemId) < definitions.size())
         {
-            heldUseActions = definitions[heldStack.itemId].useActions;
+            heldUseActions = stackUseActions(heldStack, definitions[heldStack.itemId]);
         }
 
         BlockRaycastHit interactionBlockHit{};
@@ -1476,7 +1703,9 @@ namespace dolbuto::gameplay
         };
 
         std::unordered_map<uint16_t, uint32_t> areaCounts;
-        for (const world::DroppedItemRuntime::Target& areaTarget : droppedItemRuntime_.targetsInAabb(areaMinX, areaMinY, areaMinZ, areaMaxX, areaMaxY, areaMaxZ))
+        const std::vector<world::DroppedItemRuntime::Target> areaTargets =
+            droppedItemRuntime_.targetsInAabb(areaMinX, areaMinY, areaMinZ, areaMaxX, areaMaxY, areaMaxZ);
+        for (const world::DroppedItemRuntime::Target& areaTarget : areaTargets)
         {
             areaCounts[areaTarget.stack.itemId] += areaTarget.stack.count;
         }
@@ -1486,7 +1715,170 @@ namespace dolbuto::gameplay
             std::vector<ItemInteractionCandidate> candidates;
             for (const ItemInteractionRecipe& recipe : recipes)
             {
-                if (recipe.action != action || recipe.targetItemId == 0 || recipe.candidates.empty())
+                if (recipe.action != action || recipe.candidates.empty())
+                {
+                    continue;
+                }
+
+                if (!recipe.inputs.empty())
+                {
+                    std::vector<std::vector<ItemStack>> matchingInputs;
+                    matchingInputs.reserve(recipe.inputs.size());
+                    bool allInputsMatched = true;
+                    for (const ItemInteractionInput& input : recipe.inputs)
+                    {
+                        std::vector<ItemStack> matches;
+                        for (const world::DroppedItemRuntime::Target& areaTarget : areaTargets)
+                        {
+                            if (interactionInputMatches(input, areaTarget.stack, definitions))
+                            {
+                                matches.push_back(areaTarget.stack);
+                            }
+                        }
+                        if (matches.empty())
+                        {
+                            allInputsMatched = false;
+                            break;
+                        }
+                        matchingInputs.push_back(std::move(matches));
+                    }
+                    if (!allInputsMatched)
+                    {
+                        continue;
+                    }
+
+                    std::vector<std::size_t> selection(recipe.inputs.size(), 0);
+                    std::function<void(std::size_t)> appendCandidatesForSelection;
+                    appendCandidatesForSelection = [&](std::size_t inputIndex)
+                    {
+                        if (inputIndex < recipe.inputs.size())
+                        {
+                            for (std::size_t matchIndex = 0; matchIndex < matchingInputs[inputIndex].size(); ++matchIndex)
+                            {
+                                selection[inputIndex] = matchIndex;
+                                appendCandidatesForSelection(inputIndex + 1u);
+                            }
+                            return;
+                        }
+
+                        std::vector<ItemInteractionBoundInput> boundInputs;
+                        std::vector<ItemInteractionIngredient> ingredients;
+                        boundInputs.reserve(recipe.inputs.size());
+                        ingredients.reserve(recipe.inputs.size());
+                        for (std::size_t i = 0; i < recipe.inputs.size(); ++i)
+                        {
+                            const ItemInteractionInput& input = recipe.inputs[i];
+                            const ItemStack& stack = matchingInputs[i][selection[i]];
+                            boundInputs.push_back(ItemInteractionBoundInput{input.alias, stack});
+                            ingredients.push_back(ItemInteractionIngredient{stack.itemId, input.count});
+                        }
+                        if (!interactionConstraintsMatch(recipe.constraints, boundInputs, definitions))
+                        {
+                            return;
+                        }
+
+                        for (ItemInteractionCandidate candidate : recipe.candidates)
+                        {
+                            candidate.ingredients = ingredients;
+                            candidate.boundInputs = boundInputs;
+                            candidate.enabled = true;
+                            for (ItemInteractionOutput& output : candidate.outputs)
+                            {
+                                if (output.deriveType != "head_binding_handle")
+                                {
+                                    continue;
+                                }
+
+                                const ItemInteractionBoundInput* headInput = boundInputByAlias(boundInputs, output.deriveHead);
+                                const ItemInteractionBoundInput* bindingInput = boundInputByAlias(boundInputs, output.deriveBinding);
+                                const ItemInteractionBoundInput* handleInput = boundInputByAlias(boundInputs, output.deriveHandle);
+                                if (headInput == nullptr || bindingInput == nullptr || handleInput == nullptr ||
+                                    static_cast<std::size_t>(headInput->stack.itemId) >= definitions.size() ||
+                                    static_cast<std::size_t>(bindingInput->stack.itemId) >= definitions.size() ||
+                                    static_cast<std::size_t>(handleInput->stack.itemId) >= definitions.size())
+                                {
+                                    candidate.enabled = false;
+                                    continue;
+                                }
+
+                                const ItemDefinition& headDefinition = definitions[headInput->stack.itemId];
+                                const ItemDefinition& bindingDefinition = definitions[bindingInput->stack.itemId];
+                                const ItemDefinition& handleDefinition = definitions[handleInput->stack.itemId];
+                                const std::string& size = bindingDefinition.assemblyPart.size;
+                                const std::string toolName = toolNameForHead(headDefinition.assemblyPart.type, size);
+                                if (toolName.empty())
+                                {
+                                    candidate.enabled = false;
+                                    continue;
+                                }
+
+                                auto materialDefinition = [&](const std::string& part, const std::string& material) -> AssemblyMaterialDefinition
+                                {
+                                    if (assemblyMaterials_ != nullptr)
+                                    {
+                                        const auto it = assemblyMaterials_->find(part + ":" + material);
+                                        if (it != assemblyMaterials_->end())
+                                        {
+                                            return it->second;
+                                        }
+                                    }
+                                    AssemblyMaterialDefinition fallback{};
+                                    fallback.key = material;
+                                    fallback.displayName = material.empty() ? "Unknown" : std::string(1, static_cast<char>(std::toupper(static_cast<unsigned char>(material.front())))) + material.substr(1);
+                                    fallback.durabilityMultiplier = 1.0f;
+                                    return fallback;
+                                };
+
+                                const AssemblyMaterialDefinition headMaterial = materialDefinition("head", headDefinition.assemblyPart.material);
+                                const AssemblyMaterialDefinition bindingMaterial = materialDefinition("binding", bindingDefinition.assemblyPart.material);
+                                const AssemblyMaterialDefinition handleMaterial = materialDefinition("handle", handleDefinition.assemblyPart.material);
+                                const uint16_t headMaxDurability = effectiveMaxDurability(headInput->stack, headDefinition);
+                                const float headRatio = headMaxDurability == 0
+                                    ? 1.0f
+                                    : static_cast<float>(headInput->stack.durability == 0 ? headMaxDurability : std::min(headInput->stack.durability, headMaxDurability)) /
+                                        static_cast<float>(headMaxDurability);
+                                const uint16_t resultMaxDurability = static_cast<uint16_t>(std::max(
+                                    1.0f,
+                                    std::ceil(static_cast<float>(headMaxDurability) *
+                                        bindingMaterial.durabilityMultiplier *
+                                        handleMaterial.durabilityMultiplier)));
+
+                                const std::string textureName =
+                                    "generated/composites/" +
+                                    headDefinition.key + "__" +
+                                    bindingDefinition.key + "__" +
+                                    handleDefinition.key + "__" +
+                                    size;
+                                const uint32_t textureLayer = itemTextureLayerByName_ != nullptr && itemTextureLayerByName_->find(textureName) != itemTextureLayerByName_->end()
+                                    ? itemTextureLayerByName_->at(textureName)
+                                    : definitions[output.itemId].droppedTextureLayer;
+
+                                output.hasStackOverride = true;
+                                output.stackOverride = ItemStack{};
+                                output.stackOverride.itemId = output.itemId;
+                                output.stackOverride.count = 1;
+                                output.stackOverride.dynamicMaxDurability = resultMaxDurability;
+                                output.stackOverride.durability = static_cast<uint16_t>(std::max(1.0f, std::ceil(static_cast<float>(resultMaxDurability) * headRatio)));
+                                output.stackOverride.dynamicBreakLevel = headDefinition.breakLevel;
+                                output.stackOverride.dynamicName = headMaterial.displayName + " " + toolName;
+                                output.stackOverride.dynamicSlotTexture = textureName;
+                                output.stackOverride.dynamicDroppedTexture = textureName;
+                                output.stackOverride.dynamicHeldTexture = textureName;
+                                output.stackOverride.dynamicDroppedTextureLayer = textureLayer;
+                                output.stackOverride.dynamicHeldTextureLayer = textureLayer;
+                                output.stackOverride.dynamicUseActions = headDefinition.useActions;
+                                output.stackOverride.dynamicBreakActions = headDefinition.breakActions;
+                                candidate.displayName = output.stackOverride.dynamicName;
+                                candidate.iconTexture = textureName;
+                            }
+                            candidates.push_back(std::move(candidate));
+                        }
+                    };
+                    appendCandidatesForSelection(0);
+                    continue;
+                }
+
+                if (recipe.targetItemId == 0)
                 {
                     continue;
                 }
@@ -1784,7 +2176,7 @@ namespace dolbuto::gameplay
                 heldStack.itemId != 0 &&
                 static_cast<std::size_t>(heldStack.itemId) < definitions.size())
             {
-                const uint16_t maxDurability = definitions[heldStack.itemId].maxDurability;
+                const uint16_t maxDurability = effectiveMaxDurability(heldStack, definitions[heldStack.itemId]);
                 if (maxDurability > 0)
                 {
                     maxApplications = heldStack.durability == 0
@@ -1800,7 +2192,7 @@ namespace dolbuto::gameplay
         else if (consumesDurability &&
             (heldStack.itemId == 0 ||
                 static_cast<std::size_t>(heldStack.itemId) >= definitions.size() ||
-                definitions[heldStack.itemId].maxDurability == 0))
+                effectiveMaxDurability(heldStack, definitions[heldStack.itemId]) == 0))
         {
             consumesDurability = false;
         }
@@ -2270,14 +2662,20 @@ namespace dolbuto::gameplay
         }
 
         const ItemDefinition& definition = definitions[heldStack.itemId];
-        if (definition.breakActions.empty() && definition.breakLevel == 0)
+        const std::vector<std::string>& breakActions = !heldStack.dynamicBreakActions.empty()
+            ? heldStack.dynamicBreakActions
+            : definition.breakActions;
+        const uint16_t breakLevel = heldStack.dynamicBreakLevel != 0
+            ? heldStack.dynamicBreakLevel
+            : definition.breakLevel;
+        if (breakActions.empty() && breakLevel == 0)
         {
             return tool;
         }
 
-        tool.level = definition.breakLevel;
-        tool.actions = definition.breakActions;
-        tool.durable = definition.maxDurability > 0;
+        tool.level = breakLevel;
+        tool.actions = breakActions;
+        tool.durable = effectiveMaxDurability(heldStack, definition) > 0;
         return tool;
     }
 

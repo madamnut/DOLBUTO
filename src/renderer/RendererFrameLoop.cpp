@@ -367,6 +367,8 @@ namespace dolbuto
             frame.showFirstPersonHand,
             frame.heldItemId,
             frame.offhandItemId,
+            frame.heldItemStack,
+            frame.offhandItemStack,
             frame.worldTicks,
             frame.radialMenu);
         recordMax(game::ClientPerfCounter::RenderRecord, sectionStart);
@@ -482,7 +484,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, ScreenPresentation::WaterOverlay waterOverlay, Vec3 playerPosition, uint8_t playerPackedLight, uint16_t heldPortableLightEmission, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint16_t offhandItemId, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, ScreenPresentation::WaterOverlay waterOverlay, Vec3 playerPosition, uint8_t playerPackedLight, uint16_t heldPortableLightEmission, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, uint16_t heldItemId, uint16_t offhandItemId, const ItemStack& heldItemStack, const ItemStack& offhandItemStack, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -560,7 +562,7 @@ namespace dolbuto
             if (showPlayer && menuOverlayMode == 0)
             {
                 drawPlayer(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, vulkan_.currentFrame);
-                drawThirdPersonHeldItems(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, heldItemId, offhandItemId, playerPackedLight);
+                drawThirdPersonHeldItems(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, heldItemStack, offhandItemStack, playerPackedLight);
             }
             drawBlockBreakParticles(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission);
             drawDroppedItems(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, playerPosition);
@@ -577,7 +579,7 @@ namespace dolbuto
                 }
                 if (heldItemId != 0 || offhandItemId != 0)
                 {
-                    drawHeldItem(commandBuffer, camera, cameraPosition, heldItemId, offhandItemId, skyBrightness, heldPortableLightEmission, playerPackedLight);
+                    drawHeldItem(commandBuffer, camera, cameraPosition, heldItemStack, offhandItemStack, skyBrightness, heldPortableLightEmission, playerPackedLight);
                 }
             }
         }

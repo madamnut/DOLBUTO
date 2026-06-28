@@ -153,6 +153,21 @@ repeat entityCount:
     uint16 burnTicksRemaining
     uint32 processingTicks
     uint8 processingType  // 0 = none, 1 = pyrolysis, 2 = firing, 3 = smelt
+    uint8 stateFlags
+    if stateFlags bit 0:
+      uint16 moltenFluidId
+      uint16 moltenAmount
+    if stateFlags bit 1:
+      uint16 dynamicMaxDurability
+      uint16 dynamicBreakLevel
+      uint32 dynamicDroppedTextureLayer
+      uint32 dynamicHeldTextureLayer
+      string dynamicName
+      string dynamicSlotTexture
+      string dynamicDroppedTexture
+      string dynamicHeldTexture
+      string[] dynamicUseActions
+      string[] dynamicBreakActions
 uint16 blockEntityCount
 repeat blockEntityCount:
   uint16 type          // 1 = Fire, 2 = Crucible

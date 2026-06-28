@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -24,6 +25,7 @@ namespace dolbuto
             const std::unordered_map<uint64_t, std::size_t>& droppedItemCountsByChunk;
             const std::vector<ItemDefinition>& itemDefinitions;
             const std::vector<DroppedItemRenderPath::ItemSpriteMesh>& itemSpriteMeshes;
+            const std::unordered_map<std::string, uint16_t>* itemSpriteMeshIdsByTextureName = nullptr;
             ItemRenderType renderType = ItemRenderType::ExtrudedSprite;
             float aspect = 1.0f;
             float fovRadians = 1.0471975512f;

@@ -219,7 +219,8 @@ stone: chip
 stone_chopper: chop, split
 stone_blade: cut, carve
 stone_scraper: scrape
-stone_maul: smash, pound
+stone_maul: smash
+stone_pestle: pound
 bow_drill: ignite
 base hand action: handcraft
 ```
@@ -231,7 +232,7 @@ large_stone: smash
 stone_chopper: chop
 stone_blade: cut
 stone_maul: smash
-stone_scraper, stone_point, stone_pestle, stone_anvil, stone_mortar: 없음
+stone_scraper, stone_point, stone_anvil, stone_mortar: 없음
 ```
 
 관련 문서: [[ui]], [[player]], [[item-data]]

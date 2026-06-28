@@ -66,3 +66,78 @@ lit_torch + extinguish on block
 ```
 
 관련 문서: [[processings]], [[../item-interactions]], [[../item-data]]
+
+## 신형 입력 기반 레시피
+
+`craft`는 기존 `target + ingredients` 양식 외에 `inputs` 양식을 지원한다.
+`inputs`는 제작에 필요한 입력을 동등하게 나열하며, 각 항목은 특정 `key` 또는 아이템 데이터의 `components` 조건을 가진다.
+`as`는 해당 입력에 실제로 매칭된 스택을 결과 생성이나 `constraints`에서 참조할 이름이다.
+
+```json
+{
+  "action": "craft",
+  "inputs": [
+    {
+      "components": {
+        "assemblyPart": {
+          "part": "head"
+        }
+      },
+      "count": 1,
+      "as": "head"
+    },
+    {
+      "components": {
+        "assemblyPart": {
+          "part": "binding"
+        }
+      },
+      "count": 1,
+      "as": "binding"
+    },
+    {
+      "components": {
+        "assemblyPart": {
+          "part": "handle"
+        }
+      },
+      "count": 1,
+      "as": "handle"
+    }
+  ],
+  "constraints": [
+    {
+      "op": "==",
+      "left": "binding.components.assemblyPart.size",
+      "right": "handle.components.assemblyPart.size"
+    },
+    {
+      "op": "in",
+      "left": "binding.components.assemblyPart.size",
+      "right": "head.components.assemblyPart.allowedSizes"
+    }
+  ],
+  "candidates": [
+    [
+      {
+        "key": "head_binding_handle",
+        "count": 1,
+        "derive": {
+          "type": "head_binding_handle",
+          "head": "head",
+          "binding": "binding",
+          "handle": "handle"
+        }
+      }
+    ]
+  ]
+}
+```
+
+`constraints`는 현재 `==`와 `in`을 지원한다.
+`candidates`는 2차원 배열이며, 바깥 배열은 UI에서 선택 가능한 후보, 안쪽 배열은 해당 후보를 선택했을 때 동시에 나오는 출력 목록이다.
+
+`derive.type = "head_binding_handle"`은 조립 도구 전용 결과 생성 규칙이다.
+결과 도구 이름은 헤드 재료 표시명과 `head.type + size` 결과 도구명을 조합한다.
+액션과 break level은 헤드에서 복사하고, 내구도는 헤드 내구도에 바인딩/핸들 재료 보정값을 곱한 뒤 헤드의 현재 내구도 비율을 승계한다.
+렌더 텍스처는 `handle -> head -> binding` 순서로 합성한 `generated/composites/{head}__{binding}__{handle}__{size}` 텍스처를 사용한다.

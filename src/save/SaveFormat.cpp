@@ -6,7 +6,9 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace dolbuto::save
 {
@@ -17,6 +19,7 @@ namespace dolbuto::save
         constexpr int ChunkSizeZ = 16;
         constexpr uint8_t WorldEntityFlagGrounded = 1u << 0u;
         constexpr uint8_t ItemStackStateMolten = 1u << 0u;
+        constexpr uint8_t ItemStackStateDynamicTool = 1u << 1u;
 
         int positiveModulo(int value, int divisor)
         {
@@ -137,11 +140,50 @@ namespace dolbuto::save
             {
                 flags |= ItemStackStateMolten;
             }
+            if (stack.dynamicMaxDurability != 0 ||
+                stack.dynamicBreakLevel != 0 ||
+                !stack.dynamicName.empty() ||
+                !stack.dynamicSlotTexture.empty() ||
+                !stack.dynamicDroppedTexture.empty() ||
+                !stack.dynamicHeldTexture.empty() ||
+                !stack.dynamicUseActions.empty() ||
+                !stack.dynamicBreakActions.empty())
+            {
+                flags |= ItemStackStateDynamicTool;
+            }
             writeU8(bytes, flags);
             if ((flags & ItemStackStateMolten) != 0)
             {
                 writeU16(bytes, stack.moltenFluidId);
                 writeU16(bytes, stack.moltenAmount);
+            }
+            if ((flags & ItemStackStateDynamicTool) != 0)
+            {
+                auto writeString = [&](const std::string& value)
+                {
+                    const uint16_t size = static_cast<uint16_t>(std::min<std::size_t>(value.size(), std::numeric_limits<uint16_t>::max()));
+                    writeU16(bytes, size);
+                    bytes.insert(bytes.end(), value.begin(), value.begin() + size);
+                };
+                auto writeStrings = [&](const std::vector<std::string>& values)
+                {
+                    const uint16_t count = static_cast<uint16_t>(std::min<std::size_t>(values.size(), std::numeric_limits<uint16_t>::max()));
+                    writeU16(bytes, count);
+                    for (uint16_t i = 0; i < count; ++i)
+                    {
+                        writeString(values[i]);
+                    }
+                };
+                writeU16(bytes, stack.dynamicMaxDurability);
+                writeU16(bytes, stack.dynamicBreakLevel);
+                writeU32(bytes, stack.dynamicDroppedTextureLayer);
+                writeU32(bytes, stack.dynamicHeldTextureLayer);
+                writeString(stack.dynamicName);
+                writeString(stack.dynamicSlotTexture);
+                writeString(stack.dynamicDroppedTexture);
+                writeString(stack.dynamicHeldTexture);
+                writeStrings(stack.dynamicUseActions);
+                writeStrings(stack.dynamicBreakActions);
             }
         }
 
@@ -157,6 +199,55 @@ namespace dolbuto::save
             {
                 stack.moltenFluidId = 0;
                 stack.moltenAmount = 0;
+            }
+            if ((flags & ItemStackStateDynamicTool) != 0)
+            {
+                auto readString = [&]() -> std::string
+                {
+                    const uint16_t size = readU16(bytes, offset);
+                    if (offset + size > bytes.size())
+                    {
+                        offset = bytes.size();
+                        return {};
+                    }
+                    std::string value(reinterpret_cast<const char*>(bytes.data() + offset), size);
+                    offset += size;
+                    return value;
+                };
+                auto readStrings = [&]() -> std::vector<std::string>
+                {
+                    const uint16_t count = readU16(bytes, offset);
+                    std::vector<std::string> values;
+                    values.reserve(count);
+                    for (uint16_t i = 0; i < count; ++i)
+                    {
+                        values.push_back(readString());
+                    }
+                    return values;
+                };
+                stack.dynamicMaxDurability = readU16(bytes, offset);
+                stack.dynamicBreakLevel = readU16(bytes, offset);
+                stack.dynamicDroppedTextureLayer = readU32(bytes, offset);
+                stack.dynamicHeldTextureLayer = readU32(bytes, offset);
+                stack.dynamicName = readString();
+                stack.dynamicSlotTexture = readString();
+                stack.dynamicDroppedTexture = readString();
+                stack.dynamicHeldTexture = readString();
+                stack.dynamicUseActions = readStrings();
+                stack.dynamicBreakActions = readStrings();
+            }
+            else
+            {
+                stack.dynamicMaxDurability = 0;
+                stack.dynamicBreakLevel = 0;
+                stack.dynamicDroppedTextureLayer = 0;
+                stack.dynamicHeldTextureLayer = 0;
+                stack.dynamicName.clear();
+                stack.dynamicSlotTexture.clear();
+                stack.dynamicDroppedTexture.clear();
+                stack.dynamicHeldTexture.clear();
+                stack.dynamicUseActions.clear();
+                stack.dynamicBreakActions.clear();
             }
         }
     }

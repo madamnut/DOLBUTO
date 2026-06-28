@@ -110,8 +110,6 @@ assets/textures/item/*.png
 - `modelBlock`: `block_model` 아이템 렌더링에 사용할 블록 이름. 생략하면 `components.placeable.block`을 사용한다.
 - `modelShape`: `block_model` 아이템 렌더링 형상. 현재 `source`, `cube`, `slab`, `half_slab`, `quarter_log`, `crucible`, `small_crucible`을 사용한다.
 - `modelTexture`: `block_model` 아이템이 블록 ID 대신 재질 텍스처만 직접 사용할 때 참조하는 block texture 이름
-- `droppedRender.bottomTexture`, `droppedRender.topTexture`, `heldRender.bottomTexture`, `heldRender.topTexture`: 월드/손 렌더에서 두 장의 `extruded_sprite` 메시를 겹쳐 그릴 때 사용할 아래/위 item texture 이름
-
 `id = 0`은 `none`용으로 예약한다.
 실제 아이템은 `id = 1`부터 시작하며, 구체적으로 빈 구간을 남길 이유가 없으면 순차적으로 배정한다.
 `block_model` 렌더 타입은 아이템의 `modelBlock`으로 지정된 블록의 텍스처 레이어를 사용한다.
@@ -280,6 +278,18 @@ long_rod                    15
 - `name`: 공백과 대소문자를 사용하는 읽기 쉬운 표시 이름
 
 초기 소스 스프라이트는 소문자 `snake_case` 파일명을 사용한다.
+합성 아이템용 레이어 텍스처도 같은 파일명 규칙을 사용하며, 현재 준비 경로는 다음과 같다.
+
+```text
+assets/textures/item/composites/
+  heads/
+  bindings/
+  handles/
+```
+
+합성 레이어 텍스처 참조는 확장자를 제외한 상대 경로를 기준으로 한다.
+레이어 파일명은 `{source_item_key}_{variant}.png` 형식을 사용하며, `variant`는 현재 `short`, `default`, `long`을 사용한다.
+예시는 `heads/stone_point_long`, `bindings/long_plant_twine_long`, `handles/long_wooden_stick_long` 형태다.
 
 ```text
 bark_strip.png
@@ -370,8 +380,7 @@ assets/textures/AIGenerated/*.png
 도가니 아이템은 `block_model`, `modelShape = "crucible"` 또는 `modelShape = "small_crucible"`, `modelTexture`를 사용해 재질만 바꾼 도가니 형상으로 표시한다.
 작은 도가니 아이템은 설치 블록이 아닌 용탕 운반용 아이템으로 취급하며, 향후 내부 용탕 상태를 가질 수 있으므로 `stackSize = 1`을 사용한다.
 몰드 아이템은 `extruded_sprite` 렌더 타입과 `stackSize = 1`을 사용한다.
-몰드 아이템의 슬롯 이미지는 기존 단일 `slotTexture`를 사용하고, 손에 들거나 땅에 떨어진 렌더링은 `mold_bottom` 또는 `unfired_mold_bottom` 아래 레이어와 `*_mold_top` 위 레이어를 겹친다.
-두 레이어는 각각 기존 `extruded_sprite` 두께를 가지므로 렌더링상 단일 스프라이트보다 두껍게 보이지만, 드랍 아이템 물리 AABB는 기존 `extruded_sprite` 기준을 유지한다.
+몰드 아이템의 슬롯, 손, 드랍 렌더링은 모두 `small_plate_mold` 같은 단일 item texture를 사용한다.
 현재 실제 몰드 베이스 아이템은 `unfired_mold_base`만 등록한다.
 금속 주조 산출물은 금속 6종과 몰드 9종의 조합으로 총 54개를 등록한다.
 키는 `{metal}_{form}` 형식을 사용하며, 금속은 `tin`, `zinc`, `silver`, `gold`, `copper`, `iron`이고 형태는 `small_plate`, `plate`, `large_plate`, `small_preform`, `preform`, `large_preform`, `short_rod`, `rod`, `long_rod` 순서다.
@@ -742,6 +751,36 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 색상은 낮을수록 빨강, 중간은 노랑, 높을수록 연두에 가깝게 보간한다.
 드랍 아이템 상호작용으로 내구도 있는 대상 아이템이 결과 아이템으로 변환되면, 대상 아이템의 현재 내구도 비율을 결과 아이템의 최대 내구도에 적용하고 소수점은 올림한다.
 
+## 조립 파츠 컴포넌트
+
+`components.assemblyPart`는 제작대 `craft`에서 head/binding/handle 조립 조건으로 사용하는 파츠 정보를 가진다.
+
+```json
+{
+  "assemblyPart": {
+    "part": "head",
+    "type": "blade",
+    "material": "stone",
+    "allowedSizes": ["short"]
+  }
+}
+```
+
+헤드는 `part`, `type`, `material`, `allowedSizes`를 가진다.
+바인딩과 핸들은 `part`, `material`, `size`를 가진다.
+`size`는 헤드 크기가 아니라 이번 조립에 쓰는 바인딩/핸들 길이이며, 현재 `short`, `default`, `long`을 사용한다.
+
+`head_binding_handle`은 head+binding+handle 조립 결과를 담는 동적 도구 템플릿 아이템이다.
+템플릿 자체의 정적 이름/액션/내구도/렌더 텍스처는 fallback이고, 실제 스택은 동적 이름, 액션, break level, 최대/현재 내구도, 슬롯/드랍/손 렌더 텍스처를 가진다.
+조립 결과 내구도는 헤드의 현재 내구도 비율을 유지한다.
+
+```text
+resultMax = ceil(headMax * bindingMaterialMultiplier * handleMaterialMultiplier)
+resultCurrent = ceil(resultMax * headCurrent / headMax)
+```
+
+재료 보정값은 `assets/data/assembly_materials.json`의 `head`, `binding`, `handle` 테이블에 둔다.
+
 현재 설치 아이템 기준:
 
 ```text
@@ -783,8 +822,8 @@ stone_blade: components.useActions cut/carve, components.breakActions cut, compo
 stone_scraper: components.useActions scrape, components.durability.max 64, components.slotGauge.source durability
 stone_point: components.useActions pierce, components.durability.max 64, components.slotGauge.source durability
 stone_chopper: components.useActions chop/split, components.breakActions chop, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
-stone_maul: components.useActions smash/pound, components.breakActions smash, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
-stone_pestle: stackSize 1, no actions, components.durability.max 64, components.slotGauge.source durability
+stone_maul: components.useActions smash, components.breakActions smash, components.breakLevel 2, components.durability.max 64, components.slotGauge.source durability
+stone_pestle: stackSize 1, components.useActions pound, components.durability.max 64, components.slotGauge.source durability
 stone_anvil, stone_mortar: stackSize 1, no durability, block_model placeable items
 bow_drill: components.useActions ignite, components.durability.max 16, components.slotGauge.source durability
 torch: components.useActions light, components.burnableLight.maxTicks, components.slotGauge.source burnTicks

@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <limits>
 #include <optional>
+#include <string_view>
 #include <utility>
 
 namespace dolbuto::data
@@ -664,6 +665,7 @@ namespace dolbuto::data
                 }
                 ParsedInteractionOutput output{};
                 output.item = *item;
+                output.key = *item;
                 output.min = defaultMin;
                 output.max = defaultMax;
                 return output;
@@ -676,8 +678,11 @@ namespace dolbuto::data
             }
 
             const std::optional<std::string> item = jsonStringField(trimmed, "item");
+            const std::optional<std::string> key = jsonStringField(trimmed, "key");
             const std::optional<std::string> block = jsonStringField(trimmed, "block");
-            if ((!item.has_value() || item->empty()) && (!block.has_value() || block->empty()))
+            if ((!item.has_value() || item->empty()) &&
+                (!key.has_value() || key->empty()) &&
+                (!block.has_value() || block->empty()))
             {
                 return std::nullopt;
             }
@@ -686,6 +691,15 @@ namespace dolbuto::data
             if (item.has_value())
             {
                 output.item = *item;
+                output.key = *item;
+            }
+            if (key.has_value())
+            {
+                output.key = *key;
+                if (output.item.empty())
+                {
+                    output.item = *key;
+                }
             }
             if (block.has_value())
             {
@@ -695,11 +709,31 @@ namespace dolbuto::data
             {
                 output.placement = *placement;
             }
-            output.min = clampedInteractionCount(jsonIntField(trimmed, "min").value_or(defaultMin));
-            output.max = clampedInteractionCount(jsonIntField(trimmed, "max").value_or(output.min));
+            const int count = jsonIntField(trimmed, "count").value_or(0);
+            output.min = clampedInteractionCount(count > 0 ? count : jsonIntField(trimmed, "min").value_or(defaultMin));
+            output.max = clampedInteractionCount(count > 0 ? count : jsonIntField(trimmed, "max").value_or(output.min));
             if (output.max < output.min)
             {
                 output.max = output.min;
+            }
+            if (const std::optional<std::string> derive = jsonObjectField(trimmed, "derive"); derive.has_value())
+            {
+                if (const std::optional<std::string> type = jsonStringField(*derive, "type"); type.has_value())
+                {
+                    output.deriveType = *type;
+                }
+                if (const std::optional<std::string> head = jsonStringField(*derive, "head"); head.has_value())
+                {
+                    output.deriveHead = *head;
+                }
+                if (const std::optional<std::string> binding = jsonStringField(*derive, "binding"); binding.has_value())
+                {
+                    output.deriveBinding = *binding;
+                }
+                if (const std::optional<std::string> handle = jsonStringField(*derive, "handle"); handle.has_value())
+                {
+                    output.deriveHandle = *handle;
+                }
             }
             return output;
         }
@@ -724,7 +758,22 @@ namespace dolbuto::data
             }
 
             const std::string trimmed = trimJsonValue(value);
-            if (trimmed.empty() || trimmed.front() != '{')
+            if (trimmed.empty())
+            {
+                return candidate;
+            }
+            if (trimmed.front() == '[')
+            {
+                for (const std::string& outputValue : jsonTopLevelArrayValues(trimmed))
+                {
+                    if (const std::optional<ParsedInteractionOutput> output = parseInteractionOutput(outputValue, defaultMin, defaultMax); output.has_value())
+                    {
+                        candidate.outputs.push_back(*output);
+                    }
+                }
+                return candidate;
+            }
+            if (trimmed.front() != '{')
             {
                 return candidate;
             }
@@ -759,7 +808,7 @@ namespace dolbuto::data
             {
                 if (!item->empty())
                 {
-                    return ParsedInteractionIngredient{*item, 1};
+                    return ParsedInteractionIngredient{*item, *item, 1};
                 }
                 return std::nullopt;
             }
@@ -771,15 +820,87 @@ namespace dolbuto::data
             }
 
             const std::optional<std::string> item = jsonStringField(trimmed, "item");
-            if (!item.has_value() || item->empty())
+            const std::optional<std::string> key = jsonStringField(trimmed, "key");
+            if ((!item.has_value() || item->empty()) && (!key.has_value() || key->empty()))
             {
                 return std::nullopt;
             }
 
             return ParsedInteractionIngredient{
-                *item,
+                item.has_value() && !item->empty() ? *item : *key,
+                key.has_value() && !key->empty() ? *key : *item,
                 clampedInteractionCount(jsonIntField(trimmed, "count").value_or(1))
             };
+        }
+
+        ParsedInteractionInput parseInteractionInput(const std::string& value)
+        {
+            ParsedInteractionInput input{};
+            const std::string trimmed = trimJsonValue(value);
+            if (trimmed.empty() || trimmed.front() != '{')
+            {
+                return input;
+            }
+
+            if (const std::optional<std::string> key = jsonStringField(trimmed, "key"); key.has_value())
+            {
+                input.key = *key;
+            }
+            input.count = clampedInteractionCount(jsonIntField(trimmed, "count").value_or(1));
+            if (const std::optional<std::string> alias = jsonStringField(trimmed, "as"); alias.has_value())
+            {
+                input.alias = *alias;
+            }
+            if (const std::optional<std::string> components = jsonObjectField(trimmed, "components"); components.has_value())
+            {
+                if (const std::optional<std::string> assemblyPart = jsonObjectField(*components, "assemblyPart"); assemblyPart.has_value())
+                {
+                    if (const std::optional<std::string> part = jsonStringField(*assemblyPart, "part"); part.has_value())
+                    {
+                        input.assemblyPart = *part;
+                    }
+                    if (const std::optional<std::string> type = jsonStringField(*assemblyPart, "type"); type.has_value())
+                    {
+                        input.assemblyType = *type;
+                    }
+                    if (const std::optional<std::string> material = jsonStringField(*assemblyPart, "material"); material.has_value())
+                    {
+                        input.assemblyMaterial = *material;
+                    }
+                    if (const std::optional<std::string> size = jsonStringField(*assemblyPart, "size"); size.has_value())
+                    {
+                        input.assemblySize = *size;
+                    }
+                    if (const std::optional<std::string> allowedSizes = jsonArrayField(*assemblyPart, "allowedSizes"); allowedSizes.has_value())
+                    {
+                        input.assemblyAllowedSizes = jsonStringArrayValues(*allowedSizes);
+                    }
+                }
+            }
+            return input;
+        }
+
+        ParsedInteractionConstraint parseInteractionConstraint(const std::string& value)
+        {
+            ParsedInteractionConstraint constraint{};
+            const std::string trimmed = trimJsonValue(value);
+            if (trimmed.empty() || trimmed.front() != '{')
+            {
+                return constraint;
+            }
+            if (const std::optional<std::string> op = jsonStringField(trimmed, "op"); op.has_value())
+            {
+                constraint.op = *op;
+            }
+            if (const std::optional<std::string> left = jsonStringField(trimmed, "left"); left.has_value())
+            {
+                constraint.left = *left;
+            }
+            if (const std::optional<std::string> right = jsonStringField(trimmed, "right"); right.has_value())
+            {
+                constraint.right = *right;
+            }
+            return constraint;
         }
     }
 
@@ -859,14 +980,6 @@ namespace dolbuto::data
                 {
                     definition.droppedTexture = *texture;
                 }
-                if (const std::optional<std::string> bottomTexture = jsonStringField(*droppedRender, "bottomTexture"); bottomTexture.has_value())
-                {
-                    definition.droppedBottomTexture = *bottomTexture;
-                }
-                if (const std::optional<std::string> topTexture = jsonStringField(*droppedRender, "topTexture"); topTexture.has_value())
-                {
-                    definition.droppedTopTexture = *topTexture;
-                }
             }
             if (const std::optional<std::string> heldRender = jsonObjectField(object, "heldRender"); heldRender.has_value())
             {
@@ -877,14 +990,6 @@ namespace dolbuto::data
                 if (const std::optional<std::string> texture = jsonStringField(*heldRender, "texture"); texture.has_value())
                 {
                     definition.heldTexture = *texture;
-                }
-                if (const std::optional<std::string> bottomTexture = jsonStringField(*heldRender, "bottomTexture"); bottomTexture.has_value())
-                {
-                    definition.heldBottomTexture = *bottomTexture;
-                }
-                if (const std::optional<std::string> topTexture = jsonStringField(*heldRender, "topTexture"); topTexture.has_value())
-                {
-                    definition.heldTopTexture = *topTexture;
                 }
             }
             const std::optional<std::string> components = jsonObjectField(object, "components");
@@ -907,6 +1012,33 @@ namespace dolbuto::data
                 {
                     definition.maxDurability = static_cast<uint16_t>(std::clamp(*maxDurability, 0, static_cast<int>(std::numeric_limits<uint16_t>::max())));
                 }
+            }
+            if (const std::optional<std::string> assemblyPart = jsonObjectField(componentObject, "assemblyPart"); assemblyPart.has_value())
+            {
+                if (const std::optional<std::string> part = jsonStringField(*assemblyPart, "part"); part.has_value())
+                {
+                    definition.assemblyPart = *part;
+                }
+                if (const std::optional<std::string> type = jsonStringField(*assemblyPart, "type"); type.has_value())
+                {
+                    definition.assemblyType = *type;
+                }
+                if (const std::optional<std::string> material = jsonStringField(*assemblyPart, "material"); material.has_value())
+                {
+                    definition.assemblyMaterial = *material;
+                }
+                if (const std::optional<std::string> size = jsonStringField(*assemblyPart, "size"); size.has_value())
+                {
+                    definition.assemblySize = *size;
+                }
+                if (const std::optional<std::string> allowedSizes = jsonArrayField(*assemblyPart, "allowedSizes"); allowedSizes.has_value())
+                {
+                    definition.assemblyAllowedSizes = jsonStringArrayValues(*allowedSizes);
+                }
+            }
+            if (const std::optional<bool> dynamicToolTemplate = jsonBoolField(componentObject, "dynamicToolTemplate"); dynamicToolTemplate.has_value())
+            {
+                definition.dynamicToolTemplate = *dynamicToolTemplate;
             }
             if (const std::optional<std::string> fuel = jsonObjectField(componentObject, "fuel"); fuel.has_value())
             {
@@ -1274,8 +1406,30 @@ namespace dolbuto::data
                     }
                 }
             }
+            if (const std::optional<std::string> inputs = jsonArrayField(object, "inputs"); inputs.has_value())
+            {
+                for (const std::string& inputValue : jsonTopLevelArrayValues(*inputs))
+                {
+                    ParsedInteractionInput input = parseInteractionInput(inputValue);
+                    if (!input.key.empty() || !input.assemblyPart.empty() || !input.alias.empty())
+                    {
+                        definition.inputs.push_back(std::move(input));
+                    }
+                }
+            }
+            if (const std::optional<std::string> constraints = jsonArrayField(object, "constraints"); constraints.has_value())
+            {
+                for (const std::string& constraintValue : jsonTopLevelArrayValues(*constraints))
+                {
+                    ParsedInteractionConstraint constraint = parseInteractionConstraint(constraintValue);
+                    if (!constraint.op.empty() && !constraint.left.empty() && !constraint.right.empty())
+                    {
+                        definition.constraints.push_back(std::move(constraint));
+                    }
+                }
+            }
             if (!definition.action.empty() &&
-                (!definition.target.empty() || !definition.targetBlock.empty()) &&
+                (!definition.target.empty() || !definition.targetBlock.empty() || !definition.inputs.empty()) &&
                 !definition.candidates.empty())
             {
                 definitions.push_back(std::move(definition));
@@ -1348,6 +1502,45 @@ namespace dolbuto::data
                 (!definition.output.empty() || !definition.outputFluid.empty()) &&
                 definition.requiredTicks > 0)
             {
+                definitions.push_back(std::move(definition));
+            }
+        }
+
+        return definitions;
+    }
+
+    std::vector<ParsedAssemblyMaterialDefinition> parseAssemblyMaterialDefinitions(const std::string& text)
+    {
+        std::vector<ParsedAssemblyMaterialDefinition> definitions;
+
+        static constexpr std::array<std::string_view, 3> Parts{"head", "binding", "handle"};
+        for (std::string_view part : Parts)
+        {
+            const std::optional<std::string> materials = jsonArrayField(text, std::string(part));
+            if (!materials.has_value())
+            {
+                continue;
+            }
+
+            for (const std::string& materialObject : jsonTopLevelArrayValues(*materials))
+            {
+                const std::string trimmed = trimJsonValue(materialObject);
+                if (trimmed.empty() || trimmed.front() != '{')
+                {
+                    continue;
+                }
+
+                const std::optional<std::string> key = jsonStringField(trimmed, "key");
+                if (!key.has_value() || key->empty())
+                {
+                    continue;
+                }
+
+                ParsedAssemblyMaterialDefinition definition{};
+                definition.part = std::string(part);
+                definition.key = *key;
+                definition.displayName = jsonStringField(trimmed, "displayName").value_or(*key);
+                definition.durabilityMultiplier = jsonFloatField(trimmed, "durabilityMultiplier").value_or(1.0f);
                 definitions.push_back(std::move(definition));
             }
         }

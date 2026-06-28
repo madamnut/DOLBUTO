@@ -418,20 +418,30 @@ namespace dolbuto::ui
                 const std::size_t outputCount = std::min<std::size_t>(candidate.outputs.size(), 4);
                 for (std::size_t outputIndex = 0; outputIndex < outputCount; ++outputIndex)
                 {
-                    const uint16_t itemId = candidate.outputs[outputIndex].itemId;
+                    const ItemInteractionOutput& output = candidate.outputs[outputIndex];
+                    const uint16_t itemId = output.itemId;
                     if (itemId == 0 || static_cast<std::size_t>(itemId) >= definitions.size())
                     {
                         continue;
                     }
 
                     const ItemDefinition& definition = definitions[itemId];
+                    std::string slotTexture = definition.slotTexture;
+                    if (output.hasStackOverride && !output.stackOverride.dynamicSlotTexture.empty())
+                    {
+                        slotTexture = output.stackOverride.dynamicSlotTexture;
+                    }
+                    else if (!candidate.iconTexture.empty() && outputCount == 1)
+                    {
+                        slotTexture = candidate.iconTexture;
+                    }
                     const CandidateIconPlacement placement = candidateIconPlacement(outputIndex, outputCount);
                     candidatesRml += "<img class=\"radial-candidate-icon\" style=\"left: " +
                         std::to_string(placement.left) + "px; top: " +
                         std::to_string(placement.top) + "px; width: " +
                         std::to_string(placement.size) + "px; height: " +
                         std::to_string(placement.size) + "px;\" src=\"../textures/item/" +
-                        escapeRml(definition.slotTexture) + ".png\"/>";
+                        escapeRml(slotTexture) + ".png\"/>";
                 }
                 if (candidate.outputs.empty() && candidate.placeBlockId != 0 && !candidate.iconTexture.empty())
                 {
@@ -576,23 +586,23 @@ namespace dolbuto::ui
         item.stackSize = definition.stackSize;
         item.durability = stack.durability;
         item.burnTicksRemaining = stack.burnTicksRemaining;
-        item.maxDurability = definition.maxDurability;
-        item.breakLevel = definition.breakLevel;
+        item.maxDurability = stack.dynamicMaxDurability != 0 ? stack.dynamicMaxDurability : definition.maxDurability;
+        item.breakLevel = stack.dynamicBreakLevel != 0 ? stack.dynamicBreakLevel : definition.breakLevel;
         item.burnTimeTicks = definition.burnTimeTicks;
         item.heatLevel = definition.heatLevel;
         item.portableLightEmission = definition.portableLightEmission;
         item.maxBurnTicks = definition.maxBurnTicks;
         item.slotGaugeSource = slotGaugeSourceText(definition.slotGaugeSource);
-        item.name = definition.name;
+        item.name = !stack.dynamicName.empty() ? stack.dynamicName : definition.name;
         item.key = definition.key;
-        item.slotTexture = definition.slotTexture;
+        item.slotTexture = !stack.dynamicSlotTexture.empty() ? stack.dynamicSlotTexture : definition.slotTexture;
         item.slotRender = slotRenderTypeText(definition.slotRender);
         item.droppedRender = renderTypeText(definition.droppedRender);
-        item.droppedTexture = definition.droppedTexture;
+        item.droppedTexture = !stack.dynamicDroppedTexture.empty() ? stack.dynamicDroppedTexture : definition.droppedTexture;
         item.heldRender = renderTypeText(definition.heldRender);
-        item.heldTexture = definition.heldTexture;
-        item.useActions = definition.useActions;
-        item.breakActions = definition.breakActions;
+        item.heldTexture = !stack.dynamicHeldTexture.empty() ? stack.dynamicHeldTexture : definition.heldTexture;
+        item.useActions = !stack.dynamicUseActions.empty() ? stack.dynamicUseActions : definition.useActions;
+        item.breakActions = !stack.dynamicBreakActions.empty() ? stack.dynamicBreakActions : definition.breakActions;
         item.placeActions = definition.placeActions;
         item.placeBlockId = definition.placeBlockId;
         return item;
