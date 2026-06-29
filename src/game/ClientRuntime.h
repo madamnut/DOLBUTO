@@ -79,6 +79,7 @@ namespace dolbuto::game
             bool tickHeldBurningItems(bool extinguishHeldBurnableLights);
             std::array<ItemStack, gameplay::PlayerInventory::SlotCount> inventorySnapshot() const;
             ItemStack offhandSlot() const;
+            std::string itemKey(uint16_t itemId) const;
             uint16_t heldPortableLightEmission() const;
             void setInventorySnapshot(const std::array<ItemStack, gameplay::PlayerInventory::SlotCount>& slots);
             void setOffhandSlot(ItemStack stack);
@@ -99,8 +100,10 @@ namespace dolbuto::game
             std::string chatInputValue() const;
             void setChatVisible(bool inputVisible, bool hasMessages);
             void setChatMessages(std::string_view rml);
+            void setGuideNotifications(std::string_view rml);
             void clearChatInput();
             void focusChatInput();
+            void setGuideContent(std::string_view mapRml, std::string_view tooltipRml, bool tooltipVisible, int tooltipLeft, int tooltipTop);
             void setOptionsVolumes(int bgmPercent, int sfxPercent);
             void setOptionsFov(int fovDegrees);
             void setOptionsViewBobbing(bool enabled);

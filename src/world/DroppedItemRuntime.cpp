@@ -1212,16 +1212,7 @@ namespace dolbuto::world
             {
                 continue;
             }
-            if (output.max < output.min)
-            {
-                output.max = output.min;
-            }
-            uint32_t totalCount = 0;
-            std::uniform_int_distribution<int> countDistribution(output.min, output.max);
-            for (uint16_t application = 0; application < applicationCount; ++application)
-            {
-                totalCount += static_cast<uint32_t>(countDistribution(random));
-            }
+            uint32_t totalCount = static_cast<uint32_t>(output.count) * static_cast<uint32_t>(applicationCount);
             if (totalCount == 0)
             {
                 continue;
@@ -1347,17 +1338,8 @@ namespace dolbuto::world
             {
                 continue;
             }
-            if (output.max < output.min)
-            {
-                output.max = output.min;
-            }
 
-            uint32_t totalCount = 0;
-            std::uniform_int_distribution<int> countDistribution(output.min, output.max);
-            for (uint16_t application = 0; application < applicationCount; ++application)
-            {
-                totalCount += static_cast<uint32_t>(countDistribution(random));
-            }
+            uint32_t totalCount = static_cast<uint32_t>(output.count) * static_cast<uint32_t>(applicationCount);
             while (totalCount > 0)
             {
                 const uint16_t stackCount = static_cast<uint16_t>(std::min<uint32_t>(totalCount, definitions[output.itemId].stackSize));

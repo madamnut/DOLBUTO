@@ -31,7 +31,7 @@
 ```
 
 문자열 후보는 기본적으로 결과 아이템 1개를 만든다.
-레시피의 `min`과 `max`를 지정하면 선택한 후보 아이템의 생성 개수 범위를 정한다.
+레시피의 `count`를 지정하면 선택한 후보 아이템의 생성 개수를 정한다.
 
 ```json
 {
@@ -65,7 +65,7 @@
   "candidates": [
     {
       "items": [
-        { "item": "long_wooden_stick", "min": 4, "max": 4 }
+        { "item": "long_wooden_stick", "count": 4 }
       ]
     }
   ]

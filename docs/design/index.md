@@ -20,6 +20,7 @@
 - [[recipe/index]]
 - [[audio]]
 - [[ui]]
+- [[guide]]
 - [[debug-profiling]]
 
 ## 현재 기준

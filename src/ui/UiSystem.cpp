@@ -290,6 +290,7 @@ namespace dolbuto::ui
         worldCreateDocument_ = context_->LoadDocument((uiDir / "world_create.rml").string());
         hudDocument_ = context_->LoadDocument((uiDir / "hud.rml").string());
         inventoryDocument_ = context_->LoadDocument((uiDir / "inventory.rml").string());
+        guideDocument_ = context_->LoadDocument((uiDir / "guide.rml").string());
         pauseDocument_ = context_->LoadDocument((uiDir / "pause.rml").string());
         optionsDocument_ = context_->LoadDocument((uiDir / "options.rml").string());
 
@@ -300,6 +301,7 @@ namespace dolbuto::ui
         attachDocumentEvents(worldCreateDocument_);
         attachDocumentEvents(hudDocument_);
         attachDocumentEvents(inventoryDocument_);
+        attachDocumentEvents(guideDocument_);
         attachDocumentEvents(pauseDocument_);
         attachDocumentEvents(optionsDocument_);
 
@@ -319,6 +321,7 @@ namespace dolbuto::ui
         closeDocument(worldCreateDocument_);
         closeDocument(hudDocument_);
         closeDocument(inventoryDocument_);
+        closeDocument(guideDocument_);
         closeDocument(pauseDocument_);
         closeDocument(optionsDocument_);
 
@@ -392,6 +395,11 @@ namespace dolbuto::ui
         return inventoryDocument_;
     }
 
+    Rml::ElementDocument* UiSystem::guideDocument() const
+    {
+        return guideDocument_;
+    }
+
     Rml::ElementDocument* UiSystem::pauseDocument() const
     {
         return pauseDocument_;
@@ -429,7 +437,7 @@ namespace dolbuto::ui
             return {};
         }
 
-        for (Rml::ElementDocument* document : {lobbyDocument_, worldSelectDocument_, worldCreateDocument_, hudDocument_, inventoryDocument_, pauseDocument_, optionsDocument_})
+        for (Rml::ElementDocument* document : {lobbyDocument_, worldSelectDocument_, worldCreateDocument_, hudDocument_, inventoryDocument_, guideDocument_, pauseDocument_, optionsDocument_})
         {
             if (document == nullptr)
             {
@@ -493,6 +501,19 @@ namespace dolbuto::ui
         if (Rml::Element* log = hudDocument_->GetElementById("chat-log"))
         {
             log->SetInnerRML(std::string(rml));
+        }
+    }
+
+    void UiSystem::setGuideNotifications(std::string_view rml)
+    {
+        if (hudDocument_ == nullptr)
+        {
+            return;
+        }
+
+        if (Rml::Element* notifications = hudDocument_->GetElementById("guide-notifications"))
+        {
+            notifications->SetInnerRML(std::string(rml));
         }
     }
 
@@ -716,6 +737,29 @@ namespace dolbuto::ui
 
         cursor->SetAttribute("class", visible ? "cursor-item-layer" : "cursor-item-layer ui-hidden");
         cursor->SetInnerRML(std::string(rml));
+    }
+
+    void UiSystem::setGuideContent(std::string_view mapRml, std::string_view tooltipRml, bool tooltipVisible, int tooltipLeft, int tooltipTop)
+    {
+        if (guideDocument_ == nullptr)
+        {
+            return;
+        }
+
+        if (Rml::Element* map = guideDocument_->GetElementById("guide-map"))
+        {
+            map->SetInnerRML(std::string(mapRml));
+        }
+        if (Rml::Element* tooltip = guideDocument_->GetElementById("guide-tooltip"))
+        {
+            tooltip->SetAttribute("class", tooltipVisible ? "guide-tooltip" : "guide-tooltip ui-hidden");
+            tooltip->SetAttribute(
+                "style",
+                "left: " + std::to_string(tooltipLeft) +
+                "px; top: " + std::to_string(tooltipTop) +
+                "px;");
+            tooltip->SetInnerRML(std::string(tooltipRml));
+        }
     }
 
     void UiSystem::setRadialMenu(std::string_view centerRml, std::string_view actionsRml, std::string_view candidatesRml, bool visible)
@@ -984,11 +1028,15 @@ namespace dolbuto::ui
         }
         if (hudDocument_ != nullptr)
         {
-            (menuOverlayMode == 0 || menuOverlayMode == 5) ? hudDocument_->Show() : hudDocument_->Hide();
+            (menuOverlayMode == 0 || menuOverlayMode == 5 || menuOverlayMode == 7) ? hudDocument_->Show() : hudDocument_->Hide();
         }
         if (inventoryDocument_ != nullptr)
         {
             menuOverlayMode == 5 ? inventoryDocument_->Show() : inventoryDocument_->Hide();
+        }
+        if (guideDocument_ != nullptr)
+        {
+            menuOverlayMode == 7 ? guideDocument_->Show() : guideDocument_->Hide();
         }
         if (pauseDocument_ != nullptr)
         {

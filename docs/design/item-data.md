@@ -502,15 +502,13 @@ assets/data/recipes/interactions.json
   {
     "action": "cut",
     "target": "plant_twine",
-    "min": 2,
-    "max": 2,
+    "count": 2,
     "candidates": ["short_plant_twine"]
   },
   {
     "action": "cut",
     "target": "long_plant_twine",
-    "min": 2,
-    "max": 2,
+    "count": 2,
     "candidates": ["plant_twine"]
   },
   {
@@ -526,15 +524,15 @@ assets/data/recipes/interactions.json
     "action": "split",
     "target": "stripped_log",
     "candidates": [
-      { "item": "half_stripped_log", "min": 2, "max": 2 }
+      { "item": "half_stripped_log", "count": 2 }
     ]
   },
   {
     "action": "split",
     "target": "half_stripped_log",
     "candidates": [
-      { "item": "quarter_stripped_log", "min": 2, "max": 2 },
-      { "item": "wooden_plank", "min": 4, "max": 4 }
+      { "item": "quarter_stripped_log", "count": 2 },
+      { "item": "wooden_plank", "count": 4 }
     ]
   },
   {
@@ -545,8 +543,7 @@ assets/data/recipes/interactions.json
   {
     "action": "carve",
     "target": "quarter_stripped_log",
-    "min": 2,
-    "max": 2,
+    "count": 2,
     "candidates": ["long_wooden_stick"]
   },
   {
@@ -562,22 +559,19 @@ assets/data/recipes/interactions.json
   {
     "action": "split",
     "target": "wooden_plank",
-    "min": 4,
-    "max": 4,
+    "count": 4,
     "candidates": ["long_wooden_stick"]
   },
   {
     "action": "cut",
     "target": "long_wooden_stick",
-    "min": 2,
-    "max": 2,
+    "count": 2,
     "candidates": ["wooden_stick"]
   },
   {
     "action": "cut",
     "target": "wooden_stick",
-    "min": 2,
-    "max": 2,
+    "count": 2,
     "candidates": ["short_wooden_stick"]
   },
   {
@@ -626,7 +620,7 @@ assets/data/recipes/interactions.json
 대상 스택이 전부 처리되면 기존 드랍 엔티티를 선택 후보의 첫 번째 출력 아이템 스택으로 직접 바꾼다.
 대상 스택이 일부 남으면 기존 드랍 엔티티는 남은 원본 count를 유지하고, 결과물은 대상 위치 근처에 별도 드랍 아이템으로 생성한다.
 대상 드랍 아이템과 결과 아이템이 모두 내구도를 가지면 대상의 현재 내구도 비율을 결과 아이템에 적용하고, 결과 내구도는 올림 처리한다.
-레시피 또는 후보 출력의 `min`/`max`가 2 이상을 허용하면 나머지 결과물은 대상 위치 근처에 별도 드랍 아이템으로 생성한다.
+레시피 또는 후보 출력의 `count`가 2 이상이면 나머지 결과물은 대상 위치 근처에 별도 드랍 아이템으로 생성한다.
 출력 개수가 결과 아이템의 `stackSize`를 넘으면 여러 드랍 스택으로 나눠 생성한다.
 후보의 두 번째 이후 출력 아이템도 대상 위치 근처에 별도 드랍 아이템으로 생성한다.
 변환된 후보 아이템은 접지 상태를 해제하고 위쪽 속도와 회전을 줘서 한 번 튀어오르게 한다.
@@ -669,7 +663,7 @@ std::unordered_map<std::string, uint16_t> itemIdByKey;
 런타임 시스템은 해석된 아이템 ID를 사용한다.
 
 블록이 파괴되면 각 드랍 항목은 먼저 `chance`를 굴린다.
-성공하면 최종 개수는 `min`부터 `max`까지의 균등 정수 랜덤 값이다.
+성공하면 최종 개수는 블록 드랍 항목의 `min`부터 `max`까지의 균등 정수 랜덤 값이다.
 최종 개수가 2개 이상이면 같은 스택 엔티티가 아니라 개별 드랍 아이템 엔티티를 여러 개 생성한다.
 생성된 드랍 아이템은 `type = DroppedItem`인 청크 소유 `WorldEntity` 엔트리다.
 일반 8블록 상호작용 범위 안의 드랍 아이템을 바라보며 `F`를 누르면 해당 아이템은 획득 상태로 표시된다.

@@ -25,6 +25,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <optional>
 #include <random>
 #include <stdexcept>
@@ -683,6 +684,69 @@ namespace dolbuto
                 stack.dynamicBreakActions.clear();
             }
         }
+
+        void writePlayerStateString(std::vector<uint8_t>& bytes, std::string_view value)
+        {
+            const uint16_t size = static_cast<uint16_t>(std::min<std::size_t>(value.size(), std::numeric_limits<uint16_t>::max()));
+            writeU16(bytes, size);
+            bytes.insert(bytes.end(), value.begin(), value.begin() + size);
+        }
+
+        std::string readPlayerStateString(const std::vector<uint8_t>& bytes, size_t& offset)
+        {
+            const uint16_t size = readU16(bytes, offset);
+            if (offset + size > bytes.size())
+            {
+                throw std::runtime_error("Player state string read overflow.");
+            }
+            std::string value(reinterpret_cast<const char*>(bytes.data() + offset), size);
+            offset += size;
+            return value;
+        }
+
+        struct GuideStepDefinition
+        {
+            std::string_view key;
+            std::string_view title;
+            std::string_view description;
+            std::string_view icon;
+            std::vector<std::string_view> parents;
+            double x = 0.0;
+            double y = 0.0;
+            std::string_view obtainItemKey;
+        };
+
+        const std::vector<GuideStepDefinition>& guideStepDefinitions()
+        {
+            static const std::vector<GuideStepDefinition> Steps = {
+                {"open_guide", "Open Guide", "Open this guide screen.", "open_guide", {}, 0.0, 0.0, ""},
+                {"open_inventory", "Open Inventory", "Open your inventory.", "open_inventory", {"open_guide"}, 1.0, 0.0, ""},
+                {"pickup_small_stone", "Pick Up Small Stone", "Obtain a small stone.", "pickup_small_stone", {"open_inventory"}, 2.0, -1.65, "small_stone"},
+                {"make_stone_blade", "Make Stone Blade", "Chip a small stone into a blade.", "make_stone_blade", {"pickup_small_stone"}, 3.0, -2.4, "stone_blade"},
+                {"make_stone_scraper", "Make Stone Scraper", "Chip a small stone into a scraper.", "make_stone_scraper", {"pickup_small_stone"}, 3.8, -1.65, "stone_scraper"},
+                {"make_stone_point", "Make Stone Point", "Chip a small stone into a point.", "make_stone_point", {"pickup_small_stone"}, 3.0, -0.9, "stone_point"},
+                {"pickup_stone", "Pick Up Stone", "Obtain a stone.", "pickup_stone", {"open_inventory"}, 2.0, 0.0, "stone"},
+                {"make_stone_chopper", "Make Stone Chopper", "Chip a stone into a chopper.", "make_stone_chopper", {"pickup_stone"}, 3.8, -0.15, "stone_chopper"},
+                {"make_stone_maul", "Make Stone Maul", "Chip a stone into a maul.", "make_stone_maul", {"pickup_stone"}, 3.0, 0.6, "stone_maul"},
+                {"make_stone_pestle", "Make Stone Pestle", "Chip a stone into a pestle.", "make_stone_pestle", {"pickup_stone"}, 3.8, 1.35, "stone_pestle"},
+                {"pickup_large_stone", "Pick Up Large Stone", "Obtain a large stone.", "pickup_large_stone", {"open_inventory"}, 2.0, 1.65, "large_stone"},
+                {"make_stone_anvil", "Make Stone Anvil", "Chip a large stone into an anvil.", "make_stone_anvil", {"pickup_large_stone"}, 3.0, 2.1, "stone_anvil"},
+                {"make_stone_mortar", "Make Stone Mortar", "Chip a large stone into a mortar.", "make_stone_mortar", {"pickup_large_stone"}, 3.8, 2.85, "stone_mortar"}
+            };
+            return Steps;
+        }
+
+        const GuideStepDefinition* findGuideStepDefinition(std::string_view key)
+        {
+            for (const GuideStepDefinition& step : guideStepDefinitions())
+            {
+                if (step.key == key)
+                {
+                    return &step;
+                }
+            }
+            return nullptr;
+        }
     }
 
     GameClient::GameClient(GLFWwindow* window)
@@ -853,7 +917,7 @@ namespace dolbuto
             }
 
             physicsAccumulator_ += std::min(delta.count(), MaxPhysicsFrameTime);
-            const bool gameSimulationActive = screen_ == AppScreen::Game || screen_ == AppScreen::Inventory;
+            const bool gameSimulationActive = screen_ == AppScreen::Game || screen_ == AppScreen::Inventory || screen_ == AppScreen::Guide;
             sectionPerfStart = std::chrono::steady_clock::now();
             while (gameSimulationActive && physicsAccumulator_ >= FixedPhysicsTimestep)
             {
@@ -960,6 +1024,12 @@ namespace dolbuto
                 1.0);
             const double worldFovDegrees = fovDegrees_ * (1.0 + (SprintFovMultiplier - 1.0) * renderSprintFovAmount);
             const DVec3 eyePosition{renderPlayerPosition.x, renderPlayerPosition.y + interpolatedEyeHeight(physicsAlpha), renderPlayerPosition.z};
+            updateGuideInventoryCriteria();
+            updateGuideNotifications(delta.count());
+            if (screen_ == AppScreen::Guide)
+            {
+                updateGuideUi();
+            }
             if (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory)
             {
                 runtime_->gameplay().updateBlockSelection(
@@ -996,7 +1066,7 @@ namespace dolbuto
                 moveMode_ == MoveMode::Ground &&
                 !renderPlayerInWater &&
                 !waterClimbActive_ &&
-                (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory);
+                (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory || screen_ == AppScreen::Guide);
             const Vec3 viewBobOffset = CameraViewBob::offset(CameraViewBobInput{
                 viewBobEnabled,
                 renderCamera.yaw(),
@@ -1012,11 +1082,11 @@ namespace dolbuto
                 ? thirdPersonCameraPosition(cameraPivot, thirdPersonOffsetDirection)
                 : cameraPivot;
 
-            const int menuOverlayMode = screen_ == AppScreen::Lobby ? 1 : (screen_ == AppScreen::Pause ? 2 : (screen_ == AppScreen::WorldSelect ? 3 : (screen_ == AppScreen::WorldCreate ? 4 : (screen_ == AppScreen::Inventory ? 5 : (screen_ == AppScreen::Options ? 6 : 0)))));
+            const int menuOverlayMode = screen_ == AppScreen::Lobby ? 1 : (screen_ == AppScreen::Pause ? 2 : (screen_ == AppScreen::WorldSelect ? 3 : (screen_ == AppScreen::WorldCreate ? 4 : (screen_ == AppScreen::Inventory ? 5 : (screen_ == AppScreen::Options ? 6 : (screen_ == AppScreen::Guide ? 7 : 0))))));
             const bool optionsOverGame = screen_ == AppScreen::Options && optionsReturnScreen_ == AppScreen::Pause;
-            const bool worldUpdateEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory || optionsOverGame;
-            const bool gameSceneRenderEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory || optionsOverGame;
-            const bool renderDebugText = (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory) && debugTextVisible_;
+            const bool worldUpdateEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory || screen_ == AppScreen::Guide || optionsOverGame;
+            const bool gameSceneRenderEnabled = screen_ == AppScreen::Game || screen_ == AppScreen::Pause || screen_ == AppScreen::Inventory || screen_ == AppScreen::Guide || optionsOverGame;
+            const bool renderDebugText = (screen_ == AppScreen::Game || screen_ == AppScreen::Inventory || screen_ == AppScreen::Guide) && debugTextVisible_;
             const bool frameHudVisible = hudVisible_ || chatOpen_ || radialActive_;
             float playerHeadYaw = 0.0f;
             float playerHeadPitch = 0.0f;
@@ -1284,6 +1354,10 @@ namespace dolbuto
                 {
                     app->setScreen(GameClient::AppScreen::Game);
                 }
+                else if (app != nullptr && app->screen_ == GameClient::AppScreen::Guide)
+                {
+                    app->setScreen(GameClient::AppScreen::Game);
+                }
                 else if (app != nullptr && app->screen_ == GameClient::AppScreen::Pause)
                 {
                     app->setScreen(GameClient::AppScreen::Game);
@@ -1334,9 +1408,22 @@ namespace dolbuto
             {
                 if (app->screen_ == GameClient::AppScreen::Game)
                 {
+                    app->completeGuideStep("open_inventory");
                     app->setScreen(GameClient::AppScreen::Inventory);
                 }
                 else if (app->screen_ == GameClient::AppScreen::Inventory)
+                {
+                    app->setScreen(GameClient::AppScreen::Game);
+                }
+            }
+            else if (key == GLFW_KEY_TAB && action == GLFW_PRESS && app != nullptr)
+            {
+                if (app->screen_ == GameClient::AppScreen::Game)
+                {
+                    app->completeGuideStep("open_guide");
+                    app->setScreen(GameClient::AppScreen::Guide);
+                }
+                else if (app->screen_ == GameClient::AppScreen::Guide)
                 {
                     app->setScreen(GameClient::AppScreen::Game);
                 }
@@ -1415,6 +1502,25 @@ namespace dolbuto
                 double x = 0.0;
                 double y = 0.0;
                 glfwGetCursorPos(window, &x, &y);
+                if (app->screen_ == GameClient::AppScreen::Guide)
+                {
+                    app->guideMouseX_ = x;
+                    app->guideMouseY_ = y;
+                    if (button == GLFW_MOUSE_BUTTON_LEFT)
+                    {
+                        if (action == GLFW_PRESS)
+                        {
+                            app->guideDragging_ = true;
+                            app->guideLastMouseX_ = x;
+                            app->guideLastMouseY_ = y;
+                        }
+                        else if (action == GLFW_RELEASE)
+                        {
+                            app->guideDragging_ = false;
+                        }
+                    }
+                    app->updateGuideUi();
+                }
                 if (app->runtime_ != nullptr && (action == GLFW_PRESS || action == GLFW_RELEASE))
                 {
                     app->runtime_->ui().mouseMove(x, y);
@@ -1544,6 +1650,18 @@ namespace dolbuto
                 double x = 0.0;
                 double y = 0.0;
                 glfwGetCursorPos(window, &x, &y);
+                if (app->screen_ == GameClient::AppScreen::Guide)
+                {
+                    app->guideMouseX_ = x;
+                    app->guideMouseY_ = y;
+                    const double previousZoom = app->guideZoom_;
+                    app->guideZoom_ = std::clamp(app->guideZoom_ + yOffset * 0.08, 0.6, 1.0);
+                    if (previousZoom != app->guideZoom_)
+                    {
+                        app->updateGuideUi();
+                    }
+                    return;
+                }
                 app->runtime_->ui().mouseMove(x, y);
                 app->runtime_->ui().mouseWheel(yOffset);
             }
@@ -1557,6 +1675,25 @@ namespace dolbuto
         if (radialActive_)
         {
             updateRadialSelection(x, y);
+            return;
+        }
+
+        if (screen_ == AppScreen::Guide)
+        {
+            guideMouseX_ = x;
+            guideMouseY_ = y;
+            if (guideDragging_)
+            {
+                guidePanX_ += x - guideLastMouseX_;
+                guidePanY_ += y - guideLastMouseY_;
+                guideLastMouseX_ = x;
+                guideLastMouseY_ = y;
+            }
+            if (runtime_ != nullptr)
+            {
+                runtime_->ui().mouseMove(x, y);
+            }
+            updateGuideUi();
             return;
         }
 
@@ -1961,6 +2098,490 @@ namespace dolbuto
         runtime_->ui().setChatMessages(rml);
     }
 
+    void GameClient::completeGuideStep(std::string_view key)
+    {
+        const GuideStepDefinition* step = findGuideStepDefinition(key);
+        if (step == nullptr || guideStepCompleted(key))
+        {
+            return;
+        }
+
+        completedGuideKeys_.emplace_back(key);
+        enqueueGuideNotification(step->title);
+        updateGuideUi();
+    }
+
+    bool GameClient::guideStepCompleted(std::string_view key) const
+    {
+        return std::find_if(
+            completedGuideKeys_.begin(),
+            completedGuideKeys_.end(),
+            [key](const std::string& completed)
+            {
+                return std::string_view(completed.data(), completed.size()) == key;
+            }) != completedGuideKeys_.end();
+    }
+
+    void GameClient::updateGuideInventoryCriteria()
+    {
+        if (runtime_ == nullptr)
+        {
+            return;
+        }
+
+        auto observeStack = [this](const ItemStack& stack)
+        {
+            if (stack.itemId == 0 || stack.count == 0)
+            {
+                return;
+            }
+
+            const std::string key = runtime_->gameplay().itemKey(stack.itemId);
+            if (key.empty())
+            {
+                return;
+            }
+
+            for (const GuideStepDefinition& step : guideStepDefinitions())
+            {
+                if (!step.obtainItemKey.empty() && step.obtainItemKey == std::string_view(key.data(), key.size()))
+                {
+                    completeGuideStep(step.key);
+                }
+            }
+        };
+
+        for (const ItemStack& stack : runtime_->gameplay().inventorySnapshot())
+        {
+            observeStack(stack);
+        }
+        observeStack(runtime_->gameplay().offhandSlot());
+    }
+
+    void GameClient::enqueueGuideNotification(std::string_view title)
+    {
+        int screenWidth = windowedWidth_;
+        int screenHeight = windowedHeight_;
+        glfwGetWindowSize(window_, &screenWidth, &screenHeight);
+
+        constexpr double NotificationWidth = 360.0;
+        constexpr double NotificationHeight = 152.0;
+        constexpr double BottomMargin = 28.0;
+        constexpr double StackGap = 8.0;
+
+        const double targetY = guideNotifications_.empty()
+            ? static_cast<double>(screenHeight) - BottomMargin - NotificationHeight
+            : guideNotifications_.back().y - StackGap - NotificationHeight;
+        guideNotifications_.push_back(GuideNotification{
+            std::string(title),
+            GuideNotificationPhase::Entering,
+            static_cast<double>(screenWidth) + 16.0,
+            targetY
+        });
+    }
+
+    void GameClient::updateGuideNotifications(double deltaSeconds)
+    {
+        if (runtime_ == nullptr)
+        {
+            return;
+        }
+
+        constexpr double NotificationWidth = 360.0;
+        constexpr double NotificationHeight = 152.0;
+        constexpr double RightMargin = 28.0;
+        constexpr double BottomMargin = 28.0;
+        constexpr double StackGap = 8.0;
+        constexpr double EnterDuration = 0.35;
+        constexpr double HoldDuration = 2.0;
+        constexpr double ExitDuration = 0.35;
+
+        auto easeOutCubic = [](double value)
+        {
+            const double t = std::clamp(value, 0.0, 1.0);
+            const double inv = 1.0 - t;
+            return 1.0 - inv * inv * inv;
+        };
+        auto easeInCubic = [](double value)
+        {
+            const double t = std::clamp(value, 0.0, 1.0);
+            return t * t * t;
+        };
+
+        int screenWidth = windowedWidth_;
+        int screenHeight = windowedHeight_;
+        glfwGetWindowSize(window_, &screenWidth, &screenHeight);
+
+        const double targetX = static_cast<double>(screenWidth) - RightMargin - NotificationWidth;
+        const double enterStartX = static_cast<double>(screenWidth) + 16.0;
+        const double bottomY = static_cast<double>(screenHeight) - BottomMargin - NotificationHeight;
+        const double dt = std::max(0.0, deltaSeconds);
+
+        for (GuideNotification& notification : guideNotifications_)
+        {
+            if (notification.phase == GuideNotificationPhase::Entering)
+            {
+                notification.enterTime += dt;
+                const double t = easeOutCubic(notification.enterTime / EnterDuration);
+                notification.x = enterStartX + (targetX - enterStartX) * t;
+                if (notification.enterTime >= EnterDuration)
+                {
+                    notification.phase = GuideNotificationPhase::Stacked;
+                    notification.x = targetX;
+                }
+            }
+            else
+            {
+                notification.x = targetX;
+            }
+        }
+
+        for (std::size_t i = 0; i < guideNotifications_.size(); ++i)
+        {
+            GuideNotification& notification = guideNotifications_[i];
+            double targetY = bottomY;
+            if (i > 0)
+            {
+                targetY = guideNotifications_[i - 1].y - StackGap - NotificationHeight;
+            }
+            else if (notification.phase == GuideNotificationPhase::Exiting)
+            {
+                notification.exitTime += dt;
+                targetY = bottomY + easeInCubic(notification.exitTime / ExitDuration) * (NotificationHeight + BottomMargin + 16.0);
+            }
+
+            if (notification.phase == GuideNotificationPhase::Exiting && i == 0)
+            {
+                notification.y = targetY;
+            }
+            else
+            {
+                const double follow = std::min(1.0, dt * 12.0);
+                notification.y += (targetY - notification.y) * follow;
+            }
+        }
+
+        if (!guideNotifications_.empty())
+        {
+            GuideNotification& bottom = guideNotifications_.front();
+            if (bottom.phase == GuideNotificationPhase::Stacked && std::abs(bottom.y - bottomY) < 1.0)
+            {
+                bottom.holdTime += dt;
+                if (bottom.holdTime >= HoldDuration)
+                {
+                    bottom.phase = GuideNotificationPhase::Exiting;
+                    bottom.exitTime = 0.0;
+                }
+            }
+            else if (bottom.phase != GuideNotificationPhase::Exiting)
+            {
+                bottom.holdTime = 0.0;
+            }
+        }
+
+        guideNotifications_.erase(
+            std::remove_if(
+                guideNotifications_.begin(),
+                guideNotifications_.end(),
+                [](const GuideNotification& notification)
+                {
+                    return notification.phase == GuideNotificationPhase::Exiting && notification.exitTime >= ExitDuration;
+                }),
+            guideNotifications_.end());
+
+        std::string rml;
+        for (const GuideNotification& notification : guideNotifications_)
+        {
+            rml += "<div class=\"guide-notification\" style=\"left: " +
+                std::to_string(static_cast<int>(std::round(notification.x))) +
+                "px; top: " +
+                std::to_string(static_cast<int>(std::round(notification.y))) +
+                "px;\">";
+            rml += "<img class=\"guide-notification-bg\" src=\"../textures/ui/player/notificationBG.png\"/>";
+            rml += "<img class=\"guide-notification-fg\" src=\"../textures/ui/player/notificationFG.png\"/>";
+            rml += "<div class=\"guide-notification-text\">";
+            rml += "<div class=\"guide-notification-title\">Guide Complete</div>";
+            rml += "<div class=\"guide-notification-name\">" + ui::escapeRml(notification.title) + "</div>";
+            rml += "</div></div>";
+        }
+        runtime_->ui().setGuideNotifications(rml);
+    }
+
+    void GameClient::updateGuideUi()
+    {
+        if (runtime_ == nullptr || screen_ != AppScreen::Guide)
+        {
+            return;
+        }
+
+        int screenWidth = windowedWidth_;
+        int screenHeight = windowedHeight_;
+        glfwGetWindowSize(window_, &screenWidth, &screenHeight);
+
+        constexpr int PanelWidth = 784;
+        constexpr int PanelHeight = 472;
+        constexpr int MapLeft = 20;
+        constexpr int MapTop = 20;
+        constexpr int MapWidth = 744;
+        constexpr int MapHeight = 432;
+        constexpr double BaseNodeSize = 80.0;
+        constexpr double BaseIconInset = 8.0;
+        constexpr double BaseStepX = 150.0;
+        constexpr double BaseStepY = 78.0;
+
+        const double panelLeft = static_cast<double>(screenWidth - PanelWidth) * 0.5;
+        const double panelTop = static_cast<double>(screenHeight - PanelHeight) * 0.5;
+        const double originX = 108.0 + guidePanX_;
+        const double originY = static_cast<double>(MapHeight) * 0.5 + guidePanY_;
+        const double nodeSize = BaseNodeSize * guideZoom_;
+        const double iconInset = BaseIconInset * guideZoom_;
+        const double iconSize = nodeSize - iconInset * 2.0;
+        auto clipGuideLine = [](double& x0, double& y0, double& x1, double& y1, double width, double height) -> bool
+        {
+            const double dx = x1 - x0;
+            const double dy = y1 - y0;
+            double t0 = 0.0;
+            double t1 = 1.0;
+            auto clipEdge = [&](double p, double q) -> bool
+            {
+                if (std::abs(p) < 0.000001)
+                {
+                    return q >= 0.0;
+                }
+                const double r = q / p;
+                if (p < 0.0)
+                {
+                    if (r > t1)
+                    {
+                        return false;
+                    }
+                    if (r > t0)
+                    {
+                        t0 = r;
+                    }
+                }
+                else
+                {
+                    if (r < t0)
+                    {
+                        return false;
+                    }
+                    if (r < t1)
+                    {
+                        t1 = r;
+                    }
+                }
+                return true;
+            };
+
+            if (!clipEdge(-dx, x0) ||
+                !clipEdge(dx, width - x0) ||
+                !clipEdge(-dy, y0) ||
+                !clipEdge(dy, height - y0))
+            {
+                return false;
+            }
+
+            const double clippedX0 = x0 + t0 * dx;
+            const double clippedY0 = y0 + t0 * dy;
+            const double clippedX1 = x0 + t1 * dx;
+            const double clippedY1 = y0 + t1 * dy;
+            x0 = clippedX0;
+            y0 = clippedY0;
+            x1 = clippedX1;
+            y1 = clippedY1;
+            return true;
+        };
+
+        struct RenderNode
+        {
+            const GuideStepDefinition* step = nullptr;
+            bool completed = false;
+            bool available = false;
+            double centerX = 0.0;
+            double centerY = 0.0;
+            double left = 0.0;
+            double top = 0.0;
+        };
+
+        std::vector<RenderNode> nodes;
+        nodes.reserve(guideStepDefinitions().size());
+        for (const GuideStepDefinition& step : guideStepDefinitions())
+        {
+            const bool completed = guideStepCompleted(step.key);
+            bool parentsCompleted = true;
+            bool parentAvailable = false;
+            for (std::string_view parent : step.parents)
+            {
+                if (!guideStepCompleted(parent))
+                {
+                    parentsCompleted = false;
+                }
+                const GuideStepDefinition* parentStep = findGuideStepDefinition(parent);
+                if (parentStep != nullptr)
+                {
+                    bool grandParentsCompleted = true;
+                    for (std::string_view grandParent : parentStep->parents)
+                    {
+                        if (!guideStepCompleted(grandParent))
+                        {
+                            grandParentsCompleted = false;
+                            break;
+                        }
+                    }
+                    parentAvailable = parentAvailable || grandParentsCompleted;
+                }
+            }
+            const bool available = step.parents.empty() || parentsCompleted;
+            if (!completed && !available && !parentAvailable)
+            {
+                continue;
+            }
+
+            const double centerX = originX + step.x * BaseStepX * guideZoom_;
+            const double centerY = originY + step.y * BaseStepY * guideZoom_;
+            nodes.push_back(RenderNode{
+                &step,
+                completed,
+                available,
+                centerX,
+                centerY,
+                centerX - nodeSize * 0.5,
+                centerY - nodeSize * 0.5
+            });
+        }
+
+        std::string rml;
+        for (const RenderNode& node : nodes)
+        {
+            for (std::string_view parentKey : node.step->parents)
+            {
+                const auto parentIt = std::find_if(
+                    nodes.begin(),
+                    nodes.end(),
+                    [parentKey](const RenderNode& candidate)
+                    {
+                        return candidate.step->key == parentKey;
+                    });
+                if (parentIt == nodes.end())
+                {
+                    continue;
+                }
+
+                double x0 = parentIt->centerX;
+                double y0 = parentIt->centerY;
+                double x1 = node.centerX;
+                double y1 = node.centerY;
+                if (!clipGuideLine(x0, y0, x1, y1, static_cast<double>(MapWidth), static_cast<double>(MapHeight)))
+                {
+                    continue;
+                }
+
+                const double dx = x1 - x0;
+                const double dy = y1 - y0;
+                const double length = std::sqrt(dx * dx + dy * dy);
+                if (length < 1.0)
+                {
+                    continue;
+                }
+                const double angle = std::atan2(dy, dx) * 180.0 / static_cast<double>(Pi);
+                const double left = (x0 + x1 - length) * 0.5;
+                const double top = std::clamp((y0 + y1) * 0.5 - 2.0, 0.0, static_cast<double>(MapHeight - 4));
+                rml += "<div class=\"guide-link\" style=\"left: " + std::to_string(static_cast<int>(std::round(left))) +
+                    "px; top: " + std::to_string(static_cast<int>(std::round(top))) +
+                    "px; width: " + std::to_string(static_cast<int>(std::round(length))) +
+                    "px; transform: rotate(" + std::to_string(angle) + "deg);\"></div>";
+            }
+        }
+
+        const RenderNode* hovered = nullptr;
+        const double mouseLocalX = guideMouseX_ - panelLeft - static_cast<double>(MapLeft);
+        const double mouseLocalY = guideMouseY_ - panelTop - static_cast<double>(MapTop);
+        for (const RenderNode& node : nodes)
+        {
+            if (mouseLocalX < 0.0 ||
+                mouseLocalX >= static_cast<double>(MapWidth) ||
+                mouseLocalY < 0.0 ||
+                mouseLocalY >= static_cast<double>(MapHeight))
+            {
+                continue;
+            }
+
+            const bool inside =
+                mouseLocalX >= node.left &&
+                mouseLocalX < node.left + nodeSize &&
+                mouseLocalY >= node.top &&
+                mouseLocalY < node.top + nodeSize;
+            if (inside)
+            {
+                hovered = &node;
+                break;
+            }
+        }
+
+        for (const RenderNode& node : nodes)
+        {
+            std::string stateClass;
+            if (node.completed)
+            {
+                stateClass = " guide-completed";
+            }
+            else if (!node.available)
+            {
+                stateClass = " guide-locked";
+            }
+
+            const int left = static_cast<int>(std::round(node.left));
+            const int top = static_cast<int>(std::round(node.top));
+            const int size = static_cast<int>(std::round(nodeSize));
+            const int inset = static_cast<int>(std::round(iconInset));
+            const int iconPixelSize = static_cast<int>(std::round(iconSize));
+            const std::string iconPath = "../textures/ui/guideicons/" + std::string(node.step->icon) + ".png";
+            rml += "<div class=\"guide-slot\" style=\"left: " + std::to_string(left) +
+                "px; top: " + std::to_string(top) +
+                "px; width: " + std::to_string(size) +
+                "px; height: " + std::to_string(size) + "px;\">";
+            rml += "<img class=\"guide-slot-image" + stateClass +
+                "\" src=\"../textures/ui/player/guideslot.png\" style=\"width: " + std::to_string(size) +
+                "px; height: " + std::to_string(size) + "px;\"/>";
+            rml += "<img class=\"guide-icon" + stateClass +
+                "\" src=\"" + ui::escapeRml(iconPath) +
+                "\" style=\"left: " + std::to_string(inset) +
+                "px; top: " + std::to_string(inset) +
+                "px; width: " + std::to_string(iconPixelSize) +
+                "px; height: " + std::to_string(iconPixelSize) + "px;\"/>";
+            rml += "</div>";
+        }
+
+        std::string tooltipRml;
+        bool tooltipVisible = false;
+        int tooltipLeft = 0;
+        int tooltipTop = 0;
+        if (hovered != nullptr)
+        {
+            tooltipVisible = true;
+            tooltipLeft = static_cast<int>(std::round(guideMouseX_ - panelLeft + 16.0));
+            tooltipTop = static_cast<int>(std::round(guideMouseY_ - panelTop + 16.0));
+            tooltipLeft = std::clamp(tooltipLeft, 0, PanelWidth - 340);
+            tooltipTop = std::clamp(tooltipTop, 0, PanelHeight - 104);
+            if (!hovered->available && !hovered->completed)
+            {
+                tooltipRml = "<div class=\"guide-tooltip-line\">Complete the previous step first.</div>";
+            }
+            else
+            {
+                tooltipRml += "<div class=\"guide-tooltip-title\">" + ui::escapeRml(hovered->step->title) + "</div>";
+                tooltipRml += "<div class=\"guide-tooltip-line\">" + ui::escapeRml(hovered->step->description) + "</div>";
+                if (hovered->completed)
+                {
+                    tooltipRml += "<div class=\"guide-tooltip-line\">Completed</div>";
+                }
+            }
+        }
+
+        runtime_->ui().setGuideContent(rml, tooltipRml, tooltipVisible, tooltipLeft, tooltipTop);
+    }
+
     void GameClient::handleMenuClick(double x, double y)
     {
         int width = windowedWidth_;
@@ -2031,6 +2652,12 @@ namespace dolbuto
                 runtime_->ui().setOptionsLobbyBackground(optionsReturnScreen_ == AppScreen::Lobby);
             }
             updateOptionsUi();
+        }
+        if (screen_ == AppScreen::Guide)
+        {
+            guideDragging_ = false;
+            completeGuideStep("open_guide");
+            updateGuideUi();
         }
         jumpHeld_ = false;
         jumpPressed_ = false;
@@ -2122,6 +2749,12 @@ namespace dolbuto
         lastJumpTapTime_ = -1000.0;
         physicsAccumulator_ = 0.0;
         playerStats_ = game::PlayerStats{};
+        completedGuideKeys_.clear();
+        guideNotifications_.clear();
+        guideDragging_ = false;
+        guidePanX_ = 0.0;
+        guidePanY_ = 0.0;
+        guideZoom_ = 1.0;
         updatePlayerStatsUi();
     }
 
@@ -2747,6 +3380,22 @@ namespace dolbuto
             offhandSlot.burnTicksRemaining = readU16(bytes, offset);
             readItemStackState(bytes, offset, offhandSlot);
 
+            std::vector<std::string> completedGuides;
+            if (offset < bytes.size())
+            {
+                const uint16_t completedGuideCount = readU16(bytes, offset);
+                completedGuides.reserve(completedGuideCount);
+                for (uint16_t i = 0; i < completedGuideCount; ++i)
+                {
+                    const std::string key = readPlayerStateString(bytes, offset);
+                    if (findGuideStepDefinition(std::string_view(key.data(), key.size())) != nullptr &&
+                        std::find(completedGuides.begin(), completedGuides.end(), key) == completedGuides.end())
+                    {
+                        completedGuides.push_back(key);
+                    }
+                }
+            }
+
             if (!std::isfinite(x) ||
                 !std::isfinite(y) ||
                 !std::isfinite(z) ||
@@ -2801,6 +3450,7 @@ namespace dolbuto
             lastForwardTapTime_ = -1000.0;
             lastJumpTapTime_ = -1000.0;
             physicsAccumulator_ = 0.0;
+            completedGuideKeys_ = std::move(completedGuides);
             if (runtime_ != nullptr)
             {
                 runtime_->gameplay().setInventorySnapshot(inventorySlots);
@@ -2861,6 +3511,12 @@ namespace dolbuto
             writeU16(bytes, offhandSlot.durability);
             writeU16(bytes, offhandSlot.burnTicksRemaining);
             writeItemStackState(bytes, offhandSlot);
+            const uint16_t completedGuideCount = static_cast<uint16_t>(std::min<std::size_t>(completedGuideKeys_.size(), std::numeric_limits<uint16_t>::max()));
+            writeU16(bytes, completedGuideCount);
+            for (uint16_t i = 0; i < completedGuideCount; ++i)
+            {
+                writePlayerStateString(bytes, std::string_view(completedGuideKeys_[i].data(), completedGuideKeys_[i].size()));
+            }
 
             std::ofstream file(playerStatePath(), std::ios::binary | std::ios::trunc);
             if (!file.is_open())

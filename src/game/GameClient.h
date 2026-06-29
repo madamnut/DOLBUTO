@@ -48,6 +48,7 @@ namespace dolbuto
             WorldCreate,
             Game,
             Inventory,
+            Guide,
             Pause,
             Options
         };
@@ -60,6 +61,24 @@ namespace dolbuto
             uint64_t seed = 0;
             uint64_t createdUnixSeconds = 0;
             uint64_t lastPlayedUnixSeconds = 0;
+        };
+
+        enum class GuideNotificationPhase
+        {
+            Entering,
+            Stacked,
+            Exiting
+        };
+
+        struct GuideNotification
+        {
+            std::string title;
+            GuideNotificationPhase phase = GuideNotificationPhase::Entering;
+            double x = 0.0;
+            double y = 0.0;
+            double enterTime = 0.0;
+            double holdTime = 0.0;
+            double exitTime = 0.0;
         };
 
         static constexpr double DefaultPlayerSpawnHeight = 512.0;
@@ -79,6 +98,12 @@ namespace dolbuto
         void appendChatSystemMessage(std::string_view text);
         void updateChatUi();
         void setScreen(AppScreen screen);
+        void completeGuideStep(std::string_view key);
+        bool guideStepCompleted(std::string_view key) const;
+        void updateGuideInventoryCriteria();
+        void updateGuideUi();
+        void enqueueGuideNotification(std::string_view title);
+        void updateGuideNotifications(double deltaSeconds);
         void enterGameScene();
         void refreshWorldList();
         void openWorldByIndex(size_t index);
@@ -138,6 +163,8 @@ namespace dolbuto
         MoveMode moveMode_ = MoveMode::Ground;
         std::vector<WorldInfo> availableWorlds_;
         std::vector<std::string> chatMessages_;
+        std::vector<std::string> completedGuideKeys_;
+        std::vector<GuideNotification> guideNotifications_;
         std::string selectedWorldName_;
         std::filesystem::path selectedWorldDirectory_;
         uint64_t worldSeed_ = 0;
@@ -216,5 +243,13 @@ namespace dolbuto
         bool firstMouse_ = true;
         double lastMouseX_ = 0.0;
         double lastMouseY_ = 0.0;
+        bool guideDragging_ = false;
+        double guideMouseX_ = 0.0;
+        double guideMouseY_ = 0.0;
+        double guideLastMouseX_ = 0.0;
+        double guideLastMouseY_ = 0.0;
+        double guidePanX_ = 0.0;
+        double guidePanY_ = 0.0;
+        double guideZoom_ = 1.0;
     };
 }

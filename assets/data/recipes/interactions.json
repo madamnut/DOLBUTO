@@ -59,8 +59,7 @@
     {
         "action": "cut",
         "target": "plant_twine",
-        "min": 2,
-        "max": 2,
+        "count": 2,
         "candidates": [
             "short_plant_twine"
         ]
@@ -68,8 +67,7 @@
     {
         "action": "cut",
         "target": "long_plant_twine",
-        "min": 2,
-        "max": 2,
+        "count": 2,
         "candidates": [
             "plant_twine"
         ]
@@ -92,8 +90,7 @@
         "candidates": [
             {
                 "item": "half_stripped_log",
-                "min": 2,
-                "max": 2
+                "count": 2
             }
         ]
     },
@@ -103,13 +100,11 @@
         "candidates": [
             {
                 "item": "quarter_stripped_log",
-                "min": 2,
-                "max": 2
+                "count": 2
             },
             {
                 "item": "wooden_plank",
-                "min": 4,
-                "max": 4
+                "count": 4
             }
         ]
     },
@@ -123,8 +118,7 @@
     {
         "action": "carve",
         "target": "quarter_stripped_log",
-        "min": 2,
-        "max": 2,
+        "count": 2,
         "candidates": [
             "long_wooden_stick"
         ]
@@ -146,8 +140,7 @@
     {
         "action": "split",
         "target": "wooden_plank",
-        "min": 4,
-        "max": 4,
+        "count": 4,
         "candidates": [
             "long_wooden_stick"
         ]
@@ -155,8 +148,7 @@
     {
         "action": "cut",
         "target": "long_wooden_stick",
-        "min": 2,
-        "max": 2,
+        "count": 2,
         "candidates": [
             "wooden_stick"
         ]
@@ -164,8 +156,7 @@
     {
         "action": "cut",
         "target": "wooden_stick",
-        "min": 2,
-        "max": 2,
+        "count": 2,
         "candidates": [
             "short_wooden_stick"
         ]
@@ -279,8 +270,7 @@
     {
         "action": "smash",
         "target": "clay_brick",
-        "min": 4,
-        "max": 4,
+        "count": 4,
         "candidates": [
             "grog"
         ]
@@ -288,8 +278,7 @@
     {
         "action": "smash",
         "target": "clay_pot",
-        "min": 8,
-        "max": 8,
+        "count": 8,
         "candidates": [
             "grog"
         ]

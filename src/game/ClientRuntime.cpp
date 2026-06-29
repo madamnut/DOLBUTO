@@ -627,6 +627,16 @@ namespace dolbuto::game
         return owner_.state_->gameplayRuntime.offhandSlot();
     }
 
+    std::string ClientRuntime::GameplayAccess::itemKey(uint16_t itemId) const
+    {
+        const std::vector<ItemDefinition>& definitions = owner_.state_->content.itemDefinitions();
+        if (static_cast<std::size_t>(itemId) >= definitions.size())
+        {
+            return {};
+        }
+        return definitions[itemId].key;
+    }
+
     uint16_t ClientRuntime::GameplayAccess::heldPortableLightEmission() const
     {
         return owner_.state_->gameplayRuntime.heldPortableLightEmission();
@@ -682,6 +692,11 @@ namespace dolbuto::game
         owner_.state_->ui.setChatMessages(rml);
     }
 
+    void ClientRuntime::UiAccess::setGuideNotifications(std::string_view rml)
+    {
+        owner_.state_->ui.setGuideNotifications(rml);
+    }
+
     void ClientRuntime::UiAccess::clearChatInput()
     {
         owner_.state_->ui.clearChatInput();
@@ -690,6 +705,16 @@ namespace dolbuto::game
     void ClientRuntime::UiAccess::focusChatInput()
     {
         owner_.state_->ui.focusChatInput();
+    }
+
+    void ClientRuntime::UiAccess::setGuideContent(
+        std::string_view mapRml,
+        std::string_view tooltipRml,
+        bool tooltipVisible,
+        int tooltipLeft,
+        int tooltipTop)
+    {
+        owner_.state_->ui.setGuideContent(mapRml, tooltipRml, tooltipVisible, tooltipLeft, tooltipTop);
     }
 
     void ClientRuntime::UiAccess::setOptionsVolumes(int bgmPercent, int sfxPercent)

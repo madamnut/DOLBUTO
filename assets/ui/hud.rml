@@ -8,6 +8,7 @@
             <div id="chat-log" class="chat-log"></div>
             <input type="text" id="chat-input" class="chat-input" value=""/>
         </div>
+        <div id="guide-notifications" class="guide-notifications"></div>
         <div id="hp-gauge" class="stat-gauge hp-gauge">
             <img class="stat-gauge-image" src="../textures/ui/player/Gauge.png"/>
             <div id="hp-bar-fill" class="stat-bar-fill hp-bar-fill"></div>

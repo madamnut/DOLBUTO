@@ -1,0 +1,15 @@
+<rml>
+<head>
+    <link type="text/rcss" href="style.rcss"/>
+</head>
+<body>
+    <div class="screen guide-screen">
+        <div id="guide-panel" class="guide-panel">
+            <img class="guide-bg" src="../textures/ui/player/guideBG.png"/>
+            <img class="guide-fg" src="../textures/ui/player/guideFG.png"/>
+            <div id="guide-map" class="guide-map"></div>
+            <div id="guide-tooltip" class="guide-tooltip ui-hidden"></div>
+        </div>
+    </div>
+</body>
+</rml>

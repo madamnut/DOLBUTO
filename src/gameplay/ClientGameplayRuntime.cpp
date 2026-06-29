@@ -1978,7 +1978,7 @@ namespace dolbuto::gameplay
 
                 ItemInteractionCandidate candidate{};
                 candidate.enabled = canFill;
-                candidate.outputs.push_back(ItemInteractionOutput{heldStack.itemId, 1, 1});
+                candidate.outputs.push_back(ItemInteractionOutput{heldStack.itemId, 1});
                 candidate.displayName = "Fill";
                 candidate.specialAction = "fill_crucible";
                 candidates.push_back(std::move(candidate));
@@ -2012,7 +2012,7 @@ namespace dolbuto::gameplay
 
                 ItemInteractionCandidate candidate{};
                 candidate.enabled = canPour;
-                candidate.outputs.push_back(ItemInteractionOutput{resultItemId, 1, 1});
+                candidate.outputs.push_back(ItemInteractionOutput{resultItemId, 1});
                 candidate.displayName = definitions[resultItemId].name;
                 candidate.specialAction = "pour_mold:" + form;
                 candidates.push_back(std::move(candidate));
@@ -2347,7 +2347,7 @@ namespace dolbuto::gameplay
 
             ItemStack replacement{};
             replacement.itemId = output.itemId;
-            replacement.count = std::min<uint16_t>(output.min, definitions[output.itemId].stackSize);
+            replacement.count = std::min<uint16_t>(output.count, definitions[output.itemId].stackSize);
             if (replacement.count == 0)
             {
                 replacement.count = 1;

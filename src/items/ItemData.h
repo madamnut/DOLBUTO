@@ -100,8 +100,7 @@ namespace dolbuto
     struct ItemInteractionOutput
     {
         uint16_t itemId = 0;
-        uint16_t min = 1;
-        uint16_t max = 1;
+        uint16_t count = 1;
         std::string deriveType;
         std::string deriveHead;
         std::string deriveBinding;

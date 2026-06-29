@@ -47,6 +47,7 @@ namespace dolbuto::ui
         Rml::ElementDocument* worldCreateDocument() const;
         Rml::ElementDocument* hudDocument() const;
         Rml::ElementDocument* inventoryDocument() const;
+        Rml::ElementDocument* guideDocument() const;
         Rml::ElementDocument* pauseDocument() const;
         Rml::ElementDocument* optionsDocument() const;
 
@@ -57,6 +58,7 @@ namespace dolbuto::ui
         std::string chatInputValue() const;
         void setChatVisible(bool inputVisible, bool hasMessages);
         void setChatMessages(std::string_view rml);
+        void setGuideNotifications(std::string_view rml);
         void clearChatInput();
         void focusChatInput();
         void setOptionsVolumes(int bgmPercent, int sfxPercent);
@@ -70,6 +72,7 @@ namespace dolbuto::ui
         void setInventoryDebugSlots(std::string_view hotbarRml, std::string_view inventoryRml, bool visible);
         void setInventoryItems(std::string_view hotbarRml, std::string_view inventoryRml, std::string_view offhandRml);
         void setInventoryCursorItem(std::string_view rml, bool visible);
+        void setGuideContent(std::string_view mapRml, std::string_view tooltipRml, bool tooltipVisible, int tooltipLeft, int tooltipTop);
         void setRadialMenu(std::string_view centerRml, std::string_view actionsRml, std::string_view candidatesRml, bool visible);
         void hideItemTooltip();
         void showItemTooltip(std::string_view rml, int left, int top);
@@ -96,6 +99,7 @@ namespace dolbuto::ui
         Rml::ElementDocument* worldCreateDocument_ = nullptr;
         Rml::ElementDocument* hudDocument_ = nullptr;
         Rml::ElementDocument* inventoryDocument_ = nullptr;
+        Rml::ElementDocument* guideDocument_ = nullptr;
         Rml::ElementDocument* pauseDocument_ = nullptr;
         Rml::ElementDocument* optionsDocument_ = nullptr;
         int activeMenuOverlayMode_ = -1;

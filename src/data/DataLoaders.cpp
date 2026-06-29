@@ -654,8 +654,7 @@ namespace dolbuto::data
 
         std::optional<ParsedInteractionOutput> parseInteractionOutput(
             const std::string& value,
-            uint16_t defaultMin,
-            uint16_t defaultMax)
+            uint16_t defaultCount)
         {
             if (const std::optional<std::string> item = jsonStringLiteralValue(value); item.has_value())
             {
@@ -666,8 +665,7 @@ namespace dolbuto::data
                 ParsedInteractionOutput output{};
                 output.item = *item;
                 output.key = *item;
-                output.min = defaultMin;
-                output.max = defaultMax;
+                output.count = defaultCount;
                 return output;
             }
 
@@ -709,13 +707,7 @@ namespace dolbuto::data
             {
                 output.placement = *placement;
             }
-            const int count = jsonIntField(trimmed, "count").value_or(0);
-            output.min = clampedInteractionCount(count > 0 ? count : jsonIntField(trimmed, "min").value_or(defaultMin));
-            output.max = clampedInteractionCount(count > 0 ? count : jsonIntField(trimmed, "max").value_or(output.min));
-            if (output.max < output.min)
-            {
-                output.max = output.min;
-            }
+            output.count = clampedInteractionCount(jsonIntField(trimmed, "count").value_or(defaultCount));
             if (const std::optional<std::string> derive = jsonObjectField(trimmed, "derive"); derive.has_value())
             {
                 if (const std::optional<std::string> type = jsonStringField(*derive, "type"); type.has_value())
@@ -740,8 +732,7 @@ namespace dolbuto::data
 
         ParsedInteractionCandidate parseInteractionCandidate(
             const std::string& value,
-            uint16_t defaultMin,
-            uint16_t defaultMax)
+            uint16_t defaultCount)
         {
             ParsedInteractionCandidate candidate{};
             if (const std::optional<std::string> item = jsonStringLiteralValue(value); item.has_value())
@@ -750,8 +741,7 @@ namespace dolbuto::data
                 {
                     ParsedInteractionOutput output{};
                     output.item = *item;
-                    output.min = defaultMin;
-                    output.max = defaultMax;
+                    output.count = defaultCount;
                     candidate.outputs.push_back(output);
                 }
                 return candidate;
@@ -766,7 +756,7 @@ namespace dolbuto::data
             {
                 for (const std::string& outputValue : jsonTopLevelArrayValues(trimmed))
                 {
-                    if (const std::optional<ParsedInteractionOutput> output = parseInteractionOutput(outputValue, defaultMin, defaultMax); output.has_value())
+                    if (const std::optional<ParsedInteractionOutput> output = parseInteractionOutput(outputValue, defaultCount); output.has_value())
                     {
                         candidate.outputs.push_back(*output);
                     }
@@ -787,7 +777,7 @@ namespace dolbuto::data
             {
                 for (const std::string& itemValue : jsonTopLevelArrayValues(*items))
                 {
-                    if (const std::optional<ParsedInteractionOutput> output = parseInteractionOutput(itemValue, defaultMin, defaultMax); output.has_value())
+                    if (const std::optional<ParsedInteractionOutput> output = parseInteractionOutput(itemValue, defaultCount); output.has_value())
                     {
                         candidate.outputs.push_back(*output);
                     }
@@ -795,7 +785,7 @@ namespace dolbuto::data
                 return candidate;
             }
 
-            if (const std::optional<ParsedInteractionOutput> output = parseInteractionOutput(trimmed, defaultMin, defaultMax); output.has_value())
+            if (const std::optional<ParsedInteractionOutput> output = parseInteractionOutput(trimmed, defaultCount); output.has_value())
             {
                 candidate.outputs.push_back(*output);
             }
@@ -1374,22 +1364,14 @@ namespace dolbuto::data
                 definition.resultTarget = resultTarget->empty() ? "target" : *resultTarget;
             }
             definition.targetCount = clampedInteractionCount(jsonIntField(object, "targetCount").value_or(1));
-            const int minCount = jsonIntField(object, "min").value_or(1);
-            const int maxCount = jsonIntField(object, "max").value_or(minCount);
-            definition.resultCountMin = clampedInteractionCount(minCount);
-            definition.resultCountMax = clampedInteractionCount(maxCount);
-            if (definition.resultCountMax < definition.resultCountMin)
-            {
-                definition.resultCountMax = definition.resultCountMin;
-            }
+            definition.resultCount = clampedInteractionCount(jsonIntField(object, "count").value_or(1));
             if (const std::optional<std::string> candidates = jsonArrayField(object, "candidates"); candidates.has_value())
             {
                 for (const std::string& candidateValue : jsonTopLevelArrayValues(*candidates))
                 {
                     ParsedInteractionCandidate candidate = parseInteractionCandidate(
                         candidateValue,
-                        definition.resultCountMin,
-                        definition.resultCountMax);
+                        definition.resultCount);
                     if (!candidate.outputs.empty())
                     {
                         definition.candidates.push_back(std::move(candidate));

@@ -1003,8 +1003,7 @@ namespace dolbuto::game
 
                             ItemInteractionOutput output{};
                             output.itemId = outputIt->second;
-                            output.min = parsedOutput.min;
-                            output.max = parsedOutput.max;
+                            output.count = parsedOutput.count;
                             output.deriveType = parsedOutput.deriveType;
                             output.deriveHead = parsedOutput.deriveHead;
                             output.deriveBinding = parsedOutput.deriveBinding;

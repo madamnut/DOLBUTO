@@ -105,8 +105,7 @@ namespace dolbuto::data
         std::string key;
         std::string block;
         std::string placement;
-        uint16_t min = 1;
-        uint16_t max = 1;
+        uint16_t count = 1;
         std::string deriveType;
         std::string deriveHead;
         std::string deriveBinding;
@@ -154,8 +153,7 @@ namespace dolbuto::data
         std::vector<ParsedInteractionInput> inputs;
         std::vector<ParsedInteractionConstraint> constraints;
         uint16_t targetCount = 1;
-        uint16_t resultCountMin = 1;
-        uint16_t resultCountMax = 1;
+        uint16_t resultCount = 1;
         std::string held;
         std::string resultTarget = "target";
     };
