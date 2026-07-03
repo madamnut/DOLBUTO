@@ -67,7 +67,7 @@ namespace dolbuto::ui
         void setOptionsControls(bool toggleSprint, bool toggleSneak, bool toggleProne);
         void setOptionsLobbyBackground(bool lobbyBackground);
         void setWorldCreateGameMode(bool sandbox);
-        void setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst);
+        void setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst, int oxygen, int maxOxygen);
         void setHotbarScopeClass(int selectedSlot);
         void setInventoryDebugSlots(std::string_view hotbarRml, std::string_view inventoryRml, bool visible);
         void setInventoryItems(std::string_view hotbarRml, std::string_view inventoryRml, std::string_view offhandRml);

@@ -359,6 +359,8 @@ namespace dolbuto
             frame.debugTextVisible,
             screenshotBuffer,
             frame.showPlayer,
+            frame.playerHurtFlash,
+            frame.oxygenEffect,
             frame.terrainWireframe,
             frame.climateOverlayMode,
             frame.menuOverlayMode,
@@ -485,7 +487,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, ScreenPresentation::WaterOverlay waterOverlay, Vec3 playerPosition, uint8_t playerPackedLight, uint16_t heldPortableLightEmission, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, const ViewmodelMotion& viewmodelMotion, uint16_t heldItemId, uint16_t offhandItemId, const ItemStack& heldItemStack, const ItemStack& offhandItemStack, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
+    void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, ScreenPresentation::WaterOverlay waterOverlay, Vec3 playerPosition, uint8_t playerPackedLight, uint16_t heldPortableLightEmission, std::string_view fpsText, std::string_view perfText, bool debugTextVisible, VkBuffer screenshotBuffer, bool showPlayer, float playerHurtFlash, float oxygenEffect, bool terrainWireframe, int climateOverlayMode, int menuOverlayMode, bool hudVisible, bool gameSceneRenderEnabled, bool showFirstPersonHand, const ViewmodelMotion& viewmodelMotion, uint16_t heldItemId, uint16_t offhandItemId, const ItemStack& heldItemStack, const ItemStack& offhandItemStack, uint64_t worldTicks, const game::RadialMenuRenderFrame& radialMenu)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -562,7 +564,7 @@ namespace dolbuto
             drawCrucibleMoltenSurfaces(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission);
             if (showPlayer && menuOverlayMode == 0)
             {
-                drawPlayer(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, vulkan_.currentFrame);
+                drawPlayer(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, playerHurtFlash, vulkan_.currentFrame);
                 drawThirdPersonHeldItems(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission, heldItemStack, offhandItemStack, playerPackedLight);
             }
             drawBlockBreakParticles(commandBuffer, camera, cameraPosition, fovRadians, skyBrightness, heldPortableLightEmission);
@@ -639,6 +641,7 @@ namespace dolbuto
                 (client_.renderConfig.bloomEnabled && imageIndex < bloomTargets_[0].size()) ? bloomTargets_[0][imageIndex] : sceneColorTargets_[imageIndex],
                 waterOverlay,
                 (waterOverlay.active && imageIndex < waterBlurTargetsB_.size()) ? waterBlurTargetsB_[imageIndex] : sceneColorTargets_[imageIndex],
+                ScreenPresentation::OxygenOverlay{oxygenEffect},
                 climateOverlayMode);
         }
         else

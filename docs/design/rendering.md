@@ -56,6 +56,12 @@
 `src/renderer/SpriteRenderPath.h/.cpp`는 sprite pipeline의 push constant 구성, descriptor bind, 6-vertex draw primitive를 담당한다.
 `src/renderer/RadialMenuRenderPath.h/.cpp`는 같은 sprite pipeline과 1x1 white texture를 재사용해 아이템 상호작용 원형 UI의 중앙 원, 액션 부채꼴 링, 후보 부채꼴 링을 native Vulkan geometry로 그린다.
 `src/renderer/ScreenPresentation.h/.cpp`는 sky sprites, scene color target composite, water screen blur, climate overlay, crosshair, fallback menu, debug text 호출을 조율한다.
+산소 부족 화면 효과는 `ScreenPresentation`의 scene composite 단계에서 처리한다.
+`ClientFrame`/`RendererFrame`의 `oxygenEffect` 값이 `0~1` 범위로 전달되며, sprite shader는 장면 색을 먼저 흑백화한 뒤 산소 부족이 심해질수록 화면 가장자리에서 중앙으로 좁아지는 검은 터널비전 마스크를 더한다.
+터널비전은 경계만 `smoothstep`으로 흐리게 만들고, 가장자리 영역은 완전 검정으로 덮는다.
+산소 효과값이 `0.98`을 넘으면 `1.0`으로 스냅해 산소 고갈 직전/고갈 상태에서 색이 남지 않도록 한다.
+물속 화면 tint는 산소 부족 효과가 켜진 동안 alpha를 `1 - oxygenEffect`로 줄여, 흑백화와 터널비전 검정 영역 위에 파란 tint가 다시 덮이지 않게 한다.
+이 효과는 scene color, bloom, water blur composite에만 적용하고 RmlUi HUD와 디버그 텍스트에는 적용하지 않는다.
 `src/world/ClimateSystem.h/.cpp`는 climate seed, tileable climate noise sampling, chunk climate population, temperature/precipitation 계산을 담당한다.
 `src/renderer/ClimateOverlayTextureBuilder.h/.cpp`는 temperature/precipitation과 terrain noise overlay texture에 업로드할 RGBA pixel 데이터를 생성한다.
 `src/renderer/DebugOverlayText.h/.cpp`는 debug 표시 문자열, 해상도/FPS cache, text batch dirty 상태를 소유한다.
@@ -123,6 +129,8 @@ player mesh는 terrain chunk mesh와 별도 indexed vertex buffer 경로이며 `
 보행 모션은 `ClientFrame`/`RendererFrame`의 `playerWalkPhase`, `playerWalkAmount`, `playerWalkReverse`, `playerCrouching`, `playerSprinting`, `playerProne`으로 전달되며, `GameClient`가 물리 tick 사이 값을 보간하고 실제 이동 방향이 body yaw 기준 후방이면 역재생 플래그를 넘긴다.
 `PlayerMeshRenderPath`는 정지 상태에서 자세별 idle clip을, 이동 상태에서 자세별 movement clip을 샘플링해 `walkAmount`로 블렌드하고, 자세 또는 movement clip 조합이 바뀌면 직전 렌더 pose snapshot에서 새 pose로 `0.4`초 동안 TRS 블렌딩한다.
 뒤로 이동 중에는 movement clip 샘플 시간을 역방향으로 사용한다.
+플레이어가 낙하 피해를 받으면 `ClientFrame`/`RendererFrame`의 `playerHurtFlash` 값이 3인칭 플레이어 draw에만 전달되며, terrain fragment shader가 플레이어 텍스처 색을 짧게 순수 빨강으로 덮는다.
+1인칭 손 mesh와 든 아이템 viewmodel에는 이 red flash 값을 전달하지 않는다.
 1인칭 손은 아직 GLB animation clip을 적용하지 않고 neutral pose 기반 transform만 사용한다.
 1인칭 손은 같은 GLB에서 오른팔 아래팔 node만 추출한 별도 vertex/index buffer를 사용한다.
 현재 선택 핫바 아이템은 `ClientFrame`/`RendererFrame`의 `heldItemId`와 `heldItemStack`으로 전달되고, 왼손 슬롯 아이템은 `offhandItemId`와 `offhandItemStack`으로 전달된다.

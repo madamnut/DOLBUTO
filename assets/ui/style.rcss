@@ -229,6 +229,10 @@ body {
     left: 104px;
 }
 
+.oxygen-gauge {
+    left: 144px;
+}
+
 .stat-bar-fill {
     position: absolute;
     left: 4px;
@@ -246,7 +250,11 @@ body {
 }
 
 .thirst-bar-fill {
-    background-color: #2d8fe6;
+    background-color: #1f4fa3;
+}
+
+.oxygen-bar-fill {
+    background-color: #8edcff;
 }
 
 .stat-gauge-image {

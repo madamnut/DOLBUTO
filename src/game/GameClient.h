@@ -149,6 +149,8 @@ namespace dolbuto
         void loadPlayerState();
         void savePlayerState() const;
         void updatePlayerStatsUi();
+        void applyPlayerDamage(int damage);
+        void updatePlayerOxygen(double fixedDeltaSeconds);
         DVec3 interpolatedPlayerPosition(double alpha) const;
         double currentPlayerHeightScale() const;
         double currentEyeHeight() const;
@@ -225,6 +227,12 @@ namespace dolbuto
         DVec3 waterClimbStart_{};
         DVec3 waterClimbTarget_{};
         double footstepDistanceAccumulator_ = 0.0;
+        double fallDamageDistance_ = 0.0;
+        double oxygenValue_ = 100.0;
+        double oxygenDamageTimer_ = 0.0;
+        double playerHurtFlashTime_ = 0.0;
+        double screenShakeTime_ = 0.0;
+        float playerDamageFeedbackStrength_ = 0.0f;
         ViewmodelMotion viewmodelMotionState_{};
         double viewmodelMotionTime_ = 0.0;
         double viewmodelSwingTime_ = 0.0;

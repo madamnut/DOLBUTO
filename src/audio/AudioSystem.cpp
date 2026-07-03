@@ -246,6 +246,12 @@ namespace dolbuto::audio
             alDeleteBuffers(1, &buffer);
             itemPickupSound_ = 0;
         }
+        if (playerDamageSound_ != 0)
+        {
+            const ALuint buffer = static_cast<ALuint>(playerDamageSound_);
+            alDeleteBuffers(1, &buffer);
+            playerDamageSound_ = 0;
+        }
         for (uint32_t& footstepSound : footstepSounds_)
         {
             if (footstepSound == 0)
@@ -284,6 +290,7 @@ namespace dolbuto::audio
         buttonClickSound_ = loadWavSound(sfxDir / "Button_Click.wav");
         blockPlaceSound_ = loadWavSound(sfxDir / "Place.wav", true);
         itemPickupSound_ = loadWavSound(sfxDir / "Pop.wav");
+        playerDamageSound_ = loadWavSound(sfxDir / "PlayerTookDamage.wav");
         loadFootstepAssets(assetDirectory);
         loadMusicAssets(assetDirectory);
     }
@@ -895,5 +902,10 @@ namespace dolbuto::audio
 
         std::uniform_int_distribution<size_t> distribution(0u, footstepSounds_.size() - 1u);
         playSfx2D(footstepSounds_[distribution(sfxRandom_)], 0.8f);
+    }
+
+    void AudioSystem::playPlayerDamage()
+    {
+        playSfx2D(playerDamageSound_, 0.85f);
     }
 }

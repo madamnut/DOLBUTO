@@ -63,6 +63,16 @@ namespace dolbuto
         constexpr double DefaultSwimSpeedScale = 0.55;
         constexpr double DefaultMovementDoubleTapWindow = 0.35;
         constexpr double FootstepDistance = 1.8;
+        constexpr double FallDamageSafeDistance = 2.5;
+        constexpr int FallDamagePerBlock = 6;
+        constexpr double OxygenDrainSeconds = 15.0;
+        constexpr double OxygenRecoverSeconds = 30.0;
+        constexpr double OxygenDamageInterval = 1.0;
+        constexpr int OxygenDrownDamage = 10;
+        constexpr double OxygenEffectThreshold = 50.0;
+        constexpr double PlayerHurtFlashDuration = 0.22;
+        constexpr double ScreenShakeDuration = 0.34;
+        constexpr float ScreenShakeMaxRadians = 0.105f;
         constexpr float ViewmodelShoulderPivotX = 0.72f;
         constexpr float ViewmodelShoulderPivotY = -0.95f;
         constexpr float ViewmodelShoulderPivotZ = 0.35f;
@@ -117,10 +127,11 @@ namespace dolbuto
         constexpr double WorldSizeBlocks = 65536.0;
         constexpr int ClimateOverlayModeCount = 7;
         constexpr size_t PlayerInventorySlotCount = gameplay::PlayerInventory::SlotCount;
-        constexpr size_t PlayerStatsFileSize = sizeof(uint16_t) * 6u;
+        constexpr size_t PlayerStatsFileSize = sizeof(uint16_t) * 8u;
         constexpr size_t PlayerStateBaseFileSize = sizeof(double) * 4u + sizeof(float) * 2u + sizeof(uint8_t) * 2u + PlayerStatsFileSize;
         constexpr size_t PlayerStackStateBaseFileSize = sizeof(uint16_t) * 4u + sizeof(uint8_t);
-        constexpr size_t PlayerStateFileSize = PlayerStateBaseFileSize + (PlayerInventorySlotCount + 1u) * PlayerStackStateBaseFileSize;
+        constexpr size_t PlayerGuideStateBaseFileSize = sizeof(uint16_t) * 2u;
+        constexpr size_t PlayerStateFileSize = PlayerStateBaseFileSize + (PlayerInventorySlotCount + 1u) * PlayerStackStateBaseFileSize + PlayerGuideStateBaseFileSize;
         constexpr uint8_t ItemStackStateMolten = 1u << 0u;
         constexpr uint8_t ItemStackStateDynamicTool = 1u << 1u;
         constexpr size_t WorldStateFileSize = sizeof(uint64_t) * 4u;
@@ -1110,6 +1121,8 @@ namespace dolbuto
             const DVec3 eyePosition{renderPlayerPosition.x, renderPlayerPosition.y + interpolatedEyeHeight(physicsAlpha), renderPlayerPosition.z};
             updateGuideInventoryCriteria();
             updateGuideNotifications(delta.count());
+            playerHurtFlashTime_ = std::max(0.0, playerHurtFlashTime_ - delta.count());
+            screenShakeTime_ = std::max(0.0, screenShakeTime_ - delta.count());
             if (screen_ == AppScreen::Guide)
             {
                 updateGuideUi();
@@ -1165,6 +1178,15 @@ namespace dolbuto
             renderCameraPosition = showPlayer
                 ? thirdPersonCameraPosition(cameraPivot, thirdPersonOffsetDirection)
                 : cameraPivot;
+            if (screenShakeTime_ > 0.0 && playerDamageFeedbackStrength_ > 0.0f)
+            {
+                const float shakeT = static_cast<float>(std::clamp(screenShakeTime_ / ScreenShakeDuration, 0.0, 1.0));
+                const float shake = shakeT * shakeT * playerDamageFeedbackStrength_;
+                const double shakeTime = glfwGetTime() * 48.0;
+                const float yawShake = std::sin(static_cast<float>(shakeTime * 1.37)) * ScreenShakeMaxRadians * shake;
+                const float pitchShake = std::cos(static_cast<float>(shakeTime * 1.91)) * ScreenShakeMaxRadians * shake;
+                renderCamera.setAngles(renderCamera.yaw() + yawShake, renderCamera.pitch() + pitchShake);
+            }
 
             const int menuOverlayMode = screen_ == AppScreen::Lobby ? 1 : (screen_ == AppScreen::Pause ? 2 : (screen_ == AppScreen::WorldSelect ? 3 : (screen_ == AppScreen::WorldCreate ? 4 : (screen_ == AppScreen::Inventory ? 5 : (screen_ == AppScreen::Options ? 6 : (screen_ == AppScreen::Guide ? 7 : 0))))));
             const bool optionsOverGame = screen_ == AppScreen::Options && optionsReturnScreen_ == AppScreen::Pause;
@@ -1226,6 +1248,11 @@ namespace dolbuto
             const bool playerSprinting = !playerCrouching &&
                 !playerProne &&
                 renderSprintFovAmount > 0.01;
+            const float playerHurtFlash = static_cast<float>(
+                std::clamp(playerHurtFlashTime_ / PlayerHurtFlashDuration, 0.0, 1.0)) * playerDamageFeedbackStrength_;
+            const float oxygenEffect = gameMode_ == game::GameMode::Survival
+                ? static_cast<float>(std::clamp((OxygenEffectThreshold - oxygenValue_) / OxygenEffectThreshold, 0.0, 1.0))
+                : 0.0f;
             sectionPerfStart = std::chrono::steady_clock::now();
             runtime_->render().frame(game::ClientFrame{
                 renderCamera,
@@ -1247,6 +1274,8 @@ namespace dolbuto
                 playerCrouching,
                 playerSprinting,
                 playerProne,
+                playerHurtFlash,
+                oxygenEffect,
                 showFirstPersonHand,
                 viewmodelMotion,
                 heldItemId,
@@ -2085,6 +2114,8 @@ namespace dolbuto
                     playerStats_.maxHunger,
                     playerStats_.thirst,
                     playerStats_.maxThirst,
+                    playerStats_.oxygen,
+                    playerStats_.maxOxygen,
                     gameMode_
                 });
 
@@ -2118,9 +2149,17 @@ namespace dolbuto
                 {
                     playerStats_.thirst = *commandResult.playerThirst;
                 }
-                if (commandResult.playerHp || commandResult.playerHunger || commandResult.playerThirst)
+                if (commandResult.playerOxygen)
+                {
+                    playerStats_.oxygen = *commandResult.playerOxygen;
+                    oxygenValue_ = static_cast<double>(playerStats_.oxygen);
+                    oxygenDamageTimer_ = 0.0;
+                }
+                if (commandResult.playerHp || commandResult.playerHunger || commandResult.playerThirst || commandResult.playerOxygen)
                 {
                     playerStats_.clamp();
+                    oxygenValue_ = std::clamp(oxygenValue_, 0.0, static_cast<double>(playerStats_.maxOxygen));
+                    playerStats_.oxygen = static_cast<int>(std::lround(oxygenValue_));
                     updatePlayerStatsUi();
                 }
                 if (commandResult.gameMode)
@@ -3010,6 +3049,12 @@ namespace dolbuto
         lastJumpTapTime_ = -1000.0;
         physicsAccumulator_ = 0.0;
         footstepDistanceAccumulator_ = 0.0;
+        fallDamageDistance_ = 0.0;
+        oxygenValue_ = 100.0;
+        oxygenDamageTimer_ = 0.0;
+        playerHurtFlashTime_ = 0.0;
+        screenShakeTime_ = 0.0;
+        playerDamageFeedbackStrength_ = 0.0f;
         viewmodelMotionState_ = {};
         viewmodelMotionTime_ = 0.0;
         viewmodelSwingTime_ = 0.0;
@@ -3083,6 +3128,14 @@ namespace dolbuto
     void GameClient::applyGameMode(game::GameMode mode)
     {
         gameMode_ = mode;
+        fallDamageDistance_ = 0.0;
+        oxygenDamageTimer_ = 0.0;
+        if (gameMode_ == game::GameMode::Sandbox)
+        {
+            oxygenValue_ = static_cast<double>(playerStats_.maxOxygen);
+            playerStats_.oxygen = playerStats_.maxOxygen;
+            updatePlayerStatsUi();
+        }
         if (gameMode_ == game::GameMode::Survival && moveMode_ == MoveMode::Fly)
         {
             moveMode_ = MoveMode::Ground;
@@ -3104,7 +3157,74 @@ namespace dolbuto
                 playerStats_.hunger,
                 playerStats_.maxHunger,
                 playerStats_.thirst,
-                playerStats_.maxThirst);
+                playerStats_.maxThirst,
+                playerStats_.oxygen,
+                playerStats_.maxOxygen);
+        }
+    }
+
+    void GameClient::applyPlayerDamage(int damage)
+    {
+        if (damage <= 0 || gameMode_ != game::GameMode::Survival)
+        {
+            return;
+        }
+
+        if (playerStats_.hp > 1)
+        {
+            playerStats_.hp = std::max(1, playerStats_.hp - damage);
+        }
+        playerStats_.clamp();
+        updatePlayerStatsUi();
+        if (runtime_ != nullptr)
+        {
+            runtime_->audio().playPlayerDamage();
+        }
+        playerDamageFeedbackStrength_ = std::clamp(static_cast<float>(damage) / 48.0f, 0.25f, 1.0f);
+        playerHurtFlashTime_ = PlayerHurtFlashDuration;
+        screenShakeTime_ = ScreenShakeDuration;
+    }
+
+    void GameClient::updatePlayerOxygen(double fixedDeltaSeconds)
+    {
+        playerStats_.maxOxygen = std::max(1, playerStats_.maxOxygen);
+        if (gameMode_ != game::GameMode::Survival)
+        {
+            oxygenValue_ = static_cast<double>(playerStats_.maxOxygen);
+            playerStats_.oxygen = playerStats_.maxOxygen;
+            oxygenDamageTimer_ = 0.0;
+            return;
+        }
+
+        const DVec3 eyePosition{
+            playerPosition_.x,
+            playerPosition_.y + currentEyeHeight(),
+            playerPosition_.z
+        };
+        const bool eyeInWater = runtime_ != nullptr && runtime_->gameplay().pointIntersectsWater(eyePosition);
+        const double maxOxygen = static_cast<double>(playerStats_.maxOxygen);
+        if (eyeInWater)
+        {
+            oxygenValue_ -= maxOxygen / OxygenDrainSeconds * fixedDeltaSeconds;
+        }
+        else
+        {
+            oxygenValue_ += maxOxygen / OxygenRecoverSeconds * fixedDeltaSeconds;
+            oxygenDamageTimer_ = 0.0;
+        }
+
+        oxygenValue_ = std::clamp(oxygenValue_, 0.0, maxOxygen);
+        playerStats_.oxygen = static_cast<int>(std::lround(oxygenValue_));
+        playerStats_.clamp();
+
+        if (eyeInWater && oxygenValue_ <= 0.0)
+        {
+            oxygenDamageTimer_ += fixedDeltaSeconds;
+            while (oxygenDamageTimer_ >= OxygenDamageInterval)
+            {
+                oxygenDamageTimer_ -= OxygenDamageInterval;
+                applyPlayerDamage(OxygenDrownDamage);
+            }
         }
     }
 
@@ -3198,6 +3318,8 @@ namespace dolbuto
         worldLastPlayedUnixSeconds_ = world.lastPlayedUnixSeconds;
         gameMode_ = game::GameMode::Sandbox;
         playerStats_ = game::PlayerStats{};
+        oxygenValue_ = static_cast<double>(playerStats_.oxygen);
+        oxygenDamageTimer_ = 0.0;
         hasSelectedWorld_ = true;
         log::info("World selected: " + selectedWorldName_);
         enterGameScene();
@@ -3603,7 +3725,7 @@ namespace dolbuto
         file.seekg(0, std::ios::end);
         const std::streamoff fileSize = file.tellg();
         file.seekg(0, std::ios::beg);
-        constexpr size_t PlayerStateMinFileSize = PlayerStateBaseFileSize + (PlayerInventorySlotCount + 1u) * PlayerStackStateBaseFileSize;
+        constexpr size_t PlayerStateMinFileSize = PlayerStateFileSize;
         if (fileSize < static_cast<std::streamoff>(PlayerStateMinFileSize))
         {
             log::warn("Player state file has unsupported size, using default player state.");
@@ -3638,6 +3760,8 @@ namespace dolbuto
             stats.maxHunger = readU16(bytes, offset);
             stats.thirst = readU16(bytes, offset);
             stats.maxThirst = readU16(bytes, offset);
+            stats.oxygen = readU16(bytes, offset);
+            stats.maxOxygen = readU16(bytes, offset);
             stats.clamp();
             std::array<ItemStack, PlayerInventorySlotCount> inventorySlots{};
             for (ItemStack& slot : inventorySlots)
@@ -3749,6 +3873,7 @@ namespace dolbuto
                 moveMode_ = MoveMode::Ground;
             }
             playerStats_ = stats;
+            oxygenValue_ = static_cast<double>(playerStats_.oxygen);
             updatePlayerStatsUi();
             verticalVelocity_ = verticalVelocity;
             grounded_ = false;
@@ -3761,6 +3886,11 @@ namespace dolbuto
             lastJumpTapTime_ = -1000.0;
             physicsAccumulator_ = 0.0;
             footstepDistanceAccumulator_ = 0.0;
+            fallDamageDistance_ = 0.0;
+            oxygenDamageTimer_ = 0.0;
+            playerHurtFlashTime_ = 0.0;
+            screenShakeTime_ = 0.0;
+            playerDamageFeedbackStrength_ = 0.0f;
             viewmodelMotionState_ = {};
             viewmodelMotionTime_ = 0.0;
             viewmodelSwingTime_ = 0.0;
@@ -3818,6 +3948,8 @@ namespace dolbuto
             writeU16(bytes, static_cast<uint16_t>(stats.maxHunger));
             writeU16(bytes, static_cast<uint16_t>(stats.thirst));
             writeU16(bytes, static_cast<uint16_t>(stats.maxThirst));
+            writeU16(bytes, static_cast<uint16_t>(stats.oxygen));
+            writeU16(bytes, static_cast<uint16_t>(stats.maxOxygen));
             const std::array<ItemStack, PlayerInventorySlotCount> inventorySlots = runtime_ != nullptr
                 ? runtime_->gameplay().inventorySnapshot()
                 : std::array<ItemStack, PlayerInventorySlotCount>{};
@@ -4203,6 +4335,37 @@ namespace dolbuto
         waterClimbStart_ = result.state.waterClimbStart;
         waterClimbTarget_ = result.state.waterClimbTarget;
 
+        const bool playerInWater = runtime_ != nullptr &&
+            runtime_->gameplay().playerColliderIntersectsWater(playerPosition_, playerHeightScale_);
+        const bool fallDamageEligible =
+            gameMode_ == game::GameMode::Survival &&
+            moveMode_ == MoveMode::Ground &&
+            !playerInWater;
+        if (!fallDamageEligible)
+        {
+            fallDamageDistance_ = 0.0;
+        }
+        else
+        {
+            const double verticalDelta = playerPosition_.y - footstepStartPosition.y;
+            if (!wasGrounded && verticalDelta < 0.0)
+            {
+                fallDamageDistance_ += -verticalDelta;
+            }
+
+            if (!wasGrounded && grounded_)
+            {
+                const int damage = static_cast<int>(std::ceil(fallDamageDistance_ - FallDamageSafeDistance)) * FallDamagePerBlock;
+                if (damage > 0)
+                {
+                    applyPlayerDamage(damage);
+                }
+                fallDamageDistance_ = 0.0;
+            }
+        }
+
+        updatePlayerOxygen(fixedDeltaSeconds);
+
         if (moveMode_ == MoveMode::Ground && !wasGrounded && grounded_ && previousVerticalVelocity < -static_cast<double>(ViewmodelFallStartSpeed))
         {
             const float landingStrength = std::clamp(
@@ -4215,8 +4378,7 @@ namespace dolbuto
         const double footstepDeltaX = playerPosition_.x - footstepStartPosition.x;
         const double footstepDeltaZ = playerPosition_.z - footstepStartPosition.z;
         const double footstepHorizontalDistance = std::sqrt(footstepDeltaX * footstepDeltaX + footstepDeltaZ * footstepDeltaZ);
-        const bool footstepInWater = runtime_ != nullptr &&
-            runtime_->gameplay().playerColliderIntersectsWater(playerPosition_, playerHeightScale_);
+        const bool footstepInWater = playerInWater;
         const bool footstepEligible =
             allowInput &&
             runtime_ != nullptr &&
@@ -4242,6 +4404,7 @@ namespace dolbuto
         {
             lastJumpTapTime_ = -1000.0;
             footstepDistanceAccumulator_ = 0.0;
+            fallDamageDistance_ = 0.0;
         }
     }
 

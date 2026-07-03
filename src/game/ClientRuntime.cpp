@@ -747,9 +747,9 @@ namespace dolbuto::game
         owner_.state_->ui.setWorldCreateGameMode(sandbox);
     }
 
-    void ClientRuntime::UiAccess::setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst)
+    void ClientRuntime::UiAccess::setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst, int oxygen, int maxOxygen)
     {
-        owner_.state_->ui.setPlayerStats(hp, maxHp, hunger, maxHunger, thirst, maxThirst);
+        owner_.state_->ui.setPlayerStats(hp, maxHp, hunger, maxHunger, thirst, maxThirst, oxygen, maxOxygen);
     }
 
     void ClientRuntime::UiAccess::setRadialMenu(
@@ -922,6 +922,11 @@ namespace dolbuto::game
     void ClientRuntime::AudioAccess::playFootstep()
     {
         owner_.state_->audio.playFootstep();
+    }
+
+    void ClientRuntime::AudioAccess::playPlayerDamage()
+    {
+        owner_.state_->audio.playPlayerDamage();
     }
 
     ClientRuntime::ClientRuntime(GLFWwindow* window) :

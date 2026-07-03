@@ -22,6 +22,8 @@ namespace dolbuto::game
         int playerMaxHunger = 100;
         int playerThirst = 100;
         int playerMaxThirst = 100;
+        int playerOxygen = 100;
+        int playerMaxOxygen = 100;
         GameMode gameMode = GameMode::Sandbox;
     };
 
@@ -33,6 +35,7 @@ namespace dolbuto::game
         std::optional<int> playerHp;
         std::optional<int> playerHunger;
         std::optional<int> playerThirst;
+        std::optional<int> playerOxygen;
         std::optional<GameMode> gameMode;
     };
 

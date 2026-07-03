@@ -110,7 +110,7 @@ namespace dolbuto::game
             void setOptionsControls(bool toggleSprint, bool toggleSneak, bool toggleProne);
             void setOptionsLobbyBackground(bool lobbyBackground);
             void setWorldCreateGameMode(bool sandbox);
-            void setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst);
+            void setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst, int oxygen, int maxOxygen);
             void setRadialMenu(
                 const std::vector<gameplay::ItemInteractionActionMenu>& actions,
                 std::optional<std::size_t> selectedActionIndex,
@@ -153,6 +153,7 @@ namespace dolbuto::game
 
             void setVolumes(float musicVolume, float sfxVolume);
             void playFootstep();
+            void playPlayerDamage();
 
         private:
             ClientRuntime& owner_;

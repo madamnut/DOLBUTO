@@ -74,6 +74,11 @@ void main()
         float waterMix = clamp(fragWaterTint * max(pushData.fluidWaterParams.x, 0.35), 0.0, 0.75);
         color.rgb = mix(color.rgb, waterColor * finalLight, waterMix);
     }
+    float hurtFlash = clamp(pushData.dynamicLightParams.z, 0.0, 1.0);
+    if (hurtFlash > 0.0)
+    {
+        color.rgb = mix(color.rgb, vec3(1.0, 0.0, 0.0), hurtFlash);
+    }
     float outputAlpha = opaqueTerrain ? chunkFade : color.a * fragAlphaBlend * chunkFade;
     outColor = vec4(color.rgb, outputAlpha);
     outBloom = fireAnimated ? vec4(color.rgb, outputAlpha) : vec4(0.0, 0.0, 0.0, outputAlpha);

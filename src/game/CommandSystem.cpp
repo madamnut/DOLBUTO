@@ -170,7 +170,8 @@ namespace dolbuto::game
         {
             return "STAT: HP " + std::to_string(clampedStatValue(context.playerHp, context.playerMaxHp)) + "/" + std::to_string(clampedMax(context.playerMaxHp)) +
                 " / HUNGER " + std::to_string(clampedStatValue(context.playerHunger, context.playerMaxHunger)) + "/" + std::to_string(clampedMax(context.playerMaxHunger)) +
-                " / THIRST " + std::to_string(clampedStatValue(context.playerThirst, context.playerMaxThirst)) + "/" + std::to_string(clampedMax(context.playerMaxThirst));
+                " / THIRST " + std::to_string(clampedStatValue(context.playerThirst, context.playerMaxThirst)) + "/" + std::to_string(clampedMax(context.playerMaxThirst)) +
+                " / OXYGEN " + std::to_string(clampedStatValue(context.playerOxygen, context.playerMaxOxygen)) + "/" + std::to_string(clampedMax(context.playerMaxOxygen));
         }
 
         std::optional<StatRef> statRef(std::string_view token, const CommandContext& context)
@@ -187,6 +188,10 @@ namespace dolbuto::game
             if (stat == "thirst" || stat == "water")
             {
                 return StatRef{"THIRST", context.playerThirst, context.playerMaxThirst, &CommandResult::playerThirst};
+            }
+            if (stat == "oxygen" || stat == "air" || stat == "breath")
+            {
+                return StatRef{"OXYGEN", context.playerOxygen, context.playerMaxOxygen, &CommandResult::playerOxygen};
             }
             return std::nullopt;
         }
@@ -223,7 +228,7 @@ namespace dolbuto::game
             }
             else
             {
-                result.messages.push_back("Usage: /stat <hp|hunger|thirst> add <value> or set <value>");
+                result.messages.push_back("Usage: /stat <hp|hunger|thirst|oxygen> add <value> or set <value>");
                 return true;
             }
 
@@ -256,7 +261,7 @@ namespace dolbuto::game
             result.messages.push_back("Commands: /help /pos /seed /stat /gamemode");
             result.messages.push_back("/tp <x> <y> <z>");
             result.messages.push_back("/time set <ticks>, /time add <ticks>");
-            result.messages.push_back("/stat <hp|hunger|thirst> add <value>, set <value>");
+            result.messages.push_back("/stat <hp|hunger|thirst|oxygen> add <value>, set <value>");
             result.messages.push_back("/gamemode survival, /gamemode sandbox");
             result.messages.push_back("Coords: ~, ~10, ~-5");
             return result;
@@ -313,7 +318,7 @@ namespace dolbuto::game
             const std::optional<StatRef> stat = statRef(tokens[1], context);
             if (!stat)
             {
-                result.messages.push_back("Usage: /stat <hp|hunger|thirst> [add <value>|set <value>]");
+                result.messages.push_back("Usage: /stat <hp|hunger|thirst|oxygen> [add <value>|set <value>]");
                 return result;
             }
             if (tokens.size() == 2)
@@ -323,7 +328,7 @@ namespace dolbuto::game
             }
             if (tokens.size() != 4)
             {
-                result.messages.push_back("Usage: /stat <hp|hunger|thirst> add <value> or set <value>");
+                result.messages.push_back("Usage: /stat <hp|hunger|thirst|oxygen> add <value> or set <value>");
                 return result;
             }
 

@@ -217,10 +217,10 @@ block state RLE 섹션은 block entity 뒤, revision 앞에 붙는다.
 saves/<world-name>/player.dat
 ```
 
-파일은 버전 필드가 없는 고정 바이너리 레이아웃이다.
-현재 레이아웃은 인벤토리 슬롯마다 `itemId`, `count`, `durability`, `burnTicksRemaining`을 저장한다.
-현재 저장 포맷은 50개 인벤토리 슬롯 뒤에 왼손 슬롯 1개를 같은 `itemId/count/durability/burnTicksRemaining` 형식으로 덧붙인다.
-왼손 슬롯이 없는 기존 파일, `itemId/count/durability` 플레이어 파일, `itemId/count`만 저장한 플레이어 파일도 읽을 수 있으며, 로드 시 내구도 있는 아이템의 `durability = 0`은 최대 내구도로, 잔여 연소 시간이 있는 아이템의 `burnTicksRemaining = 0`은 최대 연소 시간으로 정규화한다.
+파일은 버전 필드가 없는 바이너리 레이아웃이다.
+현재 레이아웃은 인벤토리 슬롯마다 `itemId`, `count`, `durability`, `burnTicksRemaining`, stack state flag를 저장한다.
+현재 저장 포맷은 50개 인벤토리 슬롯 뒤에 왼손 슬롯 1개를 같은 형식으로 덧붙이고, 그 뒤에 가이드 완료/진행 데이터를 저장한다.
+레거시 플레이어 파일은 지원하지 않으며, 지원하지 않는 파일 크기이면 기본 플레이어 상태를 사용한다.
 
 ```text
 double x
@@ -237,19 +237,32 @@ uint16 hunger
 uint16 maxHunger
 uint16 thirst
 uint16 maxThirst
+uint16 oxygen
+uint16 maxOxygen
 repeat 50:
   uint16 itemId
   uint16 count
   uint16 durability
   uint16 burnTicksRemaining
+  uint8 stateFlags
 offhand:
   uint16 itemId
   uint16 count
   uint16 durability
   uint16 burnTicksRemaining
+  uint8 stateFlags
+uint16 completedGuideCount
+repeat completedGuideCount:
+  string key
+uint16 guideProgressCount
+repeat guideProgressCount:
+  string key
+  uint16 obtainedItemCount
+  repeat obtainedItemCount:
+    string itemKey
 ```
 
-전체 크기는 462바이트다. X/Z는 래핑된 월드 좌표로 저장한다.
+가이드 문자열 payload를 제외한 최소 크기는 521바이트다. X/Z는 래핑된 월드 좌표로 저장한다.
 인벤토리 슬롯 `0~49`는 이동 상태 뒤에 저장한다.
 왼손 슬롯은 인벤토리 슬롯 50개 뒤에 저장한다.
 임시 인벤토리 커서 스택은 저장하지 않는다.

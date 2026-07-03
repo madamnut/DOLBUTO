@@ -34,6 +34,7 @@ namespace dolbuto::audio
         void playBlockPlace(Vec3 position);
         void playItemPickup();
         void playFootstep();
+        void playPlayerDamage();
 
     private:
         enum class MusicTrackType : uint8_t
@@ -72,6 +73,7 @@ namespace dolbuto::audio
         uint32_t buttonClickSound_ = 0;
         uint32_t blockPlaceSound_ = 0;
         uint32_t itemPickupSound_ = 0;
+        uint32_t playerDamageSound_ = 0;
         std::vector<uint32_t> footstepSounds_;
         uint32_t musicSource_ = 0;
         std::vector<MusicTrack> musicTracks_;

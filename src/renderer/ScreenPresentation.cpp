@@ -65,13 +65,19 @@ namespace dolbuto
         const Texture& bloomTexture,
         WaterOverlay waterOverlay,
         const Texture& waterBlurTexture,
+        OxygenOverlay oxygenOverlay,
         int climateOverlayMode) const
     {
+        float oxygenEffect = std::clamp(oxygenOverlay.effect, 0.0f, 1.0f);
+        if (oxygenEffect > 0.98f)
+        {
+            oxygenEffect = 1.0f;
+        }
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, spritePipeline);
         SpriteRenderPath::Rect sceneRect{};
         sceneRect.halfWidth = 1.0f;
         sceneRect.halfHeight = 1.0f;
-        sprites.draw(commandBuffer, spritePipelineLayout, spriteVertexBuffer, sceneTexture, sceneRect, {0.0f, 1.0f, 1.0f, -1.0f});
+        sprites.draw(commandBuffer, spritePipelineLayout, spriteVertexBuffer, sceneTexture, sceneRect, {0.0f, 1.0f, 1.0f, -1.0f}, {1.0f, oxygenEffect, 1.0f, -1.0f});
 
         if (bloomOverlay.active && bloomTexture.descriptorSet != VK_NULL_HANDLE && additiveSpritePipeline != VK_NULL_HANDLE)
         {
@@ -83,7 +89,7 @@ namespace dolbuto
                 bloomTexture,
                 sceneRect,
                 {0.0f, 1.0f, 1.0f, -1.0f},
-                {std::max(bloomOverlay.intensity, 0.0f), std::max(bloomOverlay.intensity, 0.0f), std::max(bloomOverlay.intensity, 0.0f), 1.0f});
+                {std::max(bloomOverlay.intensity, 0.0f), oxygenEffect, 1.0f, -2.0f});
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, spritePipeline);
         }
 
@@ -104,8 +110,19 @@ namespace dolbuto
                 waterBlurTexture,
                 waterArea,
                 {0.0f, uvBottom, 1.0f, uvTop - uvBottom},
-                {1.0f, 1.0f, 1.0f, std::clamp(waterOverlay.blurIntensity, 0.0f, 1.0f)});
-            sprites.draw(commandBuffer, spritePipelineLayout, spriteVertexBuffer, assets.white, waterArea, {}, {0.18f, 0.55f, 0.70f, std::clamp(waterOverlay.tint, 0.0f, 1.0f)});
+                {1.0f, oxygenEffect, std::clamp(waterOverlay.blurIntensity, 0.0f, 1.0f), -1.0f});
+            constexpr float WaterTintR = 0.18f;
+            constexpr float WaterTintG = 0.55f;
+            constexpr float WaterTintB = 0.70f;
+            const float waterGray = WaterTintR * 0.299f + WaterTintG * 0.587f + WaterTintB * 0.114f;
+            const float waterR = WaterTintR + (waterGray - WaterTintR) * oxygenEffect;
+            const float waterG = WaterTintG + (waterGray - WaterTintG) * oxygenEffect;
+            const float waterB = WaterTintB + (waterGray - WaterTintB) * oxygenEffect;
+            const float waterTintAlpha = std::clamp(waterOverlay.tint, 0.0f, 1.0f) * (1.0f - oxygenEffect);
+            if (waterTintAlpha > 0.0f)
+            {
+                sprites.draw(commandBuffer, spritePipelineLayout, spriteVertexBuffer, assets.white, waterArea, {}, {waterR, waterG, waterB, waterTintAlpha});
+            }
         }
 
         drawClimateOverlay(commandBuffer, climateOverlayMode, assets, sprites, extent, spritePipelineLayout, spriteVertexBuffer);

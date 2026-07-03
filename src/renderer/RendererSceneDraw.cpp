@@ -260,7 +260,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission, uint32_t frameIndex) const
+    void Renderer::drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission, float hurtFlash, uint32_t frameIndex) const
     {
         const float aspect = static_cast<float>(vulkan_.swapchainExtent.width) / static_cast<float>(vulkan_.swapchainExtent.height);
         const Mat4 projection = perspective(fovRadians, aspect, TerrainNearPlane, TerrainFarPlane);
@@ -276,6 +276,7 @@ namespace dolbuto
         push.fluidWaterParams[1] = skyBrightness;
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
         push.dynamicLightParams[1] = 1.0f;
+        push.dynamicLightParams[2] = std::clamp(hurtFlash, 0.0f, 1.0f);
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.playerPipeline);
         vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);

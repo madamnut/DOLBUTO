@@ -21,6 +21,10 @@
             <img class="stat-gauge-image" src="../textures/ui/player/Gauge.png"/>
             <div id="thirst-bar-fill" class="stat-bar-fill thirst-bar-fill"></div>
         </div>
+        <div id="oxygen-gauge" class="stat-gauge oxygen-gauge">
+            <img class="stat-gauge-image" src="../textures/ui/player/Gauge.png"/>
+            <div id="oxygen-bar-fill" class="stat-bar-fill oxygen-bar-fill"></div>
+        </div>
         <img class="hotbar-image" src="../textures/ui/player/Hotbar.png"/>
         <div id="offhand-items" class="offhand-items"></div>
         <div id="hotbar-items" class="hotbar-items"></div>

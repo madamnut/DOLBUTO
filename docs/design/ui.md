@@ -1,3 +1,11 @@
+# HUD 생존 스탯 게이지
+
+HUD 좌하단에는 플레이어 HP, 허기, 갈증, 산소 게이지를 세로 막대로 표시한다.
+네 게이지는 모두 `assets/textures/ui/player/Gauge.png` 프레임을 사용하고, RmlUi 사각형 fill 요소의 높이를 현재값/최대값 비율에 맞춰 갱신한다.
+게이지 순서는 왼쪽부터 HP, 허기, 갈증, 산소다.
+HP는 붉은색, 허기는 황갈색, 갈증은 진한 파랑, 산소는 연한 하늘색을 사용한다.
+`UiSystem::setPlayerStats`는 네 스탯의 현재값과 최대값을 받아 `hp-bar-fill`, `hunger-bar-fill`, `thirst-bar-fill`, `oxygen-bar-fill` 높이를 갱신한다.
+
 # UI
 
 ## 현재 방향

@@ -29,6 +29,11 @@ namespace dolbuto
             float intensity = 0.35f;
         };
 
+        struct OxygenOverlay
+        {
+            float effect = 0.0f;
+        };
+
         void drawSkySprites(
             VkCommandBuffer commandBuffer,
             const Camera& camera,
@@ -54,6 +59,7 @@ namespace dolbuto
             const Texture& bloomTexture,
             WaterOverlay waterOverlay,
             const Texture& waterBlurTexture,
+            OxygenOverlay oxygenOverlay,
             int climateOverlayMode) const;
 
         void drawCrosshair(

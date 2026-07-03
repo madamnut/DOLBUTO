@@ -31,6 +31,8 @@ namespace dolbuto
         bool playerCrouching = false;
         bool playerSprinting = false;
         bool playerProne = false;
+        float playerHurtFlash = 0.0f;
+        float oxygenEffect = 0.0f;
         bool showFirstPersonHand = false;
         ViewmodelMotion viewmodelMotion;
         uint16_t heldItemId = 0;

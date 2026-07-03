@@ -38,6 +38,8 @@ namespace dolbuto::game
             frame.playerCrouching,
             frame.playerSprinting,
             frame.playerProne,
+            frame.playerHurtFlash,
+            frame.oxygenEffect,
             frame.showFirstPersonHand,
             frame.viewmodelMotion,
             frame.heldItemId,

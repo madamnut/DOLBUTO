@@ -650,7 +650,7 @@ namespace dolbuto::ui
         }
     }
 
-    void UiSystem::setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst)
+    void UiSystem::setPlayerStats(int hp, int maxHp, int hunger, int maxHunger, int thirst, int maxThirst, int oxygen, int maxOxygen)
     {
         if (hudDocument_ == nullptr)
         {
@@ -660,6 +660,7 @@ namespace dolbuto::ui
         setStatBarHeight(hudDocument_, "hp-bar-fill", hp, maxHp);
         setStatBarHeight(hudDocument_, "hunger-bar-fill", hunger, maxHunger);
         setStatBarHeight(hudDocument_, "thirst-bar-fill", thirst, maxThirst);
+        setStatBarHeight(hudDocument_, "oxygen-bar-fill", oxygen, maxOxygen);
     }
 
     void UiSystem::setHotbarScopeClass(int selectedSlot)
