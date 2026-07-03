@@ -56,6 +56,35 @@ float decodeAo(uint value)
     return 1.0;
 }
 
+vec2 windWave(vec3 position)
+{
+    float time = pushData.cameraPosition.w;
+    float phaseA = position.x * 0.17 + position.y * 0.11 + position.z * 0.23;
+    float phaseB = position.x * 0.07 - position.z * 0.19 + position.y * 0.13;
+    return vec2(
+        sin(phaseA + time * 1.65) * 0.65 + sin(phaseB + time * 0.95) * 0.35,
+        sin(phaseA * 0.73 + time * 1.25) * 0.55 + sin(phaseB * 1.31 + time * 1.85) * 0.45);
+}
+
+void applyWaving(inout vec3 position, vec2 uv, uint wavingType)
+{
+    if (wavingType == 1u)
+    {
+        vec2 wind = windWave(position);
+        float weight = clamp(1.0 - uv.y, 0.0, 1.0);
+        weight = weight * weight;
+        position.x += wind.x * 0.060 * weight;
+        position.z += wind.y * 0.060 * weight;
+    }
+    else if (wavingType == 2u)
+    {
+        vec2 wind = windWave(position);
+        position.x += wind.x * 0.028;
+        position.y += (wind.x + wind.y) * 0.004;
+        position.z += wind.y * 0.028;
+    }
+}
+
 void main()
 {
     uint quadIndex = uint(gl_VertexIndex) / 6u;
@@ -98,8 +127,11 @@ void main()
     vec2 uvEdgeV = vec2(float(lowI16(uvV)) / 256.0, float(highI16(uvV)) / 256.0);
 
     vec3 position = origin + edgeU * useU + edgeV * useV;
-    vec3 relativePosition = position - pushData.cameraPosition.xyz;
     vec2 uv = uvOrigin + uvEdgeU * useU + uvEdgeV * useV;
+    uint wavingType = (packedLight >> 8u) & 0x3u;
+    uint lightValue = packedLight & 0xFFu;
+    applyWaving(position, uv, wavingType);
+    vec3 relativePosition = position - pushData.cameraPosition.xyz;
     uint aoIndex = (material >> (18u + corner * 2u)) & 0x3u;
 
     gl_Position = pushData.mvp * vec4(relativePosition, 1.0);
@@ -110,7 +142,7 @@ void main()
     fragMipDistanceScale = float((material >> 8u) & 0x3FFu) / 16.0;
     fragNormal = normalize(cross(edgeU, edgeV));
     fragAlphaBlend = float((material >> 26u) & 0x3Fu) / 63.0;
-    fragSkyLight = float((packedLight >> 4u) & 0xFu) / 15.0;
-    fragBlockLight = float(packedLight & 0xFu) / 15.0;
+    fragSkyLight = float((lightValue >> 4u) & 0xFu) / 15.0;
+    fragBlockLight = float(lightValue & 0xFu) / 15.0;
     fragWaterTint = 0.0;
 }

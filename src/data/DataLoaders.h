@@ -34,6 +34,7 @@ namespace dolbuto::data
         uint8_t lightAttenuation = 15;
         uint8_t lightEmission = 0;
         bool randomOffset = false;
+        std::string waving = "none";
         bool breakEffectParticles = true;
         bool leafDecayable = false;
         bool leafDecaySupport = false;

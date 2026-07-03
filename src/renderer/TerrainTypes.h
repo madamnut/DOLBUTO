@@ -20,6 +20,7 @@ namespace dolbuto
         float alphaBlend = 1.0f;
         float waterTint = 0.0f;
         uint8_t packedLight = 0;
+        uint8_t wavingType = 0;
     };
 
     struct PackedTerrainQuad

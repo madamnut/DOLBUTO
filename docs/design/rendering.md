@@ -22,6 +22,8 @@
 - 큐브형 블록은 가능한 면을 합친다.
 - AO 패턴이 다른 면은 무리해서 합치지 않는다.
 - 식물 같은 `cross` 렌더 타입은 X자 스프라이트 형태로 만든다.
+- 블록 정의의 `waving` 값이 `plant` 또는 `leaves`이면 terrain vertex shader에서 시간 기반 바람 흔들림을 적용한다.
+  `plant`는 아래쪽 정점을 고정하고 위쪽 정점만 X/Z 방향으로 흔들며, `leaves`는 큐브 잎 블록 전체를 약하게 흔든다.
 - `fire` 렌더 타입은 바닥 불꽃용 컷아웃 쿼드 묶음으로 만든다.
 - `slab` 렌더 타입은 `blockStates`의 attach 상태를 읽어 셀 안의 반칸 cuboid를 별도 메쉬로 만들고, `half_slab`은 attach_grid 상태를 읽어 `0.5 x 0.5 x 1.0` 조각 메쉬를 만든다.
 - 청크 메싱은 주변 8청크 정보를 사용해 경계면을 처리한다.
@@ -35,6 +37,8 @@
 - 업로드 직전에 quad record로 변환한다.
 - terrain vertex shader가 SSBO에서 quad record를 읽어 6개의 가상 vertex를 생성한다.
 - packed terrain quad는 packed light 값도 함께 보관하고, shader는 skylight nibble을 꺼내 지형/유체 색에 곱한다.
+- packed terrain quad의 light record는 하위 8비트에 sky/block light를 유지하고, 상위 비트 일부에 지형 흔들림 타입을 함께 담는다.
+  terrain vertex shader는 이 값을 읽어 `waving = plant/leaves` 블록만 정점 위치를 변형한다.
 - terrain은 index buffer 없이 `vkCmdDraw`를 사용한다.
 - 지형 메쉬 업로드는 terrain 전용 one-time command buffer를 제출하되 그래픽 큐 전체 idle을 기다리지 않는다. 업로드 staging buffer와 command buffer는 `VkFence`가 완료된 뒤 정리한다.
 - 전체 청크 메쉬 설치는 solid, blend, fluid subchunk 업로드를 하나의 staging buffer와 command buffer submit으로 묶는다.

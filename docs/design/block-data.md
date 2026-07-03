@@ -307,6 +307,26 @@ crucible block entity만 남고 실제 블록이 도가니가 아니면 stale �
 저장된 블록 데이터, 충돌, 생성, 블록 정체성은 바뀌지 않는다.
 현재 사용 블록은 `plant`, `stone_pile`, `large_stone_pile`, `branch`다.
 
+## 바람 흔들림
+
+블록 정의는 선택적으로 `waving` 문자열을 가질 수 있다.
+
+```json
+{
+  "waving": "plant"
+}
+```
+
+현재 지원 값은 `none`, `plant`, `leaves`다.
+값을 생략하면 `none`으로 처리한다.
+`waving = "plant"`는 `cross` 렌더 타입 식물에 사용하며, 아래쪽 정점은 고정하고 위쪽 정점만 시간 기반으로 흔든다.
+현재 `plant`가 이 값을 사용한다.
+`waving = "leaves"`는 큐브형 잎 블록에 사용하며, 블록 전체를 약하게 흔든다.
+현재 `leaves`가 이 값을 사용한다.
+
+흔들림은 저장 데이터나 충돌/레이캐스트/선택 아웃라인에는 영향을 주지 않는 렌더링 전용 효과다.
+메싱 단계에서는 흔들림 타입을 terrain vertex에 담고, packed terrain quad의 light record 상위 비트에 함께 저장한다.
+
 ## 부착 블록
 
 블록 정의는 선택적으로 `attachment` 객체를 가질 수 있다.
@@ -426,6 +446,7 @@ fire  : 바닥 중심 기준 0.8 x 0.1 x 0.8 bounds 박스
 - `alphaCutoff`: cutout 기준값
 - `alphaBlend`: blend 렌더링에서 텍스처 전체에 곱하는 alpha 값
 - `breakEffects.particles`: 블록 파괴/제거 시 깨짐 파티클을 생성할지 여부
+- `waving`: terrain vertex shader에서 적용할 바람 흔들림 타입. 현재 값은 `none`, `plant`, `leaves`를 사용한다.
 - `leafDecayable`: 주변 변화 tick에서 잎 decay 검사를 받을지 여부
 - `leafDecaySupport`: 잎 decay 연결을 유지하는 support 블록인지 여부
 - `mipDistanceScale`: mip 거리 배율

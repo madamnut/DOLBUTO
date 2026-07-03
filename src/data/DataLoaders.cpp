@@ -1214,6 +1214,10 @@ namespace dolbuto::data
             {
                 definition.randomOffset = *randomOffset;
             }
+            if (const std::optional<std::string> waving = jsonStringField(object, "waving"); waving.has_value())
+            {
+                definition.waving = waving->empty() ? "none" : *waving;
+            }
             if (const std::optional<bool> leafDecayable = jsonBoolField(object, "leafDecayable"); leafDecayable.has_value())
             {
                 definition.leafDecayable = *leafDecayable;

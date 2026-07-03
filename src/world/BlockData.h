@@ -50,6 +50,13 @@ namespace dolbuto
         Blend
     };
 
+    enum class BlockWavingType : uint8_t
+    {
+        None,
+        Plant,
+        Leaves
+    };
+
     enum class BlockAttachmentFace : uint8_t
     {
         None,
@@ -92,6 +99,7 @@ namespace dolbuto
         uint8_t lightAttenuation = 15;
         uint8_t lightEmission = 0;
         bool randomOffset = false;
+        BlockWavingType waving = BlockWavingType::None;
         bool breakEffectParticles = true;
         bool leafDecayable = false;
         bool leafDecaySupport = false;

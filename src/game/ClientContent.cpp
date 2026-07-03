@@ -226,6 +226,19 @@ namespace dolbuto::game
             return BlockAlphaMode::Opaque;
         }
 
+        BlockWavingType parseWavingType(const std::string& value)
+        {
+            if (value == "plant")
+            {
+                return BlockWavingType::Plant;
+            }
+            if (value == "leaves")
+            {
+                return BlockWavingType::Leaves;
+            }
+            return BlockWavingType::None;
+        }
+
         BlockAttachmentFace parseAttachmentFace(const std::string& value)
         {
             if (value == "bottom")
@@ -700,6 +713,7 @@ namespace dolbuto::game
             blockDefinition.lightAttenuation = definition.lightAttenuation;
             blockDefinition.lightEmission = definition.lightEmission;
             blockDefinition.randomOffset = definition.randomOffset;
+            blockDefinition.waving = parseWavingType(definition.waving);
             blockDefinition.breakEffectParticles = definition.breakEffectParticles;
             blockDefinition.leafDecayable = definition.leafDecayable;
             blockDefinition.leafDecaySupport = definition.leafDecaySupport;

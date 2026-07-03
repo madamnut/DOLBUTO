@@ -197,6 +197,11 @@ namespace dolbuto
             return blockDefinition(block).alphaMode == BlockAlphaMode::Blend ? result.blend : result.solid;
         };
 
+        auto blockWavingType = [&](uint16_t block) -> uint8_t
+        {
+            return static_cast<uint8_t>(blockDefinition(block).waving);
+        };
+
         auto randomBlockOffset = [&](uint16_t block, int x, int y, int z) -> std::array<float, 2>
         {
             if (!blockDefinition(block).randomOffset)
@@ -256,7 +261,7 @@ namespace dolbuto
             return lightAt(localX, y, localZ - 1);
         };
 
-        auto appendFace = [&](TerrainBuildData& buildData, int x, int y, int z, int face, int width, int height, uint32_t textureLayer, uint8_t rotation, float mipDistanceScale, float alphaBlend, uint8_t packedLight)
+        auto appendFace = [&](TerrainBuildData& buildData, int x, int y, int z, int face, int width, int height, uint32_t textureLayer, uint8_t rotation, float mipDistanceScale, float alphaBlend, uint8_t packedLight, uint8_t wavingType)
         {
             const float x0 = static_cast<float>(x) - 0.5f;
             const float x1 = static_cast<float>(x + width) - 0.5f;
@@ -384,6 +389,7 @@ namespace dolbuto
                 vertex.mipDistanceScale = mipDistanceScale;
                 vertex.alphaBlend = alphaBlend;
                 vertex.packedLight = packedLight;
+                vertex.wavingType = wavingType;
             }
 
             const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
@@ -614,6 +620,10 @@ namespace dolbuto
                 b.alphaBlend = alphaBlend;
                 c.alphaBlend = alphaBlend;
                 d.alphaBlend = alphaBlend;
+                a.wavingType = blockWavingType(block);
+                b.wavingType = blockWavingType(block);
+                c.wavingType = blockWavingType(block);
+                d.wavingType = blockWavingType(block);
 
                 const uint32_t baseIndex = static_cast<uint32_t>(buildData.vertices.size());
                 buildData.vertices.push_back(a);
@@ -1325,7 +1335,8 @@ namespace dolbuto
                 ((static_cast<uint64_t>(blockFaceTextureLayer(block, face)) & 0xFFu) << 32u) |
                 (static_cast<uint64_t>(alphaSignature) << 40u) |
                 (static_cast<uint64_t>(blockDefinition(block).alphaMode == BlockAlphaMode::Blend ? 1u : 0u) << 46u) |
-                (static_cast<uint64_t>(faceLight(x, y, z, face)) << 49u);
+                (static_cast<uint64_t>(faceLight(x, y, z, face)) << 49u) |
+                (static_cast<uint64_t>(blockWavingType(block) & 0x3u) << 57u);
             if (face == 0)
             {
                 signature |= static_cast<uint64_t>(topFaceRotation(block, x, y, z)) << 47u;
@@ -1410,7 +1421,7 @@ namespace dolbuto
                 const uint16_t block = blockAt(localX, y, localZ);
                 const int worldX = worldXStart + localX;
                 const int worldZ = worldZStart + localZ;
-                appendFace(meshForBlock(block), worldX, y, worldZ, 0, width, height, blockFaceTextureLayer(block, 0), topFaceRotation(block, worldX, y, worldZ), blockDefinition(block).mipDistanceScale, blockAlphaBlend(block), faceLight(worldX, y, worldZ, 0));
+                appendFace(meshForBlock(block), worldX, y, worldZ, 0, width, height, blockFaceTextureLayer(block, 0), topFaceRotation(block, worldX, y, worldZ), blockDefinition(block).mipDistanceScale, blockAlphaBlend(block), faceLight(worldX, y, worldZ, 0), blockWavingType(block));
             });
 
             std::fill(mask.begin(), mask.end(), 0);
@@ -1429,7 +1440,7 @@ namespace dolbuto
                 const uint16_t block = blockAt(localX, y, localZ);
                 const int worldX = worldXStart + localX;
                 const int worldZ = worldZStart + localZ;
-                appendFace(meshForBlock(block), worldX, y, worldZ, 1, width, height, blockFaceTextureLayer(block, 1), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block), faceLight(worldX, y, worldZ, 1));
+                appendFace(meshForBlock(block), worldX, y, worldZ, 1, width, height, blockFaceTextureLayer(block, 1), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block), faceLight(worldX, y, worldZ, 1), blockWavingType(block));
             });
         }
 
@@ -1453,7 +1464,7 @@ namespace dolbuto
                 const uint16_t block = blockAt(localX, worldYStart + localY, localZ);
                 const int y = worldYStart + localY;
                 const int worldZ = worldZStart + localZ;
-                appendFace(meshForBlock(block), worldX, y, worldZ, 2, width, height, blockFaceTextureLayer(block, 2), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block), faceLight(worldX, y, worldZ, 2));
+                appendFace(meshForBlock(block), worldX, y, worldZ, 2, width, height, blockFaceTextureLayer(block, 2), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block), faceLight(worldX, y, worldZ, 2), blockWavingType(block));
             });
 
             std::fill(mask.begin(), mask.end(), 0);
@@ -1473,7 +1484,7 @@ namespace dolbuto
                 const uint16_t block = blockAt(localX, worldYStart + localY, localZ);
                 const int y = worldYStart + localY;
                 const int worldZ = worldZStart + localZ;
-                appendFace(meshForBlock(block), worldX, y, worldZ, 3, width, height, blockFaceTextureLayer(block, 3), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block), faceLight(worldX, y, worldZ, 3));
+                appendFace(meshForBlock(block), worldX, y, worldZ, 3, width, height, blockFaceTextureLayer(block, 3), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block), faceLight(worldX, y, worldZ, 3), blockWavingType(block));
             });
         }
 
@@ -1497,7 +1508,7 @@ namespace dolbuto
                 const uint16_t block = blockAt(localX, worldYStart + localY, localZ);
                 const int worldX = worldXStart + localX;
                 const int y = worldYStart + localY;
-                appendFace(meshForBlock(block), worldX, y, worldZ, 4, width, height, blockFaceTextureLayer(block, 4), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block), faceLight(worldX, y, worldZ, 4));
+                appendFace(meshForBlock(block), worldX, y, worldZ, 4, width, height, blockFaceTextureLayer(block, 4), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block), faceLight(worldX, y, worldZ, 4), blockWavingType(block));
             });
 
             std::fill(mask.begin(), mask.end(), 0);
@@ -1517,7 +1528,7 @@ namespace dolbuto
                 const uint16_t block = blockAt(localX, worldYStart + localY, localZ);
                 const int worldX = worldXStart + localX;
                 const int y = worldYStart + localY;
-                appendFace(meshForBlock(block), worldX, y, worldZ, 5, width, height, blockFaceTextureLayer(block, 5), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block), faceLight(worldX, y, worldZ, 5));
+                appendFace(meshForBlock(block), worldX, y, worldZ, 5, width, height, blockFaceTextureLayer(block, 5), 0, blockDefinition(block).mipDistanceScale, blockAlphaBlend(block), faceLight(worldX, y, worldZ, 5), blockWavingType(block));
             });
         }
 
