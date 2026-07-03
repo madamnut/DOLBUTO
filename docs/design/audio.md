@@ -22,12 +22,14 @@ assets/audio/sfx/Break.wav
 assets/audio/sfx/Button_Click.wav
 assets/audio/sfx/Place.wav
 assets/audio/sfx/Pop.wav
+assets/audio/sfx/walk/walk0.wav ~ walk4.wav
 ```
 
 - `Break.wav`: 블록 파괴 성공 시 재생한다.
 - `Button_Click.wav`: RmlUi 버튼 click 이벤트에서 재생한다.
 - `Place.wav`: 블록 설치 성공 시 재생한다.
 - `Pop.wav`: 드랍 아이템이 플레이어 인벤토리에 실제로 들어간 시점에 재생한다.
+- `walk/*.wav`: 플레이어 발소리로 사용하며, 걸음마다 하나를 랜덤 선택하고 기본 gain `0.8`로 재생한다.
 
 ## 재생 방식
 
@@ -38,6 +40,8 @@ assets/audio/sfx/Pop.wav
 - 3D 위치 사운드용 WAV가 stereo이면 로드 시 mono로 다운믹스한다.
 - 버튼 클릭음은 2D 사운드로 재생한다.
 - 아이템 획득음은 2D 사운드로 재생한다.
+- 플레이어 발소리는 2D 사운드로 재생한다.
+- 발소리는 ground 상태에서 물에 닿지 않은 채 실제 수평 이동 거리가 `1.8`블록 누적될 때마다 재생한다.
 - OpenAL listener는 매 프레임 카메라 위치와 방향으로 갱신한다.
 - 현재 WAV 로더는 PCM 16-bit mono/stereo만 지원한다.
 - 음악은 `assets/audio/music` 아래의 `.ogg` 또는 `.wav` 파일을 사용한다.

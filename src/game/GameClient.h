@@ -5,6 +5,7 @@
 #include "game/GameMode.h"
 #include "game/PlayerMovementSystem.h"
 #include "game/PlayerStats.h"
+#include "game/ViewmodelMotion.h"
 
 #include <array>
 #include <chrono>
@@ -81,6 +82,18 @@ namespace dolbuto
             double exitTime = 0.0;
         };
 
+        struct GuideProgress
+        {
+            std::string key;
+            std::vector<std::string> obtainedItemKeys;
+        };
+
+        struct GuideInventoryCount
+        {
+            std::string key;
+            uint32_t count = 0;
+        };
+
         static constexpr double DefaultPlayerSpawnHeight = 512.0;
 
         void attachWindowCallbacks();
@@ -100,7 +113,10 @@ namespace dolbuto
         void setScreen(AppScreen screen);
         void completeGuideStep(std::string_view key);
         bool guideStepCompleted(std::string_view key) const;
+        bool guideStepAvailable(std::string_view key) const;
         void updateGuideInventoryCriteria();
+        void processGuideObtainedItem(std::string_view itemKey);
+        void refreshGuideInventoryCountBaseline();
         void updateGuideUi();
         void enqueueGuideNotification(std::string_view title);
         void updateGuideNotifications(double deltaSeconds);
@@ -139,6 +155,8 @@ namespace dolbuto
         double interpolatedEyeHeight(double alpha) const;
         DVec3 thirdPersonCameraPosition(DVec3 pivot, Vec3 offsetDirection) const;
         void updatePlayerLookPose(float bodyYaw, float& headYaw, float& headPitch) const;
+        void startViewmodelSwing();
+        ViewmodelMotion updateViewmodelMotion(const Camera& camera, bool active, double deltaSeconds, float walkPhase, float walkAmount, double verticalVelocity, bool grounded, bool fallMotionEnabled);
         void updatePlayer(double fixedDeltaSeconds, bool allowInput);
         void updateDebugText();
 
@@ -164,6 +182,8 @@ namespace dolbuto
         std::vector<WorldInfo> availableWorlds_;
         std::vector<std::string> chatMessages_;
         std::vector<std::string> completedGuideKeys_;
+        std::vector<GuideProgress> guideProgress_;
+        std::vector<GuideInventoryCount> guideInventoryCounts_;
         std::vector<GuideNotification> guideNotifications_;
         std::string selectedWorldName_;
         std::filesystem::path selectedWorldDirectory_;
@@ -204,6 +224,18 @@ namespace dolbuto
         double waterClimbProgress_ = 0.0;
         DVec3 waterClimbStart_{};
         DVec3 waterClimbTarget_{};
+        double footstepDistanceAccumulator_ = 0.0;
+        ViewmodelMotion viewmodelMotionState_{};
+        double viewmodelMotionTime_ = 0.0;
+        double viewmodelSwingTime_ = 0.0;
+        float viewmodelFallLift_ = 0.0f;
+        float viewmodelLandingKick_ = 0.0f;
+        float viewmodelLandingKickTarget_ = 0.0f;
+        float viewmodelMotionLastYaw_ = 0.0f;
+        float viewmodelMotionLastPitch_ = 0.0f;
+        bool viewmodelSwingActive_ = false;
+        bool viewmodelSwingRepeat_ = false;
+        bool viewmodelMotionInitialized_ = false;
         double bgmVolume_ = 1.0;
         double sfxVolume_ = 1.0;
         double fovDegrees_ = 60.0;

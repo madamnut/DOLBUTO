@@ -372,9 +372,6 @@
                     "item": "ash",
                     "count": 1
                 }
-            },
-            "placeable": {
-                "block": "plant"
             }
         }
     },

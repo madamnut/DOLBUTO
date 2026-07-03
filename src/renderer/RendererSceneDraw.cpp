@@ -131,9 +131,9 @@ namespace dolbuto
         playerMeshRenderPath_.update(playerPosition, playerYaw, playerHeadYaw, playerHeadPitch, playerWalkPhase, playerWalkAmount, playerWalkReverse, playerCrouching, playerSprinting, playerProne, animationSeconds, frameIndex, packedLight);
     }
 
-    void Renderer::updateFirstPersonHandMesh(const Camera& camera, Vec3 cameraPosition, uint32_t frameIndex, uint8_t packedLight)
+    void Renderer::updateFirstPersonHandMesh(const Camera& camera, Vec3 cameraPosition, const ViewmodelMotion& viewmodelMotion, uint32_t frameIndex, uint8_t packedLight)
     {
-        playerMeshRenderPath_.updateFirstPersonHand(camera, cameraPosition, client_.viewmodelConfig.hand, frameIndex, packedLight);
+        playerMeshRenderPath_.updateFirstPersonHand(camera, cameraPosition, client_.viewmodelConfig.hand, viewmodelMotion, frameIndex, packedLight);
     }
 
     void Renderer::drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission, bool wireframe, bool drawBlocks, bool drawFluids, uint32_t sceneImageIndex)
@@ -296,9 +296,9 @@ namespace dolbuto
 
         TerrainPush push{};
         std::memcpy(push.mvp, mvp.m, sizeof(push.mvp));
-        push.cameraPosition[0] = cameraPosition.x;
-        push.cameraPosition[1] = cameraPosition.y;
-        push.cameraPosition[2] = cameraPosition.z;
+        push.cameraPosition[0] = 0.0f;
+        push.cameraPosition[1] = 0.0f;
+        push.cameraPosition[2] = 0.0f;
         push.cameraPosition[3] = 0.0f;
         push.fluidWaterParams[1] = skyBrightness;
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);

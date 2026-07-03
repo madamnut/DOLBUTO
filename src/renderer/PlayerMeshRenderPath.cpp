@@ -832,6 +832,7 @@ namespace dolbuto
         const Camera& camera,
         Vec3 cameraPosition,
         const config::ViewmodelHandConfig& config,
+        const ViewmodelMotion& viewmodelMotion,
         uint32_t frameIndex,
         uint8_t packedLight)
     {
@@ -874,17 +875,19 @@ namespace dolbuto
         const Vec3 cameraForward = camera.forward();
         const Vec3 handForward{cameraForward.x, -cameraForward.y, cameraForward.z};
         const Vec3 handUp = normalize(cross(handForward, handRight));
+        const Vec3 viewmodelPosition = applyViewmodelMotionToPosition({config.x, config.y, config.z}, viewmodelMotion);
         const Vec3 anchor{
-            cameraPosition.x + handRight.x * config.x + handUp.x * config.y + handForward.x * config.z,
-            cameraPosition.y + handRight.y * config.x + handUp.y * config.y + handForward.y * config.z,
-            cameraPosition.z + handRight.z * config.x + handUp.z * config.y + handForward.z * config.z};
+            handRight.x * viewmodelPosition.x + handUp.x * viewmodelPosition.y + handForward.x * viewmodelPosition.z,
+            handRight.y * viewmodelPosition.x + handUp.y * viewmodelPosition.y + handForward.y * viewmodelPosition.z,
+            handRight.z * viewmodelPosition.x + handUp.z * viewmodelPosition.y + handForward.z * viewmodelPosition.z};
         const Vec3 origin{
             (minPoint.x + maxPoint.x) * 0.5f,
             maxPoint.y,
             (minPoint.z + maxPoint.z) * 0.5f};
+        const Vec3 viewmodelRotation = applyViewmodelMotionToRotation({config.rotationX, config.rotationY, config.rotationZ}, viewmodelMotion);
         const std::array<float, 16> rotation = multiplyMatrix(
-            rotationY(config.rotationY),
-            multiplyMatrix(rotationZ(config.rotationZ), rotationX(config.rotationX)));
+            rotationY(viewmodelRotation.y),
+            multiplyMatrix(rotationZ(viewmodelRotation.z), rotationX(viewmodelRotation.x)));
         const std::array<float, 16> viewmodelBasis = basisMatrix(handRight, handUp, handForward, anchor);
         const std::array<float, 16> mirrorScale = scaleMatrix(-config.scale, config.scale, config.scale);
         const std::array<float, 16> originOffset = translationMatrix({-origin.x, -origin.y, -origin.z});

@@ -37,7 +37,7 @@ namespace dolbuto
             void loadGameScene(const std::filesystem::path& worldDirectory, uint64_t worldSeed);
             void unloadGameScene();
 
-            void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds, bool sandboxMode);
+            bool updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds, bool sandboxMode);
             bool editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale);
             bool placeSelectedItemBlockInView(DVec3 origin, Vec3 direction, DVec3 playerPosition, double playerHeightScale);
             bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);

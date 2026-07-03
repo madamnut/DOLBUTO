@@ -2,6 +2,7 @@
 
 #include "camera/Camera.h"
 #include "game/RadialMenuRenderFrame.h"
+#include "game/ViewmodelMotion.h"
 #include "items/ItemData.h"
 
 #include <cstdint>
@@ -31,6 +32,7 @@ namespace dolbuto::game
         bool playerSprinting = false;
         bool playerProne = false;
         bool showFirstPersonHand = false;
+        ViewmodelMotion viewmodelMotion;
         uint16_t heldItemId = 0;
         uint16_t offhandItemId = 0;
         ItemStack heldItemStack;

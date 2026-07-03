@@ -39,6 +39,7 @@ namespace dolbuto::game
             frame.playerSprinting,
             frame.playerProne,
             frame.showFirstPersonHand,
+            frame.viewmodelMotion,
             frame.heldItemId,
             frame.offhandItemId,
             frame.heldItemStack,
@@ -70,9 +71,9 @@ namespace dolbuto::game
         renderer_->sceneLifecycleBridge_->unloadGameScene();
     }
 
-    void ClientRenderRuntime::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3, float deltaSeconds, bool sandboxMode)
+    bool ClientRenderRuntime::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3, float deltaSeconds, bool sandboxMode)
     {
-        renderer_->gameplayBridge_->updateBlockBreaking(origin, direction, breaking, deltaSeconds, sandboxMode);
+        return renderer_->gameplayBridge_->updateBlockBreaking(origin, direction, breaking, deltaSeconds, sandboxMode);
     }
 
     bool ClientRenderRuntime::editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale)

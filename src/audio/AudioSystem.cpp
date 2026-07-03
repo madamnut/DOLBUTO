@@ -246,6 +246,17 @@ namespace dolbuto::audio
             alDeleteBuffers(1, &buffer);
             itemPickupSound_ = 0;
         }
+        for (uint32_t& footstepSound : footstepSounds_)
+        {
+            if (footstepSound == 0)
+            {
+                continue;
+            }
+            const ALuint buffer = static_cast<ALuint>(footstepSound);
+            alDeleteBuffers(1, &buffer);
+            footstepSound = 0;
+        }
+        footstepSounds_.clear();
         musicTracks_.clear();
 
         alcMakeContextCurrent(nullptr);
@@ -273,7 +284,63 @@ namespace dolbuto::audio
         buttonClickSound_ = loadWavSound(sfxDir / "Button_Click.wav");
         blockPlaceSound_ = loadWavSound(sfxDir / "Place.wav", true);
         itemPickupSound_ = loadWavSound(sfxDir / "Pop.wav");
+        loadFootstepAssets(assetDirectory);
         loadMusicAssets(assetDirectory);
+    }
+
+    void AudioSystem::loadFootstepAssets(const std::filesystem::path& assetDirectory)
+    {
+        const std::filesystem::path walkDir = assetDirectory / "audio" / "sfx" / "walk";
+        try
+        {
+            if (!std::filesystem::exists(walkDir))
+            {
+                return;
+            }
+
+            std::vector<std::filesystem::path> paths;
+            for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(walkDir))
+            {
+                if (!entry.is_regular_file())
+                {
+                    continue;
+                }
+
+                std::string extension = entry.path().extension().string();
+                std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value)
+                {
+                    return static_cast<char>(std::tolower(value));
+                });
+
+                if (extension == ".wav")
+                {
+                    paths.push_back(entry.path());
+                }
+            }
+
+            std::sort(paths.begin(), paths.end(), [](const std::filesystem::path& left, const std::filesystem::path& right)
+            {
+                return left.string() < right.string();
+            });
+
+            for (const std::filesystem::path& path : paths)
+            {
+                const uint32_t buffer = loadWavSound(path);
+                if (buffer != 0)
+                {
+                    footstepSounds_.push_back(buffer);
+                }
+            }
+
+            if (footstepSounds_.empty())
+            {
+                log::warn("No playable footstep WAV files found: " + walkDir.string());
+            }
+        }
+        catch (const std::exception& error)
+        {
+            log::warn(std::string("Footstep directory scan failed: ") + error.what());
+        }
     }
 
     void AudioSystem::loadMusicAssets(const std::filesystem::path& assetDirectory)
@@ -817,5 +884,16 @@ namespace dolbuto::audio
     void AudioSystem::playItemPickup()
     {
         playSfx2D(itemPickupSound_);
+    }
+
+    void AudioSystem::playFootstep()
+    {
+        if (footstepSounds_.empty())
+        {
+            return;
+        }
+
+        std::uniform_int_distribution<size_t> distribution(0u, footstepSounds_.size() - 1u);
+        playSfx2D(footstepSounds_[distribution(sfxRandom_)], 0.8f);
     }
 }

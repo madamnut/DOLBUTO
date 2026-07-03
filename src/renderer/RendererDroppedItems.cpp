@@ -177,7 +177,7 @@ namespace dolbuto
         }
     }
 
-    void Renderer::drawHeldItem(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, const ItemStack& heldItemStack, const ItemStack& offhandItemStack, float skyBrightness, uint16_t heldPortableLightEmission, uint8_t playerPackedLight)
+    void Renderer::drawHeldItem(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, const ItemStack& heldItemStack, const ItemStack& offhandItemStack, const ViewmodelMotion& viewmodelMotion, float skyBrightness, uint16_t heldPortableLightEmission, uint8_t playerPackedLight)
     {
         const uint16_t heldItemId = heldItemStack.count > 0 ? heldItemStack.itemId : 0;
         const uint16_t offhandItemId = offhandItemStack.count > 0 ? offhandItemStack.itemId : 0;
@@ -220,14 +220,25 @@ namespace dolbuto
             const auto& heldConfig = blockModel
                 ? client_.viewmodelConfig.heldBlockModelItem
                 : client_.viewmodelConfig.heldItem;
+            const ViewmodelMotion itemMotion = mirrored ? mirroredViewmodelMotion(viewmodelMotion) : viewmodelMotion;
+            const Vec3 basePosition{
+                mirrored ? -heldConfig.x : heldConfig.x,
+                heldConfig.y,
+                heldConfig.z};
+            const Vec3 baseRotation{
+                heldConfig.rotationX,
+                mirrored ? -heldConfig.rotationY : heldConfig.rotationY,
+                mirrored ? -heldConfig.rotationZ : heldConfig.rotationZ};
+            const Vec3 viewmodelPosition = applyViewmodelMotionToPosition(basePosition, itemMotion);
+            const Vec3 viewmodelRotation = applyViewmodelMotionToRotation(baseRotation, itemMotion);
             DroppedItemRenderPath::RenderInstance heldItem{};
             heldItem.itemId = renderMeshId;
-            heldItem.instance.centerX = mirrored ? -heldConfig.x : heldConfig.x;
-            heldItem.instance.centerY = heldConfig.y;
-            heldItem.instance.centerZ = heldConfig.z;
-            heldItem.instance.rotationX = heldConfig.rotationX;
-            heldItem.instance.rotationY = mirrored ? -heldConfig.rotationY : heldConfig.rotationY;
-            heldItem.instance.rotationZ = mirrored ? -heldConfig.rotationZ : heldConfig.rotationZ;
+            heldItem.instance.centerX = viewmodelPosition.x;
+            heldItem.instance.centerY = viewmodelPosition.y;
+            heldItem.instance.centerZ = viewmodelPosition.z;
+            heldItem.instance.rotationX = viewmodelRotation.x;
+            heldItem.instance.rotationY = viewmodelRotation.y;
+            heldItem.instance.rotationZ = viewmodelRotation.z;
             heldItem.instance.textureLayer = static_cast<float>(heldTextureLayerForStack(stack, definition));
             heldItem.instance.uvMirrorX = mirrored && blockModel ? 1.0f : 0.0f;
             heldItem.instance.geometryMirrorX = mirrored && !blockModel ? 1.0f : 0.0f;

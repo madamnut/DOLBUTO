@@ -33,6 +33,7 @@ namespace dolbuto::audio
         void playBlockBreak(Vec3 position);
         void playBlockPlace(Vec3 position);
         void playItemPickup();
+        void playFootstep();
 
     private:
         enum class MusicTrackType : uint8_t
@@ -49,6 +50,7 @@ namespace dolbuto::audio
 
         void loadAssets(const std::filesystem::path& assetDirectory);
         void loadMusicAssets(const std::filesystem::path& assetDirectory);
+        void loadFootstepAssets(const std::filesystem::path& assetDirectory);
         uint32_t loadWavSound(const std::filesystem::path& path, bool forceMono = false);
         uint32_t acquireSource();
         bool startMusicTrack(size_t trackIndex);
@@ -70,6 +72,7 @@ namespace dolbuto::audio
         uint32_t buttonClickSound_ = 0;
         uint32_t blockPlaceSound_ = 0;
         uint32_t itemPickupSound_ = 0;
+        std::vector<uint32_t> footstepSounds_;
         uint32_t musicSource_ = 0;
         std::vector<MusicTrack> musicTracks_;
         std::array<uint32_t, 3> musicStreamBuffers_{};
@@ -87,5 +90,6 @@ namespace dolbuto::audio
         double nextMusicStartTime_ = 0.0;
         size_t lastMusicTrackIndex_ = static_cast<size_t>(-1);
         std::mt19937 musicRandom_{std::random_device{}()};
+        std::mt19937 sfxRandom_{std::random_device{}()};
     };
 }

@@ -152,6 +152,18 @@ CPU는 매 프레임 vertex buffer를 덮어쓰지 않고, 현재 in-flight fram
 `config/viewmodel.json`은 손/아이템 viewmodel의 view-space 위치, 스케일, 회전값을 제공하고, `RendererConfigBridge`가 `ClientRuntimeState::viewmodelConfig`로 로드한다.
 `heldItem`은 `extruded_sprite` 든 아이템에 사용하고, `heldBlockModelItem`은 `block_model` 든 아이템에 사용한다.
 왼손 아이템도 같은 설정을 사용하되 X 좌표와 `rotationY`/`rotationZ` 부호를 반전한다.
+`GameClient`는 매 프레임 렌더링용 `ViewmodelMotion`을 계산해 `ClientFrame`/`RendererFrame`으로 전달한다.
+이 값은 1인칭 viewmodel 전용 시각 모션이며, 어깨 offset, 어깨 pivot, 어깨 pivot 기준 회전, local 회전 보정으로 구성된다.
+idle sway, 카메라 회전 관성, 좌클릭 swing motion, 이동 속도 기반 보행 모션은 어깨 offset을 먼저 흔들고 어깨 pivot 기준 회전과 local 회전 보정을 분리해 합성한다.
+좌클릭 swing motion은 windup, 반원형 strike, 직선 recover curve를 합성하며, strike 구간에서는 local 회전을 추가하지 않고 `sin/cos` 기반 전방/하강 offset과 어깨 pivot 기준 회전을 적용한다.
+보행 모션은 `walkPhase`/`walkAmount`를 사용해 어깨 offset을 U자형 궤도에 가깝게 움직이고, 카메라 yaw/pitch 관성은 별도 offset/rotation 제한 안에서 감쇠한다.
+수직 이동은 상승 중에는 반영하지 않고, 기준 속도 이상으로 하강할 때만 fall lift를 목표 높이까지 수렴시킨다.
+착지 순간에는 fall lift가 바로 사라지지 않고 감쇠하며, landing kick은 현재값이 target을 빠르게 따라간 뒤 target 자체가 감쇠하는 방식으로 처리한다.
+빈손은 `PlayerMeshRenderPath::updateFirstPersonHand`에서 기본 손 위치/회전에 `ViewmodelMotion`을 적용하고, 든 아이템은 `RendererDroppedItems.cpp`의 1인칭 `drawHeldItem` 경로에서 같은 helper를 사용해 instance 위치/회전을 계산한다.
+3인칭 플레이어 모델, 3인칭 손 아이템, 월드 드랍 아이템, 실제 카메라, raycast, 블록 상호작용 판정에는 이 offset을 적용하지 않는다.
+`ClientRuntime::GameplayAccess::updateBlockBreaking`은 실제 파괴 가능한 블록을 대상으로 breaking update가 진행되었는지를 bool로 반환하고, `GameClient`는 이 값을 좌클릭 유지 중 swing 반복 조건으로만 사용한다.
+1인칭 손 mesh는 player viewmodel pipeline을 쓰지만 transform buffer에는 월드 좌표가 아니라 카메라 상대 좌표를 기록한다.
+따라서 `drawFirstPersonHand`는 push constant의 camera position을 `0,0,0`으로 넘겨 `player_model.vert`의 상대좌표 계산이 viewmodel 로컬 좌표를 그대로 사용하게 한다.
 `item_viewmodel.vert`는 instance 플래그에 따라 UV X 또는 local geometry X를 반전한다.
 fluid subchunk mesh 생성은 `TerrainMesher`가 맡고, 불투명 블록 판정은 `Renderer` callback을 사용한다.
 edited subchunk rebuild도 solid/blend mesh와 함께 해당 subchunk의 fluid mesh를 다시 만들고 GPU buffer를 교체한다.

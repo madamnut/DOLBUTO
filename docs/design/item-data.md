@@ -782,7 +782,6 @@ packed_dirt: components.placeable.block dirt
 dirt_slab: components.placeable.block dirt_slab
 dirt_half_slab: components.placeable.block dirt_half_slab, modelBlock dirt, modelShape half_slab
 sand_pile: components.placeable.block sand
-plant: components.placeable.block plant
 branch: components.placeable.block branch
 log: components.placeable.block log
 stripped_log: components.placeable.block stripped_log

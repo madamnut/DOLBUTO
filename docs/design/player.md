@@ -80,6 +80,30 @@ viewmodel pipeline은 depth test/write를 사용하므로 손/아이템 mesh 내
 이 파일은 손과 든 아이템의 view-space 위치(`x/y/z`), 스케일, 회전(`rotationX/rotationY/rotationZ`)을 정의한다.
 `heldItem`은 `extruded_sprite` 든 아이템에 사용하고, `heldBlockModelItem`은 `block_model` 든 아이템에 사용한다.
 1인칭 손 회전은 아이템 viewmodel과 같은 순서인 X, Z, Y 순서로 적용한다.
+1인칭 손과 든 아이템에는 시각 전용 viewmodel motion이 추가로 적용된다.
+이 모션은 실제 카메라 yaw/pitch, 블록 선택, raycast, 상호작용 판정에는 영향을 주지 않고 렌더링 위치와 회전만 보정한다.
+정지 상태에서는 낮은 진폭의 idle sway를 적용하고, 이동 중에는 실제 수평 이동량에서 계산한 `walkPhase`/`walkAmount`로 보행 모션을 적용한다.
+보행 모션 강도는 실제 이동 속도 기반이므로 걷기, 달리기, 웅크림, 엎드림 이동에 같은 규칙으로 적용된다.
+보행 모션은 어깨 offset이 좌우로 흔들리면서 아래로 내려갔다 복귀하는 U자형 궤도에 가깝게 움직인다.
+카메라 회전 중에는 yaw/pitch 각속도에 따라 손/아이템이 늦게 따라오는 관성 offset을 적용한다.
+카메라가 멈추거나 1인칭 viewmodel이 비활성화되면 관성 offset은 원래 위치로 감쇠한다.
+idle sway, 보행 모션, swing motion은 어깨 offset을 먼저 흔들고, 큰 회전은 손/아이템 자체 원점이 아니라 1인칭 오른팔이 화면으로 뻗어나오는 지점의 어깨 pivot 기준으로 적용한다.
+`ViewmodelMotion`은 어깨 pivot 기준 위치 회전인 `shoulderRotation`과 손/아이템 자체 회전 보정인 `localRotation`을 분리한다.
+보행 모션은 회전보다 어깨 offset 비중이 크므로 손/아이템 끝만 비트는 느낌보다 팔 전체가 어깨 움직임을 따라가는 느낌을 우선한다.
+선택 아이템을 들고 있어 오른팔 mesh를 숨기는 경우에도 든 아이템은 같은 어깨 pivot을 기준으로 움직인다.
+플레이어가 상승 중일 때는 낙하 viewmodel motion을 적용하지 않는다.
+하강 속도가 기준값보다 커지면 손/아이템이 화면상 위로 서서히 떠오르고 최대 높이로 수렴한다.
+착지 순간에는 fall lift를 즉시 제거하지 않고 짧게 잔류 감쇠시키며, 별도 landing kick target을 빠르게 따라가 아래로 눌린 뒤 복귀한다.
+현재 수치는 `config/viewmodel.json`이 아니라 코드 상수로 관리하며, Luanti의 `arm_inertia` 방식처럼 세부 튜닝값을 별도 설정으로 노출하지 않는다.
+1인칭 손 mesh는 월드 좌표에 올렸다가 카메라 위치를 빼지 않고, 카메라 상대 viewmodel 좌표에서 직접 렌더링한다.
+이 방식은 먼 월드 좌표에서 float 정밀도 때문에 손 mesh가 미세하게 흔들리는 문제를 줄이기 위한 것이다.
+좌클릭을 새로 누르면 허공 클릭이더라도 1인칭 손/아이템 swing motion을 1회 시작한다.
+좌클릭을 유지한 채 실제 파괴 가능한 블록을 보고 있으면 블록 파괴 진행 중 swing motion을 반복한다.
+허공을 향해 좌클릭을 유지하는 경우에는 첫 1회만 swing하고 반복하지 않는다.
+스윙 모션은 단일 왕복 `sin`이 아니라 짧은 windup, 반원형 strike, 직선 recover 구간으로 나뉜다.
+strike 구간은 Y/Z offset을 `sin/cos` 반원 궤도로 계산해 아래로 내려가면서 앞으로 나아가게 만들고, recover 구간은 해당 offset을 직선으로 원위치에 감쇠시킨다.
+스윙은 local rotation을 추가하지 않고 어깨 pivot 기준 `shoulderRotation`과 전방/하강 offset을 함께 사용해 손/아이템 전체가 통째로 도는 느낌을 우선한다.
+이 swing motion도 idle sway/카메라 관성과 같은 시각 전용 offset이며, 파괴 속도나 상호작용 판정에는 영향을 주지 않는다.
 
 초기 위치:
 
@@ -176,6 +200,8 @@ Sandbox fly 상태에서 `Shift`로 하강하며, 하강 중 지면에 닿으면
 - 보빙 강도는 실제 수평 이동량에서 계산한 `walkAmount`를 사용하므로 웅크리기처럼 느린 이동은 약해지고 달리기처럼 빠른 이동은 강해진다.
 - 보빙은 카메라 방향, 블록 선택/파괴/설치 raycast, 플레이어 실제 위치에는 반영하지 않는다.
 - 달리기 FOV 증가는 sprint 입력 상태만 보지 않고 실제 수평 이동량이 있을 때만 올라간다. Ctrl 또는 toggle sprint 상태로 가만히 있으면 FOV는 걷기 기본값으로 보간 복귀한다.
+- 발소리는 ground 상태에서 물에 닿지 않은 채 실제 수평 이동 거리가 누적될 때만 재생한다.
+- 발소리 기준 거리는 `1.8`블록이며, 기본 걷기 속도 `4.317`에서 약 `2.40회/초`로 재생된다. 달리기는 이동속도 증가에 따라 자연스럽게 더 자주 재생된다.
 
 ## 충돌
 

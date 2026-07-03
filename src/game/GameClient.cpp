@@ -25,6 +25,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <iterator>
 #include <limits>
 #include <optional>
 #include <random>
@@ -61,6 +62,55 @@ namespace dolbuto
         constexpr double DefaultProneEyeHeight = 0.5;
         constexpr double DefaultSwimSpeedScale = 0.55;
         constexpr double DefaultMovementDoubleTapWindow = 0.35;
+        constexpr double FootstepDistance = 1.8;
+        constexpr float ViewmodelShoulderPivotX = 0.72f;
+        constexpr float ViewmodelShoulderPivotY = -0.95f;
+        constexpr float ViewmodelShoulderPivotZ = 0.35f;
+        constexpr float ViewmodelIdlePositionX = 0.024f;
+        constexpr float ViewmodelIdlePositionY = 0.018f;
+        constexpr float ViewmodelIdlePositionZ = 0.006f;
+        constexpr float ViewmodelIdleRotationX = 0.0040f;
+        constexpr float ViewmodelIdleRotationZ = 0.0045f;
+        constexpr float ViewmodelIdleFrequencyX = 1.35f;
+        constexpr float ViewmodelIdleFrequencyY = 1.00f;
+        constexpr float ViewmodelWalkPositionX = 0.074f;
+        constexpr float ViewmodelWalkPositionY = 0.074f;
+        constexpr float ViewmodelWalkPositionZ = 0.024f;
+        constexpr float ViewmodelWalkRotationX = 0.014f;
+        constexpr float ViewmodelWalkRotationZ = 0.018f;
+        constexpr float ViewmodelInertiaPositionXStrength = 0.0100f;
+        constexpr float ViewmodelInertiaPositionYStrength = 0.0080f;
+        constexpr float ViewmodelInertiaRotationXStrength = 0.038f;
+        constexpr float ViewmodelInertiaRotationZStrength = 0.036f;
+        constexpr float ViewmodelInertiaMaxPositionX = 0.180f;
+        constexpr float ViewmodelInertiaMaxPositionY = 0.140f;
+        constexpr float ViewmodelInertiaMaxRotationX = 0.220f;
+        constexpr float ViewmodelInertiaMaxRotationZ = 0.200f;
+        constexpr float ViewmodelInertiaFollowSpeed = 20.0f;
+        constexpr float ViewmodelInertiaReturnSpeed = 7.5f;
+        constexpr float ViewmodelFallStartSpeed = 1.25f;
+        constexpr float ViewmodelFallLiftScale = 0.035f;
+        constexpr float ViewmodelFallLiftMax = 0.24f;
+        constexpr float ViewmodelFallLiftFollowSpeed = 1.5f;
+        constexpr float ViewmodelFallLiftReturnSpeed = 4.8f;
+        constexpr float ViewmodelLandingKickMin = 0.055f;
+        constexpr float ViewmodelLandingKickScale = 0.030f;
+        constexpr float ViewmodelLandingKickMax = 0.24f;
+        constexpr float ViewmodelLandingKickEnterSpeed = 42.0f;
+        constexpr float ViewmodelLandingKickTargetReturnSpeed = 18.0f;
+        constexpr double ViewmodelSwingDuration = 0.34;
+        constexpr float ViewmodelSwingWindupPositionX = 0.008f;
+        constexpr float ViewmodelSwingWindupPositionY = 0.030f;
+        constexpr float ViewmodelSwingWindupPositionZ = -0.030f;
+        constexpr float ViewmodelSwingWindupRotationX = -0.08f;
+        constexpr float ViewmodelSwingWindupRotationY = -0.02f;
+        constexpr float ViewmodelSwingWindupRotationZ = 0.04f;
+        constexpr float ViewmodelSwingStrikeSide = -0.045f;
+        constexpr float ViewmodelSwingStrikeDepth = 0.185f;
+        constexpr float ViewmodelSwingStrikeForwardRadius = 0.210f;
+        constexpr float ViewmodelSwingStrikeRotationX = 0.55f;
+        constexpr float ViewmodelSwingStrikeRotationY = 0.08f;
+        constexpr float ViewmodelSwingStrikeRotationZ = -0.18f;
         constexpr double DefaultFovDegrees = 60.0;
         constexpr double MinFovDegrees = 30.0;
         constexpr double MaxFovDegrees = 110.0;
@@ -106,6 +156,16 @@ namespace dolbuto
         {
             const float t = std::clamp(value, 0.0f, 1.0f);
             return t * t * (3.0f - 2.0f * t);
+        }
+
+        float smoothstepRange(float start, float end, float value)
+        {
+            return smoothstep01((value - start) / (end - start));
+        }
+
+        float smoothPulse(float start, float peak, float end, float value)
+        {
+            return smoothstepRange(start, peak, value) - smoothstepRange(peak, end, value);
         }
 
         float skyBrightnessForTicks(uint64_t worldTicks)
@@ -713,25 +773,32 @@ namespace dolbuto
             std::vector<std::string_view> parents;
             double x = 0.0;
             double y = 0.0;
-            std::string_view obtainItemKey;
+            std::vector<std::string_view> obtainItemKeys;
         };
 
         const std::vector<GuideStepDefinition>& guideStepDefinitions()
         {
             static const std::vector<GuideStepDefinition> Steps = {
-                {"open_guide", "Open Guide", "Open this guide screen.", "open_guide", {}, 0.0, 0.0, ""},
-                {"open_inventory", "Open Inventory", "Open your inventory.", "open_inventory", {"open_guide"}, 1.0, 0.0, ""},
-                {"pickup_small_stone", "Pick Up Small Stone", "Obtain a small stone.", "pickup_small_stone", {"open_inventory"}, 2.0, -1.65, "small_stone"},
-                {"make_stone_blade", "Make Stone Blade", "Chip a small stone into a blade.", "make_stone_blade", {"pickup_small_stone"}, 3.0, -2.4, "stone_blade"},
-                {"make_stone_scraper", "Make Stone Scraper", "Chip a small stone into a scraper.", "make_stone_scraper", {"pickup_small_stone"}, 3.8, -1.65, "stone_scraper"},
-                {"make_stone_point", "Make Stone Point", "Chip a small stone into a point.", "make_stone_point", {"pickup_small_stone"}, 3.0, -0.9, "stone_point"},
-                {"pickup_stone", "Pick Up Stone", "Obtain a stone.", "pickup_stone", {"open_inventory"}, 2.0, 0.0, "stone"},
-                {"make_stone_chopper", "Make Stone Chopper", "Chip a stone into a chopper.", "make_stone_chopper", {"pickup_stone"}, 3.8, -0.15, "stone_chopper"},
-                {"make_stone_maul", "Make Stone Maul", "Chip a stone into a maul.", "make_stone_maul", {"pickup_stone"}, 3.0, 0.6, "stone_maul"},
-                {"make_stone_pestle", "Make Stone Pestle", "Chip a stone into a pestle.", "make_stone_pestle", {"pickup_stone"}, 3.8, 1.35, "stone_pestle"},
-                {"pickup_large_stone", "Pick Up Large Stone", "Obtain a large stone.", "pickup_large_stone", {"open_inventory"}, 2.0, 1.65, "large_stone"},
-                {"make_stone_anvil", "Make Stone Anvil", "Chip a large stone into an anvil.", "make_stone_anvil", {"pickup_large_stone"}, 3.0, 2.1, "stone_anvil"},
-                {"make_stone_mortar", "Make Stone Mortar", "Chip a large stone into a mortar.", "make_stone_mortar", {"pickup_large_stone"}, 3.8, 2.85, "stone_mortar"}
+                {"open_guide", "Where Am I?", "Open this guide screen.", "open_guide", {}, 0.0, 0.0, {}},
+                {"open_inventory", "Now What?", "Open your inventory.", "open_inventory", {"open_guide"}, 1.0, 0.0, {}},
+                {"gather_stones", "DOLBUTO!", "Find small, medium, and large stones.", "gather_stones", {"open_inventory"}, 2.0, -1.2, {"small_stone", "stone", "large_stone"}},
+                {"make_stone_blade", "First Edge", "Chip a small stone into a blade.", "make_stone_blade", {"gather_stones"}, 3.0, -3.45, {"stone_blade"}},
+                {"make_stone_scraper", "Scrape By", "Chip a small stone into a scraper.", "make_stone_scraper", {"gather_stones"}, 3.8, -2.7, {"stone_scraper"}},
+                {"make_stone_point", "Point Taken", "Chip a small stone into a point.", "make_stone_point", {"gather_stones"}, 3.0, -1.95, {"stone_point"}},
+                {"make_stone_chopper", "Rough Cut", "Chip a stone into a chopper.", "make_stone_chopper", {"gather_stones"}, 3.8, -1.2, {"stone_chopper"}},
+                {"make_stone_maul", "Blunt Solution", "Chip a stone into a maul.", "make_stone_maul", {"gather_stones"}, 3.0, -0.45, {"stone_maul"}},
+                {"make_stone_pestle", "Crush and Grind", "Chip a stone into a pestle.", "make_stone_pestle", {"gather_stones"}, 3.8, 0.3, {"stone_pestle"}},
+                {"make_stone_anvil", "Hard Place", "Chip a large stone into an anvil.", "make_stone_anvil", {"gather_stones"}, 3.0, 1.05, {"stone_anvil"}},
+                {"make_stone_mortar", "Hollowed Purpose", "Chip a large stone into a mortar.", "make_stone_mortar", {"gather_stones"}, 3.8, 1.8, {"stone_mortar"}},
+                {"gather_plant", "Touch Grass", "Pick up a plant.", "gather_plant", {"open_inventory"}, 2.0, 2.1, {"plant"}},
+                {"make_plant_fiber", "Scrape the Surface", "Scrape a plant into fiber.", "make_plant_fiber", {"gather_plant", "make_stone_scraper"}, 4.8, 2.1, {"plant_fiber"}},
+                {"make_plant_twine", "String Theory", "Twist plant fiber into twine.", "make_plant_twine", {"make_plant_fiber"}, 5.8, 2.1, {"plant_twine"}},
+                {"make_long_plant_twine", "Long Story", "Twist plant twine into a longer cord.", "make_long_plant_twine", {"make_plant_twine"}, 6.8, 1.35, {"long_plant_twine"}},
+                {"make_short_plant_twine", "Cut Short", "Cut plant twine into shorter lengths.", "make_short_plant_twine", {"make_plant_twine", "make_stone_blade"}, 6.8, 2.85, {"short_plant_twine"}},
+                {"gather_log", "Timber!", "Chop down wood and obtain a log.", "gather_log", {"make_stone_chopper"}, 4.8, -1.2, {"log"}},
+                {"make_stripped_log", "Bare Wood", "Scrape bark from a log.", "make_stripped_log", {"gather_log", "make_stone_scraper"}, 5.8, -0.45, {"stripped_log"}},
+                {"gather_bark_strip", "Woof!", "Obtain bark while stripping a log.", "gather_bark_strip", {"gather_log", "make_stone_scraper"}, 5.8, -1.95, {"bark_strip"}},
+                {"make_primal_workbench", "Table Manners", "Carve a stripped log into a primal workbench.", "make_primal_workbench", {"make_stripped_log", "make_stone_blade"}, 6.8, -0.45, {"primal_workbench"}}
             };
             return Steps;
         }
@@ -918,6 +985,8 @@ namespace dolbuto
 
             physicsAccumulator_ += std::min(delta.count(), MaxPhysicsFrameTime);
             const bool gameSimulationActive = screen_ == AppScreen::Game || screen_ == AppScreen::Inventory || screen_ == AppScreen::Guide;
+            bool viewmodelSwingBreaking = false;
+            bool viewmodelSwingBreakingUpdated = false;
             sectionPerfStart = std::chrono::steady_clock::now();
             while (gameSimulationActive && physicsAccumulator_ >= FixedPhysicsTimestep)
             {
@@ -939,13 +1008,14 @@ namespace dolbuto
                     {
                         if (breaking && worldTicks_ >= nextSandboxHeldBreakTick_)
                         {
-                            runtime_->gameplay().updateBlockBreaking(
+                            viewmodelSwingBreaking = runtime_->gameplay().updateBlockBreaking(
                                 {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
                                 renderViewDirection(camera_),
                                 true,
                                 playerPosition_,
                                 static_cast<float>(FixedPhysicsTimestep),
                                 true);
+                            viewmodelSwingBreakingUpdated = true;
                             nextSandboxHeldBreakTick_ = worldTicks_ + 10u;
                         }
                         else if (!breaking)
@@ -961,13 +1031,18 @@ namespace dolbuto
                     }
                     else
                     {
-                        runtime_->gameplay().updateBlockBreaking(
+                        const bool breakingTarget = runtime_->gameplay().updateBlockBreaking(
                             {playerPosition_.x, playerPosition_.y + currentEyeHeight(), playerPosition_.z},
                             renderViewDirection(camera_),
                             breaking,
                             playerPosition_,
                             static_cast<float>(FixedPhysicsTimestep),
                             false);
+                        if (breaking)
+                        {
+                            viewmodelSwingBreaking = breakingTarget;
+                            viewmodelSwingBreakingUpdated = true;
+                        }
                     }
                     if (worldTicks_ % 5u == 0u)
                     {
@@ -976,6 +1051,14 @@ namespace dolbuto
                 }
                 ++worldTicks_;
                 physicsAccumulator_ -= FixedPhysicsTimestep;
+            }
+            if (viewmodelSwingBreakingUpdated)
+            {
+                viewmodelSwingRepeat_ = viewmodelSwingBreaking;
+            }
+            if (!breakHeld_)
+            {
+                viewmodelSwingRepeat_ = false;
             }
             if (!gameSimulationActive)
             {
@@ -990,6 +1073,7 @@ namespace dolbuto
                         gameMode_ == game::GameMode::Sandbox);
                 }
                 physicsAccumulator_ = 0.0;
+                viewmodelSwingRepeat_ = false;
                 previousPlayerPosition_ = playerPosition_;
                 previousBodyYaw_ = bodyYaw_;
                 previousPlayerWalkPhase_ = playerWalkPhase_;
@@ -1114,6 +1198,8 @@ namespace dolbuto
                 heldPortableLightEmission = runtime_->gameplay().heldPortableLightEmission();
             }
             const bool showFirstPersonHand = gameSceneRenderEnabled && menuOverlayMode == 0 && viewMode_ == ViewMode::FirstPerson;
+            const bool viewmodelFallMotionEnabled = moveMode_ == MoveMode::Ground && !renderPlayerInWater && !waterClimbActive_;
+            const ViewmodelMotion viewmodelMotion = updateViewmodelMotion(renderCamera, showFirstPersonHand, delta.count(), renderWalkPhase, renderWalkAmount, verticalVelocity_, grounded_, viewmodelFallMotionEnabled);
             game::RadialMenuRenderFrame radialMenuRenderFrame{};
             radialMenuRenderFrame.visible = radialActive_;
             radialMenuRenderFrame.actionCount = static_cast<uint32_t>(radialActions_.size());
@@ -1162,6 +1248,7 @@ namespace dolbuto
                 playerSprinting,
                 playerProne,
                 showFirstPersonHand,
+                viewmodelMotion,
                 heldItemId,
                 offhandItemId,
                 heldItemStack,
@@ -1545,6 +1632,7 @@ namespace dolbuto
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
             {
                 app->breakHeld_ = false;
+                app->viewmodelSwingRepeat_ = false;
                 if (app->runtime_ != nullptr)
                 {
                     app->runtime_->gameplay().updateBlockBreaking(
@@ -1569,6 +1657,7 @@ namespace dolbuto
             }
             else if (button == GLFW_MOUSE_BUTTON_LEFT)
             {
+                app->startViewmodelSwing();
                 if (app->mouseCaptured_)
                 {
                     app->breakHeld_ = true;
@@ -1765,6 +1854,7 @@ namespace dolbuto
         radialCenterX_ = static_cast<double>(width) * 0.5;
         radialCenterY_ = static_cast<double>(height) * 0.5;
         breakHeld_ = false;
+        viewmodelSwingRepeat_ = false;
 
         runtime_->ui().setRadialMenu(radialActions_, radialSelectedActionIndex_, radialSelectedCandidateIndex_);
         setMouseCaptured(false);
@@ -1943,6 +2033,7 @@ namespace dolbuto
         chatOpen_ = true;
         chatRestoreMouseCaptured_ = mouseCaptured_;
         breakHeld_ = false;
+        viewmodelSwingRepeat_ = false;
         runtime_->ui().setChatVisible(true, !chatMessages_.empty());
         runtime_->ui().clearChatInput();
         updateChatUi();
@@ -1959,6 +2050,7 @@ namespace dolbuto
 
         chatOpen_ = false;
         breakHeld_ = false;
+        viewmodelSwingRepeat_ = false;
         if (runtime_ != nullptr)
         {
             runtime_->ui().clearChatInput();
@@ -2107,6 +2199,15 @@ namespace dolbuto
         }
 
         completedGuideKeys_.emplace_back(key);
+        guideProgress_.erase(
+            std::remove_if(
+                guideProgress_.begin(),
+                guideProgress_.end(),
+                [key](const GuideProgress& progress)
+                {
+                    return std::string_view(progress.key.data(), progress.key.size()) == key;
+                }),
+            guideProgress_.end());
         enqueueGuideNotification(step->title);
         updateGuideUi();
     }
@@ -2122,14 +2223,106 @@ namespace dolbuto
             }) != completedGuideKeys_.end();
     }
 
-    void GameClient::updateGuideInventoryCriteria()
+    bool GameClient::guideStepAvailable(std::string_view key) const
+    {
+        const GuideStepDefinition* step = findGuideStepDefinition(key);
+        return step != nullptr &&
+            std::all_of(
+                step->parents.begin(),
+                step->parents.end(),
+                [this](std::string_view parent)
+                {
+                    return guideStepCompleted(parent);
+                });
+    }
+
+    void GameClient::processGuideObtainedItem(std::string_view itemKey)
+    {
+        if (itemKey.empty())
+        {
+            return;
+        }
+
+        std::vector<std::string_view> availableStepKeys;
+        for (const GuideStepDefinition& step : guideStepDefinitions())
+        {
+            if (!step.obtainItemKeys.empty() && !guideStepCompleted(step.key) && guideStepAvailable(step.key))
+            {
+                availableStepKeys.push_back(step.key);
+            }
+        }
+
+        for (const GuideStepDefinition& step : guideStepDefinitions())
+        {
+            if (std::find(availableStepKeys.begin(), availableStepKeys.end(), step.key) == availableStepKeys.end() ||
+                guideStepCompleted(step.key))
+            {
+                continue;
+            }
+
+            const bool itemRequired = std::find(
+                step.obtainItemKeys.begin(),
+                step.obtainItemKeys.end(),
+                itemKey) != step.obtainItemKeys.end();
+            if (!itemRequired)
+            {
+                continue;
+            }
+
+            auto progressIt = std::find_if(
+                guideProgress_.begin(),
+                guideProgress_.end(),
+                [&step](const GuideProgress& progress)
+                {
+                    return std::string_view(progress.key.data(), progress.key.size()) == step.key;
+                });
+            if (progressIt == guideProgress_.end())
+            {
+                guideProgress_.push_back(GuideProgress{std::string(step.key), {}});
+                progressIt = std::prev(guideProgress_.end());
+            }
+
+            const bool alreadyProgressed = std::find_if(
+                progressIt->obtainedItemKeys.begin(),
+                progressIt->obtainedItemKeys.end(),
+                [itemKey](const std::string& obtained)
+                {
+                    return std::string_view(obtained.data(), obtained.size()) == itemKey;
+                }) != progressIt->obtainedItemKeys.end();
+            if (!alreadyProgressed)
+            {
+                progressIt->obtainedItemKeys.emplace_back(itemKey);
+            }
+
+            const bool complete = std::all_of(
+                step.obtainItemKeys.begin(),
+                step.obtainItemKeys.end(),
+                [&progressIt](std::string_view required)
+                {
+                    return std::find_if(
+                        progressIt->obtainedItemKeys.begin(),
+                        progressIt->obtainedItemKeys.end(),
+                        [required](const std::string& obtained)
+                        {
+                            return std::string_view(obtained.data(), obtained.size()) == required;
+                        }) != progressIt->obtainedItemKeys.end();
+                });
+            if (complete)
+            {
+                completeGuideStep(step.key);
+            }
+        }
+    }
+
+    void GameClient::refreshGuideInventoryCountBaseline()
     {
         if (runtime_ == nullptr)
         {
             return;
         }
 
-        auto observeStack = [this](const ItemStack& stack)
+        guideInventoryCounts_.clear();
+        auto addStack = [this](const ItemStack& stack)
         {
             if (stack.itemId == 0 || stack.count == 0)
             {
@@ -2142,20 +2335,86 @@ namespace dolbuto
                 return;
             }
 
-            for (const GuideStepDefinition& step : guideStepDefinitions())
-            {
-                if (!step.obtainItemKey.empty() && step.obtainItemKey == std::string_view(key.data(), key.size()))
+            auto countIt = std::find_if(
+                guideInventoryCounts_.begin(),
+                guideInventoryCounts_.end(),
+                [&key](const GuideInventoryCount& count)
                 {
-                    completeGuideStep(step.key);
-                }
+                    return std::string_view(count.key.data(), count.key.size()) == std::string_view(key.data(), key.size());
+                });
+            if (countIt == guideInventoryCounts_.end())
+            {
+                guideInventoryCounts_.push_back(GuideInventoryCount{key, stack.count});
+                return;
             }
+            countIt->count += stack.count;
         };
 
         for (const ItemStack& stack : runtime_->gameplay().inventorySnapshot())
         {
-            observeStack(stack);
+            addStack(stack);
         }
-        observeStack(runtime_->gameplay().offhandSlot());
+        addStack(runtime_->gameplay().offhandSlot());
+    }
+
+    void GameClient::updateGuideInventoryCriteria()
+    {
+        if (runtime_ == nullptr)
+        {
+            return;
+        }
+
+        std::vector<GuideInventoryCount> currentCounts;
+        auto addStack = [this, &currentCounts](const ItemStack& stack)
+        {
+            if (stack.itemId == 0 || stack.count == 0)
+            {
+                return;
+            }
+
+            const std::string key = runtime_->gameplay().itemKey(stack.itemId);
+            if (key.empty())
+            {
+                return;
+            }
+
+            auto countIt = std::find_if(
+                currentCounts.begin(),
+                currentCounts.end(),
+                [&key](const GuideInventoryCount& count)
+                {
+                    return std::string_view(count.key.data(), count.key.size()) == std::string_view(key.data(), key.size());
+                });
+            if (countIt == currentCounts.end())
+            {
+                currentCounts.push_back(GuideInventoryCount{key, stack.count});
+                return;
+            }
+            countIt->count += stack.count;
+        };
+
+        for (const ItemStack& stack : runtime_->gameplay().inventorySnapshot())
+        {
+            addStack(stack);
+        }
+        addStack(runtime_->gameplay().offhandSlot());
+
+        for (const GuideInventoryCount& current : currentCounts)
+        {
+            const auto previousIt = std::find_if(
+                guideInventoryCounts_.begin(),
+                guideInventoryCounts_.end(),
+                [&current](const GuideInventoryCount& previous)
+                {
+                    return std::string_view(previous.key.data(), previous.key.size()) == std::string_view(current.key.data(), current.key.size());
+                });
+            const uint32_t previousCount = previousIt != guideInventoryCounts_.end() ? previousIt->count : 0u;
+            if (current.count > previousCount)
+            {
+                processGuideObtainedItem(std::string_view(current.key.data(), current.key.size()));
+            }
+        }
+        guideInventoryCounts_ = std::move(currentCounts);
     }
 
     void GameClient::enqueueGuideNotification(std::string_view title)
@@ -2663,6 +2922,7 @@ namespace dolbuto
         jumpPressed_ = false;
         doubleTapSprintActive_ = false;
         breakHeld_ = false;
+        viewmodelSwingRepeat_ = false;
         if (runtime_ != nullptr)
         {
             runtime_->gameplay().updateBlockBreaking(
@@ -2699,6 +2959,7 @@ namespace dolbuto
             runtime_->scene().loadGameScene(selectedWorldDirectory_, worldSeed_);
         }
         loadPlayerState();
+        refreshGuideInventoryCountBaseline();
         setScreen(AppScreen::Game);
     }
 
@@ -2748,8 +3009,22 @@ namespace dolbuto
         lastForwardTapTime_ = -1000.0;
         lastJumpTapTime_ = -1000.0;
         physicsAccumulator_ = 0.0;
+        footstepDistanceAccumulator_ = 0.0;
+        viewmodelMotionState_ = {};
+        viewmodelMotionTime_ = 0.0;
+        viewmodelSwingTime_ = 0.0;
+        viewmodelFallLift_ = 0.0f;
+        viewmodelLandingKick_ = 0.0f;
+        viewmodelLandingKickTarget_ = 0.0f;
+        viewmodelMotionLastYaw_ = 0.0f;
+        viewmodelMotionLastPitch_ = 0.0f;
+        viewmodelSwingActive_ = false;
+        viewmodelSwingRepeat_ = false;
+        viewmodelMotionInitialized_ = false;
         playerStats_ = game::PlayerStats{};
         completedGuideKeys_.clear();
+        guideProgress_.clear();
+        guideInventoryCounts_.clear();
         guideNotifications_.clear();
         guideDragging_ = false;
         guidePanX_ = 0.0;
@@ -3381,18 +3656,53 @@ namespace dolbuto
             readItemStackState(bytes, offset, offhandSlot);
 
             std::vector<std::string> completedGuides;
-            if (offset < bytes.size())
+            const uint16_t completedGuideCount = readU16(bytes, offset);
+            completedGuides.reserve(completedGuideCount);
+            for (uint16_t i = 0; i < completedGuideCount; ++i)
             {
-                const uint16_t completedGuideCount = readU16(bytes, offset);
-                completedGuides.reserve(completedGuideCount);
-                for (uint16_t i = 0; i < completedGuideCount; ++i)
+                const std::string key = readPlayerStateString(bytes, offset);
+                if (findGuideStepDefinition(std::string_view(key.data(), key.size())) != nullptr &&
+                    std::find(completedGuides.begin(), completedGuides.end(), key) == completedGuides.end())
+                {
+                    completedGuides.push_back(key);
+                }
+            }
+
+            std::vector<GuideProgress> loadedGuideProgress;
+            const uint16_t guideProgressCount = readU16(bytes, offset);
+            loadedGuideProgress.reserve(guideProgressCount);
+            for (uint16_t i = 0; i < guideProgressCount; ++i)
+            {
+                GuideProgress progress{};
+                progress.key = readPlayerStateString(bytes, offset);
+                const GuideStepDefinition* step = findGuideStepDefinition(std::string_view(progress.key.data(), progress.key.size()));
+                const uint16_t obtainedItemCount = readU16(bytes, offset);
+                progress.obtainedItemKeys.reserve(obtainedItemCount);
+                for (uint16_t itemIndex = 0; itemIndex < obtainedItemCount; ++itemIndex)
                 {
                     const std::string key = readPlayerStateString(bytes, offset);
-                    if (findGuideStepDefinition(std::string_view(key.data(), key.size())) != nullptr &&
-                        std::find(completedGuides.begin(), completedGuides.end(), key) == completedGuides.end())
+                    const bool keyAllowed = step != nullptr &&
+                        std::find(
+                            step->obtainItemKeys.begin(),
+                            step->obtainItemKeys.end(),
+                            std::string_view(key.data(), key.size())) != step->obtainItemKeys.end();
+                    if (keyAllowed &&
+                        std::find(progress.obtainedItemKeys.begin(), progress.obtainedItemKeys.end(), key) == progress.obtainedItemKeys.end())
                     {
-                        completedGuides.push_back(key);
+                        progress.obtainedItemKeys.push_back(key);
                     }
+                }
+                const bool alreadyCompleted = std::find(completedGuides.begin(), completedGuides.end(), progress.key) != completedGuides.end();
+                const bool alreadyLoaded = std::find_if(
+                    loadedGuideProgress.begin(),
+                    loadedGuideProgress.end(),
+                    [&progress](const GuideProgress& loaded)
+                    {
+                        return loaded.key == progress.key;
+                    }) != loadedGuideProgress.end();
+                if (step != nullptr && !alreadyCompleted && !alreadyLoaded && !progress.obtainedItemKeys.empty())
+                {
+                    loadedGuideProgress.push_back(std::move(progress));
                 }
             }
 
@@ -3450,11 +3760,25 @@ namespace dolbuto
             lastForwardTapTime_ = -1000.0;
             lastJumpTapTime_ = -1000.0;
             physicsAccumulator_ = 0.0;
+            footstepDistanceAccumulator_ = 0.0;
+            viewmodelMotionState_ = {};
+            viewmodelMotionTime_ = 0.0;
+            viewmodelSwingTime_ = 0.0;
+            viewmodelFallLift_ = 0.0f;
+            viewmodelLandingKick_ = 0.0f;
+            viewmodelLandingKickTarget_ = 0.0f;
+            viewmodelMotionLastYaw_ = camera_.yaw();
+            viewmodelMotionLastPitch_ = camera_.pitch();
+            viewmodelSwingActive_ = false;
+            viewmodelSwingRepeat_ = false;
+            viewmodelMotionInitialized_ = true;
             completedGuideKeys_ = std::move(completedGuides);
+            guideProgress_ = std::move(loadedGuideProgress);
             if (runtime_ != nullptr)
             {
                 runtime_->gameplay().setInventorySnapshot(inventorySlots);
                 runtime_->gameplay().setOffhandSlot(offhandSlot);
+                refreshGuideInventoryCountBaseline();
             }
             log::info("Player state loaded.");
         }
@@ -3516,6 +3840,19 @@ namespace dolbuto
             for (uint16_t i = 0; i < completedGuideCount; ++i)
             {
                 writePlayerStateString(bytes, std::string_view(completedGuideKeys_[i].data(), completedGuideKeys_[i].size()));
+            }
+            const uint16_t guideProgressCount = static_cast<uint16_t>(std::min<std::size_t>(guideProgress_.size(), std::numeric_limits<uint16_t>::max()));
+            writeU16(bytes, guideProgressCount);
+            for (uint16_t i = 0; i < guideProgressCount; ++i)
+            {
+                const GuideProgress& progress = guideProgress_[i];
+                writePlayerStateString(bytes, std::string_view(progress.key.data(), progress.key.size()));
+                const uint16_t obtainedItemCount = static_cast<uint16_t>(std::min<std::size_t>(progress.obtainedItemKeys.size(), std::numeric_limits<uint16_t>::max()));
+                writeU16(bytes, obtainedItemCount);
+                for (uint16_t itemIndex = 0; itemIndex < obtainedItemCount; ++itemIndex)
+                {
+                    writePlayerStateString(bytes, std::string_view(progress.obtainedItemKeys[itemIndex].data(), progress.obtainedItemKeys[itemIndex].size()));
+                }
             }
 
             std::ofstream file(playerStatePath(), std::ios::binary | std::ios::trunc);
@@ -3639,9 +3976,136 @@ namespace dolbuto
         headPitch = std::clamp(camera_.pitch(), -MaxPlayerHeadPitch, MaxPlayerHeadPitch);
     }
 
+    void GameClient::startViewmodelSwing()
+    {
+        viewmodelSwingActive_ = true;
+        viewmodelSwingTime_ = 0.0;
+    }
+
+    ViewmodelMotion GameClient::updateViewmodelMotion(const Camera& camera, bool active, double deltaSeconds, float walkPhase, float walkAmount, double verticalVelocity, bool grounded, bool fallMotionEnabled)
+    {
+        const float yaw = camera.yaw();
+        const float pitch = camera.pitch();
+        const float dt = static_cast<float>(std::clamp(deltaSeconds, 0.0, MaxPhysicsFrameTime));
+        if (!viewmodelMotionInitialized_)
+        {
+            viewmodelMotionLastYaw_ = yaw;
+            viewmodelMotionLastPitch_ = pitch;
+            viewmodelMotionInitialized_ = true;
+        }
+
+        const float response = 1.0f - std::exp(-(active ? ViewmodelInertiaFollowSpeed : ViewmodelInertiaReturnSpeed) * dt);
+        ViewmodelMotion target{};
+        target.shoulderPivot = {ViewmodelShoulderPivotX, ViewmodelShoulderPivotY, ViewmodelShoulderPivotZ};
+        if (active && dt > 0.0f)
+        {
+            const float yawVelocity = normalizeAngle(yaw - viewmodelMotionLastYaw_) / dt;
+            const float pitchVelocity = (pitch - viewmodelMotionLastPitch_) / dt;
+            target.shoulderOffset.x = std::clamp(-yawVelocity * ViewmodelInertiaPositionXStrength, -ViewmodelInertiaMaxPositionX, ViewmodelInertiaMaxPositionX);
+            target.shoulderOffset.y = std::clamp(pitchVelocity * ViewmodelInertiaPositionYStrength, -ViewmodelInertiaMaxPositionY, ViewmodelInertiaMaxPositionY);
+            target.localRotation.x = std::clamp(-pitchVelocity * ViewmodelInertiaRotationXStrength, -ViewmodelInertiaMaxRotationX, ViewmodelInertiaMaxRotationX);
+            target.localRotation.z = std::clamp(-yawVelocity * ViewmodelInertiaRotationZStrength, -ViewmodelInertiaMaxRotationZ, ViewmodelInertiaMaxRotationZ);
+        }
+
+        viewmodelMotionState_.shoulderOffset.x += (target.shoulderOffset.x - viewmodelMotionState_.shoulderOffset.x) * response;
+        viewmodelMotionState_.shoulderOffset.y += (target.shoulderOffset.y - viewmodelMotionState_.shoulderOffset.y) * response;
+        viewmodelMotionState_.shoulderOffset.z += (target.shoulderOffset.z - viewmodelMotionState_.shoulderOffset.z) * response;
+        viewmodelMotionState_.localRotation.x += (target.localRotation.x - viewmodelMotionState_.localRotation.x) * response;
+        viewmodelMotionState_.localRotation.y += (target.localRotation.y - viewmodelMotionState_.localRotation.y) * response;
+        viewmodelMotionState_.localRotation.z += (target.localRotation.z - viewmodelMotionState_.localRotation.z) * response;
+
+        viewmodelMotionLastYaw_ = yaw;
+        viewmodelMotionLastPitch_ = pitch;
+
+        ViewmodelMotion result = viewmodelMotionState_;
+        result.shoulderPivot = target.shoulderPivot;
+        if (active)
+        {
+            viewmodelMotionTime_ += deltaSeconds;
+            const float t = static_cast<float>(viewmodelMotionTime_);
+            result.shoulderOffset.x += std::sin(t * ViewmodelIdleFrequencyX) * ViewmodelIdlePositionX;
+            result.shoulderOffset.y += std::sin(t * ViewmodelIdleFrequencyY) * ViewmodelIdlePositionY;
+            result.shoulderOffset.z += std::cos(t * ViewmodelIdleFrequencyX) * ViewmodelIdlePositionZ;
+            result.localRotation.x += std::sin(t * ViewmodelIdleFrequencyY) * ViewmodelIdleRotationX;
+            result.localRotation.z += std::sin(t * ViewmodelIdleFrequencyX) * ViewmodelIdleRotationZ;
+
+            const float walkStrength = std::clamp(walkAmount, 0.0f, 1.35f);
+            if (walkStrength > 0.001f)
+            {
+                const float side = std::sin(walkPhase);
+                const float dip = side * side;
+                const float doubleStep = std::sin(walkPhase * 2.0f);
+                const float forward = std::cos(walkPhase * 2.0f);
+                result.shoulderOffset.x += side * ViewmodelWalkPositionX * walkStrength;
+                result.shoulderOffset.y -= dip * ViewmodelWalkPositionY * walkStrength;
+                result.shoulderOffset.z += forward * ViewmodelWalkPositionZ * walkStrength;
+                result.localRotation.x += doubleStep * ViewmodelWalkRotationX * walkStrength;
+                result.localRotation.z += side * ViewmodelWalkRotationZ * walkStrength;
+            }
+        }
+        else
+        {
+            viewmodelSwingActive_ = false;
+            viewmodelSwingTime_ = 0.0;
+            viewmodelSwingRepeat_ = false;
+        }
+
+        if (active && viewmodelSwingActive_)
+        {
+            viewmodelSwingTime_ += deltaSeconds;
+            while (viewmodelSwingTime_ >= ViewmodelSwingDuration)
+            {
+                if (!viewmodelSwingRepeat_)
+                {
+                    viewmodelSwingActive_ = false;
+                    viewmodelSwingTime_ = 0.0;
+                    break;
+                }
+                viewmodelSwingTime_ -= ViewmodelSwingDuration;
+            }
+            if (viewmodelSwingActive_)
+            {
+                const float swingT = static_cast<float>(std::clamp(viewmodelSwingTime_ / ViewmodelSwingDuration, 0.0, 1.0));
+                const float windup = smoothPulse(0.00f, 0.12f, 0.26f, swingT);
+                const float strikeT = smoothstepRange(0.10f, 0.48f, swingT);
+                const float recoverT = smoothstepRange(0.48f, 1.00f, swingT);
+                const float strikeAngle = strikeT * Pi;
+                const float keep = 1.0f - recoverT;
+                const float strikeSide = ViewmodelSwingStrikeSide * strikeT;
+                const float strikeDown = -std::sin(strikeAngle) * ViewmodelSwingStrikeDepth;
+                const float strikeForward = (1.0f - std::cos(strikeAngle)) * ViewmodelSwingStrikeForwardRadius;
+                result.shoulderOffset.x += ViewmodelSwingWindupPositionX * windup + strikeSide * keep;
+                result.shoulderOffset.y += ViewmodelSwingWindupPositionY * windup + strikeDown * keep;
+                result.shoulderOffset.z += ViewmodelSwingWindupPositionZ * windup + strikeForward * keep;
+                result.shoulderRotation.x += ViewmodelSwingWindupRotationX * windup + ViewmodelSwingStrikeRotationX * strikeT * keep;
+                result.shoulderRotation.y += ViewmodelSwingWindupRotationY * windup + ViewmodelSwingStrikeRotationY * strikeT * keep;
+                result.shoulderRotation.z += ViewmodelSwingWindupRotationZ * windup + ViewmodelSwingStrikeRotationZ * strikeT * keep;
+            }
+        }
+        const float fallSpeed = static_cast<float>(std::max(0.0, -verticalVelocity));
+        const float fallLiftTarget = active && fallMotionEnabled && !grounded && fallSpeed > ViewmodelFallStartSpeed
+            ? std::clamp((fallSpeed - ViewmodelFallStartSpeed) * ViewmodelFallLiftScale, 0.0f, ViewmodelFallLiftMax)
+            : 0.0f;
+        const float fallLiftSpeed = fallLiftTarget > viewmodelFallLift_ ? ViewmodelFallLiftFollowSpeed : ViewmodelFallLiftReturnSpeed;
+        const float fallLiftResponse = 1.0f - std::exp(-fallLiftSpeed * dt);
+        viewmodelFallLift_ += (fallLiftTarget - viewmodelFallLift_) * fallLiftResponse;
+        const float landingKickResponse = 1.0f - std::exp(-ViewmodelLandingKickEnterSpeed * dt);
+        viewmodelLandingKick_ += (viewmodelLandingKickTarget_ - viewmodelLandingKick_) * landingKickResponse;
+        viewmodelLandingKickTarget_ *= std::exp(-ViewmodelLandingKickTargetReturnSpeed * dt);
+        if (active)
+        {
+            result.shoulderOffset.y += viewmodelFallLift_;
+            result.shoulderOffset.y -= viewmodelLandingKick_;
+        }
+        return result;
+    }
+
     void GameClient::updatePlayer(double fixedDeltaSeconds, bool allowInput)
     {
         const game::PlayerMoveMode previousMoveMode = moveMode_;
+        const bool wasGrounded = grounded_;
+        const double previousVerticalVelocity = verticalVelocity_;
+        const DVec3 footstepStartPosition = playerPosition_;
         const game::PlayerMovementResult result = game::PlayerMovementSystem::tick(
             game::PlayerMovementInput{
                 allowInput,
@@ -3739,9 +4203,45 @@ namespace dolbuto
         waterClimbStart_ = result.state.waterClimbStart;
         waterClimbTarget_ = result.state.waterClimbTarget;
 
+        if (moveMode_ == MoveMode::Ground && !wasGrounded && grounded_ && previousVerticalVelocity < -static_cast<double>(ViewmodelFallStartSpeed))
+        {
+            const float landingStrength = std::clamp(
+                static_cast<float>((-previousVerticalVelocity - static_cast<double>(ViewmodelFallStartSpeed)) * static_cast<double>(ViewmodelLandingKickScale)) + ViewmodelLandingKickMin,
+                ViewmodelLandingKickMin,
+                ViewmodelLandingKickMax);
+            viewmodelLandingKickTarget_ = std::max(viewmodelLandingKickTarget_, landingStrength);
+        }
+
+        const double footstepDeltaX = playerPosition_.x - footstepStartPosition.x;
+        const double footstepDeltaZ = playerPosition_.z - footstepStartPosition.z;
+        const double footstepHorizontalDistance = std::sqrt(footstepDeltaX * footstepDeltaX + footstepDeltaZ * footstepDeltaZ);
+        const bool footstepInWater = runtime_ != nullptr &&
+            runtime_->gameplay().playerColliderIntersectsWater(playerPosition_, playerHeightScale_);
+        const bool footstepEligible =
+            allowInput &&
+            runtime_ != nullptr &&
+            moveMode_ == MoveMode::Ground &&
+            grounded_ &&
+            !footstepInWater &&
+            footstepHorizontalDistance > 0.0001;
+        if (footstepEligible)
+        {
+            footstepDistanceAccumulator_ += footstepHorizontalDistance;
+            if (footstepDistanceAccumulator_ >= FootstepDistance)
+            {
+                runtime_->audio().playFootstep();
+                footstepDistanceAccumulator_ = std::fmod(footstepDistanceAccumulator_, FootstepDistance);
+            }
+        }
+        else if (moveMode_ != MoveMode::Ground || footstepInWater || !allowInput)
+        {
+            footstepDistanceAccumulator_ = 0.0;
+        }
+
         if (previousMoveMode == MoveMode::Fly && moveMode_ == MoveMode::Ground)
         {
             lastJumpTapTime_ = -1000.0;
+            footstepDistanceAccumulator_ = 0.0;
         }
     }
 

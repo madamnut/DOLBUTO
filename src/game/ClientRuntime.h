@@ -66,7 +66,7 @@ namespace dolbuto::game
             double playerColliderTerrainClimbHeight(DVec3 playerPosition, double heightScale, double maxHeight) const;
             bool pointIntersectsWater(DVec3 position) const;
             void updateBlockSelection(DVec3 origin, Vec3 direction);
-            void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds, bool sandboxMode);
+            bool updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds, bool sandboxMode);
             bool editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale);
             bool placeSelectedItemBlockInView(DVec3 origin, Vec3 direction, DVec3 playerPosition, double playerHeightScale);
             bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);
@@ -152,6 +152,7 @@ namespace dolbuto::game
             explicit AudioAccess(ClientRuntime& owner);
 
             void setVolumes(float musicVolume, float sfxVolume);
+            void playFootstep();
 
         private:
             ClientRuntime& owner_;

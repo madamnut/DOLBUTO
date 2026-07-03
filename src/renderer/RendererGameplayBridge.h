@@ -41,7 +41,7 @@ namespace dolbuto
             ParticleRenderPath& particleRenderPath,
             Hooks hooks);
 
-        void updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, float deltaSeconds, bool sandboxMode);
+        bool updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, float deltaSeconds, bool sandboxMode);
         bool editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale);
         bool placeSelectedItemBlockInView(DVec3 origin, Vec3 direction, DVec3 playerPosition, double playerHeightScale);
         bool pickupDroppedItemInView(DVec3 origin, Vec3 direction);

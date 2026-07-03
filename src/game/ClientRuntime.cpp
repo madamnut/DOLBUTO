@@ -559,9 +559,9 @@ namespace dolbuto::game
         owner_.state_->selection.selectedBlockId = blockAtWorld(*owner_.state_, hit.blockX, hit.blockY, hit.blockZ);
     }
 
-    void ClientRuntime::GameplayAccess::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds, bool sandboxMode)
+    bool ClientRuntime::GameplayAccess::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, DVec3 playerPosition, float deltaSeconds, bool sandboxMode)
     {
-        owner_.renderRuntime_->updateBlockBreaking(origin, direction, breaking, playerPosition, deltaSeconds, sandboxMode);
+        return owner_.renderRuntime_->updateBlockBreaking(origin, direction, breaking, playerPosition, deltaSeconds, sandboxMode);
     }
 
     bool ClientRuntime::GameplayAccess::editBlockInView(DVec3 origin, Vec3 direction, bool placeBlock, uint16_t placeBlockId, DVec3 playerPosition, double playerHeightScale)
@@ -917,6 +917,11 @@ namespace dolbuto::game
     {
         owner_.state_->audio.setMusicVolume(musicVolume);
         owner_.state_->audio.setSfxVolume(sfxVolume);
+    }
+
+    void ClientRuntime::AudioAccess::playFootstep()
+    {
+        owner_.state_->audio.playFootstep();
     }
 
     ClientRuntime::ClientRuntime(GLFWwindow* window) :

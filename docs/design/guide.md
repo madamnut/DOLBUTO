@@ -43,23 +43,36 @@ The `guideFG` area acts as the Guide viewport. Guide nodes and links are rendere
 
 ## Initial Line
 
-- `open_guide`
-- `open_inventory`
-- `pickup_small_stone`
-- `make_stone_blade`
-- `make_stone_scraper`
-- `make_stone_point`
-- `pickup_stone`
-- `make_stone_chopper`
-- `make_stone_maul`
-- `make_stone_pestle`
-- `pickup_large_stone`
-- `make_stone_anvil`
-- `make_stone_mortar`
+- `open_guide`: Where Am I?
+- `open_inventory`: Now What?
+- `gather_stones`: DOLBUTO!
+- `make_stone_blade`: First Edge
+- `make_stone_scraper`: Scrape By
+- `make_stone_point`: Point Taken
+- `make_stone_chopper`: Rough Cut
+- `make_stone_maul`: Blunt Solution
+- `make_stone_pestle`: Crush and Grind
+- `make_stone_anvil`: Hard Place
+- `make_stone_mortar`: Hollowed Purpose
+- `gather_plant`: Touch Grass
+- `make_plant_fiber`: Scrape the Surface
+- `make_plant_twine`: String Theory
+- `make_long_plant_twine`: Long Story
+- `make_short_plant_twine`: Cut Short
+- `gather_log`: Timber!
+- `make_stripped_log`: Bare Wood
+- `gather_bark_strip`: Woof!
+- `make_primal_workbench`: Table Manners
 
-`open_guide` and `open_inventory` complete from UI input. The stone pickup and make steps complete when the matching item key is present in the player inventory or offhand slot.
+`open_guide` and `open_inventory` complete from UI input. Item-based guide steps complete only when an item count increases while that guide step is available. Locked steps ignore earlier item pickups, so unlocking a step does not retroactively complete it from items the player already had.
 
-The initial stone-age line uses a staggered layout. Pickup entries stay in the `x = 2` column, while derived entries alternate between the `x = 3` and `x = 3.8` columns so `80px` guide slots do not overlap at maximum zoom.
+Multi-item guide steps keep their own internal progress. `gather_stones` completes after the available `DOLBUTO!` step has separately recorded `small_stone`, `stone`, and `large_stone` acquisitions. The plant fiber step has two parents: the plant pickup step and the scraper step.
+
+`Long Story` extends from `String Theory`, because long plant twine is hand-crafted from plant twine. `Cut Short` extends from both `String Theory` and `First Edge`, because short plant twine requires cutting plant twine with a blade.
+
+The wood branch starts from `Rough Cut`, because obtaining a log requires a chopper. `Bare Wood` and `Woof!` both require `Timber!` and `Scrape By`, because stripping a log requires both a log and a scraper. `Table Manners` requires `Bare Wood` and `First Edge`, because the primal workbench is carved from a stripped log.
+
+The initial stone-age line uses a staggered layout. The combined stone gathering step branches into stone tools, while the plant branch starts from inventory and rejoins the scraper step before plant fiber. The wood branch extends from the chopper and then rejoins the blade and scraper tools for bark stripping and workbench carving.
 
 ## Completion Notifications
 
@@ -78,4 +91,6 @@ Notifications enter from the right edge, stack upward, and the bottom notificati
 
 ## Save Data
 
-Completed guide keys are appended to `player.dat` after the player inventory and offhand item state.
+Completed guide keys are written to `player.dat` after the player inventory and offhand item state.
+
+Incomplete item-based guide progress is stored after completed guide keys as per-guide obtained item keys. The save format does not preserve legacy observed-item history.

@@ -79,7 +79,7 @@ namespace dolbuto
                 }));
     }
 
-    void RendererGameplayBridge::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, float deltaSeconds, bool sandboxMode)
+    bool RendererGameplayBridge::updateBlockBreaking(DVec3 origin, Vec3 direction, bool breaking, float deltaSeconds, bool sandboxMode)
     {
         const gameplay::BlockBreakingUpdate update = client_.gameplayRuntime.updateBlockBreaking(
             origin,
@@ -99,6 +99,7 @@ namespace dolbuto
         {
             breakBlockAtHit(update.hit, update.durabilityCost);
         }
+        return breaking && update.block != 0;
     }
 
     bool RendererGameplayBridge::pickupDroppedItemInView(DVec3 origin, Vec3 direction)

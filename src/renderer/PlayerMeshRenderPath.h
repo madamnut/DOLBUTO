@@ -2,6 +2,7 @@
 
 #include "camera/Camera.h"
 #include "config/ViewmodelConfig.h"
+#include "game/ViewmodelMotion.h"
 #include "renderer/PlayerModelLoader.h"
 #include "renderer/RendererGpuResources.h"
 #include "renderer/TerrainTypes.h"
@@ -65,7 +66,7 @@ namespace dolbuto
 
         void loadFromGlb(const std::filesystem::path& path);
         void update(Vec3 playerPosition, float playerYaw, float playerHeadYaw, float playerHeadPitch, float playerWalkPhase, float playerWalkAmount, bool playerWalkReverse, bool playerCrouching, bool playerSprinting, bool playerProne, float animationSeconds, uint32_t frameIndex, uint8_t packedLight);
-        void updateFirstPersonHand(const Camera& camera, Vec3 cameraPosition, const config::ViewmodelHandConfig& config, uint32_t frameIndex, uint8_t packedLight);
+        void updateFirstPersonHand(const Camera& camera, Vec3 cameraPosition, const config::ViewmodelHandConfig& config, const ViewmodelMotion& viewmodelMotion, uint32_t frameIndex, uint8_t packedLight);
         void draw(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture, uint32_t frameIndex) const;
         void drawFirstPersonHand(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const Texture& texture, uint32_t frameIndex) const;
         void destroy();
