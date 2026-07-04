@@ -100,6 +100,7 @@ namespace dolbuto
             ChunkFadeSelection fadeSelection) const;
         Stats drawBlend(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const View& view, double fadeNowSeconds) const;
         Stats drawFluids(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout, const View& view, double fadeNowSeconds) const;
+        Stats drawShadow(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout) const;
 
     private:
         struct StagingBuffer

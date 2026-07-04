@@ -44,11 +44,16 @@ namespace dolbuto
         createImageViews();
         createRenderPass();
         createSceneRenderPass();
+        createSceneLoadRenderPass();
         createWaterBlurRenderPass();
+        createShadowRenderPass();
         createDepthResources();
         createDescriptorSetLayout();
         createTerrainVertexDescriptorSetLayout();
+        createShadowDescriptorSetLayout();
+        createGodRayDescriptorSetLayout();
         createSkyPipeline();
+        createGodRayPipeline();
         createPipeline();
         createUiPipeline();
         createTerrainPipeline();
@@ -58,6 +63,8 @@ namespace dolbuto
         createPerformanceQueries();
         createSampler();
         createDescriptorPool();
+        createShadowResources();
+        createGodRayResources();
         createSceneTargets();
         createFramebuffers();
 
@@ -212,6 +219,7 @@ namespace dolbuto
             vkFreeMemory(vulkan_.device, vulkan_.selectionLineVertexMemory, nullptr);
         }
 
+        destroyShadowResources();
         if (vulkan_.descriptorPool != VK_NULL_HANDLE)
         {
             vkDestroyDescriptorPool(vulkan_.device, vulkan_.descriptorPool, nullptr);
@@ -223,6 +231,10 @@ namespace dolbuto
         if (vulkan_.linearSampler != VK_NULL_HANDLE)
         {
             vkDestroySampler(vulkan_.device, vulkan_.linearSampler, nullptr);
+        }
+        if (vulkan_.shadowSampler != VK_NULL_HANDLE)
+        {
+            vkDestroySampler(vulkan_.device, vulkan_.shadowSampler, nullptr);
         }
 
         for (size_t i = 0; i < vulkan_.imageAvailableSemaphores.size(); ++i)
@@ -252,6 +264,14 @@ namespace dolbuto
         {
             vkDestroyPipelineLayout(vulkan_.device, vulkan_.skyPipelineLayout, nullptr);
         }
+        if (vulkan_.godRayPipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.godRayPipeline, nullptr);
+        }
+        if (vulkan_.godRayPipelineLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(vulkan_.device, vulkan_.godRayPipelineLayout, nullptr);
+        }
         if (vulkan_.terrainBlendPipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.terrainBlendPipeline, nullptr);
@@ -271,6 +291,14 @@ namespace dolbuto
         if (vulkan_.playerViewmodelPipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.playerViewmodelPipeline, nullptr);
+        }
+        if (vulkan_.terrainShadowPipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.terrainShadowPipeline, nullptr);
+        }
+        if (vulkan_.playerShadowPipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.playerShadowPipeline, nullptr);
         }
         if (vulkan_.particlePipeline != VK_NULL_HANDLE)
         {
@@ -356,6 +384,14 @@ namespace dolbuto
         {
             vkDestroyDescriptorSetLayout(vulkan_.device, vulkan_.terrainVertexDescriptorSetLayout, nullptr);
         }
+        if (vulkan_.shadowDescriptorSetLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorSetLayout(vulkan_.device, vulkan_.shadowDescriptorSetLayout, nullptr);
+        }
+        if (vulkan_.godRayDescriptorSetLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorSetLayout(vulkan_.device, vulkan_.godRayDescriptorSetLayout, nullptr);
+        }
         if (vulkan_.renderPass != VK_NULL_HANDLE)
         {
             vkDestroyRenderPass(vulkan_.device, vulkan_.renderPass, nullptr);
@@ -364,6 +400,10 @@ namespace dolbuto
         {
             vkDestroyRenderPass(vulkan_.device, vulkan_.sceneRenderPass, nullptr);
         }
+        if (vulkan_.sceneLoadRenderPass != VK_NULL_HANDLE)
+        {
+            vkDestroyRenderPass(vulkan_.device, vulkan_.sceneLoadRenderPass, nullptr);
+        }
         if (vulkan_.waterBlurRenderPass != VK_NULL_HANDLE)
         {
             vkDestroyRenderPass(vulkan_.device, vulkan_.waterBlurRenderPass, nullptr);
@@ -371,6 +411,10 @@ namespace dolbuto
         if (vulkan_.postProcessLoadRenderPass != VK_NULL_HANDLE)
         {
             vkDestroyRenderPass(vulkan_.device, vulkan_.postProcessLoadRenderPass, nullptr);
+        }
+        if (vulkan_.shadowRenderPass != VK_NULL_HANDLE)
+        {
+            vkDestroyRenderPass(vulkan_.device, vulkan_.shadowRenderPass, nullptr);
         }
         if (vulkan_.device != VK_NULL_HANDLE)
         {

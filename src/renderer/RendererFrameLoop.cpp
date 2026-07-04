@@ -153,22 +153,6 @@ namespace dolbuto
             stream.write(reinterpret_cast<const char*>(file.data()), static_cast<std::streamsize>(file.size()));
         }
 
-        void clearDepthAttachment(VkCommandBuffer commandBuffer, VkExtent2D extent)
-        {
-            VkClearAttachment depthClear{};
-            depthClear.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-            depthClear.colorAttachment = VK_ATTACHMENT_UNUSED;
-            depthClear.clearValue.depthStencil = {1.0f, 0};
-
-            VkClearRect clearRect{};
-            clearRect.rect.offset = {0, 0};
-            clearRect.rect.extent = extent;
-            clearRect.baseArrayLayer = 0;
-            clearRect.layerCount = 1;
-
-            vkCmdClearAttachments(commandBuffer, 1, &depthClear, 1, &clearRect);
-        }
-
         int blockCoordinateXz(float worldCoordinate)
         {
             return static_cast<int>(std::floor(worldCoordinate + 0.5f));
@@ -310,7 +294,7 @@ namespace dolbuto
                 screenshotMemory);
         }
 
-        if (frame.showPlayer)
+        if (frame.gameSceneRenderEnabled)
         {
             updatePlayerMesh(
                 playerPositionFloat,
@@ -503,6 +487,12 @@ namespace dolbuto
             vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, vulkan_.timestampQueryPool, firstQuery);
         }
 
+        if (gameSceneRenderEnabled)
+        {
+            updateShadowData(camera, cameraPosition, fovRadians, worldTicks);
+            drawShadowPass(commandBuffer, menuOverlayMode == 0, vulkan_.currentFrame);
+        }
+
         VkClearValue clearColor{};
         clearColor.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         VkClearValue clearBloom{};
@@ -573,20 +563,40 @@ namespace dolbuto
             {
                 drawBlockSelection(commandBuffer, camera, cameraPosition, fovRadians);
             }
-            if (showFirstPersonHand && menuOverlayMode == 0)
-            {
-                clearDepthAttachment(commandBuffer, vulkan_.swapchainExtent);
-                if (heldItemId == 0)
-                {
-                    drawFirstPersonHand(commandBuffer, camera, cameraPosition, skyBrightness, heldPortableLightEmission, vulkan_.currentFrame);
-                }
-                if (heldItemId != 0 || offhandItemId != 0)
-                {
-                    drawHeldItem(commandBuffer, camera, cameraPosition, heldItemStack, offhandItemStack, viewmodelMotion, skyBrightness, heldPortableLightEmission, playerPackedLight);
-                }
-            }
         }
         vkCmdEndRenderPass(commandBuffer);
+
+        if (gameSceneRenderEnabled)
+        {
+            drawGodRays(commandBuffer, imageIndex, camera, cameraPosition, fovRadians, skyBrightness, worldTicks);
+        }
+
+        if (gameSceneRenderEnabled && showFirstPersonHand && menuOverlayMode == 0)
+        {
+            VkRenderPassBeginInfo viewmodelPassInfo{};
+            viewmodelPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            viewmodelPassInfo.renderPass = vulkan_.sceneLoadRenderPass;
+            viewmodelPassInfo.framebuffer = vulkan_.sceneFramebuffers[imageIndex];
+            viewmodelPassInfo.renderArea.offset = {0, 0};
+            viewmodelPassInfo.renderArea.extent = vulkan_.swapchainExtent;
+            viewmodelPassInfo.clearValueCount = static_cast<uint32_t>(sceneClearValues.size());
+            viewmodelPassInfo.pClearValues = sceneClearValues.data();
+
+            vkCmdBeginRenderPass(commandBuffer, &viewmodelPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+            vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+            if (heldItemId == 0)
+            {
+                drawFirstPersonHand(commandBuffer, camera, cameraPosition, skyBrightness, heldPortableLightEmission, vulkan_.currentFrame);
+            }
+            if (heldItemId != 0 || offhandItemId != 0)
+            {
+                drawHeldItem(commandBuffer, camera, cameraPosition, heldItemStack, offhandItemStack, viewmodelMotion, skyBrightness, heldPortableLightEmission, playerPackedLight);
+            }
+
+            vkCmdEndRenderPass(commandBuffer);
+        }
 
         if (gameSceneRenderEnabled && waterOverlay.active)
         {

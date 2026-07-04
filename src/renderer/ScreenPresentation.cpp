@@ -1,5 +1,6 @@
 #include "renderer/ScreenPresentation.h"
 
+#include "renderer/CelestialDirections.h"
 #include "renderer/ClimateOverlayTextureBuilder.h"
 
 #include <algorithm>
@@ -11,9 +12,6 @@ namespace dolbuto
 {
     namespace
     {
-        constexpr uint64_t SkyTicksPerDay = 28800;
-        constexpr double TwoPi = 6.283185307179586;
-        constexpr double HalfPi = 1.5707963267948966;
         constexpr float MenuButtonWidthPixels = 240.0f;
         constexpr float MenuButtonHeightPixels = 56.0f;
         constexpr float LobbyBackgroundTilePixels = 96.0f;
@@ -31,21 +29,17 @@ namespace dolbuto
         VkBuffer spriteVertexBuffer) const
     {
         const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
-        const double dayPhase = static_cast<double>(worldTicks % SkyTicksPerDay) / static_cast<double>(SkyTicksPerDay);
-        const double skyAngle = HalfPi - dayPhase * TwoPi;
-        const std::array<float, 3> sunDirection{
-            static_cast<float>(std::cos(skyAngle)),
-            static_cast<float>(std::sin(skyAngle)),
-            0.0f
-        };
-        const std::array<float, 3> moonDirection{-sunDirection[0], -sunDirection[1], -sunDirection[2]};
+        const Vec3 sunPositionDirection = celestial::sunPositionDirection(worldTicks);
+        const Vec3 moonPositionDirection = celestial::moonPositionDirection(worldTicks);
+        const std::array<float, 3> visibleSunDirection{sunPositionDirection.x, sunPositionDirection.y, sunPositionDirection.z};
+        const std::array<float, 3> visibleMoonDirection{moonPositionDirection.x, moonPositionDirection.y, moonPositionDirection.z};
 
         SpriteRenderPath::Rect rect;
-        if (projectSkyDirection(camera, aspect, fovRadians, sunDirection, rect))
+        if (projectSkyDirection(camera, aspect, fovRadians, visibleSunDirection, rect))
         {
             sprites.draw(commandBuffer, pipelineLayout, spriteVertexBuffer, assets.sun, rect);
         }
-        if (projectSkyDirection(camera, aspect, fovRadians, moonDirection, rect))
+        if (projectSkyDirection(camera, aspect, fovRadians, visibleMoonDirection, rect))
         {
             sprites.draw(commandBuffer, pipelineLayout, spriteVertexBuffer, assets.moon, rect, {}, {1.0f, 0.92f, 0.78f, 1.0f});
         }
@@ -226,9 +220,14 @@ namespace dolbuto
     bool ScreenPresentation::projectSkyDirection(const Camera& camera, float aspect, float fovRadians, const std::array<float, 3>& direction, SpriteRenderPath::Rect& rect)
     {
         Vec3 dir = normalize({direction[0], direction[1], direction[2]});
-        const float x = -dot(dir, camera.right());
-        const float y = dot(dir, camera.up());
-        const float z = dot(dir, camera.forward());
+        const Vec3 cameraRight = camera.right();
+        const Vec3 terrainRight{-cameraRight.x, -cameraRight.y, -cameraRight.z};
+        const Vec3 forward = camera.forward();
+        const Vec3 terrainForward{forward.x, -forward.y, forward.z};
+        const Vec3 terrainUp = normalize(cross(terrainForward, terrainRight));
+        const float x = dot(dir, terrainRight);
+        const float y = -dot(dir, terrainUp);
+        const float z = dot(dir, terrainForward);
 
         if (z <= 0.01f)
         {

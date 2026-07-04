@@ -122,6 +122,8 @@ set(DOLBUTO_RUNTIME_DLLS
 set(SHADER_SOURCES
     shaders/sky.vert
     shaders/sky.frag
+    shaders/god_rays.vert
+    shaders/god_rays.frag
     shaders/sprite.vert
     shaders/sprite.frag
     shaders/sprite_scene.frag
@@ -132,10 +134,14 @@ set(SHADER_SOURCES
     shaders/rmlui.frag
     shaders/terrain.vert
     shaders/terrain.frag
+    shaders/terrain_lit.frag
+    shaders/terrain_shadow.vert
+    shaders/terrain_shadow.frag
     shaders/fluid.frag
     shaders/molten.frag
     shaders/player.vert
     shaders/player_model.vert
+    shaders/player_shadow.vert
     shaders/item.vert
     shaders/item_viewmodel.vert
     shaders/selection.vert
@@ -230,6 +236,7 @@ add_executable(DOLBUTO
     src/renderer/RendererDiagnostics.cpp
     src/renderer/RendererSceneLifecycleBridge.cpp
     src/renderer/RendererSceneDraw.cpp
+    src/renderer/RendererShadow.cpp
     src/renderer/RendererSwapchain.cpp
     src/renderer/RendererTerrainRuntimeBridge.cpp
     src/renderer/RendererVulkanContext.cpp

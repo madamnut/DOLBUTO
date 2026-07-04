@@ -1,6 +1,7 @@
 #include "renderer/Renderer.h"
 
 #include "camera/Camera.h"
+#include "renderer/CelestialDirections.h"
 #include "renderer/RendererGameplayBridge.h"
 #include "world/BlockVisualShape.h"
 
@@ -136,6 +137,162 @@ namespace dolbuto
         playerMeshRenderPath_.updateFirstPersonHand(camera, cameraPosition, client_.viewmodelConfig.hand, viewmodelMotion, frameIndex, packedLight);
     }
 
+    void Renderer::drawGodRays(
+        VkCommandBuffer commandBuffer,
+        uint32_t imageIndex,
+        const Camera& camera,
+        Vec3 cameraPosition,
+        float fovRadians,
+        float skyBrightness,
+        uint64_t worldTicks)
+    {
+        constexpr float GodRayIntensity = 0.75f;
+        if (vulkan_.godRayPipeline == VK_NULL_HANDLE ||
+            vulkan_.godRayPipelineLayout == VK_NULL_HANDLE ||
+            imageIndex >= sceneDepthTargets_.size() ||
+            imageIndex >= vulkan_.godRayFramebuffers.size() ||
+            vulkan_.godRayDescriptorSets[vulkan_.currentFrame] == VK_NULL_HANDLE ||
+            vulkan_.godRayFramebuffers[imageIndex] == VK_NULL_HANDLE ||
+            sceneDepthTargets_[imageIndex].view == VK_NULL_HANDLE ||
+            skyBrightness <= 0.05f)
+        {
+            return;
+        }
+
+        GodRayPush push{};
+        const Vec3 sunPositionDirection = celestial::sunPositionDirection(worldTicks);
+        const float sunAltitude = std::clamp((sunPositionDirection.y - 0.02f) / 0.16f, 0.0f, 1.0f);
+        if (sunAltitude <= 0.0f)
+        {
+            return;
+        }
+        const Vec3 right = camera.right();
+        const Vec3 forward = camera.forward();
+        const Vec3 terrainRight{-right.x, -right.y, -right.z};
+        const Vec3 terrainForward{forward.x, -forward.y, forward.z};
+        const Vec3 terrainUp = normalize(cross(terrainForward, terrainRight));
+
+        const float width = std::max(static_cast<float>(vulkan_.swapchainExtent.width), 1.0f);
+        const float height = std::max(static_cast<float>(vulkan_.swapchainExtent.height), 1.0f);
+        const float aspect = width / height;
+        const float tanHalfFov = std::max(std::tan(fovRadians * 0.5f), 0.001f);
+        const float sunZ = dot(sunPositionDirection, forward);
+        const float sunFacing = std::clamp((sunZ + 0.15f) / 0.90f, 0.0f, 1.0f);
+        if (sunFacing <= 0.0f)
+        {
+            return;
+        }
+        const float sunVisible = sunFacing * sunFacing * sunAltitude;
+
+        push.cameraPosition[0] = cameraPosition.x;
+        push.cameraPosition[1] = cameraPosition.y;
+        push.cameraPosition[2] = cameraPosition.z;
+        push.cameraRight[0] = terrainRight.x;
+        push.cameraRight[1] = terrainRight.y;
+        push.cameraRight[2] = terrainRight.z;
+        push.cameraUp[0] = terrainUp.x;
+        push.cameraUp[1] = terrainUp.y;
+        push.cameraUp[2] = terrainUp.z;
+        push.cameraForward[0] = terrainForward.x;
+        push.cameraForward[1] = terrainForward.y;
+        push.cameraForward[2] = terrainForward.z;
+        push.sunPositionDirection[0] = sunPositionDirection.x;
+        push.sunPositionDirection[1] = sunPositionDirection.y;
+        push.sunPositionDirection[2] = sunPositionDirection.z;
+        push.sunPositionDirection[3] = sunVisible;
+        push.params[0] = tanHalfFov;
+        push.params[1] = aspect;
+        push.params[2] = 180.0f;
+        push.params[3] = GodRayIntensity * std::clamp(skyBrightness, 0.0f, 1.0f);
+        push.depthParams[0] = TerrainNearPlane;
+        push.depthParams[1] = TerrainFarPlane;
+        push.depthParams[2] = std::clamp(skyBrightness, 0.0f, 1.0f);
+        push.depthParams[3] = 0.0f;
+
+        VkDescriptorImageInfo depthDescriptor{};
+        depthDescriptor.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        depthDescriptor.imageView = sceneDepthTargets_[imageIndex].view;
+        depthDescriptor.sampler = vulkan_.sampler;
+
+        VkDescriptorBufferInfo shadowBuffer{};
+        shadowBuffer.buffer = vulkan_.shadowUniformBuffers[vulkan_.currentFrame];
+        shadowBuffer.range = sizeof(ShadowUniformData);
+
+        VkDescriptorImageInfo shadowDescriptor{};
+        shadowDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        shadowDescriptor.imageView = vulkan_.shadowImageViews[vulkan_.currentFrame];
+        shadowDescriptor.sampler = vulkan_.shadowSampler;
+
+        std::array<VkWriteDescriptorSet, 3> writes{};
+        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[0].dstSet = vulkan_.godRayDescriptorSets[vulkan_.currentFrame];
+        writes[0].dstBinding = 0;
+        writes[0].descriptorCount = 1;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[0].pImageInfo = &depthDescriptor;
+        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[1].dstSet = vulkan_.godRayDescriptorSets[vulkan_.currentFrame];
+        writes[1].dstBinding = 1;
+        writes[1].descriptorCount = 1;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[1].pBufferInfo = &shadowBuffer;
+        writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[2].dstSet = vulkan_.godRayDescriptorSets[vulkan_.currentFrame];
+        writes[2].dstBinding = 2;
+        writes[2].descriptorCount = 1;
+        writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[2].pImageInfo = &shadowDescriptor;
+        vkUpdateDescriptorSets(vulkan_.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+
+        VkClearValue ignoredClear{};
+        ignoredClear.color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+
+        VkRenderPassBeginInfo passInfo{};
+        passInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        passInfo.renderPass = vulkan_.postProcessLoadRenderPass;
+        passInfo.framebuffer = vulkan_.godRayFramebuffers[imageIndex];
+        passInfo.renderArea.offset = {0, 0};
+        passInfo.renderArea.extent = vulkan_.swapchainExtent;
+        passInfo.clearValueCount = 1;
+        passInfo.pClearValues = &ignoredClear;
+
+        vkCmdBeginRenderPass(commandBuffer, &passInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = static_cast<float>(vulkan_.swapchainExtent.width);
+        viewport.height = static_cast<float>(vulkan_.swapchainExtent.height);
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = vulkan_.swapchainExtent;
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.godRayPipeline);
+        vkCmdBindDescriptorSets(
+            commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            vulkan_.godRayPipelineLayout,
+            0,
+            1,
+            &vulkan_.godRayDescriptorSets[vulkan_.currentFrame],
+            0,
+            nullptr);
+        vkCmdPushConstants(
+            commandBuffer,
+            vulkan_.godRayPipelineLayout,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            0,
+            sizeof(push),
+            &push);
+        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+        vkCmdEndRenderPass(commandBuffer);
+    }
+
     void Renderer::drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission, bool wireframe, bool drawBlocks, bool drawFluids, uint32_t sceneImageIndex)
     {
         if (terrainRenderPath_.empty())
@@ -192,6 +349,7 @@ namespace dolbuto
         push.fluidWaterParams[3] = static_cast<float>(FireAnimationFrameCount);
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
         push.dynamicLightParams[1] = 1.0f;
+        push.dynamicLightParams[3] = 1.0f;
         const double terrainFadeNowSeconds = std::chrono::duration<double>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
 
@@ -209,6 +367,7 @@ namespace dolbuto
         {
             vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainPipelineLayout, 0, 1, &rendererAssets_.terrainTextureArray.descriptorSet, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainPipelineLayout, 2, 1, &vulkan_.shadowDescriptorSets[vulkan_.currentFrame], 0, nullptr);
             if (wireframe)
             {
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainWireframePipeline);
@@ -277,9 +436,11 @@ namespace dolbuto
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
         push.dynamicLightParams[1] = 1.0f;
         push.dynamicLightParams[2] = std::clamp(hurtFlash, 0.0f, 1.0f);
+        push.dynamicLightParams[3] = 1.0f;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.playerPipeline);
         vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainPipelineLayout, 2, 1, &vulkan_.shadowDescriptorSets[vulkan_.currentFrame], 0, nullptr);
         playerMeshRenderPath_.draw(commandBuffer, vulkan_.terrainPipelineLayout, rendererAssets_.playerTexture, frameIndex);
     }
 
@@ -304,9 +465,11 @@ namespace dolbuto
         push.fluidWaterParams[1] = skyBrightness;
         push.dynamicLightParams[0] = static_cast<float>(heldPortableLightEmission);
         push.dynamicLightParams[1] = 1.0f;
+        push.dynamicLightParams[3] = 0.0f;
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.playerViewmodelPipeline);
         vkCmdPushConstants(commandBuffer, vulkan_.terrainPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(TerrainPush), &push);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.terrainPipelineLayout, 2, 1, &vulkan_.shadowDescriptorSets[vulkan_.currentFrame], 0, nullptr);
         playerMeshRenderPath_.drawFirstPersonHand(commandBuffer, vulkan_.terrainPipelineLayout, rendererAssets_.playerTexture, frameIndex);
     }
 

@@ -268,6 +268,86 @@ namespace dolbuto
 
 
 
+    void Renderer::createSceneLoadRenderPass()
+    {
+        VkAttachmentDescription colorAttachment{};
+        colorAttachment.format = vulkan_.sceneColorFormat;
+        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkAttachmentReference colorRef{};
+        colorRef.attachment = 0;
+        colorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentDescription bloomAttachment = colorAttachment;
+
+        VkAttachmentReference bloomRef{};
+        bloomRef.attachment = 1;
+        bloomRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentDescription depthAttachment{};
+        depthAttachment.format = DepthFormat;
+        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+        VkAttachmentReference depthRef{};
+        depthRef.attachment = 2;
+        depthRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        std::array<VkAttachmentReference, 2> colorRefs = {colorRef, bloomRef};
+
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = static_cast<uint32_t>(colorRefs.size());
+        subpass.pColorAttachments = colorRefs.data();
+        subpass.pDepthStencilAttachment = &depthRef;
+
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        VkSubpassDependency readDependency{};
+        readDependency.srcSubpass = 0;
+        readDependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+        readDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        readDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        readDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        readDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        std::array<VkAttachmentDescription, 3> attachments = {colorAttachment, bloomAttachment, depthAttachment};
+        std::array<VkSubpassDependency, 2> dependencies = {dependency, readDependency};
+
+        VkRenderPassCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        createInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+        createInfo.pAttachments = attachments.data();
+        createInfo.subpassCount = 1;
+        createInfo.pSubpasses = &subpass;
+        createInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+        createInfo.pDependencies = dependencies.data();
+
+        if (vkCreateRenderPass(vulkan_.device, &createInfo, nullptr, &vulkan_.sceneLoadRenderPass) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create scene load render pass.");
+        }
+    }
+
+
+
     void Renderer::createWaterBlurRenderPass()
     {
         VkAttachmentDescription colorAttachment{};
@@ -485,15 +565,16 @@ namespace dolbuto
 
         vulkan_.waterBlurFramebuffersA.resize(waterBlurTargetsA_.size());
         vulkan_.waterBlurFramebuffersB.resize(waterBlurTargetsB_.size());
+        vulkan_.godRayFramebuffers.resize(sceneColorTargets_.size());
         for (size_t mip = 0; mip < vulkan_.bloomFramebuffers.size(); ++mip)
         {
             vulkan_.bloomFramebuffers[mip].resize(bloomTargets_[mip].size());
         }
-        auto createPostProcessFramebuffer = [this](const Texture& target, VkFramebuffer& framebuffer)
+        auto createPostProcessFramebuffer = [this](VkRenderPass renderPass, const Texture& target, VkFramebuffer& framebuffer)
         {
             VkFramebufferCreateInfo createInfo{};
             createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            createInfo.renderPass = vulkan_.waterBlurRenderPass;
+            createInfo.renderPass = renderPass;
             createInfo.attachmentCount = 1;
             createInfo.pAttachments = &target.view;
             createInfo.width = static_cast<uint32_t>(target.width);
@@ -507,14 +588,18 @@ namespace dolbuto
         };
         for (size_t i = 0; i < waterBlurTargetsA_.size(); ++i)
         {
-            createPostProcessFramebuffer(waterBlurTargetsA_[i], vulkan_.waterBlurFramebuffersA[i]);
-            createPostProcessFramebuffer(waterBlurTargetsB_[i], vulkan_.waterBlurFramebuffersB[i]);
+            createPostProcessFramebuffer(vulkan_.waterBlurRenderPass, waterBlurTargetsA_[i], vulkan_.waterBlurFramebuffersA[i]);
+            createPostProcessFramebuffer(vulkan_.waterBlurRenderPass, waterBlurTargetsB_[i], vulkan_.waterBlurFramebuffersB[i]);
+        }
+        for (size_t i = 0; i < sceneColorTargets_.size(); ++i)
+        {
+            createPostProcessFramebuffer(vulkan_.postProcessLoadRenderPass, sceneColorTargets_[i], vulkan_.godRayFramebuffers[i]);
         }
         for (size_t mip = 0; mip < bloomTargets_.size(); ++mip)
         {
             for (size_t i = 0; i < bloomTargets_[mip].size(); ++i)
             {
-                createPostProcessFramebuffer(bloomTargets_[mip][i], vulkan_.bloomFramebuffers[mip][i]);
+                createPostProcessFramebuffer(vulkan_.waterBlurRenderPass, bloomTargets_[mip][i], vulkan_.bloomFramebuffers[mip][i]);
             }
         }
 
@@ -559,6 +644,11 @@ namespace dolbuto
             vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
         }
         vulkan_.waterBlurFramebuffersB.clear();
+        for (VkFramebuffer framebuffer : vulkan_.godRayFramebuffers)
+        {
+            vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
+        }
+        vulkan_.godRayFramebuffers.clear();
         for (std::vector<VkFramebuffer>& framebuffers : vulkan_.bloomFramebuffers)
         {
             for (VkFramebuffer framebuffer : framebuffers)

@@ -13,6 +13,10 @@ namespace dolbuto
     struct RendererVulkanState
     {
         static constexpr size_t BloomMipCount = 4;
+        static constexpr size_t FrameInFlightCount = 2;
+        static constexpr size_t ShadowCascadeCount = 1;
+        static constexpr size_t ShadowHistoryCount = FrameInFlightCount;
+        static constexpr uint32_t ShadowMapSize = 2048;
 
         VkInstance instance = VK_NULL_HANDLE;
         VkSurfaceKHR surface = VK_NULL_HANDLE;
@@ -33,13 +37,19 @@ namespace dolbuto
         VkImageView depthImageView = VK_NULL_HANDLE;
         VkRenderPass renderPass = VK_NULL_HANDLE;
         VkRenderPass sceneRenderPass = VK_NULL_HANDLE;
+        VkRenderPass sceneLoadRenderPass = VK_NULL_HANDLE;
         VkRenderPass waterBlurRenderPass = VK_NULL_HANDLE;
         VkRenderPass postProcessLoadRenderPass = VK_NULL_HANDLE;
+        VkRenderPass shadowRenderPass = VK_NULL_HANDLE;
 
         VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorSetLayout terrainVertexDescriptorSetLayout = VK_NULL_HANDLE;
+        VkDescriptorSetLayout shadowDescriptorSetLayout = VK_NULL_HANDLE;
+        VkDescriptorSetLayout godRayDescriptorSetLayout = VK_NULL_HANDLE;
         VkPipelineLayout skyPipelineLayout = VK_NULL_HANDLE;
         VkPipeline skyPipeline = VK_NULL_HANDLE;
+        VkPipelineLayout godRayPipelineLayout = VK_NULL_HANDLE;
+        VkPipeline godRayPipeline = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
         VkPipeline pipeline = VK_NULL_HANDLE;
         VkPipeline sceneSpritePipeline = VK_NULL_HANDLE;
@@ -58,6 +68,8 @@ namespace dolbuto
         VkPipeline fluidPipeline = VK_NULL_HANDLE;
         VkPipeline playerPipeline = VK_NULL_HANDLE;
         VkPipeline playerViewmodelPipeline = VK_NULL_HANDLE;
+        VkPipeline terrainShadowPipeline = VK_NULL_HANDLE;
+        VkPipeline playerShadowPipeline = VK_NULL_HANDLE;
         VkPipelineLayout particlePipelineLayout = VK_NULL_HANDLE;
         VkPipeline particlePipeline = VK_NULL_HANDLE;
         VkPipeline itemPipeline = VK_NULL_HANDLE;
@@ -76,7 +88,17 @@ namespace dolbuto
 
         VkSampler sampler = VK_NULL_HANDLE;
         VkSampler linearSampler = VK_NULL_HANDLE;
+        VkSampler shadowSampler = VK_NULL_HANDLE;
         VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+        std::array<VkImage, ShadowHistoryCount> shadowImages{};
+        std::array<VkDeviceMemory, ShadowHistoryCount> shadowMemories{};
+        std::array<VkImageView, ShadowHistoryCount> shadowImageViews{};
+        std::array<std::array<VkImageView, ShadowCascadeCount>, ShadowHistoryCount> shadowLayerViews{};
+        std::array<std::array<VkFramebuffer, ShadowCascadeCount>, ShadowHistoryCount> shadowFramebuffers{};
+        std::array<VkBuffer, FrameInFlightCount> shadowUniformBuffers{};
+        std::array<VkDeviceMemory, FrameInFlightCount> shadowUniformMemories{};
+        std::array<VkDescriptorSet, FrameInFlightCount> shadowDescriptorSets{};
+        std::array<VkDescriptorSet, FrameInFlightCount> godRayDescriptorSets{};
         VkBuffer uiVertexBuffer = VK_NULL_HANDLE;
         VkDeviceMemory uiVertexMemory = VK_NULL_HANDLE;
         VkBuffer uiIndexBuffer = VK_NULL_HANDLE;
@@ -90,6 +112,7 @@ namespace dolbuto
         size_t rmlUiVertexOffset = 0;
         size_t rmlUiIndexOffset = 0;
         std::vector<VkFramebuffer> sceneFramebuffers;
+        std::vector<VkFramebuffer> godRayFramebuffers;
         std::vector<VkFramebuffer> waterBlurFramebuffersA;
         std::vector<VkFramebuffer> waterBlurFramebuffersB;
         std::array<std::vector<VkFramebuffer>, BloomMipCount> bloomFramebuffers;

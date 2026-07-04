@@ -24,6 +24,7 @@ layout(location = 1) out float fragAo;
 layout(location = 2) out vec3 fragWorldPosition;
 layout(location = 3) flat out float fragTextureLayer;
 layout(location = 4) flat out float fragMipDistanceScale;
+layout(location = 5) flat out vec3 fragNormal;
 layout(location = 6) flat out float fragAlphaBlend;
 layout(location = 7) flat out float fragSkyLight;
 layout(location = 8) flat out float fragBlockLight;
@@ -39,6 +40,8 @@ void main()
     fragWorldPosition = relativePosition;
     fragTextureLayer = inTextureLayer;
     fragMipDistanceScale = inMipDistanceScale;
+    vec3 worldNormal = (playerNodeTransformBuffer.nodeTransforms[inNodeIndex] * vec4(0.0, 1.0, 0.0, 0.0)).xyz;
+    fragNormal = dot(worldNormal, worldNormal) > 0.0001 ? normalize(worldNormal) : vec3(0.0, 1.0, 0.0);
     fragAlphaBlend = 1.0;
     fragSkyLight = float((inPackedLight >> 4u) & 0xFu) / 15.0;
     fragBlockLight = float(inPackedLight & 0xFu) / 15.0;

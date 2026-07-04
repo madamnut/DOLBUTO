@@ -804,6 +804,38 @@ namespace dolbuto
         return visibleStats;
     }
 
+    TerrainRenderPath::Stats TerrainRenderPath::drawShadow(VkCommandBuffer commandBuffer, VkPipelineLayout terrainPipelineLayout) const
+    {
+        Stats visibleStats{};
+        for (const auto& entry : chunks_)
+        {
+            const ChunkRenderData& chunk = entry.second;
+            for (const TerrainMesh& mesh : chunk.solidSubchunks)
+            {
+                if (mesh.indexCount == 0)
+                {
+                    continue;
+                }
+                drawTerrainMeshBound(commandBuffer, terrainPipelineLayout, mesh);
+                ++visibleStats.drawCount;
+                visibleStats.faceCount += mesh.indexCount / 6;
+                visibleStats.vertexCount += mesh.vertexCount;
+            }
+            for (const TerrainMesh& mesh : chunk.blendSubchunks)
+            {
+                if (mesh.indexCount == 0)
+                {
+                    continue;
+                }
+                drawTerrainMeshBound(commandBuffer, terrainPipelineLayout, mesh);
+                ++visibleStats.drawCount;
+                visibleStats.faceCount += mesh.indexCount / 6;
+                visibleStats.vertexCount += mesh.vertexCount;
+            }
+        }
+        return visibleStats;
+    }
+
     TerrainRenderPath::Stats TerrainRenderPath::drawFluids(
         VkCommandBuffer commandBuffer,
         VkPipelineLayout terrainPipelineLayout,

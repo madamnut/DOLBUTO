@@ -73,6 +73,68 @@ namespace dolbuto
 
 
 
+    void Renderer::createShadowDescriptorSetLayout()
+    {
+        std::array<VkDescriptorSetLayoutBinding, 3> bindings{};
+        bindings[0].binding = 0;
+        bindings[0].descriptorCount = 1;
+        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[1].binding = 1;
+        bindings[1].descriptorCount = 1;
+        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[2].binding = 2;
+        bindings[2].descriptorCount = 1;
+        bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        VkDescriptorSetLayoutCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        createInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        createInfo.pBindings = bindings.data();
+
+        if (vkCreateDescriptorSetLayout(vulkan_.device, &createInfo, nullptr, &vulkan_.shadowDescriptorSetLayout) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create shadow descriptor set layout.");
+        }
+    }
+
+
+
+    void Renderer::createGodRayDescriptorSetLayout()
+    {
+        std::array<VkDescriptorSetLayoutBinding, 3> bindings{};
+        bindings[0].binding = 0;
+        bindings[0].descriptorCount = 1;
+        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[1].binding = 1;
+        bindings[1].descriptorCount = 1;
+        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[2].binding = 2;
+        bindings[2].descriptorCount = 1;
+        bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        VkDescriptorSetLayoutCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        createInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        createInfo.pBindings = bindings.data();
+
+        if (vkCreateDescriptorSetLayout(vulkan_.device, &createInfo, nullptr, &vulkan_.godRayDescriptorSetLayout) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create god ray descriptor set layout.");
+        }
+    }
+
+
+
     void Renderer::createSkyPipeline()
     {
         const std::filesystem::path shaderDir = shaderDirectory();
@@ -177,6 +239,125 @@ namespace dolbuto
         if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.skyPipeline) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create sky pipeline.");
+        }
+
+        vkDestroyShaderModule(vulkan_.device, fragShader, nullptr);
+        vkDestroyShaderModule(vulkan_.device, vertShader, nullptr);
+    }
+
+
+
+    void Renderer::createGodRayPipeline()
+    {
+        const std::filesystem::path shaderDir = shaderDirectory();
+        VkShaderModule vertShader = createShaderModule((shaderDir / "god_rays.vert.spv").string());
+        VkShaderModule fragShader = createShaderModule((shaderDir / "god_rays.frag.spv").string());
+
+        VkPipelineShaderStageCreateInfo vertStage{};
+        vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertStage.module = vertShader;
+        vertStage.pName = "main";
+
+        VkPipelineShaderStageCreateInfo fragStage{};
+        fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragStage.module = fragShader;
+        fragStage.pName = "main";
+
+        std::array<VkPipelineShaderStageCreateInfo, 2> stages = {vertStage, fragStage};
+
+        VkPipelineVertexInputStateCreateInfo vertexInput{};
+        vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.scissorCount = 1;
+
+        std::array<VkDynamicState, 2> dynamicStates = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+
+        VkPipelineDynamicStateCreateInfo dynamicState{};
+        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+        dynamicState.pDynamicStates = dynamicStates.data();
+
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer.cullMode = VK_CULL_MODE_NONE;
+        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer.lineWidth = 1.0f;
+
+        VkPipelineMultisampleStateCreateInfo multisampling{};
+        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        VkPipelineColorBlendAttachmentState sceneBlend{};
+        sceneBlend.blendEnable = VK_TRUE;
+        sceneBlend.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        sceneBlend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        sceneBlend.colorBlendOp = VK_BLEND_OP_ADD;
+        sceneBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        sceneBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        sceneBlend.alphaBlendOp = VK_BLEND_OP_ADD;
+        sceneBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT;
+
+        VkPipelineColorBlendStateCreateInfo colorBlending{};
+        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlending.attachmentCount = 1;
+        colorBlending.pAttachments = &sceneBlend;
+
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_FALSE;
+        depthStencil.depthWriteEnable = VK_FALSE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+
+        VkPushConstantRange pushRange{};
+        pushRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        pushRange.offset = 0;
+        pushRange.size = sizeof(GodRayPush);
+        static_assert(sizeof(GodRayPush) == sizeof(float) * 28);
+
+        VkPipelineLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layoutInfo.setLayoutCount = 1;
+        layoutInfo.pSetLayouts = &vulkan_.godRayDescriptorSetLayout;
+        layoutInfo.pushConstantRangeCount = 1;
+        layoutInfo.pPushConstantRanges = &pushRange;
+
+        if (vkCreatePipelineLayout(vulkan_.device, &layoutInfo, nullptr, &vulkan_.godRayPipelineLayout) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create god ray pipeline layout.");
+        }
+
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount = static_cast<uint32_t>(stages.size());
+        pipelineInfo.pStages = stages.data();
+        pipelineInfo.pVertexInputState = &vertexInput;
+        pipelineInfo.pInputAssemblyState = &inputAssembly;
+        pipelineInfo.pViewportState = &viewportState;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState = &multisampling;
+        pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.pDepthStencilState = &depthStencil;
+        pipelineInfo.pDynamicState = &dynamicState;
+        pipelineInfo.layout = vulkan_.godRayPipelineLayout;
+        pipelineInfo.renderPass = vulkan_.postProcessLoadRenderPass;
+        pipelineInfo.subpass = 0;
+
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.godRayPipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create god ray pipeline.");
         }
 
         vkDestroyShaderModule(vulkan_.device, fragShader, nullptr);
@@ -533,8 +714,11 @@ namespace dolbuto
     {
         const std::filesystem::path shaderDir = shaderDirectory();
         VkShaderModule vertShader = createShaderModule((shaderDir / "terrain.vert.spv").string());
+        VkShaderModule terrainShadowVertShader = createShaderModule((shaderDir / "terrain_shadow.vert.spv").string());
         VkShaderModule playerVertShader = createShaderModule((shaderDir / "player_model.vert.spv").string());
-        VkShaderModule fragShader = createShaderModule((shaderDir / "terrain.frag.spv").string());
+        VkShaderModule playerShadowVertShader = createShaderModule((shaderDir / "player_shadow.vert.spv").string());
+        VkShaderModule fragShader = createShaderModule((shaderDir / "terrain_lit.frag.spv").string());
+        VkShaderModule shadowFragShader = createShaderModule((shaderDir / "terrain_shadow.frag.spv").string());
         VkShaderModule fluidFragShader = createShaderModule((shaderDir / "fluid.frag.spv").string());
 
         VkPipelineShaderStageCreateInfo vertStage{};
@@ -650,9 +834,10 @@ namespace dolbuto
 
         VkPipelineLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        std::array<VkDescriptorSetLayout, 2> terrainSetLayouts = {
+        std::array<VkDescriptorSetLayout, 3> terrainSetLayouts = {
             vulkan_.descriptorSetLayout,
-            vulkan_.terrainVertexDescriptorSetLayout
+            vulkan_.terrainVertexDescriptorSetLayout,
+            vulkan_.shadowDescriptorSetLayout
         };
         layoutInfo.setLayoutCount = static_cast<uint32_t>(terrainSetLayouts.size());
         layoutInfo.pSetLayouts = terrainSetLayouts.data();
@@ -740,9 +925,57 @@ namespace dolbuto
             throw std::runtime_error("Failed to create player viewmodel pipeline.");
         }
 
+        VkPipelineDepthStencilStateCreateInfo shadowDepthStencil{};
+        shadowDepthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        shadowDepthStencil.depthTestEnable = VK_TRUE;
+        shadowDepthStencil.depthWriteEnable = VK_TRUE;
+        shadowDepthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+
+        VkPipelineColorBlendStateCreateInfo shadowColorBlending{};
+        shadowColorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+
+        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizer.depthBiasEnable = VK_TRUE;
+        rasterizer.depthBiasConstantFactor = 0.35f;
+        rasterizer.depthBiasSlopeFactor = 0.75f;
+        rasterizer.depthBiasClamp = 0.0f;
+        stages[0].module = terrainShadowVertShader;
+        stages[1].module = shadowFragShader;
+        pipelineInfo.stageCount = 2;
+        pipelineInfo.pStages = stages;
+        pipelineInfo.pVertexInputState = &vertexInput;
+        pipelineInfo.pColorBlendState = &shadowColorBlending;
+        pipelineInfo.pDepthStencilState = &shadowDepthStencil;
+        pipelineInfo.renderPass = vulkan_.shadowRenderPass;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.terrainShadowPipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create terrain shadow pipeline.");
+        }
+
+        VkPipelineShaderStageCreateInfo playerShadowStage{};
+        playerShadowStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        playerShadowStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        playerShadowStage.module = playerShadowVertShader;
+        playerShadowStage.pName = "main";
+
+        rasterizer.cullMode = VK_CULL_MODE_NONE;
+        rasterizer.depthBiasEnable = VK_FALSE;
+        rasterizer.depthBiasConstantFactor = 0.0f;
+        rasterizer.depthBiasSlopeFactor = 0.0f;
+        pipelineInfo.stageCount = 1;
+        pipelineInfo.pStages = &playerShadowStage;
+        pipelineInfo.pVertexInputState = &playerVertexInput;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.playerShadowPipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create player shadow pipeline.");
+        }
+
         vkDestroyShaderModule(vulkan_.device, fragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, fluidFragShader, nullptr);
+        vkDestroyShaderModule(vulkan_.device, shadowFragShader, nullptr);
+        vkDestroyShaderModule(vulkan_.device, playerShadowVertShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, playerVertShader, nullptr);
+        vkDestroyShaderModule(vulkan_.device, terrainShadowVertShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, vertShader, nullptr);
     }
 
@@ -1180,18 +1413,24 @@ namespace dolbuto
     {
         constexpr uint32_t MaxTextureDescriptorSets = 320;
         constexpr uint32_t MaxTerrainVertexDescriptorSets = 65536;
-        std::array<VkDescriptorPoolSize, 2> poolSizes{};
+        constexpr uint32_t MaxShadowDescriptorSets = static_cast<uint32_t>(RendererVulkanState::FrameInFlightCount);
+        constexpr uint32_t MaxShadowImageDescriptors = MaxShadowDescriptorSets * 2;
+        constexpr uint32_t MaxGodRayDescriptorSets = static_cast<uint32_t>(RendererVulkanState::FrameInFlightCount);
+        constexpr uint32_t MaxGodRayImageDescriptors = MaxGodRayDescriptorSets * 2;
+        std::array<VkDescriptorPoolSize, 3> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[0].descriptorCount = MaxTextureDescriptorSets;
+        poolSizes[0].descriptorCount = MaxTextureDescriptorSets + MaxShadowImageDescriptors + MaxGodRayImageDescriptors;
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         poolSizes[1].descriptorCount = MaxTerrainVertexDescriptorSets;
+        poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[2].descriptorCount = MaxShadowDescriptorSets + MaxGodRayDescriptorSets;
 
         VkDescriptorPoolCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         createInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         createInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         createInfo.pPoolSizes = poolSizes.data();
-        createInfo.maxSets = MaxTextureDescriptorSets + MaxTerrainVertexDescriptorSets;
+        createInfo.maxSets = MaxTextureDescriptorSets + MaxTerrainVertexDescriptorSets + MaxShadowDescriptorSets + MaxGodRayDescriptorSets;
 
         if (vkCreateDescriptorPool(vulkan_.device, &createInfo, nullptr, &vulkan_.descriptorPool) != VK_SUCCESS)
         {

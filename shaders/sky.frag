@@ -5,7 +5,7 @@ layout(push_constant) uniform SkyPush
     vec4 cameraRight;
     vec4 cameraUp;
     vec4 cameraForward;
-    vec4 sunDirection;
+    vec4 sunPositionDirection;
     vec4 dayDirection;
     vec4 params;
 } pushData;
@@ -43,16 +43,16 @@ void main()
 
     vec3 viewDirection = normalize(
         pushData.cameraForward.xyz +
-        -pushData.cameraRight.xyz * (fragNdc.x * tanHalfFov * aspect) +
-        pushData.cameraUp.xyz * (fragNdc.y * tanHalfFov)
+        pushData.cameraRight.xyz * (fragNdc.x * tanHalfFov * aspect) +
+        -pushData.cameraUp.xyz * (fragNdc.y * tanHalfFov)
     );
-    vec3 sunDirection = normalize(pushData.sunDirection.xyz);
+    vec3 sunPositionDirection = normalize(pushData.sunPositionDirection.xyz);
     vec3 dayDirection = normalize(pushData.dayDirection.xyz);
     vec3 worldUp = vec3(0.0, 1.0, 0.0);
 
     float sdotu = dot(dayDirection, worldUp);
     float vdotu = dot(viewDirection, worldUp);
-    float vdots = dot(viewDirection, sunDirection);
+    float vdots = dot(viewDirection, sunPositionDirection);
 
     float sunVisibility = smoothstep(-0.08, 0.08, sdotu);
     float noonFactor = smoothstep(0.18, 0.82, sdotu);

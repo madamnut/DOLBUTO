@@ -1,5 +1,7 @@
 #pragma once
 
+#include "renderer/RendererVulkanState.h"
+
 #include <cstdint>
 #include <vector>
 
@@ -52,5 +54,28 @@ namespace dolbuto
         float cameraPosition[4]{};
         float fluidWaterParams[4]{};
         float dynamicLightParams[4]{};
+    };
+
+    struct GodRayPush
+    {
+        float cameraPosition[4]{};
+        float cameraRight[4]{};
+        float cameraUp[4]{};
+        float cameraForward[4]{};
+        float sunPositionDirection[4]{};
+        float params[4]{};
+        float depthParams[4]{};
+    };
+
+    struct ShadowUniformData
+    {
+        float lightViewProjection[RendererVulkanState::ShadowCascadeCount][16]{};
+        float previousLightViewProjection[RendererVulkanState::ShadowCascadeCount][16]{};
+        float cascadeSplits[4]{};
+        float sunPositionDirection[4]{};
+        float params[4]{};
+        float cascadeTexelSizes[4]{};
+        float previousCascadeTexelSizes[4]{};
+        float historyParams[4]{};
     };
 }
