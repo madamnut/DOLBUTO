@@ -56,17 +56,6 @@ namespace dolbuto
         float dynamicLightParams[4]{};
     };
 
-    struct GodRayPush
-    {
-        float cameraPosition[4]{};
-        float cameraRight[4]{};
-        float cameraUp[4]{};
-        float cameraForward[4]{};
-        float sunPositionDirection[4]{};
-        float params[4]{};
-        float depthParams[4]{};
-    };
-
     struct ShadowUniformData
     {
         float lightViewProjection[RendererVulkanState::ShadowCascadeCount][16]{};

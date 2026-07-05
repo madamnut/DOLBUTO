@@ -566,11 +566,6 @@ namespace dolbuto
         }
         vkCmdEndRenderPass(commandBuffer);
 
-        if (gameSceneRenderEnabled)
-        {
-            drawGodRays(commandBuffer, imageIndex, camera, cameraPosition, fovRadians, skyBrightness, worldTicks);
-        }
-
         if (gameSceneRenderEnabled && showFirstPersonHand && menuOverlayMode == 0)
         {
             VkRenderPassBeginInfo viewmodelPassInfo{};

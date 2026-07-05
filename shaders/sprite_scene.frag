@@ -17,5 +17,5 @@ void main()
 {
     vec4 color = texture(spriteTexture, fragUv) * pushData.color;
     outColor = color;
-    outBloom = vec4(color.rgb, color.a);
+    outBloom = vec4(color.rgb * 2.5, color.a);
 }

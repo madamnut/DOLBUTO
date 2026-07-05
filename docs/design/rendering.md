@@ -96,13 +96,12 @@
 `src/renderer/RendererDroppedItems.cpp`는 `DroppedItemRuntime` update 호출, 렌더 후보 수집 입력 조립, push constant 준비, `DroppedItemRenderPath` draw 호출만 담는다.
 `src/renderer/RendererFrameLoop.cpp`는 frame acquire/submit/present, command buffer 기록, screenshot readback/BMP 저장, command buffer/sync object 생성을 담는다.
 `src/renderer/SkyRenderPath.h/.cpp`는 scene render pass의 첫 draw로 fullscreen sky shader를 호출한다. sky shader는 clear color 고정값 대신 `worldTicks`에서 계산한 태양 위치 방향, camera basis, FOV를 받아 view direction과 direction dot 값으로 하늘 위쪽/지평선/아래쪽 그라데이션, 일출/일몰 horizon glow, 태양 방향 glare를 계산한다.
-현재 구름 렌더링은 제거되어 있다. 별도 cloud render path, cloud shader, cloud noise texture, cloud low-res target, cloud composite pass, `cloudCoverage` 디버그 입력은 사용하지 않는다. scene render pass는 sky, sun/moon, terrain, 도가니 용탕 수면, player, particle, dropped item, selection까지 그린다. 이후 scene depth와 shadow map을 읽는 별도 fullscreen 갓레이 패스를 scene color target에 additive로 누적하고, 1인칭 viewmodel은 color load와 depth clear를 사용하는 scene load pass에서 마지막에 그린다.
-천체 방향은 `src/renderer/CelestialDirections.h`에서 계산한다. 먼저 `worldTicks`로 태양 위치 방향을 구하고, 달 위치 방향은 그 반대편으로 둔다. 태양 위치 방향은 카메라/월드 기준에서 태양이 있는 방향이며, 태양 스프라이트, sky 태양 glare, godray의 화면 방향, 지형 표면의 태양 입사 방향에 사용한다. sky와 태양/달 스프라이트 투영은 지형 렌더링과 같은 `terrainRight/terrainUp/terrainForward` basis를 사용해 카메라 pitch 변화가 지형과 같은 기준으로 반영되게 한다. 빛이 실제 진행하는 방향은 태양 위치 방향의 반대인 `sunlightTravelDirection`이며, shadow map의 light view forward에만 사용한다.
+현재 구름 렌더링과 갓레이/볼류메트릭 라이트 렌더링은 제거되어 있다. 별도 cloud render path, cloud shader, cloud noise texture, cloud low-res target, cloud composite pass, `cloudCoverage` 디버그 입력, god ray shader, god ray render target은 사용하지 않는다. scene render pass는 sky, sun/moon, terrain, 도가니 용탕 수면, player, particle, dropped item, selection까지 그린다. 1인칭 viewmodel은 color load와 depth clear를 사용하는 scene load pass에서 마지막에 그린다.
+천체 방향은 `src/renderer/CelestialDirections.h`에서 계산한다. 먼저 `worldTicks`로 태양 위치 방향을 구하고, 달 위치 방향은 그 반대편으로 둔다. 태양 위치 방향은 카메라/월드 기준에서 태양이 있는 방향이며, 태양 스프라이트, sky 태양 glare, 지형 표면의 태양 입사 방향에 사용한다. sky와 태양/달 스프라이트 투영은 지형 렌더링과 같은 `terrainRight/terrainUp/terrainForward` basis를 사용해 카메라 pitch 변화가 지형과 같은 기준으로 반영되게 한다. 빛이 실제 진행하는 방향은 태양 위치 방향의 반대인 `sunlightTravelDirection`이며, shadow map의 light view forward에만 사용한다.
 태양 그림자는 `RendererShadow.cpp`의 단일 shadow space 패스로 만든다. shadow map은 2048 해상도 depth texture array의 0번 layer를 frame-in-flight별로 유지하고, scene render pass 전에 terrain solid/blend 메쉬와 3인칭 player mesh를 depth-only pipeline으로 한 번 그린다. shadow map, shadow uniform buffer, descriptor set은 frame-in-flight별로 분리해 이전 GPU frame이 읽는 shadow texture/matrix/descriptor를 다음 CPU frame이 덮어쓰지 않게 한다. 하늘의 태양/달 표시는 매 프레임 `worldTicks`를 쓰지만, shadow matrix용 태양 위치 방향은 시간 진행에 따른 미세한 shadow shimmer를 줄이기 위해 5틱 단위로 snap한 `worldTicks`를 사용한다.
-shadow projection은 cascade를 나누지 않고 카메라 중심의 고정 shadow distance 영역을 덮는 정사각형 orthographic 영역으로 잡는다. projection 중심은 카메라 위치를 light space로 옮긴 뒤 shadow texel 크기 단위로 snap하므로, 카메라 회전만으로 shadow projection이 움직이지 않는다. 현재 기본 그림자 안정성을 우선해 shadow map 기록과 receiver sampling은 정석 orthographic 좌표를 그대로 사용한다.
+shadow projection은 cascade를 나누지 않고 카메라 중심의 고정 shadow distance 영역을 덮는 정사각형 orthographic 영역으로 잡는다. projection 중심은 카메라 위치를 light space로 옮긴 뒤 shadow texel 크기 단위로 snap하므로, 카메라 회전만으로 shadow projection이 움직이지 않는다. shadow map 기록과 receiver sampling은 Complementary 계열 쉐이더처럼 shadow clip 좌표의 XY를 중심 거리 기반으로 왜곡해 사용한다. 이 왜곡은 shadow map 중심부, 즉 플레이어 주변/카메라 중심 근처에 더 많은 텍셀을 배정하기 위한 것이며, terrain/player shadow vertex shader와 terrain shadow sampling shader가 같은 왜곡식을 사용해야 한다.
 terrain shadow vertex shader는 일반 terrain vertex shader와 같은 `waving` 변형을 적용하므로 풀과 나뭇잎 흔들림이 그림자에도 반영된다. terrain shadow pipeline은 약한 Vulkan depth bias를 사용하지만, player shadow pipeline은 발밑 peter panning을 줄이기 위해 caster depth bias를 사용하지 않는다.
 본 terrain/player draw는 `terrain_lit.frag`에서 shadow descriptor set을 샘플링하고, sky light 성분에만 shadow factor를 곱한다. shadow map 샘플링은 단일 shadow map layer 0에서 고정 12-sample Poisson PCF를 사용한다. 카메라에서 shadow distance 끝으로 가까워질수록 그림자를 서서히 fade out하고 PCF 반경을 키워 원거리 경계가 너무 딱딱하게 끊기지 않도록 한다. receiver 위치는 shadow texel size와 표면 normal/태양 방향 각도에 따라 normal 방향으로 조금 밀어서 샘플링하고, receiver bias도 같은 값들을 기준으로 조정해 shadow acne와 peter panning 사이의 균형을 맞춘다.
-갓레이는 `RendererSceneDraw.cpp`의 fullscreen triangle draw로 처리하지만 최종 presentation pass가 아니라 월드 scene pass 직후에 scene color target으로 직접 누적한다. shader는 terrain pass가 scene depth를 만들 때 사용한 view/projection basis와 같은 기준으로 각 샘플의 view-space Z에서 world position을 복원하고, scene depth로 최대 샘플 거리를 제한한 뒤, 그 구간을 여러 번 샘플링하면서 단일 shadow map에서 lit/occluded 여부를 확인한다. 화면 방향성은 태양 위치 방향을 기준으로 잡고, occlusion 판정은 같은 태양 위치 방향에서 만든 shadow map을 사용한다. lit 구간보다 shadow 경계 변화에 더 높은 가중치를 두고, 태양 고도가 낮거나 지평선 아래에 있을 때는 효과를 약화/비활성화한다. 최종 additive 색은 상한을 둬 태양 방향을 볼 때 장면이 하얗게 덮이지 않게 한다. 이 패스는 기존 scene color를 방사형으로 늘리는 radial blur가 아니라, shadow map 기반의 저해상도 없는 per-pixel volumetric light shaft 근사다.
 1인칭 viewmodel은 같은 player pipeline layout을 쓰지만 shadow 적용 플래그를 끄고 그린다. 구름 그림자와 point/torch shadow는 아직 없다.
 밤하늘은 지형의 시간대별 `skyBrightness`와 별개로 낮보다 훨씬 낮은 RGB ramp를 사용하고, 어두운 계조에서 줄무늬가 보이지 않도록 screen-space hash noise 기반의 약한 dither를 적용한다.
 하늘색 디버그를 위해 게임 화면에서 `[`를 누르고 있으면 하루 안의 시간이 해가 뜨는 방향으로 되감기고, `]`를 누르고 있으면 해가 지는 방향으로 빨리 진행된다. 이 입력은 `worldTicks`만 조정하므로 sky shader와 sun/moon sprite 위치가 같은 기준으로 움직인다.
@@ -395,15 +394,15 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 월드 씬은 scene color target과 bloom source target을 함께 쓰는 MRT scene pass로 렌더링한다.
 scene color target에는 실제 화면 색을 쓰고, bloom source target에는 블룸 대상 픽셀만 쓴다.
 블룸 기준은 밝기 threshold가 아니라 알파 마스크다.
-태양, 달, 불처럼 블룸 대상인 텍스처는 alpha가 있는 픽셀의 RGB를 bloom source에 기록하고, 일반 지형/플레이어/아이템은 bloom source에 검정을 기록한다.
+태양, 달, 불처럼 블룸 대상인 텍스처는 alpha가 있는 픽셀의 RGB에 emissive 계수를 곱한 값을 bloom source에 기록하고, 일반 지형/플레이어/아이템은 bloom source에 검정을 기록한다.
 alpha blend 지형/유체는 bloom source에도 검정 alpha를 기록해 뒤쪽 태양/달 bloom을 같은 비율로 가린다.
 solid 지형은 bloom source를 검정으로 덮어 뒤쪽 bloom을 완전히 가린다.
 
 렌더 순서는 scene pass 이후 `bloom_downsample.frag`가 bloom source target을 1/4 해상도 target으로 downsample하고, 1/8, 1/16, 1/32 해상도로 순차 downsample한다.
 그 다음 `bloom_upsample.frag`로 작은 mip부터 큰 mip로 additive upsample해 여러 반경의 번짐을 합친다.
 최종 presentation pass에서는 scene color를 먼저 그리고, additive sprite pipeline으로 블룸 텍스처를 더한 뒤 물속 화면 블러와 기후 오버레이를 그린다.
-`fire` terrain fragment는 애니메이션 프레임 샘플 이후 scene color와 bloom source에 같은 fire 색을 쓰며, texture alpha가 없는 픽셀은 discard한다.
-태양과 달 스프라이트는 지형에 가려지는 기존 scene pass 순서를 유지하면서, `sprite_scene.frag`가 alpha 마스크 기반 bloom source도 함께 출력한다.
+`fire` terrain fragment는 애니메이션 프레임 샘플 이후 scene color에는 조명 적용 fire 색을 쓰고, bloom source에는 그 색을 더 강한 emissive 값으로 기록하며, texture alpha가 없는 픽셀은 discard한다.
+태양과 달 스프라이트는 지형에 가려지는 기존 scene pass 순서를 유지하면서, `sprite_scene.frag`가 alpha 마스크 기반 bloom source도 더 강한 emissive 값으로 함께 출력한다.
 태양 주변 대기광은 `sky.frag`의 `solarGlare`로 처리하고, 태양/달 스프라이트 자체의 번짐은 bloom source 기반 포스트 블룸이 처리한다.
 
 ## 블록 파괴 파티클
@@ -498,7 +497,7 @@ Groundness/Smoothness/Weirdness/PV 오버레이는 월드 원점 기준 `0..4096
 
 태양과 달 스프라이트는 시간에 따라 변하는 월드 방향에서 투영해 screen-space sprite로 렌더링한다.
 현재 투영 half-size는 화면 너비의 `0.04`이며, 높이는 viewport aspect ratio에 맞게 조정한다.
-태양과 달 스프라이트는 지형 occlusion을 유지하기 위해 scene pass 안에서 렌더링하고, 같은 draw에서 bloom source target에도 alpha 마스크 기반 색을 기록한다.
+태양과 달 스프라이트는 지형 occlusion을 유지하기 위해 scene pass 안에서 렌더링하고, 같은 draw에서 bloom source target에도 alpha 마스크 기반 emissive 색을 기록한다.
 렌더러는 `GameClient`에서 `worldTicks`를 받아 28800틱 하루 주기를 계산한다.
 `06H`에는 태양이 동쪽 지평선 근처에 있고, `12H`에는 머리 위에 있으며, `18H`에는 서쪽 지평선 근처에 있다. `00H`의 태양은 지평선 아래에 있고, 달은 항상 태양의 반대 방향을 사용한다.
 하늘 각도는 하루 주기 동안 감소하므로 `06H` 시작 시점에서 투영된 태양은 지는 것이 아니라 떠오른다.

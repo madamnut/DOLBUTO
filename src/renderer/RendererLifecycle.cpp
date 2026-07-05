@@ -51,9 +51,7 @@ namespace dolbuto
         createDescriptorSetLayout();
         createTerrainVertexDescriptorSetLayout();
         createShadowDescriptorSetLayout();
-        createGodRayDescriptorSetLayout();
         createSkyPipeline();
-        createGodRayPipeline();
         createPipeline();
         createUiPipeline();
         createTerrainPipeline();
@@ -64,7 +62,6 @@ namespace dolbuto
         createSampler();
         createDescriptorPool();
         createShadowResources();
-        createGodRayResources();
         createSceneTargets();
         createFramebuffers();
 
@@ -264,14 +261,6 @@ namespace dolbuto
         {
             vkDestroyPipelineLayout(vulkan_.device, vulkan_.skyPipelineLayout, nullptr);
         }
-        if (vulkan_.godRayPipeline != VK_NULL_HANDLE)
-        {
-            vkDestroyPipeline(vulkan_.device, vulkan_.godRayPipeline, nullptr);
-        }
-        if (vulkan_.godRayPipelineLayout != VK_NULL_HANDLE)
-        {
-            vkDestroyPipelineLayout(vulkan_.device, vulkan_.godRayPipelineLayout, nullptr);
-        }
         if (vulkan_.terrainBlendPipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.terrainBlendPipeline, nullptr);
@@ -387,10 +376,6 @@ namespace dolbuto
         if (vulkan_.shadowDescriptorSetLayout != VK_NULL_HANDLE)
         {
             vkDestroyDescriptorSetLayout(vulkan_.device, vulkan_.shadowDescriptorSetLayout, nullptr);
-        }
-        if (vulkan_.godRayDescriptorSetLayout != VK_NULL_HANDLE)
-        {
-            vkDestroyDescriptorSetLayout(vulkan_.device, vulkan_.godRayDescriptorSetLayout, nullptr);
         }
         if (vulkan_.renderPass != VK_NULL_HANDLE)
         {

@@ -81,5 +81,5 @@ void main()
     }
     float outputAlpha = opaqueTerrain ? chunkFade : color.a * fragAlphaBlend * chunkFade;
     outColor = vec4(color.rgb, outputAlpha);
-    outBloom = fireAnimated ? vec4(color.rgb, outputAlpha) : vec4(0.0, 0.0, 0.0, outputAlpha);
+    outBloom = fireAnimated ? vec4(color.rgb * 2.0, outputAlpha) : vec4(0.0, 0.0, 0.0, outputAlpha);
 }

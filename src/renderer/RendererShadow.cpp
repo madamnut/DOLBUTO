@@ -421,22 +421,6 @@ namespace dolbuto
         }
     }
 
-    void Renderer::createGodRayResources()
-    {
-        for (size_t frame = 0; frame < RendererVulkanState::FrameInFlightCount; ++frame)
-        {
-            VkDescriptorSetAllocateInfo setInfo{};
-            setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-            setInfo.descriptorPool = vulkan_.descriptorPool;
-            setInfo.descriptorSetCount = 1;
-            setInfo.pSetLayouts = &vulkan_.godRayDescriptorSetLayout;
-            if (vkAllocateDescriptorSets(vulkan_.device, &setInfo, &vulkan_.godRayDescriptorSets[frame]) != VK_SUCCESS)
-            {
-                throw std::runtime_error("Failed to allocate god ray descriptor set.");
-            }
-        }
-    }
-
     void Renderer::updateShadowData(const Camera& camera, Vec3 cameraPosition, float fovRadians, uint64_t worldTicks)
     {
         (void)camera;

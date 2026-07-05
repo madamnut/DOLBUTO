@@ -565,7 +565,6 @@ namespace dolbuto
 
         vulkan_.waterBlurFramebuffersA.resize(waterBlurTargetsA_.size());
         vulkan_.waterBlurFramebuffersB.resize(waterBlurTargetsB_.size());
-        vulkan_.godRayFramebuffers.resize(sceneColorTargets_.size());
         for (size_t mip = 0; mip < vulkan_.bloomFramebuffers.size(); ++mip)
         {
             vulkan_.bloomFramebuffers[mip].resize(bloomTargets_[mip].size());
@@ -590,10 +589,6 @@ namespace dolbuto
         {
             createPostProcessFramebuffer(vulkan_.waterBlurRenderPass, waterBlurTargetsA_[i], vulkan_.waterBlurFramebuffersA[i]);
             createPostProcessFramebuffer(vulkan_.waterBlurRenderPass, waterBlurTargetsB_[i], vulkan_.waterBlurFramebuffersB[i]);
-        }
-        for (size_t i = 0; i < sceneColorTargets_.size(); ++i)
-        {
-            createPostProcessFramebuffer(vulkan_.postProcessLoadRenderPass, sceneColorTargets_[i], vulkan_.godRayFramebuffers[i]);
         }
         for (size_t mip = 0; mip < bloomTargets_.size(); ++mip)
         {
@@ -644,11 +639,6 @@ namespace dolbuto
             vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
         }
         vulkan_.waterBlurFramebuffersB.clear();
-        for (VkFramebuffer framebuffer : vulkan_.godRayFramebuffers)
-        {
-            vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
-        }
-        vulkan_.godRayFramebuffers.clear();
         for (std::vector<VkFramebuffer>& framebuffers : vulkan_.bloomFramebuffers)
         {
             for (VkFramebuffer framebuffer : framebuffers)

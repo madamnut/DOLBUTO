@@ -65,6 +65,17 @@ mat2 rotation2D(float angle)
     return mat2(c, s, -s, c);
 }
 
+const float ShadowDistortionBias = 0.8666667;
+
+vec3 distortedShadowNdc(vec4 lightClip)
+{
+    vec3 lightNdc = lightClip.xyz / lightClip.w;
+    float distanceFromCenter = length(lightNdc.xy);
+    float distortion = max(distanceFromCenter * ShadowDistortionBias + (1.0 - ShadowDistortionBias), 0.0001);
+    lightNdc.xy /= distortion;
+    return lightNdc;
+}
+
 float shadowVisibility(
     vec3 worldPosition,
     mat4 lightViewProjection,
@@ -75,7 +86,7 @@ float shadowVisibility(
     float texel)
 {
     vec4 lightClip = lightViewProjection * vec4(worldPosition, 1.0);
-    vec3 lightNdc = lightClip.xyz / lightClip.w;
+    vec3 lightNdc = distortedShadowNdc(lightClip);
     vec2 shadowUv = lightNdc.xy * 0.5 + 0.5;
     if (shadowUv.x < 0.0 || shadowUv.x > 1.0 || shadowUv.y < 0.0 || shadowUv.y > 1.0 || lightNdc.z < 0.0 || lightNdc.z > 1.0)
     {
@@ -191,5 +202,5 @@ void main()
     }
     float outputAlpha = opaqueTerrain ? chunkFade : color.a * fragAlphaBlend * chunkFade;
     outColor = vec4(color.rgb, outputAlpha);
-    outBloom = fireAnimated ? vec4(color.rgb, outputAlpha) : vec4(0.0, 0.0, 0.0, outputAlpha);
+    outBloom = fireAnimated ? vec4(color.rgb * 2.0, outputAlpha) : vec4(0.0, 0.0, 0.0, outputAlpha);
 }

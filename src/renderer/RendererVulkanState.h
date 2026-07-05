@@ -45,11 +45,8 @@ namespace dolbuto
         VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorSetLayout terrainVertexDescriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorSetLayout shadowDescriptorSetLayout = VK_NULL_HANDLE;
-        VkDescriptorSetLayout godRayDescriptorSetLayout = VK_NULL_HANDLE;
         VkPipelineLayout skyPipelineLayout = VK_NULL_HANDLE;
         VkPipeline skyPipeline = VK_NULL_HANDLE;
-        VkPipelineLayout godRayPipelineLayout = VK_NULL_HANDLE;
-        VkPipeline godRayPipeline = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
         VkPipeline pipeline = VK_NULL_HANDLE;
         VkPipeline sceneSpritePipeline = VK_NULL_HANDLE;
@@ -98,7 +95,6 @@ namespace dolbuto
         std::array<VkBuffer, FrameInFlightCount> shadowUniformBuffers{};
         std::array<VkDeviceMemory, FrameInFlightCount> shadowUniformMemories{};
         std::array<VkDescriptorSet, FrameInFlightCount> shadowDescriptorSets{};
-        std::array<VkDescriptorSet, FrameInFlightCount> godRayDescriptorSets{};
         VkBuffer uiVertexBuffer = VK_NULL_HANDLE;
         VkDeviceMemory uiVertexMemory = VK_NULL_HANDLE;
         VkBuffer uiIndexBuffer = VK_NULL_HANDLE;
@@ -112,7 +108,6 @@ namespace dolbuto
         size_t rmlUiVertexOffset = 0;
         size_t rmlUiIndexOffset = 0;
         std::vector<VkFramebuffer> sceneFramebuffers;
-        std::vector<VkFramebuffer> godRayFramebuffers;
         std::vector<VkFramebuffer> waterBlurFramebuffersA;
         std::vector<VkFramebuffer> waterBlurFramebuffersB;
         std::array<std::vector<VkFramebuffer>, BloomMipCount> bloomFramebuffers;

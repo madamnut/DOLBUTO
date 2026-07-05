@@ -122,8 +122,6 @@ set(DOLBUTO_RUNTIME_DLLS
 set(SHADER_SOURCES
     shaders/sky.vert
     shaders/sky.frag
-    shaders/god_rays.vert
-    shaders/god_rays.frag
     shaders/sprite.vert
     shaders/sprite.frag
     shaders/sprite_scene.frag

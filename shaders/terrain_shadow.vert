@@ -15,6 +15,17 @@ layout(set = 1, binding = 0, std430) readonly buffer TerrainQuadBuffer
 layout(location = 0) out vec2 fragUv;
 layout(location = 1) flat out float fragTextureLayer;
 
+const float ShadowDistortionBias = 0.8666667;
+
+vec4 distortShadowClip(vec4 clipPosition)
+{
+    vec2 ndc = clipPosition.xy / max(abs(clipPosition.w), 0.0001);
+    float distanceFromCenter = length(ndc);
+    float distortion = max(distanceFromCenter * ShadowDistortionBias + (1.0 - ShadowDistortionBias), 0.0001);
+    clipPosition.xy /= distortion;
+    return clipPosition;
+}
+
 int decodeSignedFixed(uint packedValue)
 {
     int magnitude = int(packedValue >> 1u);
@@ -106,7 +117,7 @@ void main()
     uint wavingType = (packedLight >> 8u) & 0x3u;
     applyWaving(position, uv, wavingType);
 
-    gl_Position = pushData.mvp * vec4(position - pushData.cameraPosition.xyz, 1.0);
+    gl_Position = distortShadowClip(pushData.mvp * vec4(position - pushData.cameraPosition.xyz, 1.0));
     fragUv = uv;
     fragTextureLayer = float(material & 0xFFu);
 }

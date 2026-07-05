@@ -10,7 +10,6 @@ void updatePlayerMesh(Vec3 playerPosition, float playerYaw, float playerHeadYaw,
 void updateFirstPersonHandMesh(const Camera& camera, Vec3 cameraPosition, const ViewmodelMotion& viewmodelMotion, uint32_t frameIndex, uint8_t packedLight);
 void updateShadowData(const Camera& camera, Vec3 cameraPosition, float fovRadians, uint64_t worldTicks);
 void drawShadowPass(VkCommandBuffer commandBuffer, bool drawPlayer, uint32_t frameIndex);
-void drawGodRays(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint64_t worldTicks);
 void drawTerrain(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission, bool wireframe, bool drawBlocks, bool drawFluids, uint32_t sceneImageIndex = 0);
 void drawBlockSelection(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians);
 void drawPlayer(VkCommandBuffer commandBuffer, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint16_t heldPortableLightEmission, float hurtFlash, uint32_t frameIndex) const;
