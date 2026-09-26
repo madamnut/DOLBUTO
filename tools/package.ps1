@@ -2,11 +2,11 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/environment.ps1"
 $taskRoot = $taskProjectRoot
 $taskSource = Join-Path $taskRoot 'build/release/bin'
-$taskOutput = [System.IO.Path]::GetFullPath((Join-Path $taskRoot 'out/Sandbox'))
+$taskOutput = [System.IO.Path]::GetFullPath((Join-Path $taskRoot 'out/DOLBUTO'))
 if(-not $taskOutput.StartsWith($taskRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)){throw 'Output must stay inside the project.'}
-if(-not (Test-Path "$taskSource/sandbox.exe")){throw 'Build the release preset first.'}
+if(-not (Test-Path "$taskSource/DOLBUTO.exe")){throw 'Build the release preset first.'}
 New-Item -ItemType Directory -Path "$taskOutput/assets","$taskOutput/shaders","$taskOutput/licenses" -Force | Out-Null
-Copy-Item -LiteralPath "$taskSource/sandbox.exe" -Destination $taskOutput -Force
+Copy-Item -LiteralPath "$taskSource/DOLBUTO.exe" -Destination $taskOutput -Force
 Copy-Item -LiteralPath "$taskSource/worldgen_editor.exe" -Destination $taskOutput -Force
 foreach($taskDirectory in @('assets','shaders')) {
     Get-ChildItem -LiteralPath "$taskSource/$taskDirectory" | ForEach-Object {
@@ -38,4 +38,4 @@ Portions of this software are copyright (c) 2025 The FreeType Project (www.freet
 Noto Sans KR is distributed with its SIL Open Font License in assets/fonts/OFL.txt.
 Other open-source notices are included in this licenses directory.
 '@ | Set-Content -LiteralPath "$taskOutput/licenses/NOTICE.txt"
-Write-Host "Ready: $taskOutput/sandbox.exe"
+Write-Host "Ready: $taskOutput/DOLBUTO.exe"

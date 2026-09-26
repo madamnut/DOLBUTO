@@ -527,7 +527,7 @@ int main(int argc, char** argv) {
             folder_id *= 1099511628211ULL;
         }
         auto mutex = CreateMutexW(nullptr, FALSE,
-                                  (L"Local\\SandboxWorldgenEditor-" + std::to_wstring(folder_id)).c_str());
+                                  (L"Local\\DOLBUTOWorldgenEditor-" + std::to_wstring(folder_id)).c_str());
         if (!mutex)
             throw std::runtime_error("편집기 잠금 생성 실패");
         if (GetLastError() == ERROR_ALREADY_EXISTS) {
@@ -554,7 +554,7 @@ int main(int argc, char** argv) {
         getsockname(server.handle, reinterpret_cast<sockaddr*>(&address), &length);
         editor.host = "127.0.0.1:" + std::to_string(ntohs(address.sin_port));
         const auto url = "http://" + editor.host + "/#" + editor.token;
-        std::cout << "월드 생성 편집기 · 게임 실행 불필요\n"
+        std::cout << "DOLBUTO 월드 생성 편집기 · 게임 실행 불필요\n"
                   << url << "\n이 창을 닫으면 편집기가 종료됩니다.\n"
                   << std::flush;
         if (browser)

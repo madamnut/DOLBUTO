@@ -1,5 +1,13 @@
 # 에셋 컨텍스트
 
+## DOLBUTO 아이콘·타이틀 (2026-09-27)
+
+- 사용자 제공 원본 icon.ico → `assets/icons/dolbuto.ico`. 16/32/48/64/128/256px 6종을 담은 ICO. SHA256 `f8c9de891cdeed1889f8519d83d281c32bd78d7ac4edc0026c5d296e02ec8e34`.
+- 사용자 제공 원본 Title.png → `assets/textures/ui/title.png`. 1024×279 RGBA. SHA256 `943017dd8ee0643509b002a9539acac2912165d1a6d2fe07d8534d5acc873c31`.
+- 파일/픽셀 변환 없이 이동. 게임 EXE는 src/platform/windows/app.rc.in으로 ICON101 내장, SDL 시작 전 큰/작은 창 아이콘 힌트101. CMake RC 소스가 ICO 변경에도 재빌드되도록 OBJECT_DEPENDS 연결. C++ 전용 컴파일 옵션은 RC에 전달하지 않는다.
+- 메인 메뉴 title-banner는 상단 중앙, 이미지 비율 보존/최대 화면폭84%/배너높이90%, 기존 버튼 중앙 정렬 유지. UI 원본4배 기준 속성4096×1116은 공간에 맞게 축소. 600dp 이하 높이는 배너18%로 줄이고 옵션 창에서는 숨긴다. nearest 유지.
+
+
 ## 얼음 알파 수정 (2026-09-25, 최신)
 
 사용자 `실시`로 ice.png의32×32 RGB 픽셀을 보존하고 알파190→255로 변경했다. 핫바는 불투명, 월드190/255는 재질에서 따로 지정한다. 이 변경은 아래 초기 픽셀보존 방침의 알파 예외다. [ice-material-2026-09-25.md](ice-material-2026-09-25.md) 참조.

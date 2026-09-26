@@ -1,11 +1,14 @@
 <rml>
   <head>
-    <title>Sandbox</title>
+    <title>DOLBUTO</title>
     <link type="text/rcss" href="main.rcss" />
     <link type="text/rcss" href="options.rcss" />
   </head>
   <body>
     <div id="screen">
+      <div id="title-banner">
+        <img id="game-title" src="../textures/ui/title.png" width="4096" height="1116" />
+      </div>
       <div id="menu-stack">
         <button id="play" class="menu-button">싱글플레이</button>
         <button id="options" class="menu-button">옵션</button>

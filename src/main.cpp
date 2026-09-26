@@ -86,6 +86,8 @@ std::filesystem::path screenshot_path(const std::filesystem::path& directory) {
 }
 struct SdlLifetime {
     SdlLifetime() {
+        SDL_SetHint(SDL_HINT_WINDOWS_INTRESOURCE_ICON, "101");
+        SDL_SetHint(SDL_HINT_WINDOWS_INTRESOURCE_ICON_SMALL, "101");
         if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
             throw std::runtime_error(SDL_GetError());
     }
@@ -97,7 +99,7 @@ struct RenderDocCapture {
     explicit RenderDocCapture(const std::filesystem::path& output) {
         if (output.empty())
             return;
-        const char* dll = SDL_getenv("SANDBOX_RENDERDOC_DLL");
+        const char* dll = SDL_getenv("DOLBUTO_RENDERDOC_DLL");
         if (!dll)
             throw std::runtime_error("Use tools/capture.ps1 for RenderDoc captures.");
         library = SDL_LoadObject(dll);
@@ -708,7 +710,7 @@ void debug_overlay(sandbox::Renderer& renderer, const sandbox::RmlRenderer& ui, 
 int main(int argc, char** argv) {
     try {
         bool debug_initial = false, start_world = false, lod_debug_initial = false;
-        bool validation_requested = SANDBOX_VALIDATION != 0;
+        bool validation_requested = DOLBUTO_VALIDATION != 0;
         uint32_t seed = 1337;
         bool seed_override = false;
         int render_distance = 12;
@@ -761,7 +763,7 @@ int main(int argc, char** argv) {
                 capture = std::filesystem::absolute(argv[++i]);
             else
                 throw std::runtime_error(
-                    "Usage: sandbox [--debug-ui] [--lod-debug] [--validation] [--frames N] [--seconds N] "
+                    "Usage: DOLBUTO [--debug-ui] [--lod-debug] [--validation] [--frames N] [--seconds N] "
                     "[--capture file.png] [--rdc path] [--world] "
                     "[--seed N] [--render-distance 1..64] [--profile-world file.csv] "
                     "[--profile-origin columnX columnZ] [--profile-gpu file.csv] "
@@ -835,7 +837,7 @@ int main(int argc, char** argv) {
             generation.seed = seed;
 
         std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> window(
-            SDL_CreateWindow("Sandbox", 1280, 900,
+            SDL_CreateWindow("DOLBUTO", 1280, 900,
                              SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY),
             SDL_DestroyWindow);
         if (!window)

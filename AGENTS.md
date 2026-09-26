@@ -1,5 +1,20 @@
 # AI 작업 규칙
 
+## 메인 메뉴 위치 조정 (2026-09-27)
+
+사용자 로고가 너무 위에 있고 버튼도 내려야 한다는 피드백 및 `실시` 승인. title-banner top3%→18%, 메뉴 묶음은 중앙에서 화면 높이15% 아래로 이동한다. 높이600dp 이하 타이틀 top1%→12%/height18% 유지. 타이틀 크기·비율/버튼 크기·간격/옵션 레이아웃 유지, Release 빌드·패키징 및 격리 CLI 자체 캡처 확인 완료. 아래 초기 위치 설명은 이 정정으로 대체한다.
+
+
+## DOLBUTO 아이콘·메인 타이틀 (2026-09-27)
+
+사용자 루트 에셋 정리·EXE/실행 창 아이콘·메인 메뉴 상단 중앙 타이틀 요청 후 `실시` 승인. icon.ico→assets/icons/dolbuto.ico, Title.png→assets/textures/ui/title.png 원본 바이트 보존 이동. CMake RC 리소스101에 ICO를 내장하고 SDL 큰/작은 창 아이콘 힌트를 같은101로 지정한다. UI 타이틀은 종횡비를 보존해 상단 영역에 맞추고 작은 화면에서는 축소, 옵션 메뉴에서는 숨긴다. 기존 UI 4배 기준의 원본 크기를 상한 영역에 맞추며 nearest 샘플러 유지. Release 빌드·패키징/격리 CLI 캡처 확인 포함, 사용자 설정 보존, 자동 테스트/CU/합성 입력 금지 유지. 세부 에셋 정보와 검증은 docs/assets.md 및 docs/verification.md.
+
+
+## DOLBUTO 정식 명칭 (2026-09-27)
+
+사용자는 sandbox가 기존 DOLBUTO 개선용 작업명이었다고 정정하고 `실시`로 정식 명칭 통일을 승인했다. CMake 프로젝트/게임 타깃/창 제목/Vulkan 앱·엔진 표시는 DOLBUTO, 배포는 out/DOLBUTO/DOLBUTO.exe다. README·실행/빌드/패키징/진단 스크립트·웹 편집기 표기도 연결한다. 내부 C++ sandbox 네임스페이스와 과거 작업 기록·복구용 원본 폴더는 유지한다. 기존 out/Sandbox 전체를 out/DOLBUTO로 이동해 설정·생성 규칙·백업·스크린샷을 보존한다. Release 빌드·패키징 포함, 자동 테스트/CU/합성 입력 금지. 앞선 기능 커밋은 4763e35이며 이번 이름 변경은 별도 커밋·push 없이 둔다. 아래 과거 실행 경로는 현재 경로로 읽되 백업·이력의 실제 경로는 그대로 유지한다.
+
+
 ## DOLBUTO 로컬 프로젝트 교체 (2026-09-27)
 
 사용자기존DOLBUTO백업후sandbox교체요청,최종push는사용자직접수행확인후 `실시` 승인. 현재작업기준은 `C:/Users/PC/Desktop/YD_Unity/DOLBUTO`이다. 원본sandbox는복구용으로보존하며이후구현을그쪽에잘못적용하지않는다. 기존DOLBUTO전체는형제폴더 `DOLBUTO-backup-20260927-024333`에보존,Git이력/세이브/설정/미추적파일포함. 기존.git을새DOLBUTO에복사해main/HEAD c9fd48b6a63f54e55a04cbf1e969a3541cc1ddc1/origin https://github.com/madamnut/DOLBUTO.git 유지. 교체변경은미스테이징상태로두고commit/push는하지않는다. source/out의사용자설정과참고자료·도구를복사하며옛빌드캐시는별도보관하고새경로에서Release재구성/전체빌드/패키징한다. 게임기능·명칭·월드규칙변경은없다. 세부검증과경로는 docs/migration-dolbuto-2026-09-27.md.

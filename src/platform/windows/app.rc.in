@@ -1,0 +1,2 @@
+// Shared by Explorer and SDL window icons. Keep resource ID 101 in sync with main.cpp.
+101 ICON "@CMAKE_CURRENT_SOURCE_DIR@/assets/icons/dolbuto.ico"

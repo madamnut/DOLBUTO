@@ -1,6 +1,6 @@
 """Explicit GPU pass measurement runner/summarizer. Never run by builds or CTest.
 
-Run only in a disposable runtime directory containing sandbox.exe/assets/shaders/DLLs.
+Run only in a disposable runtime directory containing DOLBUTO.exe/assets/shaders/DLLs.
 The supplied settings/worldgen snapshots are copied there; the user's package is untouched.
 """
 import argparse
@@ -102,7 +102,7 @@ def main():
         runtime = args.runtime.resolve()
         # Refuse to overwrite the user-facing package's settings.
         if "out" in (x.lower() for x in runtime.parts) or runtime == directory:
-            raise RuntimeError("Use a separate disposable runtime, not out/Sandbox")
+            raise RuntimeError("Use a separate disposable runtime, not out/DOLBUTO")
         source_settings = (directory / "settings.json").read_bytes()
         source_worldgen = (directory / "worldgen.json").read_bytes()
         (runtime / "worldgen.json").write_bytes(source_worldgen)
@@ -122,7 +122,7 @@ def main():
                 (runtime / "settings.json").write_bytes(settings_bytes)
                 (directory / (tag + ".settings.json")).write_bytes(settings_bytes)
                 x, z, *view = SCENES[scene]
-                command = [str(runtime / "sandbox.exe"), "--profile-gpu", str(directory / (tag + ".csv")),
+                command = [str(runtime / "DOLBUTO.exe"), "--profile-gpu", str(directory / (tag + ".csv")),
                            "--profile-origin", str(x), str(z), "--profile-view", *map(str, view),
                            "--profile-samples", str(args.samples), "--seconds", "120"]
                 if repetition == 0:
@@ -136,7 +136,7 @@ def main():
                         "samples": args.samples, "command": command, "csv": tag + ".csv",
                         "started_unix": started, "wall_seconds": time.time() - started,
                         "returncode": completed.returncode,
-                        "exe_sha256": hashlib.sha256((runtime / "sandbox.exe").read_bytes()).hexdigest(),
+                        "exe_sha256": hashlib.sha256((runtime / "DOLBUTO.exe").read_bytes()).hexdigest(),
                         "worldgen_sha256": hashlib.sha256(source_worldgen).hexdigest(),
                         "settings_sha256": hashlib.sha256(settings_bytes).hexdigest()}
                 (directory / (tag + ".run.json")).write_text(json.dumps(meta, indent=2) + "\n")

@@ -1,5 +1,32 @@
 # 검증 기록
 
+## 메인 메뉴 위치 하향 (2026-09-27)
+
+- main.rcss만 레이아웃 조정: 타이틀 top18%, 메뉴 상대 top15%; 작은 화면 타이틀 top12%. 옵션은 기존 중앙 배치를 유지한다.
+- Release 증분 빌드·패키징 성공: build/release/menu-position-build.log. 격리 CLI 30프레임 --validation --capture 실행 exit0, Vulkan errors0/warnings4, UI issues0, texture failures0.
+- build/release/branding-inspection/menu-lowered.png 시각 확인: 1280×900 기준 로고와 메뉴 모두 기존보다135px 아래, 로고 실제 표시 약y214~364/버튼 y490~680. 비율·중앙 정렬·버튼 사이 간격 유지, 겹침 없음.
+- 배포 settings/worldgen 해시 기존과 동일. 자동 테스트/CTest/CU/합성 입력 없이 확인. 커밋·push 없음.
+
+
+## DOLBUTO 아이콘·타이틀 검증 (2026-09-27)
+
+- `build/release/branding-build.log`: Release 재구성·증분 빌드·패키징 성공, RC 컴파일 및 DOLBUTO.exe 링크 포함.
+- `llvm-readobj --coff-resources` 결과 ICON 6개와 GROUP_ICON ID101 확인 (`build/release/branding-resources.log`). SDL 로컬 소스의 WINDOWS_INTRESOURCE_ICON/SMALL 힌트 → LoadIcon → 창 클래스 등록 경로를 확인하고 동일 리소스를 지정했다. 탐색기/작업 표시줄 직접 UI 조작 검증은 하지 않았다.
+- 격리 `build/release/branding-inspection/DOLBUTO.exe --frames 30 --validation --capture .../menu.png`: exit0, Vulkan errors0/warnings4, UI issues0, texture failures0. 자체 캡처 이미지를 확인해 1280×900에서 타이틀 상단 중앙/정상 비율/버튼과 겹침 없음 확인. 옵션·작은 화면 규칙은 소스 검토이며 입력 합성이나 브라우저/CU는 사용하지 않았다.
+- 원본 ICO/PNG 해시 이동 전후 일치. 배포 settings.json/worldgen.json은 직전 명칭 변경 기록의 해시와 동일. 커밋·push 없음.
+
+
+## DOLBUTO 명칭 통일 (2026-09-27)
+
+- 사용자 정정 및 `실시` 승인으로 CMake 프로젝트/게임 타깃/실행 파일/창 제목/Vulkan 메타데이터, README, 웹 편집기 표시, 실행·빌드·패키징·캡처·프로필 스크립트를 DOLBUTO로 연결했다. 내부 C++ sandbox 네임스페이스와 과거 참고 이력은 유지한다.
+- 현재 배포: `out/DOLBUTO/DOLBUTO.exe`; 편집기: `out/DOLBUTO/worldgen_editor.exe`, 루트 `editor.bat`. 기존 out/Sandbox 디렉터리를 경로 검사 후 이동했으며 이동 전후 108개 파일 SHA256 일치. 패키징 후 사용자 파일 10개(설정·생성 규칙·백업·스크린샷 등) 해시 일치. manifest: `build/release/rename-package-manifest.json`.
+- Release 재구성/증분 빌드·패키징 성공 (`build/release/rename-build.log`), CMAKE_PROJECT_NAME=DOLBUTO. 선택적 PkgConfig/LibUSB/rocprofiler-sdk 미검출 안내는 있으나 컴파일 오류·경고 없음.
+- 격리 복사본 `build/release/rename-inspection`에서 DOLBUTO.exe --frames 30 --validation 실제 시작 메뉴 실행 exit0, Vulkan errors0 / warnings4 / UI issues0 / texture failures0. 월드 플레이 검증은 이번 명칭 변경에서 반복하지 않았다.
+- 같은 격리 위치에서 편집기 --no-browser 실행, HTTP 페이지 DOLBUTO 제목/상태 schema10 확인, shutdown API 정상 종료(exit0). 브라우저 자동화·합성 입력·자동 테스트·CTest는 사용하지 않았다.
+- 사용자 settings.json SHA256: 1597232D238F770788C3E86C69B4C331B3F0310CC30ED52DFD6E4A7558253D62; worldgen.json SHA256: E6991E0A058F663EE92C22BC8CAFDC161F62605792BC649E28976E6C935FCDB8. 생성 수식/설정 값 변경 없음.
+- 기존 기능 커밋 4763e35 이후 이번 수정은 미커밋이며 push하지 않았다. 작업 중 나타난 사용자 에셋 Title.png/icon.ico는 이번 명칭 변경에서 수정·이동하지 않았다.
+
+
 ## 2026-09-27 DOLBUTO 로컬 교체
 
 원본 DOLBUTO 전체 백업16821파일/5.321GiB 보존 및 목록·크기 대조, Git정보/설정/세이브 주요 파일 SHA256 확인. 새DOLBUTO의코드·에셋·문서·루트245파일은이관문서추가전sandbox와SHA256일치. 전체복사로그 실패0. 상세경로/복사캐시보관이력은 [이관 기록](migration-dolbuto-2026-09-27.md).

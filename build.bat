@@ -1,6 +1,6 @@
 @echo off
 setlocal DisableDelayedExpansion
-title Sandbox Build
+title DOLBUTO Build
 set "taskExitCode=1"
 set "taskPowerShell=pwsh.exe"
 
@@ -30,7 +30,7 @@ if not "%taskExitCode%"=="0" goto failed
 
 echo.
 echo Build complete.
-echo Ready: "%CD%\out\Sandbox\sandbox.exe"
+echo Ready: "%CD%\out\DOLBUTO\DOLBUTO.exe"
 popd
 goto finish
 

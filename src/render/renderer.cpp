@@ -83,8 +83,8 @@ void Renderer::initialize(SDL_Window* window, bool validation) {
     debug.pfnUserCallback = debug_callback;
     debug.pUserData = this;
     VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};
-    app.pApplicationName = "Sandbox";
-    app.pEngineName = "Sandbox";
+    app.pApplicationName = "DOLBUTO";
+    app.pEngineName = "DOLBUTO";
     app.apiVersion = VK_API_VERSION_1_4;
     VkInstanceCreateInfo info{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
     info.pApplicationInfo = &app;

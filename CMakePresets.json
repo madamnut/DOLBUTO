@@ -22,8 +22,8 @@
       "binaryDir": "${sourceDir}/build/dev",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "SANDBOX_VALIDATION": "ON",
-        "SANDBOX_TRACY": "ON"
+        "DOLBUTO_VALIDATION": "ON",
+        "DOLBUTO_TRACY": "ON"
       }
     },
     {
@@ -32,8 +32,8 @@
       "binaryDir": "${sourceDir}/build/profile",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "SANDBOX_VALIDATION": "OFF",
-        "SANDBOX_TRACY": "ON"
+        "DOLBUTO_VALIDATION": "OFF",
+        "DOLBUTO_TRACY": "ON"
       }
     },
     {
@@ -42,8 +42,8 @@
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "SANDBOX_VALIDATION": "OFF",
-        "SANDBOX_TRACY": "OFF"
+        "DOLBUTO_VALIDATION": "OFF",
+        "DOLBUTO_TRACY": "OFF"
       }
     }
   ],
