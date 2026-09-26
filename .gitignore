@@ -20,5 +20,5 @@ screenshots/
 /worldgen.draft.json.tmp
 /worldgen-backups/
 
-# Local Minecraft research sources and tooling; never publish or package.
-/ref/MCP-Reborn/
+# Local reference materials and research tooling; never publish or package.
+/ref/

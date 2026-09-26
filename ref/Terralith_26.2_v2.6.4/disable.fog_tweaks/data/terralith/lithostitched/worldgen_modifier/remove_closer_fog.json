@@ -1,8 +1,0 @@
-{
-  "type": "lithostitched:set_biome_attributes",
-  "biomes": "#terralith:has_closer_fog",
-  "attributes": {
-    "minecraft:visual/fog_start_distance": 0,
-    "minecraft:visual/fog_end_distance": 1024
-  }
-}
