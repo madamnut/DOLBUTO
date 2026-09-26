@@ -1,6 +1,5 @@
 #pragma once
-#include "ui/groundness_preview.hpp"
-#include "ui/terrain_spline_editor.hpp"
+#include "ui/climate_preview.hpp"
 #include "world/generation_config.hpp"
 #include <optional>
 #include <utility>
@@ -30,7 +29,6 @@ class GenerationEditor {
     std::string status_, saved_text_;
     bool loading_{};
     bool preview_open_{true};
-    GroundnessPreview preview_;
-    TerrainSplineEditor spline_editor_;
+    ClimatePreview preview_;
 };
 } // namespace sandbox

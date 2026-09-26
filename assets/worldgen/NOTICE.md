@@ -1,4 +1,6 @@
-# 지형 프리셋 출처 (AI 컨텍스트)
+# 과거 지형 프리셋 출처 (AI 컨텍스트)
+
+2026-09-27: 기존 지형 생성기와 스플라인 프리셋은 제거했다. 현재 `default.json`은 임시 돌 평지와 기후 설정만 포함한다. 아래는 Git 이력에 남은 과거 자료의 출처이며 현재 파일 구조를 설명하지 않는다. 가져오기 스크립트도 제거했다.
 
 - `default.json`의 `splines.offset`, `splines.factor`, `splines.jaggedness` 수치는 Snowcapped의 `VanillaSplines.ts`에서 가져왔다. C/E의 0 기울기와 W/PV 중첩 제어점·값·기울기를 보존했다. 빈 칸이 있는 표 형태로 저장한다.
 - 고정 참조: https://github.com/jacobsjo/snowcapped/blob/b16f532359d82ddb17cd0911a5d1420cb7560986/src/main/Vanilla/VanillaSplines.ts

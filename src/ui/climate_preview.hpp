@@ -4,12 +4,12 @@
 
 namespace sandbox {
 class Renderer;
-class GroundnessPreview {
+class ClimatePreview {
   public:
-    explicit GroundnessPreview(Renderer& renderer);
-    ~GroundnessPreview();
-    GroundnessPreview(const GroundnessPreview&) = delete;
-    GroundnessPreview& operator=(const GroundnessPreview&) = delete;
+    explicit ClimatePreview(Renderer& renderer);
+    ~ClimatePreview();
+    ClimatePreview(const ClimatePreview&) = delete;
+    ClimatePreview& operator=(const ClimatePreview&) = delete;
     void draw(GenerationConfig& draft, bool& open);
     void prepare(); // Active frame, before rendering. Polls without waiting and uploads completed pixels.
     void release_binding(); // After GPU idle, before reinitializing the ImGui Vulkan backend.

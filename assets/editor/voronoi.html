@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>DOLBUTO · 보로노이 실험</title>
+  <link rel="stylesheet" href="style.css"><link rel="stylesheet" href="voronoi.css">
+  <script src="master-seed.js" defer></script><script src="voronoi.js" defer></script>
+</head>
+<body>
+  <header><div><strong>DOLBUTO</strong><span>보로노이 실험</span></div>
+    <nav><button id="climate">기후 편집기로</button><button id="save-settings" class="primary" disabled>설정 저장</button><button id="load-settings" disabled>마지막 저장 불러오기</button><button id="export-settings">실험 JSON 내보내기</button>
+      <label class="file-button">실험 JSON 불러오기<input id="import-settings" type="file" accept=".json,application/json"></label>
+      <button id="png">지도 PNG 저장</button></nav>
+  </header>
+  <section class="notice"><strong>편집기 전용 실험 · 게임에 적용되지 않습니다</strong>
+    <p>131,072 × 131,072블록의 순환 월드입니다. 큰 셀은 대륙·군도·외해로 나누고, 군도 안에서만 작은 셀로 섬을 만듭니다. 마스터 시드는 기후 편집기와 공유하지만, 실험 지형은 게임에 적용되지 않습니다.</p>
+  </section>
+  <div id="status" role="status" aria-live="polite">설정을 조절하고 셀의 모양을 확인하세요.</div>
+  <div id="save-state" role="status" aria-live="polite">저장된 작업을 불러오는 중…</div>
+  <main>
+    <aside>
+      <h2>셀 배치</h2>
+      <form id="parameters">
+        <label>마스터 시드<input id="seed" type="number" value="1337" min="0" max="4294967295" step="1" required></label>
+        <button id="random-seed" type="button">전체 시드 랜덤</button>
+        <label>기준 셀 크기 (블록)<input id="spacing" type="number" value="4096" min="512" max="32768" step="any" required></label>
+        <small id="spacing-info"></small>
+        <label>점 배치 불규칙성<input id="jitter" type="number" value="1" min="0" max="1" step="any" required></label>
+        <small>0은 격자 중앙, 1은 각 격자 안에서 무작위 위치입니다. 셀마다 면적과 모양이 달라집니다.</small>
+        <details open><summary>육지 · 바다 분포</summary>
+          <label>대륙 크기 (블록)<input id="land_spacing" type="number" value="32768" min="512" max="131072" step="any" required></label>
+          <small>육지 분포의 기준 간격입니다. 크게 하면 이웃 셀들이 넓은 무리로 묶입니다. 셀 자체의 크기는 바꾸지 않습니다.</small>
+          <small id="land-spacing-info"></small>
+          <label>육지 판정 기준<input id="land_threshold" type="number" value="0" min="-1" max="1" step="any" required></label>
+          <small>생성점의 분포 값이 기준보다 높으면 육지입니다. 기준을 낮추면 육지가 늘고 높이면 줄어듭니다. 육지 면적 비율을 직접 지정하는 값은 아닙니다.</small>
+          <small>대륙·군도·섬·워핑·기후는 마스터 시드에서 각자의 패턴을 만듭니다.</small>
+        </details>
+        <details open><summary>군도 · 작은 셀</summary>
+          <label>군도 사용<input id="arch_enabled" type="checkbox" checked></label>
+          <label>군도 구역 크기 (블록)<input id="arch_spacing" type="number" value="16384" min="512" max="131072" step="any" required></label>
+          <label>군도 판정 기준<input id="arch_threshold" type="number" value="0.15" min="-1" max="1" step="any" required></label>
+          <small>대륙이 아닌 큰 셀 중 군도 분포 값이 기준을 넘는 곳을 고릅니다. 낮추면 군도가 늘어납니다.</small>
+          <label>작은 셀 분할 배수<input id="subdivisions" type="number" value="4" min="2" max="8" step="1" required></label>
+          <small id="fine-spacing-info"></small>
+          <label>섬 무리 크기 (블록)<input id="island_spacing" type="number" value="2048" min="64" max="131072" step="any" required></label>
+          <label>섬 판정 기준<input id="island_threshold" type="number" value="0" min="-1" max="1" step="any" required></label>
+          <small>작은 셀의 섬 분포 값을 기준으로 육지 여부를 정합니다. 낮추면 섬이 늘고 서로 붙기 쉬워집니다.</small>
+          <label>가장자리 감쇄 폭<input id="arch_edge_fade" type="number" value="0.18" min="0" max="0.5" step="any" required></label>
+          <small>큰 셀 간격에 대한 비율입니다. 군도와 외해·대륙 사이에서는 섬을 줄이고, 인접 군도끼리는 감쇄하지 않습니다. 높이·해변·절벽은 아직 생성하지 않습니다.</small>
+        </details>
+        <details open><summary>경계 워핑</summary>
+          <label>워핑 사용<input id="warp_enabled" type="checkbox"></label>
+          <label>변위 강도 (블록)<input id="warp_strength" type="number" value="1024" min="0" max="8192" step="any" required></label>
+          <label>워핑 간격 지수<input id="warp_spacing_log2" type="number" value="11" min="2" max="17" step="1" required></label>
+          <small>간격 = 2의 지수승 블록. 11이면 2,048블록입니다.</small>
+          <label>워핑 옥타브<input id="warp_octaves" type="number" value="3" min="1" max="8" step="1" required></label>
+          <label>워핑 게인<input id="warp_gain" type="number" value="0.5" min="0" max="1" step="any" required></label>
+          <small>주기적 노이즈로 표본 좌표를 이동해 경계를 구부립니다. 강도가 크면 같은 셀이 여러 조각으로 보일 수 있습니다.</small>
+        </details>
+      </form>
+      <details open><summary>표시</summary>
+        <label>보기<select id="view"><option value="land">대륙 · 섬 · 바다</option><option value="regions">큰 셀: 대륙 · 군도 · 외해</option><option value="arch-noise">군도 구역 분포 값</option><option value="island-noise">작은 셀 섬 분포 값</option><option value="land-noise">큰 셀 육지 분포 값</option><option value="cells">셀 색상</option><option value="edges">경계만</option><option value="distance">생성점까지 거리</option></select></label>
+        <label>경계선 표시<input id="edges" type="checkbox" checked></label>
+        <label>생성점 표시<input id="sites" type="checkbox" checked></label>
+        <small id="site-note">생성점은 흰 점으로 표시합니다.</small>
+        <label>해상도<select id="resolution"><option>256</option><option selected>512</option><option>1024</option></select></label>
+        <label>자동 미리보기<input id="auto" type="checkbox" checked></label>
+        <button id="generate" class="primary">미리보기 생성</button>
+      </details>
+      <p>휠로 확대 · 드래그로 이동 · 클릭으로 셀 선택. 넓은 범위에서는 작은 굴곡이나 셀이 생략될 수 있습니다.</p>
+      <p>설정 저장을 누르면 배치·표시 범위·해상도를 저장하고 다음 실행 때 복원합니다. 마스터 시드는 기후 작업과 함께 보관합니다. 게임 기본값은 기후 편집기에서 직접 확정 저장해야 합니다.</p>
+    </aside>
+    <section class="preview">
+      <div class="toolbar"><button id="whole">전체 월드</button><button id="seam-x">동서 경계</button><button id="seam-z">남북 경계</button><button id="zoom-in">확대 +</button><button id="zoom-out">축소 −</button><button id="clear-selection">선택 해제</button></div>
+      <form id="range" class="range">
+        <label>시작 X<input id="x0" type="number" value="0" min="-131072" max="262144" step="any" required></label>
+        <label>시작 Z<input id="z0" type="number" value="0" min="-131072" max="262144" step="any" required></label>
+        <label>끝 X<input id="x1" type="number" value="131072" min="-131072" max="262144" step="any" required></label>
+        <label>끝 Z<input id="z1" type="number" value="131072" min="-131072" max="262144" step="any" required></label>
+      </form>
+      <p id="land-stats"></p>
+      <p id="map-status" role="status">미리보기를 준비하는 중…</p>
+      <div class="canvas-wrap"><canvas id="map" width="512" height="512" aria-label="순환 보로노이 지도"></canvas></div>
+      <p id="sample">가로 X · 세로 Z</p><p id="legend">경계선은 표시 해상도에서 인접 표본의 셀 ID가 달라지는 곳입니다.</p>
+    </section>
+  </main>
+</body>
+</html>

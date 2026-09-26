@@ -1,0 +1,13 @@
+main { grid-template-columns: minmax(290px,340px) minmax(0,1fr); }
+aside { max-height: calc(100vh - 220px); }
+.file-button { cursor: pointer; background: #2b3440; border: 1px solid #4b5969; border-radius: 5px; padding: 7px 10px; }
+.file-button input { display: none; }
+.canvas-wrap { padding: 0; }
+#map { cursor: grab; touch-action: none; }
+#map.dragging { cursor: grabbing; }
+#generate { width: 100%; margin-top: 10px; }
+#range input { width: 115px; }
+#site-note { min-height: 3em; }
+#legend { font-size: 13px; }
+#save-state { padding: 6px 16px; color: #b7cbe2; font-size: 13px; overflow-wrap: anywhere; }
+@media(max-width:850px) { main { grid-template-columns: 1fr; } aside { max-height: none; } }

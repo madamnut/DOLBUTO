@@ -6,7 +6,6 @@
 #include "ui/game_console.hpp"
 #include "ui/generation_editor.hpp"
 #include "ui/rml_renderer.hpp"
-#include "world/biome.hpp"
 #include "world/profiling.hpp"
 #include "world/world_view.hpp"
 #include <RmlUi/Core.h>
@@ -612,8 +611,7 @@ void debug_overlay(sandbox::Renderer& renderer, const sandbox::RmlRenderer& ui, 
         left.appendf("누적 틱: %llu · 하루 틱: %u / 28800 · 햇빛: %.3f\n",
                      static_cast<unsigned long long>(world->world_tick()), tick, world->daylight());
         // Cache only diagnostics, never the generator or draft settings. Hidden F3 does no sampling.
-        static std::array<float, 12> values{};
-        static float shape{}, raw_factor{};
+        static std::array<float, 2> values{};
         static uint64_t signature{};
         static auto sampled_at = std::chrono::steady_clock::time_point::min();
         static glm::dvec3 sampled_position{};
@@ -623,24 +621,17 @@ void debug_overlay(sandbox::Renderer& renderer, const sandbox::RmlRenderer& ui, 
             sampled_at == std::chrono::steady_clock::time_point::min() ||
             now - sampled_at >= std::chrono::milliseconds(100)) {
             const std::array<float, 1> x{float(sandbox::wrap_position(player.position.x))},
-                y{float(player.position.y)}, z{float(sandbox::wrap_position(player.position.z))};
+                z{float(sandbox::wrap_position(player.position.z))};
             auto samples = std::span<float>(values);
-            generator.terrain_inputs(samples.subspan(0, 1), samples.subspan(1, 1), samples.subspan(2, 1), x,
-                                     z);
-            values[3] = sandbox::spline_pv(values[2]);
-            for (size_t i = 4; i < values.size(); ++i)
+            for (size_t i = 0; i < values.size(); ++i)
                 generator.map(static_cast<sandbox::GenerationMap>(i), samples.subspan(i, 1), x, z);
-            generator.shape(std::span<float>(&shape, 1), x, y, z);
-            raw_factor = world->config().splines.factor.evaluate(values[0], values[1], values[2]);
             sampled_at = now;
             sampled_position = player.position;
             signature = generator.signature();
         }
-        left.appendf("노이즈: 현재 월드 · 워핑 %s · 10Hz\n", has_active_warp(world->config()) ? "ON" : "OFF");
-        left.appendf("표본 XYZ: %.1f / %.1f / %.1f (격자 보간 전)\n", sampled_position.x, sampled_position.y,
-                     sampled_position.z);
-        left.appendf("Groundness: %.4f · Smoothness: %.4f\n", values[0], values[1]);
-        left.appendf("Weirdness: %.4f · PV: %.4f\n", values[2], values[3]);
+        left.appendf("지형: 임시 돌 평지 · 지표 Y=%d\n", sandbox::flat_surface_y);
+        left.appendf("기후: 워핑 %s · 10Hz · 표본 XZ: %.1f / %.1f\n",
+                     has_active_warp(world->config()) ? "ON" : "OFF", sampled_position.x, sampled_position.z);
         const auto climate_line = [&](const char* label, float value, const auto& names) {
             const int stage = sandbox::climate_debug_stage(value);
             if (stage < 0)
@@ -648,28 +639,8 @@ void debug_overlay(sandbox::Renderer& renderer, const sandbox::RmlRenderer& ui, 
             else
                 left.appendf("%s: %.4f · %s (%d/9)\n", label, value, names[stage], stage + 1);
         };
-        climate_line("온도", values[5], sandbox::temperature_stage_names);
-        climate_line("강수량", values[6], sandbox::precipitation_stage_names);
-        const char* biome_name = "판정 불가";
-        if (std::isfinite(values[0]) && std::isfinite(values[1]) && std::isfinite(values[2])) {
-            switch (sandbox::surface_biome(values[0], values[1], values[2])) {
-            case sandbox::Biome::ocean:
-                biome_name = "바다";
-                break;
-            case sandbox::Biome::river:
-                biome_name = "강";
-                break;
-            case sandbox::Biome::land:
-                biome_name = "육지";
-                break;
-            }
-        }
-        left.appendf("바이옴: %s\n", biome_name);
-        left.appendf("기준 높이: %.2f · 잔굴곡 적용: %.2f\n", values[4], values[11]);
-        left.appendf("Offset: %.4f · Factor: %.4f\n", values[7], raw_factor);
-        left.appendf("Jaggedness: %.4f · 잔굴곡 노이즈: %.4f\n", values[9], values[10]);
-        left.appendf("최종 압축: %.4f · 3D 노이즈: %.4f%s\n", values[8], shape,
-                     generator.shape_active() ? "" : " (비활성)");
+        climate_line("온도", values[0], sandbox::temperature_stage_names);
+        climate_line("강수량", values[1], sandbox::precipitation_stage_names);
         right.appendf("렌더 거리: %d컬럼\n", world->radius());
         right.appendf("조명 갱신 대기: %zu컬럼\n", world->pending_lighting());
         right.appendf("공개/대기 컬럼: %zu / %zu\n", world->visible_columns(), world->pending_columns());

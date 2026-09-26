@@ -169,11 +169,7 @@ struct BuiltColumn {
     std::shared_ptr<const ColumnLight> light;
     double generation_ms{}, lighting_ms{}, meshing_ms{};
 };
-inline constexpr int density_step = 4;
-static_assert(density_step > 0 && chunk_edge % density_step == 0);
 struct TerrainSite {
-    float height{};
-    float squash{1};
     int surface_y{-1}; // Highest natural solid cell in this X/Z stack; -1 means no solid.
 };
 struct TerrainTile {
@@ -181,13 +177,12 @@ struct TerrainTile {
     uint32_t seed{};
     std::array<TerrainSite, chunk_edge * chunk_edge> sites;
     uint64_t signature{};
-    std::array<float, 25> heights{}, squashes{}; // Aligned 4-block profile lattice.
 };
 TerrainTile generate_tile(ColumnKey key, const TerrainGenerator& generator);
 Chunk generate_chunk(ChunkKey key, const TerrainGenerator& generator, const TerrainTile* tile = nullptr);
 int terrain_spawn_height(int x, int z, const TerrainGenerator& generator);
 TerrainTile generate_tile(ColumnKey key, uint32_t seed);
-// Independent generation: the optional tile reuses column-local heights, surfaces and material rules.
+// Independent generation: the optional tile reuses column-local surface metadata.
 Chunk generate_chunk(ChunkKey key, uint32_t seed, const TerrainTile* tile = nullptr);
 int terrain_spawn_height(int x, int z, uint32_t seed);
 struct ChunkHalo : std::array<Block, 18 * 18 * 18> {

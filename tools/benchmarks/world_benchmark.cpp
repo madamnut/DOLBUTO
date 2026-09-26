@@ -25,27 +25,10 @@ int main(int argc, char** argv) {
             ColumnKey key;
             float height, relief;
         };
-        std::vector<Site> sites;
-        for (int z = 0; z < 32; ++z)
-            for (int x = 0; x < 32; ++x) {
-                const int bx = 2048 + x * 4096, bz = 2048 + z * 4096;
-                std::array<float, 5> xs{float(bx), float(bx - 64), float(bx + 64), float(bx), float(bx)};
-                std::array<float, 5> zs{float(bz), float(bz), float(bz), float(bz - 64), float(bz + 64)}, h{},
-                    s{};
-                generator->profile(h, s, xs, zs);
-                sites.push_back(
-                    {{bx / 16, bz / 16},
-                     h[0],
-                     *std::max_element(h.begin(), h.end()) - *std::min_element(h.begin(), h.end())});
-            }
-        const auto low =
-            *std::min_element(sites.begin(), sites.end(), [](auto a, auto b) { return a.height < b.height; });
-        const auto high =
-            *std::max_element(sites.begin(), sites.end(), [](auto a, auto b) { return a.relief < b.relief; });
-        const auto land = *std::min_element(sites.begin(), sites.end(), [](auto a, auto b) {
-            return std::abs(a.height - 220) + a.relief < std::abs(b.height - 220) + b.relief;
-        });
-        std::array<Site, 3> areas{low, land, high};
+        // The temporary terrain has no relief. Sample the origin, interior and periodic seam.
+        std::array<Site, 3> areas{{{{0, 0}, float(flat_surface_y), 0},
+                                   {{2048, 4096}, float(flat_surface_y), 0},
+                                   {{world_columns - 1, world_columns - 1}, float(flat_surface_y), 0}}};
         std::ofstream selection(out / "areas.csv");
         selection << "area,column_x,column_z,height,relief\n";
         for (int i = 0; i < 3; ++i) {

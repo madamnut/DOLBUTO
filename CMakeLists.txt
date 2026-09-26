@@ -67,13 +67,13 @@ target_link_libraries(asset_support PUBLIC volk::volk)
 
 add_subdirectory(cmake/fastnoise)
 add_library(world_core STATIC src/world/profiling.cpp src/core/settings.cpp src/world/lighting.cpp src/world/terrain.cpp src/world/spawn.cpp src/world/stream.cpp src/world/edit.cpp src/world/fluid.cpp src/world/lod.cpp
-  src/world/generation_config.cpp src/world/terrain_spline.cpp src/world/generator.cpp src/world/periodic_noise.cpp src/world/periodic_perlin.cpp)
+  src/world/generation_config.cpp src/world/generator.cpp src/world/periodic_noise.cpp src/world/periodic_perlin.cpp)
 target_include_directories(world_core SYSTEM PRIVATE "${DEPS}/json/single_include")
 target_link_libraries(world_core PUBLIC FastNoise PRIVATE SandboxPeriodic)
 target_include_directories(world_core PUBLIC src)
 target_compile_options(world_core PRIVATE /W4 /utf-8)
 add_executable(DOLBUTO src/main.cpp src/render/renderer.cpp src/render/lod_renderer.cpp src/render/water_effects.cpp src/render/scene_effects.cpp src/ui/rml_renderer.cpp src/ui/generation_editor.cpp
-  src/ui/groundness_preview.cpp src/ui/terrain_spline_editor.cpp src/ui/game_console.cpp src/world/world_view.cpp)
+  src/ui/climate_preview.cpp src/ui/game_console.cpp src/world/world_view.cpp)
 target_include_directories(DOLBUTO PRIVATE src)
 target_include_directories(DOLBUTO SYSTEM PRIVATE third_party/renderdoc)
 target_link_libraries(DOLBUTO PRIVATE imgui rml_platform asset_support glm::glm Tracy::TracyClient world_core)
@@ -118,12 +118,16 @@ endforeach()
 add_custom_target(shaders ALL DEPENDS ${SHADER_OUTPUTS})
 add_dependencies(DOLBUTO shaders)
 add_custom_target(runtime_assets ALL
+  COMMAND ${CMAKE_COMMAND} -E rm -f
+    "${CMAKE_BINARY_DIR}/bin/assets/editor/minecraft.html"
+    "${CMAKE_BINARY_DIR}/bin/assets/editor/minecraft.js"
+    "${CMAKE_BINARY_DIR}/bin/assets/editor/minecraft.css"
+    "${CMAKE_BINARY_DIR}/bin/assets/editor/map-view.js"
   COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/assets" "${CMAKE_BINARY_DIR}/bin/assets")
 add_dependencies(DOLBUTO runtime_assets)
 
 # Standalone CPU-only editor: the exact same world generator, no SDL/Vulkan runtime.
-add_executable(worldgen_editor src/editor/main.cpp src/editor/minecraft_reference.cpp)
-set_source_files_properties(src/editor/minecraft_reference.cpp PROPERTIES COMPILE_OPTIONS "/fp:strict")
+add_executable(worldgen_editor src/editor/main.cpp src/editor/voronoi_preview.cpp)
 target_link_libraries(worldgen_editor PRIVATE world_core ws2_32 bcrypt shell32)
 target_include_directories(worldgen_editor SYSTEM PRIVATE "${DEPS}/json/single_include")
 target_compile_definitions(worldgen_editor PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
@@ -142,12 +146,6 @@ add_executable(world_benchmark EXCLUDE_FROM_ALL tools/benchmarks/world_benchmark
 target_link_libraries(world_benchmark PRIVATE world_core)
 target_compile_options(world_benchmark PRIVATE /W4 /utf-8)
 set_target_properties(world_benchmark PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-
-# Explicit transition diagnostics; not a normal build or startup test.
-add_executable(torus_benchmark EXCLUDE_FROM_ALL tools/benchmarks/torus_benchmark.cpp)
-target_link_libraries(torus_benchmark PRIVATE world_core)
-target_compile_options(torus_benchmark PRIVATE /W4 /utf-8)
-set_target_properties(torus_benchmark PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 # Explicit user-approved comparison. The game never links the frozen reference or work counters.
 add_executable(lighting_benchmark EXCLUDE_FROM_ALL tools/benchmarks/lighting/benchmark.cpp

@@ -1,4 +1,4 @@
-#include "ui/groundness_preview.hpp"
+#include "ui/climate_preview.hpp"
 #include "core/world_rules.hpp"
 #include "render/renderer.hpp"
 #include "ui/noise_controls.hpp"
@@ -25,61 +25,24 @@
 
 namespace sandbox {
 namespace {
-constexpr const char* map_names[] = {
-    "Groundness · 대륙성",      "Smoothness · 완만함",    "Weirdness",
-    "PV · 봉우리/계곡",         "기준 높이 (3D 적용 전)", "Temperature · 온도",
-    "Precipitation · 강수량",   "Offset · 높이 오프셋",   "Factor · 최종 압축",
-    "Jaggedness · 잔굴곡 강도", "잔굴곡 원본 노이즈",     "잔굴곡 적용 높이 (3D 적용 전)"};
+constexpr const char* map_names[] = {"Temperature · 온도", "Precipitation · 강수량"};
 const char* legend(GenerationMap kind) {
-    switch (kind) {
-    case GenerationMap::temperature:
-        return "파랑 -1 (추움) → 빨강 +1 (더움) · 섭씨가 아닌 온도 지수";
-    case GenerationMap::precipitation:
-        return "갈색 -1 (건조) → 파랑 +1 (습윤) · 실제 강수량 단위 아님";
-    case GenerationMap::base_height:
-    case GenerationMap::effective_height:
-        return "파랑: 해수면192 아래 · 초록→흰색:192~512 · 실제3D 지표와 다를 수 있음";
-    case GenerationMap::factor:
-        return "검정0 → 흰색0.05 · 블록 높이당 압축 (factor × 전체 압축 ÷ 높이 배율)";
-    case GenerationMap::jaggedness:
-        return "검정0 → 흰색1 · 스플라인의 잔굴곡 강도 (켜짐 여부/배율 적용 전)";
-    default:
-        return "검정 -1 · 회색 0 · 흰색 +1 · 원신호는 범위 밖 값이 있을 수 있음";
-    }
+    return kind == GenerationMap::temperature ? "파랑 -1 (추움) → 빨강 +1 (더움) · 섭씨가 아닌 온도 지수"
+                                              : "갈색 -1 (건조) → 파랑 +1 (습윤) · 실제 강수량 단위 아님";
 }
 std::array<unsigned char, 3> map_colour(GenerationMap kind, float value) {
-    float t = std::clamp(value * 0.5f + 0.5f, 0.0f, 1.0f);
-    std::array<float, 3> a{0, 0, 0}, b{255, 255, 255};
-    if (kind == GenerationMap::temperature) {
-        a = {30, 80, 230};
-        b = {240, 55, 25};
-    }
-    if (kind == GenerationMap::precipitation) {
-        a = {165, 105, 45};
-        b = {35, 120, 235};
-    }
-    if (kind == GenerationMap::factor)
-        t = std::clamp(value / .05f, 0.0f, 1.0f);
-    if (kind == GenerationMap::jaggedness)
-        t = std::clamp(value, 0.0f, 1.0f);
-    if (kind == GenerationMap::base_height || kind == GenerationMap::effective_height) {
-        if (value < sea_level) {
-            a = {10, 30, 95};
-            b = {60, 155, 225};
-            t = std::clamp(value / sea_level, 0.0f, 1.0f);
-        } else {
-            a = {65, 130, 55};
-            b = {250, 250, 245};
-            t = std::clamp((value - sea_level) / (world_height - sea_level), 0.0f, 1.0f);
-        }
-    }
+    const float t = std::clamp(value * .5f + .5f, 0.0f, 1.0f);
+    const std::array<float, 3> a = kind == GenerationMap::temperature ? std::array<float, 3>{30, 80, 230}
+                                                                      : std::array<float, 3>{165, 105, 45};
+    const std::array<float, 3> b = kind == GenerationMap::temperature ? std::array<float, 3>{240, 55, 25}
+                                                                      : std::array<float, 3>{35, 120, 235};
     std::array<unsigned char, 3> colour;
     for (size_t i = 0; i < 3; ++i)
         colour[i] = static_cast<unsigned char>(std::lround(std::lerp(a[i], b[i], t)));
     return colour;
 }
 struct PreviewRange {
-    int x0{}, z0{}, x1{16384}, z1{16384};
+    int x0{}, z0{}, x1{world_size}, z1{world_size};
     bool valid() const {
         return x0 >= 0 && z0 >= 0 && x1 <= world_size && z1 <= world_size && x1 > x0 && z1 > z0;
     }
@@ -89,11 +52,9 @@ struct Request {
     GenerationConfig config;
     PreviewRange range;
     int resolution{512};
-    int octave{-1}; // -1 is the final composite; other indices are zero-based.
-    bool weighted{};
     bool before_warp{};
     uint64_t revision{};
-    GenerationMap kind{GenerationMap::groundness};
+    GenerationMap kind{GenerationMap::temperature};
 };
 struct Result {
     Request request;
@@ -114,13 +75,11 @@ void help(const char* text) {
     }
 }
 } // namespace
-struct GroundnessPreview::Impl {
+struct ClimatePreview::Impl {
     Renderer& renderer;
     PreviewRange range;
     int resolution_index{1};
     int map_index{};
-    int selection{}; // 0 is composite, 1..N select an octave.
-    bool weighted{};
     bool before_warp{};
     float zoom{1.0f};
     static constexpr int resolutions[] = {256, 512, 1024, 2048};
@@ -192,24 +151,14 @@ struct GroundnessPreview::Impl {
                 auto sample_config = result->request.config;
                 if (result->request.before_warp)
                     disable_warps(sample_config);
-                float contribution = 1;
-                if (result->request.octave >= 0) {
-                    const int octave = result->request.octave;
-                    sample_config.groundness.preview_octave = octave;
-                    sample_config.groundness.preview_weighted = result->request.weighted;
-                }
                 const TerrainGenerator generator(sample_config);
                 for (int z = 0; z < h; ++z) {
                     if (stop.stop_requested() || revision.load() != id)
                         break;
                     std::fill(zs.begin(), zs.end(), float(wrap_position(r.z0 + double(dz) * z / (h - 1))));
                     auto row = std::span(result->values).subspan(size_t(z) * w, w);
-                    if (contribution == 0)
-                        std::fill(row.begin(), row.end(), 0.0f);
-                    else
-                        generator.map(result->request.kind, row, xs, zs);
+                    generator.map(result->request.kind, row, xs, zs);
                     for (int x = 0; x < w; ++x) {
-                        row[x] *= contribution;
                         const float value = row[x];
                         if (!std::isfinite(value))
                             throw std::runtime_error("Non-finite map sample.");
@@ -246,10 +195,6 @@ struct GroundnessPreview::Impl {
         Request next{draft, range, resolutions[resolution_index]};
         next.kind = static_cast<GenerationMap>(map_index);
         next.before_warp = before_warp;
-        next.octave = next.kind == GenerationMap::groundness
-                          ? std::clamp(selection, 0, draft.groundness.octaves) - 1
-                          : -1;
-        next.weighted = next.octave >= 0 && weighted;
         {
             std::lock_guard lock(mutex);
             next.revision = revision.fetch_add(1) + 1;
@@ -316,84 +261,28 @@ struct GroundnessPreview::Impl {
     void controls(GenerationConfig& draft) {
         ImGui::TextUnformatted("두 창이 같은 편집값을 사용합니다.");
         ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.5f);
-        ImGui::InputScalar("월드 시드###preview-world-seed", ImGuiDataType_U32, &draft.seed);
+        ImGui::InputScalar("마스터 시드###preview-world-seed", ImGuiDataType_U32, &draft.seed);
         help("F8 편집창과 공유하는 시드입니다. 미리보기를 생성해야 이미지가 갱신됩니다. 실제 월드는 재생성 "
              "버튼을 누를 때 바뀝니다.");
         bool view_changed =
             ImGui::Combo("지도###preview-map", &map_index, map_names, IM_ARRAYSIZE(map_names));
         const auto kind = static_cast<GenerationMap>(map_index);
         if (view_changed) {
-            selection = 0;
-            weighted = false;
             if (kind == GenerationMap::temperature || kind == GenerationMap::precipitation)
                 range = {0, 0, world_size, world_size};
         }
         if (ImGui::CollapsingHeader("도메인 워핑 목록"))
             warp_controls(draft);
         view_changed |= ImGui::Checkbox("워핑 전 보기 (비교용)", &before_warp);
-        help("켜면 이 미리보기에서만 워핑을 생략합니다. 같은 시드·범위·옥타브로 전후를 비교하며 "
+        help("켜면 이 미리보기에서만 워핑을 생략합니다. 같은 시드·범위로 전후를 비교하며 "
              "실제 편집값의 워핑 스위치는 바꾸지 않습니다. 지도 선택에도 유지됩니다.");
-        switch (kind) {
-        case GenerationMap::groundness:
-            noise_controls("preview-groundness", draft.groundness, true, true, 16, &draft);
-            break;
-        case GenerationMap::smoothness:
-            noise_controls("preview-smoothness", draft.smoothness, false, true, 16, &draft);
-            break;
-        case GenerationMap::weirdness:
-        case GenerationMap::pv:
-            noise_controls("preview-weirdness", draft.weirdness, false, true, 16, &draft);
-            break;
-        case GenerationMap::temperature:
+        if (kind == GenerationMap::temperature) {
             noise_controls("preview-temperature", draft.temperature, false, false, 16, &draft);
             temperature_controls(draft.temperature_bands);
-            ImGui::TextWrapped("Z=65536 적도 · Z=0/131072 한랭대 · 지형에는 영향 없음");
-            break;
-        case GenerationMap::precipitation:
+        } else {
             noise_controls("preview-precipitation", draft.precipitation, false, true, 16, &draft);
-            ImGui::TextWrapped("X/Z 주기131072 · 지형·물 배치에는 영향 없음");
-            break;
-        case GenerationMap::base_height:
-            ImGui::TextWrapped("잔굴곡을 더하기 전의 높이입니다. 지형 스플라인 표의 offset으로 정합니다.");
-            break;
-        case GenerationMap::jagged_noise:
-            noise_controls("preview-jagged", draft.jagged, false, true, 16, &draft);
-            break;
-        case GenerationMap::effective_height:
-            ImGui::TextWrapped("잔굴곡까지 반영한 수직 그라디언트의 중심 높이입니다. 실제 블록은 4블록 "
-                               "격자로 보간하고 3D 노이즈를 더합니다.");
-            break;
-        case GenerationMap::offset:
-        case GenerationMap::factor:
-        case GenerationMap::jaggedness:
-            ImGui::TextWrapped("스플라인 편집창의 표와 동일한 계산입니다. 기후 값은 사용하지 않습니다.");
-            break;
         }
-        ImGui::Separator();
-        ImGui::BeginDisabled(kind != GenerationMap::groundness);
-        const int previous_selection = selection;
-        selection = std::clamp(selection, 0, draft.groundness.octaves);
-        view_changed |= selection != previous_selection;
-        const std::string selected_label =
-            selection == 0 ? "최종 합성" : "옥타브 " + std::to_string(selection);
-        if (ImGui::BeginCombo("표시 대상###preview-octave", selected_label.c_str())) {
-            for (int i = 0; i <= draft.groundness.octaves; ++i) {
-                const std::string label = i == 0 ? "최종 합성" : "옥타브 " + std::to_string(i);
-                if (ImGui::Selectable(label.c_str(), selection == i) && selection != i) {
-                    selection = i;
-                    view_changed = true;
-                }
-            }
-            ImGui::EndCombo();
-        }
-        help("최종 합성 또는 개별 옥타브를 선택합니다. 선택을 바꾸면 현재 편집값과 범위로 미리보기를 다시 "
-             "계산합니다.");
-        ImGui::BeginDisabled(selection == 0);
-        view_changed |= ImGui::Checkbox("가중치 적용###preview-weighted", &weighted);
-        help("끄면 옥타브 원신호, 켜면 원신호 × 해당 가중치 ÷ 전체 가중치 합을 봅니다. "
-             "적용 결과들을 더하면 최종 합성입니다. 모두 0이면 적용 결과도 0입니다.");
-        ImGui::EndDisabled();
-        ImGui::EndDisabled();
+        ImGui::TextWrapped("기후는 현재 돌 평지의 높이와 재질에 영향을 주지 않습니다.");
         ImGui::Combo("해상도###preview-resolution", &resolution_index,
                      "256\0"
                      "512\0"
@@ -473,12 +362,9 @@ struct GroundnessPreview::Impl {
             return;
         }
         const auto& source = shown->request;
-        const bool ground = map_index == static_cast<int>(GenerationMap::groundness);
         const bool stale = source.before_warp != before_warp || source.config != draft ||
                            source.kind != static_cast<GenerationMap>(map_index) || source.range != range ||
-                           source.resolution != resolutions[resolution_index] ||
-                           source.octave != (ground ? selection - 1 : -1) ||
-                           source.weighted != (ground && selection > 0 && weighted);
+                           source.resolution != resolutions[resolution_index];
         ImGui::TextWrapped(stale ? "이전 요청의 이미지입니다. 새 편집값을 보려면 미리보기를 생성하세요."
                                  : "현재 편집값·범위·해상도·표시 대상과 일치하는 이미지입니다.");
         const auto& r = source.range;
@@ -488,19 +374,13 @@ struct GroundnessPreview::Impl {
         const float bar_width = std::max(1.0f, ImGui::GetContentRegionAvail().x);
         auto* draw = ImGui::GetWindowDrawList();
         for (int i = 0; i < 128; ++i) {
-            const float v = source.kind == GenerationMap::base_height ? float(world_height) * i / 127
-                                                                      : -1 + 2.0f * i / 127;
+            const float v = -1 + 2.0f * i / 127;
             const auto c = map_colour(source.kind, v);
             draw->AddRectFilled(ImVec2(bar.x + bar_width * i / 128, bar.y),
                                 ImVec2(bar.x + bar_width * (i + 1) / 128, bar.y + 12),
                                 IM_COL32(c[0], c[1], c[2], 255));
         }
         ImGui::Dummy(ImVec2(bar_width, 16));
-        if (source.octave < 0)
-            ImGui::TextUnformatted("표시: 최종 합성");
-        else
-            ImGui::Text("표시: 옥타브 %d · %s", source.octave + 1,
-                        source.weighted ? "가중치 적용 (합성 기여분)" : "원신호");
         ImGui::Text("이미지 워핑 설정: %s",
                     source.before_warp ? "워핑 전 (비교용)"
                                        : (has_active_warp(source.config) ? "워핑 적용" : "워핑 꺼짐"));
@@ -508,7 +388,7 @@ struct GroundnessPreview::Impl {
         ImGui::TextWrapped("이미지 범위: (%d, %d) ~ (%d, %d)", r.x0, r.z0, r.x1, r.z1);
         ImGui::Text("%d × %d 표본 · 계산 %.2f ms", shown->width, shown->height, shown->milliseconds);
         ImGui::Text("표본 최솟값 %.4f · 최댓값 %.4f", shown->minimum, shown->maximum);
-        ImGui::TextWrapped("넓은 범위는 간격을 두고 샘플링하므로 작은 지형은 생략될 수 있습니다. 범위를 "
+        ImGui::TextWrapped("넓은 범위는 간격을 두고 샘플링하므로 작은 변화은 생략될 수 있습니다. 범위를 "
                            "좁히면 더 자세히 볼 수 있습니다.");
         ImGui::BeginChild("preview-image-viewport", ImVec2(0, 0), ImGuiChildFlags_None,
                           ImGuiWindowFlags_HorizontalScrollbar);
@@ -544,7 +424,7 @@ struct GroundnessPreview::Impl {
         ImGui::SetNextWindowSize(ImVec2(std::min(1080.0f, display.x - 48), std::min(820.0f, display.y - 48)),
                                  ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSizeConstraints(ImVec2(640, 440), ImVec2(FLT_MAX, FLT_MAX));
-        if (ImGui::Begin("지형·기후 미리보기###groundness-preview-window", &open)) {
+        if (ImGui::Begin("기후 미리보기###climate-preview-window", &open)) {
             const float height = std::max(1.0f, ImGui::GetContentRegionAvail().y);
             if (ImGui::BeginTable("preview-layout", 2,
                                   ImGuiTableFlags_Resizable | ImGuiTableFlags_BordersInnerV)) {
@@ -564,9 +444,9 @@ struct GroundnessPreview::Impl {
         ImGui::End();
     }
 };
-GroundnessPreview::GroundnessPreview(Renderer& renderer) : impl_(std::make_unique<Impl>(renderer)) {}
-GroundnessPreview::~GroundnessPreview() = default;
-void GroundnessPreview::prepare() { impl_->prepare(); }
-void GroundnessPreview::release_binding() { impl_->release_binding(); }
-void GroundnessPreview::draw(GenerationConfig& draft, bool& open) { impl_->draw(draft, open); }
+ClimatePreview::ClimatePreview(Renderer& renderer) : impl_(std::make_unique<Impl>(renderer)) {}
+ClimatePreview::~ClimatePreview() = default;
+void ClimatePreview::prepare() { impl_->prepare(); }
+void ClimatePreview::release_binding() { impl_->release_binding(); }
+void ClimatePreview::draw(GenerationConfig& draft, bool& open) { impl_->draw(draft, open); }
 } // namespace sandbox

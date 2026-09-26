@@ -25,7 +25,8 @@ inline double world_delta(double a, double b) {
     return wrap_position(a - b + world_size / 2) - world_size / 2;
 }
 inline constexpr int world_height = 512;
-inline constexpr int sea_level = 192; // Water surface plane; fluid cells occupy y < sea_level.
+inline constexpr int sea_level = 192;      // Water surface plane; fluid cells occupy y < sea_level.
+inline constexpr int flat_surface_y = 192; // Temporary terrain: stone below, air at/above this plane.
 inline constexpr int chunks_per_column = world_height / chunk_edge;
 inline constexpr int physics_tps = 20;
 inline constexpr uint32_t ticks_per_day = 28800;

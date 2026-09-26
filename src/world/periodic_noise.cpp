@@ -59,21 +59,6 @@ PeriodicNoise::PeriodicNoise(const NoiseSettings& n, uint32_t seed, bool two, bo
             layers_.push_back(layer(spacing / frequency_ratio, -1, weight, key));
         }
 }
-PeriodicNoise::PeriodicNoise(const GenerationConfig& c, int family)
-    : kernel_(FastNoise::New<FastNoise::PeriodicPerlin>()) {
-    const auto& b = c.blended;
-    const bool main = family == 0;
-    const double xf = 684.412 * b.xz_scale / (main ? b.xz_factor : 1);
-    const double yf = 684.412 * b.y_scale / (main ? b.y_factor : 1);
-    const int count = main ? 8 : 16;
-    for (int i = 0; i < count; ++i) {
-        const double octave = std::ldexp(1.0, -i);
-        const uint64_t seed = mix(uint64_t(c.seed) + uint32_t(c.shape.seed_offset)) ^
-                              mix(uint64_t(family + 11) * 0x9e3779b97f4a7c15ULL + uint64_t(i));
-        layers_.push_back(layer(1 / (xf * octave), yf * octave, float(1 / (octave * (main ? 1 : 65536))),
-                                seed, yf * b.smear * octave));
-    }
-}
 void PeriodicNoise::sample(std::span<float> out, std::span<const double> x, std::span<const double> y,
                            std::span<const double> z) const {
     if (!kernel_)

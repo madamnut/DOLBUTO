@@ -6,7 +6,6 @@ class PeriodicNoise {
   public:
     PeriodicNoise(const NoiseSettings& settings, uint32_t seed, bool two = true, bool periodic_y = false,
                   bool periodic_z = true);
-    PeriodicNoise(const GenerationConfig& config, int family);
     void sample(std::span<float> out, std::span<const double> x, std::span<const double> y,
                 std::span<const double> z) const;
 

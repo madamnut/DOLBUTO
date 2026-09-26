@@ -13,6 +13,11 @@ foreach($taskDirectory in @('assets','shaders')) {
         Copy-Item -LiteralPath $_.FullName -Destination "$taskOutput/$taskDirectory" -Recurse -Force
     }
 }
+# Remove only retired application assets; preserve user settings and backups.
+foreach($taskRetired in @('minecraft.html','minecraft.js','minecraft.css','map-view.js')) {
+    $taskRetiredPath = Join-Path $taskOutput "assets/editor/$taskRetired"
+    if(Test-Path -LiteralPath $taskRetiredPath){Remove-Item -LiteralPath $taskRetiredPath -Force}
+}
 # App-local Microsoft runtime files keep this folder runnable without the build toolchain.
 $taskCrt = Get-ChildItem -LiteralPath "$env:VCToolsRedistDir/x64" -Directory | Where-Object Name -Match '^Microsoft\.VC.*\.CRT$' | Select-Object -First 1
 if(-not $taskCrt){throw 'Microsoft x64 CRT redistributable files were not found.'}

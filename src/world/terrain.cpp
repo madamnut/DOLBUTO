@@ -8,61 +8,6 @@
 
 namespace sandbox {
 namespace {
-constexpr int site_edge = chunk_edge / density_step + 1;
-static_assert(sea_level % chunk_edge == 0);
-TerrainSite interpolate_site(const std::array<float, site_edge * site_edge>& nodes, int x, int z) {
-    const int ix = x / density_step, iz = z / density_step;
-    const float fx = (x % density_step + 0.5f) / density_step, fz = (z % density_step + 0.5f) / density_step;
-    return {std::lerp(std::lerp(nodes[ix + site_edge * iz], nodes[ix + 1 + site_edge * iz], fx),
-                      std::lerp(nodes[ix + site_edge * (iz + 1)], nodes[ix + 1 + site_edge * (iz + 1)], fx),
-                      fz)};
-}
-// Find only the highest solid cell, using the same aligned lattice/interpolation as chunks.
-// This is seed/coordinate-only work; no neighbouring chunk data or generation order is required.
-void find_surfaces(TerrainTile& tile, const TerrainGenerator& generator,
-                   const std::array<float, site_edge * site_edge>& xs,
-                   const std::array<float, site_edge * site_edge>& zs) {
-    profiling::Scope measure(profiling::Stage::surface_search);
-    constexpr int count = site_edge * site_edge;
-    std::array<float, count> lower{}, upper{}, ys{};
-    float highest = 0;
-    for (size_t i = 0; i < tile.heights.size(); ++i)
-        highest = std::max(highest, tile.heights[i] + generator.vertical_extent_bound(tile.squashes[i]));
-    // Above the upper slide the density is always negative, irrespective of noise/settings.
-    highest = std::clamp(highest, 32.0f, float(world_height) - 64.0f * 4 / 3);
-    const int top_slab =
-        static_cast<int>(std::clamp(highest, 0.0f, float(world_height - 1))) / density_step * density_step;
-    ys.fill(float(top_slab + density_step));
-    generator.shape(upper, xs, ys, zs);
-    for (int i = 0; i < count; ++i)
-        upper[i] = generator.density(upper[i], tile.heights[i], tile.squashes[i], ys[i]);
-    int remaining = chunk_edge * chunk_edge;
-    for (int base = top_slab; base >= 0 && remaining > 0; base -= density_step) {
-        ys.fill(float(base));
-        generator.shape(lower, xs, ys, zs);
-        for (int i = 0; i < count; ++i)
-            lower[i] = generator.density(lower[i], tile.heights[i], tile.squashes[i], ys[i]);
-        for (int z = 0; z < chunk_edge; ++z)
-            for (int x = 0; x < chunk_edge; ++x) {
-                auto& site = tile.sites[x + chunk_edge * z];
-                if (site.surface_y >= 0)
-                    continue;
-                const float lo = interpolate_site(lower, x, z).height;
-                const float hi = interpolate_site(upper, x, z).height;
-                for (int offset = density_step - 1; offset >= 0; --offset) {
-                    const int y = base + offset;
-                    const float fy = (offset + 0.5f) / density_step;
-                    const float density = std::lerp(lo, hi, fy);
-                    if (density > 0) {
-                        site.surface_y = y;
-                        --remaining;
-                        break;
-                    }
-                }
-            }
-        upper = lower;
-    }
-}
 uint32_t material(Block block, int axis, int sign) {
     if (block == Block::ice)
         return 1; // Extended atlas tile9.
@@ -84,28 +29,9 @@ uint32_t material(Block block, int axis, int sign) {
 }
 } // namespace
 TerrainTile generate_tile(ColumnKey key, const TerrainGenerator& generator) {
-    key = canonical(key);
-    TerrainTile tile{key, generator.config().seed, {}, generator.signature()};
-    std::array<float, site_edge * site_edge> nodes{}, squashes{}, xs{}, zs{};
-    for (int z = 0; z < site_edge; ++z)
-        for (int x = 0; x < site_edge; ++x) {
-            const int i = x + site_edge * z;
-            xs[i] = static_cast<float>(key.x * 16 + x * density_step);
-            zs[i] = static_cast<float>(key.z * 16 + z * density_step);
-        }
-    {
-        profiling::Scope measure(profiling::Stage::profile);
-        generator.profile(nodes, squashes, xs, zs);
-    }
-    for (int z = 0; z < 16; ++z)
-        for (int x = 0; x < 16; ++x) {
-            auto& site = tile.sites[x + 16 * z];
-            site = interpolate_site(nodes, x, z);
-            site.squash = interpolate_site(squashes, x, z).height;
-        }
-    tile.heights = nodes;
-    tile.squashes = squashes;
-    find_surfaces(tile, generator, xs, zs);
+    TerrainTile tile{canonical(key), generator.config().seed, {}, generator.signature()};
+    for (auto& site : tile.sites)
+        site.surface_y = flat_surface_y - 1;
     return tile;
 }
 Chunk generate_chunk(ChunkKey key, const TerrainGenerator& generator, const TerrainTile* prepared) {
@@ -113,89 +39,16 @@ Chunk generate_chunk(ChunkKey key, const TerrainGenerator& generator, const Terr
     key = canonical(key);
     if (key.y < 0 || key.y >= chunks_per_column)
         throw std::out_of_range("Cannot generate a chunk outside world height.");
-    TerrainTile local;
-    if (!prepared) {
-        local = generate_tile({key.x, key.z}, generator);
-        prepared = &local;
-    }
-    if (prepared->key != ColumnKey{key.x, key.z} || prepared->seed != generator.config().seed ||
-        prepared->signature != generator.signature())
+    if (prepared && (prepared->key != ColumnKey{key.x, key.z} || prepared->seed != generator.config().seed ||
+                     prepared->signature != generator.signature()))
         throw std::invalid_argument("Terrain tile does not match chunk/generator.");
-    const int bottom = key.y * 16;
-    float minimum = std::numeric_limits<float>::infinity(), maximum = -minimum;
-    for (const auto& site : prepared->sites) {
-        minimum = std::min(minimum, site.height - generator.vertical_extent_bound(site.squash));
-        maximum = std::max(maximum, site.height + generator.vertical_extent_bound(site.squash));
-    }
-    for (size_t i = 0; i < prepared->heights.size(); ++i) {
-        const float extent = generator.vertical_extent_bound(prepared->squashes[i]);
-        minimum = std::min(minimum, prepared->heights[i] - extent);
-        maximum = std::max(maximum, prepared->heights[i] + extent);
-    }
+    static_assert(flat_surface_y % chunk_edge == 0);
+    static_assert(flat_surface_y > 0 && flat_surface_y < world_height);
     Chunk result;
-    // Blended limit octaves have a total weight below 1 and gradient magnitude below 2.
-    // All profile corners and both slide zones are included in the conservative early-out bounds.
-    if (minimum > bottom + chunk_edge && bottom + chunk_edge <= world_height - 107) {
-        result.uniform = Block::rock;
-        result.separate_fluids();
-        return result;
-    }
-    if (maximum < bottom && bottom >= 32) {
-        result.uniform = bottom < sea_level ? Block::water : Block::air;
-        result.separate_fluids();
-        return result; // Sea level is chunk-aligned.
-    }
-    constexpr int n = site_edge, count = n * n * n;
-    std::array<float, count> lattice{}, xs{}, ys{}, zs{};
-    const auto index = [](int x, int y, int z) { return x + n * (y + n * z); };
-    for (int z = 0; z < n; ++z)
-        for (int y = 0; y < n; ++y)
-            for (int x = 0; x < n; ++x) {
-                const int i = index(x, y, z);
-                xs[i] = static_cast<float>(key.x * 16 + x * density_step);
-                ys[i] = static_cast<float>(bottom + y * density_step);
-                zs[i] = static_cast<float>(key.z * 16 + z * density_step);
-            }
-    generator.shape(lattice, xs, ys, zs);
-    for (int z = 0; z < n; ++z)
-        for (int y = 0; y < n; ++y)
-            for (int x = 0; x < n; ++x) {
-                const int i = index(x, y, z), p = x + n * z;
-                lattice[i] =
-                    generator.density(lattice[i], prepared->heights[p], prepared->squashes[p], ys[i]);
-            }
-    const auto at = [&](int x, int y, int z) { return lattice[index(x, y, z)]; };
-    auto blocks = std::make_shared<std::array<Block, 4096>>();
-    for (int z = 0; z < 16; ++z)
-        for (int x = 0; x < 16; ++x) {
-            const int ix = x / density_step, iz = z / density_step;
-            const float fx = (x % density_step + 0.5f) / density_step,
-                        fz = (z % density_step + 0.5f) / density_step;
-            for (int y = 0; y < 16; ++y) {
-                const int iy = y / density_step;
-                const float fy = (y % density_step + 0.5f) / density_step;
-                const auto plane = [&](int py) {
-                    return std::lerp(std::lerp(at(ix, py, iz), at(ix + 1, py, iz), fx),
-                                     std::lerp(at(ix, py, iz + 1), at(ix + 1, py, iz + 1), fx), fz);
-                };
-                const float density = std::lerp(plane(iy), plane(iy + 1), fy);
-                (*blocks)[x + 16 * (y + 16 * z)] =
-                    density > 0 ? Block::rock : (bottom + y < sea_level ? Block::water : Block::air);
-            }
-        }
-    result.uniform = (*blocks)[0];
-    if (!std::all_of(blocks->begin(), blocks->end(), [&](Block b) { return b == result.uniform; }))
-        result.blocks = std::move(blocks);
-    result.separate_fluids();
+    result.uniform = key.y * chunk_edge < flat_surface_y ? Block::rock : Block::air;
     return result;
 }
-int terrain_spawn_height(int x, int z, const TerrainGenerator& generator) {
-    const auto tile = generate_tile({chunk_coordinate(x), chunk_coordinate(z)}, generator);
-    const auto site = tile.sites[local_coordinate(x) + 16 * local_coordinate(z)];
-    return static_cast<int>(std::ceil(
-        std::max(float(sea_level),
-                 std::min(float(world_height), site.height + generator.vertical_extent_bound(site.squash)))));
-}
+int terrain_spawn_height(int, int, const TerrainGenerator&) { return flat_surface_y; }
 // Convenience entry points for deterministic standalone generation and existing callers.
 TerrainTile generate_tile(ColumnKey key, uint32_t seed) {
     GenerationConfig config;

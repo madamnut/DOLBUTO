@@ -19,6 +19,8 @@ screenshots/
 /worldgen.draft.json
 /worldgen.draft.json.tmp
 /worldgen-backups/
+/worldgen.editor.json
+/worldgen.editor.json.tmp
 
 # Local reference materials and research tooling; never publish or package.
 /ref/
