@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "simplexterrain",
+  "version": "0.7.2",
+
+  "name": "Simplex Terrain",
+  "description": "Creates worlds with terrain unlike anything else!",
+  "authors": [
+    "SuperCoder79",
+    "Valoeghese"
+  ],
+  "contact": {
+    "homepage": "",
+    "sources": ""
+  },
+
+  "license": "LGPLv3",
+  "icon": "assets/simplexterrain/icon.png",
+
+  "accessWidener" : "simplexterrain.aw",
+
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "supercoder79.simplexterrain.SimplexTerrain"
+    ]
+  },
+  "mixins": [
+    "simplexterrain.mixins.json"
+  ],
+
+  "depends": {
+    "fabricloader": ">=0.7.0",
+    "fabric": "*"
+  },
+
+  "suggests": {
+    "winterbiomemod": "*",
+    "traverse": "*",
+    "terrestria": "*"
+  }
+}

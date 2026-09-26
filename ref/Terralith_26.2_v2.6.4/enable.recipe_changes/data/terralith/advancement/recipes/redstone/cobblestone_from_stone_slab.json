@@ -1,0 +1,35 @@
+{
+  "fabric:load_conditions": {
+    "condition": "terralith:config",
+    "key": "recipe_changes"
+  },
+  "neoforge:conditions": [
+    {
+      "type": "terralith:config",
+      "key": "recipe_changes"
+    }
+  ],
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_slab": {
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:stone_slab"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    }
+  },
+  "requirements": [
+    [
+      "has_slab"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "terralith:cobblestone_from_stone_slab"
+    ]
+  }
+}

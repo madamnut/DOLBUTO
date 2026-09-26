@@ -1,0 +1,71 @@
+//[df-editor]:{"pos":[900,400],"collapsed":false}
+{
+  //[df-editor]:{"pos":[3756,570],"collapsed":false}
+  "type": "flat_cache",
+  "argument": {
+  //[df-editor]:{"pos":[531,376],"collapsed":false}
+  "type": "cache_2d",
+  "argument": {
+    //[df-editor]:{"pos":[184,335],"collapsed":false}
+    "type": "minecraft:spline",
+    "spline": {
+      "coordinate": {
+        //[df-editor]:{"pos":[-149,372],"collapsed":false}
+        "type": "max",
+        "argument1": "lithosphere:continents", //[df-editor]:{"pos":[-587,337],"collapsed":false}
+        "argument2": {
+          //[df-editor]:{"pos":[-590,534],"collapsed":false}
+          "type": "minecraft:spline",
+          "spline": {
+            "coordinate": "lithosphere:volcanic_islands", //[df-editor]:{"pos":[-994,541],"collapsed":false}
+            "points": [
+              {
+                "location": 0.14360335362930743,
+                "value": -0.1310218390591008,
+                "derivative": 18.0000000000004
+              },
+              {
+                "location": 0.14880633072371618,
+                "value": -0.1015555424693857,
+                "derivative": 0
+              },
+              {
+                "location": 0.2,
+                "value": -0.08147924539874107,
+                "derivative": 0
+              }
+            ]
+          }
+        }
+      },
+      "points": [
+        {
+          "location": -0.49976008525166954,
+          "value": -0.5002721028087205,
+          "derivative": 1
+        },
+        {
+          "location": -0.10337850472876609,
+          "value": -0.20295646190819788,
+          "derivative": 0.25036175009465034
+        },
+        {
+          "location": 0.12634764285727262,
+          "value": -0.09327753654205617,
+          "derivative": 0
+        },
+        {
+          "location": 0.17710100129056594,
+          "value": 0.3240372305999084,
+          "derivative": 0
+        },
+        {
+          "location": 0.49749810507038805,
+          "value": 0.49871852056804145,
+          "derivative": 1.0325850374726078
+        }
+      ]
+    }
+  }
+  }
+}

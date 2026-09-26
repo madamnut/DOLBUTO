@@ -1,0 +1,70 @@
+{
+  "mappings": {
+    "supercoder79/simplexterrain/mixin/antibad/MixinLakeFeature": {
+      "generate": "Lnet/minecraft/class_3085;method_13471(Lnet/minecraft/class_5281;Lnet/minecraft/class_2794;Ljava/util/Random;Lnet/minecraft/class_2338;Lnet/minecraft/class_2963;)Z"
+    },
+    "supercoder79/simplexterrain/mixin/MixinGeneratorOptions": {
+      "fromProperties": "Lnet/minecraft/class_5285;method_28021(Lnet/minecraft/class_5455;Ljava/util/Properties;)Lnet/minecraft/class_5285;"
+    },
+    "supercoder79/simplexterrain/mixin/MixinMinecraftServer": {
+      "Lnet/minecraft/world/biome/source/BiomeSource;locateBiome(IIIILjava/util/function/Predicate;Ljava/util/Random;)Lnet/minecraft/util/math/BlockPos;": "Lnet/minecraft/class_1966;method_8762(IIIILjava/util/function/Predicate;Ljava/util/Random;)Lnet/minecraft/class_2338;",
+      "setupSpawn": "Lnet/minecraft/server/MinecraftServer;method_27901(Lnet/minecraft/class_3218;Lnet/minecraft/class_5268;ZZZ)V"
+    },
+    "supercoder79/simplexterrain/mixin/MixinSpawnLocating": {
+      "findServerSpawnPoint": "Lnet/minecraft/class_5322;method_29196(Lnet/minecraft/class_3218;Lnet/minecraft/class_1923;Z)Lnet/minecraft/class_2338;",
+      "Lnet/minecraft/server/network/SpawnLocating;findOverworldSpawn(Lnet/minecraft/server/world/ServerWorld;IIZ)Lnet/minecraft/util/math/BlockPos;": "Lnet/minecraft/class_5322;method_29194(Lnet/minecraft/class_3218;IIZ)Lnet/minecraft/class_2338;"
+    },
+    "supercoder79/simplexterrain/mixin/client/MixinSkyProperties": {
+      "getCloudsHeight": "Lnet/minecraft/class_5294;method_28108()F"
+    },
+    "supercoder79/simplexterrain/mixin/client/MixinMinecraftClient": {
+      "openScreen": "Lnet/minecraft/class_310;method_1507(Lnet/minecraft/class_437;)V"
+    },
+    "supercoder79/simplexterrain/mixin/BiomeLayerSamplerAccessor": {
+      "sampler": "field_16516:Lnet/minecraft/class_3626;"
+    },
+    "supercoder79/simplexterrain/mixin/optichunk/MixinChunkSection": {
+      "Lnet/minecraft/world/chunk/PalettedContainer;setSync(IIILjava/lang/Object;)Ljava/lang/Object;": "Lnet/minecraft/class_2841;method_12328(IIILjava/lang/Object;)Ljava/lang/Object;",
+      "setBlockState(IIILnet/minecraft/block/BlockState;Z)Lnet/minecraft/block/BlockState;": "Lnet/minecraft/class_2826;method_12256(IIILnet/minecraft/class_2680;Z)Lnet/minecraft/class_2680;"
+    },
+    "supercoder79/simplexterrain/mixin/MixinNoiseChunkGenerator": {
+      "\u003cinit\u003e(Lnet/minecraft/world/biome/source/BiomeSource;Lnet/minecraft/world/biome/source/BiomeSource;JLjava/util/function/Supplier;)V": "Lnet/minecraft/class_3754;\u003cinit\u003e(Lnet/minecraft/class_1966;Lnet/minecraft/class_1966;JLjava/util/function/Supplier;)V",
+      "populateNoise": "Lnet/minecraft/class_3754;method_12088(Lnet/minecraft/class_1936;Lnet/minecraft/class_5138;Lnet/minecraft/class_2791;)V"
+    }
+  },
+  "data": {
+    "named:intermediary": {
+      "supercoder79/simplexterrain/mixin/antibad/MixinLakeFeature": {
+        "generate": "Lnet/minecraft/class_3085;method_13471(Lnet/minecraft/class_5281;Lnet/minecraft/class_2794;Ljava/util/Random;Lnet/minecraft/class_2338;Lnet/minecraft/class_2963;)Z"
+      },
+      "supercoder79/simplexterrain/mixin/MixinGeneratorOptions": {
+        "fromProperties": "Lnet/minecraft/class_5285;method_28021(Lnet/minecraft/class_5455;Ljava/util/Properties;)Lnet/minecraft/class_5285;"
+      },
+      "supercoder79/simplexterrain/mixin/MixinMinecraftServer": {
+        "Lnet/minecraft/world/biome/source/BiomeSource;locateBiome(IIIILjava/util/function/Predicate;Ljava/util/Random;)Lnet/minecraft/util/math/BlockPos;": "Lnet/minecraft/class_1966;method_8762(IIIILjava/util/function/Predicate;Ljava/util/Random;)Lnet/minecraft/class_2338;",
+        "setupSpawn": "Lnet/minecraft/server/MinecraftServer;method_27901(Lnet/minecraft/class_3218;Lnet/minecraft/class_5268;ZZZ)V"
+      },
+      "supercoder79/simplexterrain/mixin/MixinSpawnLocating": {
+        "findServerSpawnPoint": "Lnet/minecraft/class_5322;method_29196(Lnet/minecraft/class_3218;Lnet/minecraft/class_1923;Z)Lnet/minecraft/class_2338;",
+        "Lnet/minecraft/server/network/SpawnLocating;findOverworldSpawn(Lnet/minecraft/server/world/ServerWorld;IIZ)Lnet/minecraft/util/math/BlockPos;": "Lnet/minecraft/class_5322;method_29194(Lnet/minecraft/class_3218;IIZ)Lnet/minecraft/class_2338;"
+      },
+      "supercoder79/simplexterrain/mixin/client/MixinSkyProperties": {
+        "getCloudsHeight": "Lnet/minecraft/class_5294;method_28108()F"
+      },
+      "supercoder79/simplexterrain/mixin/client/MixinMinecraftClient": {
+        "openScreen": "Lnet/minecraft/class_310;method_1507(Lnet/minecraft/class_437;)V"
+      },
+      "supercoder79/simplexterrain/mixin/BiomeLayerSamplerAccessor": {
+        "sampler": "field_16516:Lnet/minecraft/class_3626;"
+      },
+      "supercoder79/simplexterrain/mixin/optichunk/MixinChunkSection": {
+        "Lnet/minecraft/world/chunk/PalettedContainer;setSync(IIILjava/lang/Object;)Ljava/lang/Object;": "Lnet/minecraft/class_2841;method_12328(IIILjava/lang/Object;)Ljava/lang/Object;",
+        "setBlockState(IIILnet/minecraft/block/BlockState;Z)Lnet/minecraft/block/BlockState;": "Lnet/minecraft/class_2826;method_12256(IIILnet/minecraft/class_2680;Z)Lnet/minecraft/class_2680;"
+      },
+      "supercoder79/simplexterrain/mixin/MixinNoiseChunkGenerator": {
+        "\u003cinit\u003e(Lnet/minecraft/world/biome/source/BiomeSource;Lnet/minecraft/world/biome/source/BiomeSource;JLjava/util/function/Supplier;)V": "Lnet/minecraft/class_3754;\u003cinit\u003e(Lnet/minecraft/class_1966;Lnet/minecraft/class_1966;JLjava/util/function/Supplier;)V",
+        "populateNoise": "Lnet/minecraft/class_3754;method_12088(Lnet/minecraft/class_1936;Lnet/minecraft/class_5138;Lnet/minecraft/class_2791;)V"
+      }
+    }
+  }
+}

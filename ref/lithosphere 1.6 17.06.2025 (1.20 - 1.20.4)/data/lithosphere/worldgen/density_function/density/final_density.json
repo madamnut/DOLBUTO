@@ -1,0 +1,87 @@
+//[df-editor]:{"pos":[1380,1544],"collapsed":false}
+{
+  //[df-editor]:{"pos":[400,1600],"collapsed":false}
+  "type": "squeeze",
+  "argument": {
+    //[df-editor]:{"pos":[150,1600],"collapsed":false}
+    "type": "mul",
+    "argument1": 0.64, //[df-editor]:{"pos":[-45,1611],"collapsed":true}
+    "argument2": {
+      //[df-editor]:{"pos":[-101,1662],"collapsed":false}
+      "type": "interpolated",
+      "argument": {
+        //[df-editor]:{"pos":[-600,1675],"collapsed":false}
+        "type": "add",
+        "argument1": 0.1171875, //[df-editor]:{"pos":[-818,1655],"collapsed":true}
+        "argument2": {
+          //[df-editor]:{"pos":[-850,1750],"collapsed":false}
+          "type": "mul",
+          "argument1": {
+            //[df-editor]:{"pos":[-1111,1533],"collapsed":false}
+            "type": "y_clamped_gradient",
+            "from_y": -64,
+            "to_y": -40,
+            "from_value": 0,
+            "to_value": 1
+          },
+          "argument2": {
+            //[df-editor]:{"pos":[-1100,1750],"collapsed":false}
+            "type": "add",
+            "argument1": -0.1171875, //[df-editor]:{"pos":[-1270,1753],"collapsed":true}
+            "argument2": {
+              //[df-editor]:{"pos":[-1350,1825],"collapsed":false}
+              "type": "add",
+              "argument1": -0.078125, //[df-editor]:{"pos":[-1560,1827],"collapsed":true}
+              "argument2": {
+                //[df-editor]:{"pos":[-1600,1900],"collapsed":false}
+                "type": "mul",
+                "argument1": {
+                  //[df-editor]:{"pos":[-1843,1708],"collapsed":false}
+                  "type": "y_clamped_gradient",
+                  "from_y": 500,
+                  "to_y": 520,
+                  "from_value": 1,
+                  "to_value": 0
+                },
+                "argument2": {
+                  //[df-editor]:{"pos":[-1850,1900],"collapsed":false}
+                  "type": "add",
+                  "argument1": 0.078125, //[df-editor]:{"pos":[-2048,1856],"collapsed":true}
+                  "argument2": {
+                    //[df-editor]:{"pos":[-2599,1841],"collapsed":false}
+                    "type": "add",
+                    "argument1": "lithosphere:sloped_cheese", //[df-editor]:{"pos":[-3748,1625],"collapsed":false}
+                    "argument2": {
+                      //[df-editor]:{"pos":[-2937,2031],"collapsed":false}
+                      "type": "mul",
+                      "argument1": {
+                        //[df-editor]:{"pos":[-3432,1862],"collapsed":false}
+                        "type": "minecraft:spline",
+                        "spline": {
+                          "coordinate": "lithosphere:sloped_cheese", //[df-editor]:{"pos":[-3748,1625],"collapsed":false}
+                          "points": [
+                            {
+                              "location": 0.2,
+                              "value": 0.0,
+                              "derivative": 0
+                            },
+                            {
+                              "location": 0.5,
+                              "value": 1.0,
+                              "derivative": 0
+                            }
+                          ]
+                        }
+                      },
+                      "argument2": "lithosphere:caves/caves_final" //[df-editor]:{"pos":[-3225,2260],"collapsed":false}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

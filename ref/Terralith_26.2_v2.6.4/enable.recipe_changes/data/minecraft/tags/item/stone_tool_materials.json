@@ -1,0 +1,19 @@
+{
+  "fabric:load_conditions": {
+    "condition": "terralith:config",
+    "key": "recipe_changes"
+  },
+  "neoforge:conditions": [
+    {
+      "type": "terralith:config",
+      "key": "recipe_changes"
+    }
+  ],
+  "replace": false,
+  "values": [
+    "minecraft:andesite",
+    "minecraft:granite",
+    "minecraft:diorite",
+    "minecraft:tuff"
+  ]
+}

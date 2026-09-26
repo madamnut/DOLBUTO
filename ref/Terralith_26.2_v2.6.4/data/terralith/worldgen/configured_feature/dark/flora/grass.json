@@ -1,0 +1,31 @@
+{
+    "type": "minecraft:simple_block",
+    "config": {
+        "to_place": {
+            "type": "minecraft:weighted_state_provider",
+            "entries": [
+                {
+                    "data": {
+                        "Name": "minecraft:short_grass"
+                    },
+                    "weight": 96
+                },
+                {
+                    "data": {
+                        "Name": "minecraft:fern"
+                    },
+                    "weight": 32
+                },
+                {
+                    "data": {
+                        "Name": "minecraft:large_fern",
+                        "Properties": {
+                            "half": "lower"
+                        }
+                    },
+                    "weight": 12
+                }
+            ]
+        }
+    }
+}

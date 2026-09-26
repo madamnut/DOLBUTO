@@ -1,395 +1,149 @@
-cmake_minimum_required(VERSION 3.24)
-
-project(DOLBUTO LANGUAGES C CXX)
-
-if(WIN32)
-    enable_language(RC)
-endif()
-
+cmake_minimum_required(VERSION 3.26)
+project(Sandbox VERSION 0.1.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-if(CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+option(SANDBOX_VALIDATION "Enable Vulkan validation at startup" ON)
+option(SANDBOX_TRACY "Compile Tracy instrumentation" ON)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(DEPS "${CMAKE_SOURCE_DIR}/.cache/deps")
+if(NOT EXISTS "${DEPS}/rmlui/.source-id")
+  message(FATAL_ERROR "Run tools/setup.ps1 to obtain the pinned dependencies.")
 endif()
-
-find_package(Vulkan REQUIRED)
-
-set(DOLBUTO_PREBUILT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/prebuilt")
-
-function(dolbuto_require_file path description)
-    if(NOT EXISTS "${path}")
-        message(FATAL_ERROR "${description} not found: ${path}")
-    endif()
-endfunction()
-
-set(FASTNOISE2_TOOLS OFF CACHE BOOL "" FORCE)
-set(FASTNOISE2_TESTS OFF CACHE BOOL "" FORCE)
-set(FASTNOISE2_UTILITY OFF CACHE BOOL "" FORCE)
-set(FASTSIMD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(FASTSIMD_TESTS OFF CACHE BOOL "" FORCE)
-get_filename_component(DOLBUTO_FASTSIMD_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/FastSIMD" REALPATH)
-set(FastSIMD_SOURCE_DIR "${DOLBUTO_FASTSIMD_SOURCE_DIR}" CACHE PATH "" FORCE)
-add_subdirectory(external/FastNoise2)
-
-set(FREETYPE_ROOT "${DOLBUTO_PREBUILT_DIR}/freetype")
-set(FREETYPE_INCLUDE_DIR "${FREETYPE_ROOT}/include/freetype2")
-set(FREETYPE_IMPORT_LIB "${FREETYPE_ROOT}/lib/freetype.lib")
-set(FREETYPE_DLL "${FREETYPE_ROOT}/bin/freetype.dll")
-dolbuto_require_file("${FREETYPE_IMPORT_LIB}" "FreeType import library")
-dolbuto_require_file("${FREETYPE_DLL}" "FreeType DLL")
-add_library(Freetype::Freetype SHARED IMPORTED GLOBAL)
-set_target_properties(Freetype::Freetype PROPERTIES
-    IMPORTED_IMPLIB "${FREETYPE_IMPORT_LIB}"
-    IMPORTED_LOCATION "${FREETYPE_DLL}"
-    INTERFACE_INCLUDE_DIRECTORIES "${FREETYPE_INCLUDE_DIR}"
-)
-
-set(RMLUI_ROOT "${DOLBUTO_PREBUILT_DIR}/rmlui")
-set(RMLUI_INCLUDE_DIR "${RMLUI_ROOT}/include")
-set(RMLUI_IMPORT_LIB "${RMLUI_ROOT}/lib/rmlui.lib")
-set(RMLUI_DLL "${RMLUI_ROOT}/bin/rmlui.dll")
-set(RMLUI_DEBUG_IMPORT_LIB "${RMLUI_ROOT}/debug/lib/rmlui.lib")
-set(RMLUI_DEBUG_DLL "${RMLUI_ROOT}/debug/bin/rmlui.dll")
-dolbuto_require_file("${RMLUI_IMPORT_LIB}" "RmlUi import library")
-dolbuto_require_file("${RMLUI_DLL}" "RmlUi DLL")
-add_library(RmlUi::Core SHARED IMPORTED GLOBAL)
-set_target_properties(RmlUi::Core PROPERTIES
-    IMPORTED_IMPLIB "${RMLUI_IMPORT_LIB}"
-    IMPORTED_LOCATION "${RMLUI_DLL}"
-    INTERFACE_INCLUDE_DIRECTORIES "${RMLUI_INCLUDE_DIR}"
-)
-if(EXISTS "${RMLUI_DEBUG_IMPORT_LIB}" AND EXISTS "${RMLUI_DEBUG_DLL}")
-    set_property(TARGET RmlUi::Core APPEND PROPERTY IMPORTED_CONFIGURATIONS DEBUG)
-    set_target_properties(RmlUi::Core PROPERTIES
-        IMPORTED_IMPLIB_DEBUG "${RMLUI_DEBUG_IMPORT_LIB}"
-        IMPORTED_LOCATION_DEBUG "${RMLUI_DEBUG_DLL}"
-    )
-else()
-    message(WARNING "RmlUi Debug prebuilt not found. Debug builds may not run correctly with the Release RmlUi DLL: ${RMLUI_DEBUG_DLL}")
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
+set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+set(SDL_GPU OFF CACHE BOOL "" FORCE)
+set(SDL_RENDER OFF CACHE BOOL "" FORCE)
+set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
+add_subdirectory("${DEPS}/sdl" "deps/sdl" EXCLUDE_FROM_ALL)
+set(VULKAN_HEADERS_INSTALL_DIR "${DEPS}/vulkan_headers" CACHE PATH "" FORCE)
+add_subdirectory("${DEPS}/volk" "deps/volk" EXCLUDE_FROM_ALL)
+set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+add_subdirectory("${DEPS}/freetype" "deps/freetype" EXCLUDE_FROM_ALL)
+if(NOT TARGET Freetype::Freetype)
+  add_library(Freetype::Freetype ALIAS freetype)
 endif()
+set(CMAKE_DISABLE_FIND_PACKAGE_Freetype ON)
+set(RMLUI_SAMPLES OFF CACHE BOOL "" FORCE)
+set(RMLUI_TRACY_PROFILING OFF CACHE BOOL "" FORCE)
+set(RMLUI_COMPILER_OPTIONS OFF CACHE BOOL "" FORCE)
+add_subdirectory("${DEPS}/rmlui" "deps/rmlui" EXCLUDE_FROM_ALL)
+set(TRACY_ENABLE ${SANDBOX_TRACY} CACHE BOOL "" FORCE)
+set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
+set(TRACY_ONLY_LOCALHOST ON CACHE BOOL "" FORCE)
+set(TRACY_NO_BROADCAST ON CACHE BOOL "" FORCE)
+set(TRACY_NO_SYSTEM_TRACING ON CACHE BOOL "" FORCE)
+add_subdirectory("${DEPS}/tracy" "deps/tracy" EXCLUDE_FROM_ALL)
+set(GLM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory("${DEPS}/glm" "deps/glm" EXCLUDE_FROM_ALL)
 
-set(OPENAL_ROOT "${DOLBUTO_PREBUILT_DIR}/openal-soft")
-set(OPENAL_INCLUDE_DIR "${OPENAL_ROOT}/include")
-set(OPENAL_IMPORT_LIB "${OPENAL_ROOT}/lib/OpenAL32.lib")
-set(OPENAL_DLL "${OPENAL_ROOT}/bin/OpenAL32.dll")
-dolbuto_require_file("${OPENAL_IMPORT_LIB}" "OpenAL Soft import library")
-dolbuto_require_file("${OPENAL_DLL}" "OpenAL Soft DLL")
-add_library(OpenAL::OpenAL SHARED IMPORTED GLOBAL)
-set_target_properties(OpenAL::OpenAL PROPERTIES
-    IMPORTED_IMPLIB "${OPENAL_IMPORT_LIB}"
-    IMPORTED_LOCATION "${OPENAL_DLL}"
-    INTERFACE_INCLUDE_DIRECTORIES "${OPENAL_INCLUDE_DIR}"
-)
+add_library(imgui STATIC
+  "${DEPS}/imgui/imgui.cpp" "${DEPS}/imgui/imgui_draw.cpp"
+  "${DEPS}/imgui/imgui_tables.cpp" "${DEPS}/imgui/imgui_widgets.cpp"
+  "${DEPS}/imgui/backends/imgui_impl_sdl3.cpp" "${DEPS}/imgui/backends/imgui_impl_vulkan.cpp")
+target_include_directories(imgui SYSTEM PUBLIC "${DEPS}/imgui" "${DEPS}/imgui/backends")
+target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_USE_VOLK VK_NO_PROTOTYPES)
+target_link_libraries(imgui PUBLIC SDL3::SDL3 volk::volk)
+add_library(rml_platform STATIC "${DEPS}/rmlui/Backends/RmlUi_Platform_SDL.cpp")
+target_include_directories(rml_platform SYSTEM PUBLIC "${DEPS}/rmlui/Backends")
+target_compile_definitions(rml_platform PUBLIC RMLUI_SDL_VERSION_MAJOR=3)
+target_link_libraries(rml_platform PUBLIC RmlUi::Core SDL3::SDL3)
 
-if(NOT Vulkan_GLSLC_EXECUTABLE)
-    find_program(Vulkan_GLSLC_EXECUTABLE glslc REQUIRED)
-endif()
+add_library(asset_support STATIC src/third_party.cpp)
+target_include_directories(asset_support SYSTEM PUBLIC "${DEPS}/vma/include" "${DEPS}/stb")
+target_compile_definitions(asset_support PUBLIC VK_NO_PROTOTYPES VMA_STATIC_VULKAN_FUNCTIONS=0 VMA_DYNAMIC_VULKAN_FUNCTIONS=1)
+target_link_libraries(asset_support PUBLIC volk::volk)
 
-set(GLFW_ROOT "${DOLBUTO_PREBUILT_DIR}/glfw")
-set(GLFW_INCLUDE_DIR "${GLFW_ROOT}/include")
+add_subdirectory(cmake/fastnoise)
+add_library(world_core STATIC src/world/profiling.cpp src/core/settings.cpp src/world/lighting.cpp src/world/terrain.cpp src/world/spawn.cpp src/world/stream.cpp src/world/edit.cpp src/world/fluid.cpp src/world/lod.cpp
+  src/world/generation_config.cpp src/world/terrain_spline.cpp src/world/generator.cpp src/world/periodic_noise.cpp src/world/periodic_perlin.cpp)
+target_include_directories(world_core SYSTEM PRIVATE "${DEPS}/json/single_include")
+target_link_libraries(world_core PUBLIC FastNoise PRIVATE SandboxPeriodic)
+target_include_directories(world_core PUBLIC src)
+target_compile_options(world_core PRIVATE /W4 /utf-8)
+add_executable(sandbox src/main.cpp src/render/renderer.cpp src/render/lod_renderer.cpp src/render/water_effects.cpp src/render/scene_effects.cpp src/ui/rml_renderer.cpp src/ui/generation_editor.cpp
+  src/ui/groundness_preview.cpp src/ui/terrain_spline_editor.cpp src/ui/game_console.cpp src/world/world_view.cpp)
+target_include_directories(sandbox PRIVATE src)
+target_include_directories(sandbox SYSTEM PRIVATE third_party/renderdoc)
+target_link_libraries(sandbox PRIVATE imgui rml_platform asset_support glm::glm Tracy::TracyClient world_core)
+target_compile_definitions(sandbox PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN GLM_FORCE_DEPTH_ZERO_TO_ONE
+  SANDBOX_VALIDATION=$<BOOL:${SANDBOX_VALIDATION}>)
+target_compile_options(sandbox PRIVATE /W4 /utf-8 -Wno-missing-field-initializers)
+set_target_properties(sandbox PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-set(GLFW_IMPORT_LIB "${GLFW_ROOT}/lib/glfw3dll.lib")
-set(GLFW_DLL "${GLFW_ROOT}/bin/glfw3.dll")
-set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
-
-set(DOLBUTO_WINDOWS_RESOURCE)
-if(WIN32)
-    set(DOLBUTO_ICON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/assets/textures/icon/icon.ico")
-    configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/windows/DOLBUTO.rc.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/DOLBUTO.rc"
-        @ONLY
-    )
-    set(DOLBUTO_WINDOWS_RESOURCE "${CMAKE_CURRENT_BINARY_DIR}/DOLBUTO.rc")
-endif()
-
-if(NOT EXISTS "${GLFW_IMPORT_LIB}")
-    message(FATAL_ERROR "GLFW import library not found: ${GLFW_IMPORT_LIB}")
-endif()
-
-if(NOT EXISTS "${GLFW_DLL}")
-    message(FATAL_ERROR "GLFW DLL not found: ${GLFW_DLL}")
-endif()
-
-set(DOLBUTO_RUNTIME_DLLS
-    "${GLFW_DLL}"
-    "${FREETYPE_DLL}"
-    "$<TARGET_FILE:RmlUi::Core>"
-    "${OPENAL_DLL}"
-)
-
-set(SHADER_SOURCES
-    shaders/sky.vert
-    shaders/sky.frag
-    shaders/sprite.vert
-    shaders/sprite.frag
-    shaders/sprite_scene.frag
-    shaders/kawase_blur.frag
-    shaders/ssao.frag
-    shaders/ssao_blur.frag
-    shaders/ssao_apply.frag
-    shaders/bloom_downsample.frag
-    shaders/bloom_upsample.frag
-    shaders/rmlui.vert
-    shaders/rmlui.frag
-    shaders/terrain.vert
-    shaders/terrain.frag
-    shaders/terrain_lit.frag
-    shaders/terrain_shadow.vert
-    shaders/terrain_shadow.frag
-    shaders/fluid.frag
-    shaders/molten.frag
-    shaders/player.vert
-    shaders/player_model.vert
-    shaders/player_shadow.vert
-    shaders/item.vert
-    shaders/item_viewmodel.vert
-    shaders/selection.vert
-    shaders/selection.frag
-)
-
-set(SHADER_OUTPUTS)
-foreach(SHADER_SOURCE ${SHADER_SOURCES})
-    get_filename_component(SHADER_NAME "${SHADER_SOURCE}" NAME)
-    set(SHADER_OUTPUT "${SHADER_OUTPUT_DIR}/${SHADER_NAME}.spv")
-    add_custom_command(
-        OUTPUT "${SHADER_OUTPUT}"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${SHADER_OUTPUT_DIR}"
-        COMMAND "${Vulkan_GLSLC_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/${SHADER_SOURCE}" -o "${SHADER_OUTPUT}"
-        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${SHADER_SOURCE}"
-        VERBATIM
-    )
-    list(APPEND SHADER_OUTPUTS "${SHADER_OUTPUT}")
+find_program(GLSLC glslc HINTS "$ENV{VULKAN_SDK}/Bin" REQUIRED)
+foreach(SHADER lod.vert lod.frag lod_shadow.frag lod_depth.frag lod_water.vert lod_water.frag lod_water_ssr.frag ui.vert ui.frag world.vert world.frag player.vert player.frag water.frag water_ssr.frag fullscreen.vert volume.frag atmosphere.frag bloom.frag tone.frag shadow.frag scene_factor.frag taa.frag present.frag)
+  set(SHADER_INCLUDES)
+  set(SHADER_SOURCE "${SHADER}")
+  set(SHADER_DEFINES)
+  if(SHADER STREQUAL "lod_water.frag" OR SHADER STREQUAL "lod_water_ssr.frag")
+    string(REGEX REPLACE "^lod_" "" SHADER_SOURCE "${SHADER}")
+    list(APPEND SHADER_DEFINES -DLOD_WATER=1)
+  endif()
+  if(SHADER_SOURCE MATCHES "^(lod|world|player|water|water_ssr|volume|atmosphere|tone|scene_factor|taa|shadow|bloom)\\.frag$")
+    list(APPEND SHADER_INCLUDES "${CMAKE_SOURCE_DIR}/shaders/environment.glsl" "${CMAKE_SOURCE_DIR}/shaders/complementary.glsl" "${CMAKE_SOURCE_DIR}/shaders/clouds.glsl" "${CMAKE_SOURCE_DIR}/shaders/celestial.glsl")
+  endif()
+  if(SHADER_SOURCE STREQUAL "water.frag" OR SHADER_SOURCE STREQUAL "water_ssr.frag")
+    list(APPEND SHADER_INCLUDES "${CMAKE_SOURCE_DIR}/shaders/water_common.glsl"
+                               "${CMAKE_SOURCE_DIR}/shaders/water_trace.glsl"
+                               "${CMAKE_SOURCE_DIR}/shaders/water_highlight.glsl")
+  endif()
+  if(SHADER MATCHES "^lod")
+    list(APPEND SHADER_INCLUDES "${CMAKE_SOURCE_DIR}/shaders/lod_mask.glsl" "${CMAKE_SOURCE_DIR}/shaders/lod_coverage.glsl" "${CMAKE_SOURCE_DIR}/shaders/lod_geometry.glsl")
+  endif()
+  set(OUTPUT "${CMAKE_BINARY_DIR}/bin/shaders/${SHADER}.spv")
+  add_custom_command(OUTPUT "${OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/shaders"
+    COMMAND "${GLSLC}" --target-env=vulkan1.4 -O ${SHADER_DEFINES} "${CMAKE_SOURCE_DIR}/shaders/${SHADER_SOURCE}" -o "${OUTPUT}"
+    DEPENDS "${CMAKE_SOURCE_DIR}/shaders/${SHADER_SOURCE}" ${SHADER_INCLUDES} VERBATIM)
+  list(APPEND SHADER_OUTPUTS "${OUTPUT}")
 endforeach()
+add_custom_target(shaders ALL DEPENDS ${SHADER_OUTPUTS})
+add_dependencies(sandbox shaders)
+add_custom_target(runtime_assets ALL
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/assets" "${CMAKE_BINARY_DIR}/bin/assets")
+add_dependencies(sandbox runtime_assets)
 
-add_custom_target(DOLBUTOShaders DEPENDS ${SHADER_OUTPUTS})
+# Standalone CPU-only editor: the exact same world generator, no SDL/Vulkan runtime.
+add_executable(worldgen_editor src/editor/main.cpp src/editor/minecraft_reference.cpp)
+set_source_files_properties(src/editor/minecraft_reference.cpp PROPERTIES COMPILE_OPTIONS "/fp:strict")
+target_link_libraries(worldgen_editor PRIVATE world_core ws2_32 bcrypt shell32)
+target_include_directories(worldgen_editor SYSTEM PRIVATE "${DEPS}/json/single_include")
+target_compile_definitions(worldgen_editor PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_compile_options(worldgen_editor PRIVATE /W4 /utf-8)
+set_target_properties(worldgen_editor PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+add_dependencies(worldgen_editor runtime_assets)
 
-add_executable(DOLBUTO
-    ${DOLBUTO_WINDOWS_RESOURCE}
-    src/main.cpp
-    src/game/ClientContent.cpp
-    src/game/ClientContent.h
-    src/game/ClientFrame.h
-    src/game/ClientRenderRuntime.cpp
-    src/game/ClientRenderRuntime.h
-    src/game/ClientRuntime.cpp
-    src/game/ClientRuntime.h
-    src/game/ClientRuntimeState.h
-    src/game/ClientSceneLifecycle.cpp
-    src/game/ClientSceneLifecycle.h
-    src/game/ClientTerrainCompletionHandler.cpp
-    src/game/ClientTerrainCompletionHandler.h
-    src/game/ClientTerrainCoordinator.cpp
-    src/game/ClientTerrainCoordinator.h
-    src/game/ClientTerrainJobProcessor.cpp
-    src/game/ClientTerrainJobProcessor.h
-    src/game/ClientTerrainSceneRuntime.cpp
-    src/game/ClientTerrainSceneRuntime.h
-    src/game/ClientUiTypes.h
-    src/game/ClientWorldRuntime.cpp
-    src/game/ClientWorldRuntime.h
-    src/game/CommandSystem.cpp
-    src/game/CommandSystem.h
-    src/game/GameClient.cpp
-    src/game/GameClient.h
-    src/game/GameMode.h
-    src/game/PlayerMovementSystem.cpp
-    src/game/PlayerMovementSystem.h
-    src/game/PlayerStats.h
-    src/game/RadialMenuRenderFrame.h
-    src/gameplay/BlockInteractionSystem.cpp
-    src/gameplay/BlockInteractionSystem.h
-    src/gameplay/ClientGameplayRuntime.cpp
-    src/gameplay/ClientGameplayRuntime.h
-    src/gameplay/PlayerInventory.cpp
-    src/gameplay/PlayerInventory.h
-    src/assets/BlockItemIconBuilder.cpp
-    src/assets/BlockItemIconBuilder.h
-    src/assets/PropModelLoader.cpp
-    src/assets/PropModelLoader.h
-    src/audio/AudioSystem.cpp
-    src/audio/AudioSystem.h
-    src/camera/Camera.cpp
-    src/camera/Camera.h
-    src/camera/CameraViewBob.cpp
-    src/camera/CameraViewBob.h
-    src/config/ConfigLoaders.cpp
-    src/config/ConfigLoaders.h
-    src/config/ViewmodelConfig.h
-    src/data/DataLoaders.cpp
-    src/data/DataLoaders.h
-    src/items/ItemData.h
-    src/platform/Log.cpp
-    src/platform/Log.h
-    src/platform/RuntimePaths.cpp
-    src/platform/RuntimePaths.h
-    src/renderer/RendererDroppedItems.cpp
-    src/renderer/RendererFrameLoop.cpp
-    src/renderer/RendererGameplayBridge.cpp
-    src/renderer/RendererLifecycle.cpp
-    src/renderer/RendererLocalResources.cpp
-    src/renderer/RendererPipelines.cpp
-    src/renderer/RendererRmlUiBackend.cpp
-    src/renderer/RendererAudio.cpp
-    src/renderer/RendererClimateOverlay.cpp
-    src/renderer/RendererConfig.cpp
-    src/renderer/RendererDiagnostics.cpp
-    src/renderer/RendererSceneLifecycleBridge.cpp
-    src/renderer/RendererSceneDraw.cpp
-    src/renderer/RendererShadow.cpp
-    src/renderer/RendererSwapchain.cpp
-    src/renderer/RendererTerrainRuntimeBridge.cpp
-    src/renderer/RendererVulkanContext.cpp
-    src/renderer/DroppedItemRenderCollector.cpp
-    src/renderer/DroppedItemRenderCollector.h
-    src/renderer/DroppedItemRenderPath.cpp
-    src/renderer/DroppedItemRenderPath.h
-    src/renderer/ItemSpriteMeshBuilder.cpp
-    src/renderer/ItemSpriteMeshBuilder.h
-    src/renderer/RendererFrame.h
-    src/renderer/RendererAssetStore.cpp
-    src/renderer/RendererAssetStore.h
-    src/renderer/RendererAudioBridge.h
-    src/renderer/RendererConfigBridge.h
-    src/renderer/RendererDiagnosticsBridge.h
-    src/renderer/RendererGameplayBridge.h
-    src/renderer/RendererGpuResources.cpp
-    src/renderer/RendererGpuResources.h
-    src/renderer/Renderer.h
-    src/renderer/RadialMenuRenderPath.cpp
-    src/renderer/RadialMenuRenderPath.h
-    src/renderer/RendererRenderMethods.inc
-    src/renderer/RendererRmlUiBackend.h
-    src/renderer/RendererSceneLifecycleBridge.h
-    src/renderer/RendererTerrainRuntimeBridge.h
-    src/renderer/RendererTypes.h
-    src/renderer/RendererUiRuntimeBridge.h
-    src/renderer/RendererVulkanMethods.inc
-    src/renderer/RendererVulkanState.h
-    src/renderer/RendererTerrainMeshBridge.cpp
-    src/renderer/RendererTerrainMeshBridge.h
-    src/renderer/ClimateOverlayTextureBuilder.cpp
-    src/renderer/ClimateOverlayTextureBuilder.h
-    src/renderer/DebugOverlayText.cpp
-    src/renderer/DebugOverlayText.h
-    src/renderer/ScreenPresentation.cpp
-    src/renderer/ScreenPresentation.h
-    src/renderer/SkyRenderPath.cpp
-    src/renderer/SkyRenderPath.h
-    src/renderer/SpriteRenderPath.cpp
-    src/renderer/SpriteRenderPath.h
-    src/renderer/TerrainGeometryBuilder.cpp
-    src/renderer/TerrainGeometryBuilder.h
-    src/renderer/TextRenderPath.cpp
-    src/renderer/TextRenderPath.h
-    src/renderer/ParticleRenderPath.cpp
-    src/renderer/ParticleRenderPath.h
-    src/renderer/PlayerModelLoader.cpp
-    src/renderer/PlayerModelLoader.h
-    src/renderer/PlayerMeshRenderPath.cpp
-    src/renderer/PlayerMeshRenderPath.h
-    src/renderer/TerrainRenderPath.cpp
-    src/renderer/TerrainRenderPath.h
-    src/renderer/TerrainTypes.h
-    src/renderer/RendererUi.cpp
-    src/save/SaveFormat.cpp
-    src/save/SaveFormat.h
-    src/save/SaveSystem.cpp
-    src/save/SaveSystem.h
-    src/third_party/stb_image.cpp
-    src/third_party/stb_image_write.cpp
-    src/third_party/stb_vorbis.cpp
-    src/ui/ClientUiBridge.cpp
-    src/ui/ClientUiBridge.h
-    src/ui/InventoryUi.cpp
-    src/ui/InventoryUi.h
-    src/ui/RmlInput.cpp
-    src/ui/RmlInput.h
-    src/ui/UiSystem.cpp
-    src/ui/UiSystem.h
-    src/world/BlockCollisionShape.h
-    src/world/BlockData.h
-    src/world/BlockVisualShape.h
-    src/world/Biome.cpp
-    src/world/Biome.h
-    src/world/ChunkLoadSystem.cpp
-    src/world/ChunkLoadSystem.h
-    src/world/ChunkPrepareSystem.cpp
-    src/world/ChunkPrepareSystem.h
-    src/world/ClimateSystem.cpp
-    src/world/ClimateSystem.h
-    src/world/DroppedItemRuntime.cpp
-    src/world/DroppedItemRuntime.h
-    src/world/DroppedItemSystem.cpp
-    src/world/DroppedItemSystem.h
-    src/world/SkyLightSystem.cpp
-    src/world/SkyLightSystem.h
-    src/world/TerrainBuilder.cpp
-    src/world/TerrainBuilder.h
-    src/world/TerrainJobSystem.cpp
-    src/world/TerrainJobSystem.h
-    src/world/TerrainMesher.cpp
-    src/world/TerrainMesher.h
-    src/world/WorldRuntime.cpp
-    src/world/WorldRuntime.h
-    src/world/WorldTypes.h
-)
+# Opt-in measurement requested by the user; never part of normal builds or CTest.
+add_executable(noise_benchmark EXCLUDE_FROM_ALL tools/benchmarks/noise_benchmark.cpp tools/benchmarks/psrd/psrd.cpp tools/benchmarks/psrd/inspection.cpp)
+target_link_libraries(noise_benchmark PRIVATE world_core BenchmarkPsrdSIMD)
+target_compile_definitions(noise_benchmark PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_compile_options(noise_benchmark PRIVATE /W4 /utf-8)
+set_target_properties(noise_benchmark PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-add_dependencies(DOLBUTO DOLBUTOShaders)
+add_executable(world_benchmark EXCLUDE_FROM_ALL tools/benchmarks/world_benchmark.cpp)
+target_link_libraries(world_benchmark PRIVATE world_core)
+target_compile_options(world_benchmark PRIVATE /W4 /utf-8)
+set_target_properties(world_benchmark PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-target_include_directories(DOLBUTO
-    PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-        "${GLFW_INCLUDE_DIR}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/external/stb"
-)
+# Explicit transition diagnostics; not a normal build or startup test.
+add_executable(torus_benchmark EXCLUDE_FROM_ALL tools/benchmarks/torus_benchmark.cpp)
+target_link_libraries(torus_benchmark PRIVATE world_core)
+target_compile_options(torus_benchmark PRIVATE /W4 /utf-8)
+set_target_properties(torus_benchmark PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-target_compile_definitions(DOLBUTO
-    PRIVATE
-        DOLBUTO_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
-        DOLBUTO_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config"
-        DOLBUTO_SAVE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/saves"
-        DOLBUTO_SHADER_DIR="${SHADER_OUTPUT_DIR}"
-        DOLBUTO_LOG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/logs"
-)
-
-target_compile_options(DOLBUTO
-    PRIVATE
-        $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
-)
-
-target_link_libraries(DOLBUTO
-    PRIVATE
-        Vulkan::Vulkan
-        FastNoise
-        Freetype::Freetype
-        RmlUi::Core
-        OpenAL::OpenAL
-        "${GLFW_IMPORT_LIB}"
-)
-
-if(WIN32)
-    target_link_libraries(DOLBUTO PRIVATE advapi32)
-endif()
-
-if(WIN32 AND MSVC)
-    target_link_options(DOLBUTO
-        PRIVATE
-            "$<$<CONFIG:Release>:/SUBSYSTEM:WINDOWS>"
-            "$<$<CONFIG:Release>:/ENTRY:mainCRTStartup>"
-    )
-endif()
-
-add_custom_command(TARGET DOLBUTO POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DOLBUTO_RUNTIME_DLLS} "$<TARGET_FILE_DIR:DOLBUTO>"
-)
-
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    add_custom_command(TARGET DOLBUTO POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets" "$<TARGET_FILE_DIR:DOLBUTO>/assets"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/config" "$<TARGET_FILE_DIR:DOLBUTO>/config"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${SHADER_OUTPUT_DIR}" "$<TARGET_FILE_DIR:DOLBUTO>/shaders"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:DOLBUTO>/saves"
-    )
-endif()
+# Explicit user-approved comparison. The game never links the frozen reference or work counters.
+add_executable(lighting_benchmark EXCLUDE_FROM_ALL tools/benchmarks/lighting/benchmark.cpp
+  tools/benchmarks/lighting/reference.cpp src/world/lighting.cpp)
+target_link_libraries(lighting_benchmark PRIVATE world_core)
+target_compile_definitions(lighting_benchmark PRIVATE SANDBOX_LIGHT_BENCHMARK)
+target_compile_options(lighting_benchmark PRIVATE /W4 /utf-8)
+set_target_properties(lighting_benchmark PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")

@@ -1,0 +1,40 @@
+Complementary Unbound lighting and water adaptation
+
+Reference supplied in ref/ComplementaryUnbound: Complementary Shaders by EminGT.
+Project: https://www.complementary.dev/
+
+The lighting, distorted shadow sampling, sky/fog, volumetric-light colour and
+weighting, scene-aware shaft intensity, tone mapping and TAA in shaders/
+complementary.glsl, environment.glsl, shadow.frag, scene_factor.frag, tone.frag,
+bloom.frag and taa.frag adapt the supplied shader sources to this Vulkan renderer.
+Reference noise.png and cloud-water.png are included under assets/textures/effects
+with the complementary_ prefix, unchanged from the supplied reference.
+Original volumetric tracing credits Robobo1221. Original TAA reprojection and
+jitter credit Chocapic13. Original tone mapping credits Timothy Lottes and BSL.
+
+This is a modified integration, not the original Complementary shader pack.
+Water material, texture normals/parallax, reflection and refraction in
+water_common.glsl, water.frag, water_trace.glsl and atmosphere.frag adapt
+lib/materials/specificMaterials/translucents/water.glsl, reflections.glsl,
+reflectionBackground.glsl and refraction.glsl. Water GGX in water_highlight.glsl
+adapts lib/lighting/ggx.glsl, which credits Horizon Zero Dawn for the area light
+approximation. Bayer dithering in the reference credits Jessie.
+
+Cloud density, ray stepping, opacity accumulation, height/directional shading
+and distance fading in clouds.glsl adapt lib/atmospherics/clouds/mainClouds.glsl,
+unboundClouds.glsl, lib/colors/cloudColors.glsl, lib/lighting/cloudShadows.glsl
+and Noise3D from lib/util/commonFunctions.glsl. The original noise.png is reused.
+
+Minecraft/Iris inputs are mapped to this game's world and renderer. The bundled
+reference contains no separate license text; this attribution is not a grant of
+rights to the original work. Preserve original author attribution.
+
+Procedural sun/moon size, colour and horizon blending in celestial.glsl adapt
+program/gbuffers_skybasic.glsl (SUN_MOON_STYLE 2). Star distribution and palette
+reference lib/atmospherics/stars.glsl. Moon surface noise and filtered circular
+star profiles are local texture-free adaptations; no celestial images are used.
+
+Regular ice in water.frag adapts translucentIPBR.glsl material 32004
+(green-channel gloss/highlight and reflection multiplier), with the common
+translucent Fresnel from gbuffers_water.glsl. Ice shadow transmission is a
+local approximation; no water animation or generated normals are used for ice.

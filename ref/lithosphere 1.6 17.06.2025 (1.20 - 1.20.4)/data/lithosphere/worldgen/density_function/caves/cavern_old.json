@@ -1,0 +1,76 @@
+//[df-editor]:{"pos":[1769,389],"collapsed":false}
+{
+  //[df-editor]:{"pos":[1504,382],"collapsed":false}
+  "type": "cache_once",
+  "argument": {
+    //[df-editor]:{"pos":[1234,428],"collapsed":false}
+    "type": "add",
+    "argument1": {
+      //[df-editor]:{"pos":[877,420],"collapsed":false}
+      "type": "add",
+      "argument1": {
+        //[df-editor]:{"pos":[500,432],"collapsed":false}
+        "type": "add",
+        "argument1": {
+          //[df-editor]:{"pos":[-9,417],"collapsed":false}
+          "type": "noise",
+          "noise": "minecraft:cave_cheese",
+          "xz_scale": 2.0,
+          "y_scale": 3.0
+        },
+        "argument2": {
+          //[df-editor]:{"pos":[236,667],"collapsed":false}
+          "type": "mul",
+          "argument1": {
+            //[df-editor]:{"pos":[-84,649],"collapsed":false}
+            "type": "add",
+            "argument1": {
+              //[df-editor]:{"pos":[-340,601],"collapsed":false}
+              "type": "clamp",
+              "min": 0,
+              "max": 0.5,
+              "input": {
+                //[df-editor]:{"pos":[-571,604],"collapsed":false}
+                "type": "abs",
+                "argument": {
+                  //[df-editor]:{"pos":[-843,594],"collapsed":false}
+                  "type": "noise",
+                  "noise": "minecraft:calcite",
+                  "xz_scale": 35,
+                  "y_scale": 5.600000000000017
+                }
+              }
+            },
+            "argument2": -0.7 //[df-editor]:{"pos":[-422,770],"collapsed":false}
+          },
+          "argument2": 0.19999999999999998 //[df-editor]:{"pos":[-68,877],"collapsed":false}
+        }
+      },
+      "argument2": 0.45999999999999996 //[df-editor]:{"pos":[575,564],"collapsed":false}
+    },
+    "argument2": {
+      //[df-editor]:{"pos":[962,652],"collapsed":false}
+      "type": "minecraft:spline",
+      "spline": {
+        "coordinate": "minecraft:overworld/caves/pillars", //[df-editor]:{"pos":[680,711],"collapsed":false}
+        "points": [
+          {
+            "location": 0.0012496312184001046,
+            "value": 0.0013063269862998994,
+            "derivative": 0
+          },
+          {
+            "location": 0.014718721092381482,
+            "value": 0.009185040349694085,
+            "derivative": 1
+          },
+          {
+            "location": 1,
+            "value": 1,
+            "derivative": 1
+          }
+        ]
+      }
+    }
+  }
+}

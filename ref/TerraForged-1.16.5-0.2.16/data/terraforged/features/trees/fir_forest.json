@@ -1,0 +1,75 @@
+{
+  "biomes": [
+    "minecraft:snowy_mountains",
+    "minecraft:wooded_mountains",
+    "terraforged:fir_forest",
+    "terraforged:snowy_fir_forest"
+  ],
+  "match": [
+    [
+      "minecraft:spruce_log",
+      "minecraft:spruce_leaves"
+    ]
+  ],
+  "replace": {
+    "config": {
+      "feature": {
+        "config": {
+          "features": [
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:spruce_small"
+                },
+                "type": "terraforged:template"
+              },
+              "context": {
+                "chance": 0.1,
+                "elevation": {
+                  "from": 0.55,
+                  "to": 0.2,
+                  "exclusive": false
+                }
+              }
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:spruce_large"
+                },
+                "type": "terraforged:template"
+              },
+              "context": {
+                "chance": 0.25,
+                "elevation": {
+                  "from": 0.3,
+                  "to": 0.0,
+                  "exclusive": false
+                }
+              }
+            }
+          ]
+        },
+        "type": "terraforged:context_selector"
+      },
+      "decorator": {
+        "config": {
+          "placement": {
+            "config": {
+              "radius": 4,
+              "scale": 0.25,
+              "jitter": 0.8,
+              "biome_fade": 0.3,
+              "density_scale": 300,
+              "density_variation": 0.6
+            },
+            "type": "terraforged:fast_poisson_surface"
+          },
+          "filter": "biome"
+        },
+        "type": "terraforged:filter"
+      }
+    },
+    "type": "minecraft:decorated"
+  }
+}

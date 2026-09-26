@@ -1,0 +1,118 @@
+{
+    "feature": {
+        "type": "minecraft:block_column",
+        "config": {
+            "allowed_placement": {
+                "type": "minecraft:true"
+            },
+            "direction": "up",
+            "layers": [
+                {
+                    "height": {
+                        "type": "minecraft:clamped_normal",
+                        "deviation": 2,
+                        "min_inclusive": 1,
+                        "max_inclusive": 7,
+                        "mean": 2
+                    },
+                    "provider": {
+                        "type": "minecraft:simple_state_provider",
+                        "state": {
+                            "Name": "minecraft:cactus"
+                        }
+                    }
+                },
+                {
+                    "height": {
+                        "type": "minecraft:weighted_list",
+                        "distribution": [
+                            {
+                                "data": 0,
+                                "weight": 3
+                            },
+                            {
+                                "data": 1,
+                                "weight": 1
+                            }
+                        ]
+                    },
+                    "provider": {
+                        "type": "minecraft:simple_state_provider",
+                        "state": {
+                            "Name": "minecraft:cactus_flower"
+                        }
+                    }
+                }
+            ],
+            "prioritize_tip": false
+        }
+    },
+    "placement": [
+        {
+            "type": "minecraft:count",
+            "count": 20
+        },
+        {
+            "type": "minecraft:in_square"
+        },
+        {
+            "type": "minecraft:heightmap",
+            "heightmap": "WORLD_SURFACE_WG"
+        },
+        {
+            "type": "minecraft:random_offset",
+            "xz_spread": {
+                "type": "uniform",
+                "min_inclusive": 0,
+                "max_inclusive": 6
+            },
+            "y_spread": {
+                "type": "uniform",
+                "min_inclusive": 0,
+                "max_inclusive": 2
+            }
+        },
+        {
+            "type": "minecraft:block_predicate_filter",
+            "predicate": {
+                "type": "minecraft:all_of",
+                "predicates": [
+                    {
+                        "type": "minecraft:matching_blocks",
+                        "blocks": [
+                            "minecraft:air"
+                        ],
+                        "offset": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    {
+                        "type": "minecraft:matching_blocks",
+                        "blocks": [
+                            "minecraft:sand"
+                        ],
+                        "offset": [
+                            0,
+                            -1,
+                            0
+                        ]
+                    },
+                    {
+                        "type": "minecraft:would_survive",
+                        "state": {
+                            "Name": "minecraft:cactus",
+                            "Properties": {
+                                "age": "0"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "minecraft:biome"
+        }
+    ]
+}

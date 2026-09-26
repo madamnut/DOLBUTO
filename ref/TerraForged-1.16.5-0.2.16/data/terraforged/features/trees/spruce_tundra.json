@@ -1,0 +1,32 @@
+{
+  "biomes": [
+    "minecraft:gravelly_mountains",
+    "minecraft:modified_gravelly_mountains",
+    "minecraft:snowy_taiga_mountains",
+    "minecraft:snowy_tundra"
+  ],
+  "match": [
+    [
+      "minecraft:tree",
+      "minecraft:spruce_log",
+      "minecraft:spruce_leaves"
+    ]
+  ],
+  "replace": {
+    "config": {
+      "feature": {
+        "config": {
+          "template": "terraforged:pine"
+        },
+        "type": "terraforged:template"
+      },
+      "decorator": {
+        "config": {
+          "chance": 80
+        },
+        "type": "minecraft:chance"
+      }
+    },
+    "type": "minecraft:decorated"
+  }
+}

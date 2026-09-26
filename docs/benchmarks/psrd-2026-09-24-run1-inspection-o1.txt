@@ -1,0 +1,9 @@
+psrd_scalar_reference_max_error=1.3351739991e-06
+perlin_period_0_max_error=0
+perlin_seam_gradient_0_max_error=5.82076609135e-11
+perlin_period_1_max_error=0
+perlin_seam_gradient_1_max_error=5.82076609135e-11
+psrd_period_0_max_error=0
+psrd_seam_gradient_0_max_error=4.65661287308e-10
+psrd_period_1_max_error=0
+psrd_seam_gradient_1_max_error=4.65661287308e-10

@@ -1,0 +1,3 @@
+body { width: 100%; height: 100%; margin: 0; background-color: transparent; pointer-events: none; font-family: Noto Sans KR; font-size: 14dp; color: #f4f5eb; z-index: 10; }
+#screenshot-notice { display: none; position: absolute; top: 20dp; left: 24dp; max-width: 80%; padding: 10dp 16dp; background-color: #15251df2; }
+#screenshot-notice.visible { display: block; }

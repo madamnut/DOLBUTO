@@ -1,0 +1,156 @@
+//[df-editor]:{"pos":[2396,240],"collapsed":false}
+{
+  //[df-editor]:{"pos":[2090,248],"collapsed":false}
+  "type": "flat_cache",
+  "argument": {
+    //[df-editor]:{"pos":[1785,244],"collapsed":false}
+    "type": "cache_2d",
+    "argument": {
+      //[df-editor]:{"pos":[1401,252],"collapsed":false}
+      "type": "minecraft:spline",
+      "spline": {
+        "coordinate": {
+          //[df-editor]:{"pos":[1079,262],"collapsed":false}
+          "type": "mul",
+          "argument1": {
+            //[df-editor]:{"pos":[755,11],"collapsed":false}
+            "type": "minecraft:spline",
+            "spline": {
+              "coordinate": {
+                //[df-editor]:{"pos":[515,-4],"collapsed":false}
+                "type": "mul",
+                "argument1": {
+                  //[df-editor]:{"pos":[199,-366],"collapsed":false}
+                  "type": "minecraft:spline",
+                  "spline": {
+                    "coordinate": "lithosphere:continents", //[df-editor]:{"pos":[-143,-280],"collapsed":true}
+                    "points": [
+                      {
+                        "location": -1,
+                        "value": 1,
+                        "derivative": 0
+                      },
+                      {
+                        "location": -0.75,
+                        "value": 0.75,
+                        "derivative": -1.25
+                      },
+                      {
+                        "location": -0.2,
+                        "value": 0,
+                        "derivative": 0
+                      }
+                    ]
+                  }
+                },
+                "argument2": {
+                  //[df-editor]:{"pos":[248,20],"collapsed":false}
+                  "type": "mul",
+                  "argument1": {
+                    //[df-editor]:{"pos":[-121,-63],"collapsed":false}
+                    "type": "minecraft:spline",
+                    "spline": {
+                      "coordinate": {
+                        //[df-editor]:{"pos":[-652,-64],"collapsed":false}
+                        "type": "noise",
+                        "noise": "lithosphere:continent_regions",
+                        "xz_scale": 20,
+                        "y_scale": 0
+                      },
+                      "points": [
+                        {
+                          "location": -0.2,
+                          "value": 0,
+                          "derivative": 0
+                        },
+                        {
+                          "location": 0.5,
+                          "value": 1,
+                          "derivative": 0
+                        }
+                      ]
+                    }
+                  },
+                  "argument2": {
+                    //[df-editor]:{"pos":[-127,258],"collapsed":false}
+                    "type": "minecraft:spline",
+                    "spline": {
+                      "coordinate": {
+                        //[df-editor]:{"pos":[-453,261],"collapsed":false}
+                        "type": "abs",
+                        "argument": {
+                          //[df-editor]:{"pos":[-730,277],"collapsed":false}
+                          "type": "noise",
+                          "noise": "lithosphere:continentalness",
+                          "xz_scale": 0.15,
+                          "y_scale": 0
+                        }
+                      },
+                      "points": [
+                        {
+                          "location": 0,
+                          "value": 1,
+                          "derivative": 0
+                        },
+                        {
+                          "location": 0.2,
+                          "value": 0.9,
+                          "derivative": -2.8
+                        },
+                        {
+                          "location": 0.4,
+                          "value": 0,
+                          "derivative": 0
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "points": [
+                {
+                  "location": 0,
+                  "value": 0,
+                  "derivative": 0
+                },
+                {
+                  "location": 0.37,
+                  "value": 0.25,
+                  "derivative": 1.55
+                },
+                {
+                  "location": 0.72,
+                  "value": 1,
+                  "derivative": 0
+                }
+              ]
+            }
+          },
+          "argument2": {
+            //[df-editor]:{"pos":[238,567],"collapsed":false}
+            "type": "abs",
+            "argument": {
+              //[df-editor]:{"pos":[-132,619],"collapsed":false}
+              "type": "noise",
+              "noise": "lithosphere:continent_regions",
+              "xz_scale": 40,
+              "y_scale": 0
+            }
+          }
+        },
+        "points": [
+          {
+            "location": 0,
+            "value": 0,
+            "derivative": 0
+          },
+          {
+            "location": 0.95,
+            "value": 1.1,
+            "derivative": 0.55
+          }
+        ]
+      }
+    }
+  }
+}

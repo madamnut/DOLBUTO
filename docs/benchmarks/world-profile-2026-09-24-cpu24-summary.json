@@ -1,0 +1,787 @@
+{
+  "cpu-0": {
+    "files": [
+      {
+        "file": "cpu-0-0.csv",
+        "columns": 1793,
+        "load_ms": 3754.8471,
+        "counts": {
+          "request": 1793,
+          "scheduler": 126411,
+          "task_wait": 63155,
+          "generation": 1993,
+          "local_light": 1993,
+          "connect_light": 1793,
+          "mesh": 57376,
+          "mesh_ready": 1793,
+          "delivered": 1793,
+          "published": 1793
+        },
+        "retired_ms": null
+      },
+      {
+        "file": "cpu-1-0.csv",
+        "columns": 1793,
+        "load_ms": 5777.953,
+        "counts": {
+          "request": 1793,
+          "scheduler": 126317,
+          "task_wait": 63155,
+          "generation": 1993,
+          "local_light": 1993,
+          "connect_light": 1793,
+          "mesh": 57376,
+          "mesh_ready": 1793,
+          "delivered": 1793,
+          "published": 1793
+        },
+        "retired_ms": null
+      },
+      {
+        "file": "cpu-2-0.csv",
+        "columns": 1793,
+        "load_ms": 5676.6055,
+        "counts": {
+          "request": 1793,
+          "scheduler": 126318,
+          "task_wait": 63155,
+          "generation": 1993,
+          "local_light": 1993,
+          "connect_light": 1793,
+          "mesh": 57376,
+          "mesh_ready": 1793,
+          "delivered": 1793,
+          "published": 1793
+        },
+        "retired_ms": null
+      }
+    ],
+    "loads": {
+      "n": 3,
+      "mean": 5069.801866666667,
+      "median": 5676.6055,
+      "p95": 5777.953,
+      "minimum": 3754.8471,
+      "maximum": 5777.953
+    },
+    "cpu_exclusive_ms": {
+      "scheduler": 380.114799999995,
+      "generation": 92.49629999996286,
+      "profile": 4.326699999934307,
+      "warp": 6.815700000023025,
+      "noise2d": 15.694100000037444,
+      "spline": 54.173999999995004,
+      "surface_search": 1752.6116999999972,
+      "surface_rules": 4.5452999999828645,
+      "blocks": 10431.787499999988,
+      "noise3d": 140.28349999996675,
+      "noise3d_surface": 83.14760000001691,
+      "local_light": 7.900699999960446,
+      "light_init": 5918.474899999999,
+      "light_seeds": 5392.457799999999,
+      "light_flood": 0.4648000000112846,
+      "light_halo": 10868.966699999906,
+      "connect_light": 65.83729999994266,
+      "boundary_scan": 21190.254600000007,
+      "boundary_flood": 5.613400000011119,
+      "halo": 817.078099999958,
+      "mesh": 1802.0882999994612
+    },
+    "cpu_total_ms": 59035.13379999916,
+    "cpu_percent": {
+      "scheduler": 0.6438789506055129,
+      "generation": 0.15668008869654526,
+      "profile": 0.007329025482676841,
+      "warp": 0.011545158893199835,
+      "noise2d": 0.026584338833221494,
+      "spline": 0.09176569360124967,
+      "surface_search": 2.9687604434632826,
+      "surface_rules": 0.007699313455241002,
+      "blocks": 17.67047320556786,
+      "noise3d": 0.23762713992522322,
+      "noise3d_surface": 0.14084426450477205,
+      "local_light": 0.013383047503079528,
+      "light_init": 10.025343416770715,
+      "light_seeds": 9.134319604100018,
+      "light_flood": 0.0007873277658452453,
+      "light_halo": 18.41101391727524,
+      "connect_light": 0.11152223390055838,
+      "boundary_scan": 35.89431112630139,
+      "boundary_flood": 0.00950857504452916,
+      "halo": 1.3840539478881804,
+      "mesh": 3.052569180421654
+    },
+    "generation_exclusive_ms": {
+      "generation": 92.49629999996286,
+      "profile": 4.326699999934307,
+      "warp": 6.815700000023025,
+      "noise2d": 15.694100000037444,
+      "spline": 54.173999999995004,
+      "surface_search": 1752.6116999999972,
+      "surface_rules": 4.5452999999828645,
+      "blocks": 10431.787499999988,
+      "noise3d": 140.28349999996675,
+      "noise3d_surface": 83.14760000001691
+    },
+    "noise_samples": {
+      "generation": 0,
+      "profile": 0,
+      "warp": 448932,
+      "noise2d": 747882,
+      "spline": 0,
+      "surface_search": 0,
+      "surface_rules": 0,
+      "blocks": 0,
+      "noise3d": 6925125,
+      "noise3d_surface": 2942025
+    },
+    "timings": {
+      "scheduler": {
+        "n": 379046,
+        "mean": 0.0010028197105364555,
+        "median": 0.00019999999995,
+        "p95": 0.00220000000002,
+        "minimum": 0.0,
+        "maximum": 1.741
+      },
+      "queue_kind_0": {
+        "n": 5979,
+        "mean": 2330.5378363773207,
+        "median": 2089.0617,
+        "p95": 5275.9962,
+        "minimum": 1.7764,
+        "maximum": 5750.8108
+      },
+      "generation": {
+        "n": 5979,
+        "mean": 2.1050146178290685,
+        "median": 2.1196,
+        "p95": 3.0296,
+        "minimum": 0.8942,
+        "maximum": 4.8434
+      },
+      "queue_kind_1": {
+        "n": 5979,
+        "mean": 0.4968879411272781,
+        "median": 0.0012999999999,
+        "p95": 6.8104,
+        "minimum": 0.0003999999999,
+        "maximum": 13.9797
+      },
+      "local_light": {
+        "n": 5979,
+        "mean": 2.2899071249372804,
+        "median": 2.5432,
+        "p95": 3.215,
+        "minimum": 1.1005,
+        "maximum": 5.2079
+      },
+      "queue_kind_2": {
+        "n": 5379,
+        "mean": 0.8350845138501599,
+        "median": 0.00909999999976,
+        "p95": 4.6906,
+        "minimum": 0.000599999999849,
+        "maximum": 9.2766
+      },
+      "connect_light": {
+        "n": 5379,
+        "mean": 5.532369492470719,
+        "median": 6.1644,
+        "p95": 6.5956,
+        "minimum": 2.7613,
+        "maximum": 14.1561
+      },
+      "queue_kind_3": {
+        "n": 172128,
+        "mean": 0.31904409915876625,
+        "median": 0.2945,
+        "p95": 0.619,
+        "minimum": 0.011,
+        "maximum": 3.7137
+      },
+      "mesh_column": {
+        "n": 5379,
+        "mean": 0.48692440974158213,
+        "median": 0.4979000000000702,
+        "p95": 0.6753999999965099,
+        "minimum": 0.18850000000110997,
+        "maximum": 2.95210000000064
+      },
+      "request->mesh_ready": {
+        "n": 5379,
+        "mean": 2541.5913981781,
+        "median": 2411.8235,
+        "p95": 5296.0860999999995,
+        "minimum": 13.867799999999999,
+        "maximum": 5762.1539999999995
+      },
+      "mesh_ready->delivered": {
+        "n": 5379,
+        "mean": 8.547172727272724,
+        "median": 8.289800000000014,
+        "p95": 15.168499999999767,
+        "minimum": 0.024499999999989086,
+        "maximum": 49.58440000000019
+      },
+      "delivered->published": {
+        "n": 5379,
+        "mean": 0.01747417735638294,
+        "median": 0.0020000000004074536,
+        "p95": 0.011099999999714782,
+        "minimum": 0.0004999999999881766,
+        "maximum": 3.9856000000004315
+      }
+    }
+  },
+  "cpu-1": {
+    "files": [
+      {
+        "file": "cpu-0-1.csv",
+        "columns": 1793,
+        "load_ms": 6762.6637,
+        "counts": {
+          "request": 1793,
+          "scheduler": 126317,
+          "task_wait": 63155,
+          "generation": 1993,
+          "local_light": 1993,
+          "connect_light": 1793,
+          "mesh": 57376,
+          "mesh_ready": 1793,
+          "delivered": 1793,
+          "published": 1793
+        },
+        "retired_ms": null
+      },
+      {
+        "file": "cpu-1-1.csv",
+        "columns": 1793,
+        "load_ms": 6773.9107,
+        "counts": {
+          "request": 1793,
+          "scheduler": 126317,
+          "task_wait": 63155,
+          "generation": 1993,
+          "local_light": 1993,
+          "connect_light": 1793,
+          "mesh": 57376,
+          "mesh_ready": 1793,
+          "delivered": 1793,
+          "published": 1793
+        },
+        "retired_ms": null
+      },
+      {
+        "file": "cpu-2-1.csv",
+        "columns": 1793,
+        "load_ms": 6798.838699999999,
+        "counts": {
+          "request": 1793,
+          "scheduler": 126316,
+          "task_wait": 63155,
+          "generation": 1993,
+          "local_light": 1993,
+          "connect_light": 1793,
+          "mesh": 57376,
+          "mesh_ready": 1793,
+          "delivered": 1793,
+          "published": 1793
+        },
+        "retired_ms": null
+      }
+    ],
+    "loads": {
+      "n": 3,
+      "mean": 6778.471033333333,
+      "median": 6773.9107,
+      "p95": 6798.838699999999,
+      "minimum": 6762.6637,
+      "maximum": 6798.838699999999
+    },
+    "cpu_exclusive_ms": {
+      "scheduler": 397.12919999983706,
+      "generation": 112.46870000000668,
+      "profile": 6.3909999999633245,
+      "warp": 5.786499999987666,
+      "noise2d": 15.908500000057312,
+      "spline": 74.49949999994573,
+      "surface_search": 4357.1000999998905,
+      "surface_rules": 4.618400000004261,
+      "blocks": 25027.86460000022,
+      "noise3d": 372.4140999998756,
+      "noise3d_surface": 198.36350000006578,
+      "local_light": 8.997599999996561,
+      "light_init": 7729.375400000019,
+      "light_seeds": 5983.458999999954,
+      "light_flood": 7.585199999988895,
+      "light_halo": 11992.815599999985,
+      "connect_light": 69.72249999994497,
+      "boundary_scan": 22338.648300000037,
+      "boundary_flood": 91.49420000001216,
+      "halo": 883.0629999999882,
+      "mesh": 1279.5158000001416
+    },
+    "cpu_total_ms": 80957.22069999992,
+    "cpu_percent": {
+      "scheduler": 0.49054203759225323,
+      "generation": 0.1389236179645762,
+      "profile": 0.007894292744616577,
+      "warp": 0.007147602091517541,
+      "noise2d": 0.0196505016631053,
+      "spline": 0.09202329249421207,
+      "surface_search": 5.381978361319777,
+      "surface_rules": 0.005704741294317019,
+      "blocks": 30.914925665179418,
+      "noise3d": 0.4600134451007357,
+      "noise3d_surface": 0.2450226160000401,
+      "local_light": 0.011114017900069254,
+      "light_init": 9.547481167421088,
+      "light_seeds": 7.3908898406636645,
+      "light_flood": 0.009369392790912475,
+      "light_halo": 14.813768921788093,
+      "connect_light": 0.08612264526509993,
+      "boundary_scan": 27.59315118138691,
+      "boundary_flood": 0.1130154904144483,
+      "halo": 1.090777317161518,
+      "mesh": 1.58048385176363
+    },
+    "generation_exclusive_ms": {
+      "generation": 112.46870000000668,
+      "profile": 6.3909999999633245,
+      "warp": 5.786499999987666,
+      "noise2d": 15.908500000057312,
+      "spline": 74.49949999994573,
+      "surface_search": 4357.1000999998905,
+      "surface_rules": 4.618400000004261,
+      "blocks": 25027.86460000022,
+      "noise3d": 372.4140999998756,
+      "noise3d_surface": 198.36350000006578
+    },
+    "noise_samples": {
+      "generation": 0,
+      "profile": 0,
+      "warp": 298950,
+      "noise2d": 597900,
+      "spline": 0,
+      "surface_search": 0,
+      "surface_rules": 0,
+      "blocks": 0,
+      "noise3d": 14400375,
+      "noise3d_surface": 5852625
+    },
+    "timings": {
+      "scheduler": {
+        "n": 378950,
+        "mean": 0.0010479725557457843,
+        "median": 0.00019999999995,
+        "p95": 0.00370000000021,
+        "minimum": 0.0,
+        "maximum": 1.3902
+      },
+      "queue_kind_0": {
+        "n": 5979,
+        "mean": 3384.12863181134,
+        "median": 3390.651,
+        "p95": 6419.5341,
+        "minimum": 3.0428,
+        "maximum": 6781.7626
+      },
+      "generation": {
+        "n": 5979,
+        "mean": 5.04689996654959,
+        "median": 5.8188,
+        "p95": 6.4368,
+        "minimum": 1.6266,
+        "maximum": 10.2357
+      },
+      "queue_kind_1": {
+        "n": 5979,
+        "mean": 0.05901864860344207,
+        "median": 0.0014000000001,
+        "p95": 0.1131,
+        "minimum": 0.000599999999395,
+        "maximum": 12.6452
+      },
+      "local_light": {
+        "n": 5979,
+        "mean": 2.7333954841946815,
+        "median": 2.7065,
+        "p95": 3.2023,
+        "minimum": 1.1292,
+        "maximum": 6.5182
+      },
+      "queue_kind_2": {
+        "n": 5379,
+        "mean": 0.0700698271054029,
+        "median": 0.00699999999995,
+        "p95": 0.1575,
+        "minimum": 0.000699999999597,
+        "maximum": 10.9037
+      },
+      "connect_light": {
+        "n": 5379,
+        "mean": 5.9265897378694925,
+        "median": 5.8812,
+        "p95": 6.2868,
+        "minimum": 4.1896,
+        "maximum": 10.2749
+      },
+      "queue_kind_3": {
+        "n": 172128,
+        "mean": 0.2710530878183667,
+        "median": 0.2704,
+        "p95": 0.4663,
+        "minimum": 0.0175000000004,
+        "maximum": 2.4852
+      },
+      "mesh_column": {
+        "n": 5379,
+        "mean": 0.40204104852204037,
+        "median": 0.3987999999998499,
+        "p95": 0.5033999999949104,
+        "minimum": 0.30770000000244013,
+        "maximum": 2.4313000000046117
+      },
+      "request->mesh_ready": {
+        "n": 5379,
+        "mean": 3506.7422163227366,
+        "median": 3537.5385,
+        "p95": 6440.5929,
+        "minimum": 34.8818,
+        "maximum": 6794.2532
+      },
+      "mesh_ready->delivered": {
+        "n": 5379,
+        "mean": 8.280894645844953,
+        "median": 8.066000000000258,
+        "p95": 15.473300000000108,
+        "minimum": 0.0009999999999763531,
+        "maximum": 45.88370000000009
+      },
+      "delivered->published": {
+        "n": 5379,
+        "mean": 0.007789644915409962,
+        "median": 0.002100000000154978,
+        "p95": 0.005199999999604188,
+        "minimum": 0.0009000000000014552,
+        "maximum": 1.9363000000003012
+      }
+    }
+  },
+  "cpu-2": {
+    "files": [
+      {
+        "file": "cpu-0-2.csv",
+        "columns": 1793,
+        "load_ms": 5394.4473,
+        "counts": {
+          "request": 1793,
+          "scheduler": 126318,
+          "task_wait": 63155,
+          "generation": 1993,
+          "local_light": 1993,
+          "connect_light": 1793,
+          "mesh": 57376,
+          "mesh_ready": 1793,
+          "delivered": 1793,
+          "published": 1793
+        },
+        "retired_ms": null
+      },
+      {
+        "file": "cpu-1-2.csv",
+        "columns": 1793,
+        "load_ms": 5453.3801,
+        "counts": {
+          "request": 1793,
+          "scheduler": 126318,
+          "task_wait": 63155,
+          "generation": 1993,
+          "local_light": 1993,
+          "connect_light": 1793,
+          "mesh": 57376,
+          "mesh_ready": 1793,
+          "delivered": 1793,
+          "published": 1793
+        },
+        "retired_ms": null
+      },
+      {
+        "file": "cpu-2-2.csv",
+        "columns": 1793,
+        "load_ms": 5352.0527,
+        "counts": {
+          "request": 1793,
+          "scheduler": 126317,
+          "task_wait": 63155,
+          "generation": 1993,
+          "local_light": 1993,
+          "connect_light": 1793,
+          "mesh": 57376,
+          "mesh_ready": 1793,
+          "delivered": 1793,
+          "published": 1793
+        },
+        "retired_ms": null
+      }
+    ],
+    "loads": {
+      "n": 3,
+      "mean": 5399.960033333334,
+      "median": 5394.4473,
+      "p95": 5453.3801,
+      "minimum": 5352.0527,
+      "maximum": 5453.3801
+    },
+    "cpu_exclusive_ms": {
+      "scheduler": 411.9944999999577,
+      "generation": 108.90020000001233,
+      "profile": 6.14440000000315,
+      "warp": 8.070100000000137,
+      "noise2d": 19.135299999989176,
+      "spline": 81.99869999996196,
+      "surface_search": 1924.2733000000153,
+      "surface_rules": 5.300300000002429,
+      "blocks": 12389.358299999934,
+      "noise3d": 184.9835999999896,
+      "noise3d_surface": 101.35729999998097,
+      "local_light": 9.27030000000706,
+      "light_init": 7821.587599999981,
+      "light_seeds": 5473.162499999961,
+      "light_flood": 0.5332999999827144,
+      "light_halo": 12029.546100000009,
+      "connect_light": 74.42029999995438,
+      "boundary_scan": 21199.52400000004,
+      "boundary_flood": 6.100700000013164,
+      "halo": 899.0170999999685,
+      "mesh": 1641.2541999994774
+    },
+    "cpu_total_ms": 64395.93209999924,
+    "cpu_percent": {
+      "scheduler": 0.6397834250775021,
+      "generation": 0.1691103714919496,
+      "profile": 0.009541596494731415,
+      "warp": 0.012532002778480213,
+      "noise2d": 0.02971507574465158,
+      "spline": 0.12733521718829646,
+      "surface_search": 2.9881907711372935,
+      "surface_rules": 0.008230799411012006,
+      "blocks": 19.23934928181602,
+      "noise3d": 0.287259759999641,
+      "noise3d_surface": 0.15739705396698833,
+      "local_light": 0.014395785102716403,
+      "light_init": 12.14608958195369,
+      "light_seeds": 8.499236398194826,
+      "light_flood": 0.0008281579015807438,
+      "light_halo": 18.680599391463968,
+      "connect_light": 0.11556677195756478,
+      "boundary_scan": 32.92059499516164,
+      "boundary_flood": 0.009473735065344657,
+      "halo": 1.396077470551869,
+      "mesh": 2.5486923575402316
+    },
+    "generation_exclusive_ms": {
+      "generation": 108.90020000001233,
+      "profile": 6.14440000000315,
+      "warp": 8.070100000000137,
+      "noise2d": 19.135299999989176,
+      "spline": 81.99869999996196,
+      "surface_search": 1924.2733000000153,
+      "surface_rules": 5.300300000002429,
+      "blocks": 12389.358299999934,
+      "noise3d": 184.9835999999896,
+      "noise3d_surface": 101.35729999998097
+    },
+    "noise_samples": {
+      "generation": 0,
+      "profile": 0,
+      "warp": 472134,
+      "noise2d": 771084,
+      "spline": 0,
+      "surface_search": 0,
+      "surface_rules": 0,
+      "blocks": 0,
+      "noise3d": 6924000,
+      "noise3d_surface": 2952600
+    },
+    "timings": {
+      "scheduler": {
+        "n": 378953,
+        "mean": 0.0010871915514589082,
+        "median": 0.00019999999995,
+        "p95": 0.00329999999997,
+        "minimum": 0.0,
+        "maximum": 2.7752
+      },
+      "queue_kind_0": {
+        "n": 5979,
+        "mean": 2633.5049130289344,
+        "median": 2619.6349,
+        "p95": 5076.4884,
+        "minimum": 2.9802,
+        "maximum": 5438.2731
+      },
+      "generation": {
+        "n": 5979,
+        "mean": 2.4802678541562133,
+        "median": 2.4222,
+        "p95": 3.0762,
+        "minimum": 1.6829,
+        "maximum": 8.5952
+      },
+      "queue_kind_1": {
+        "n": 5979,
+        "mean": 0.139233316608133,
+        "median": 0.0014000000001,
+        "p95": 0.2122,
+        "minimum": 0.000799999999799,
+        "maximum": 12.8094
+      },
+      "local_light": {
+        "n": 5979,
+        "mean": 2.66698489713999,
+        "median": 2.6322,
+        "p95": 3.4159,
+        "minimum": 1.0851,
+        "maximum": 12.3921
+      },
+      "queue_kind_2": {
+        "n": 5379,
+        "mean": 0.15221405465699958,
+        "median": 0.00650000000002,
+        "p95": 0.2726,
+        "minimum": 0.000699999999597,
+        "maximum": 8.7246
+      },
+      "connect_light": {
+        "n": 5379,
+        "mean": 5.701476501208403,
+        "median": 5.7603,
+        "p95": 6.5198,
+        "minimum": 4.038,
+        "maximum": 13.0363
+      },
+      "queue_kind_3": {
+        "n": 172128,
+        "mean": 0.29401475704127233,
+        "median": 0.2473,
+        "p95": 0.5811,
+        "minimum": 0.0182,
+        "maximum": 3.4162
+      },
+      "mesh_column": {
+        "n": 5379,
+        "mean": 0.47225716675960905,
+        "median": 0.4418000000008001,
+        "p95": 0.6556999999993799,
+        "minimum": 0.3173999999997199,
+        "maximum": 6.14819999999981
+      },
+      "request->mesh_ready": {
+        "n": 5379,
+        "mean": 2730.6116057259715,
+        "median": 2739.2542000000003,
+        "p95": 5096.6795,
+        "minimum": 25.8501,
+        "maximum": 5449.8273
+      },
+      "mesh_ready->delivered": {
+        "n": 5379,
+        "mean": 8.185141513292432,
+        "median": 7.916299999999865,
+        "p95": 15.35069999999996,
+        "minimum": 0.016700000000128057,
+        "maximum": 31.678600000000188
+      },
+      "delivered->published": {
+        "n": 5379,
+        "mean": 0.008632478155795004,
+        "median": 0.002200000000016189,
+        "p95": 0.005500000000211003,
+        "minimum": 0.0009000000000014552,
+        "maximum": 1.7038000000002285
+      }
+    }
+  },
+  "cpu_harness": {
+    "0": {
+      "timings_ms": {
+        "0": {
+          "n": 3,
+          "mean": 5795.762266666667,
+          "median": 5811.884,
+          "p95": 5838.4341,
+          "minimum": 5736.9687,
+          "maximum": 5838.4341
+        },
+        "1": {
+          "n": 3,
+          "mean": 5085.787833333334,
+          "median": 5692.1055,
+          "p95": 5794.9467,
+          "minimum": 3770.3113,
+          "maximum": 5794.9467
+        }
+      },
+      "face_counts": [
+        1626027
+      ],
+      "column_counts": [
+        1793
+      ]
+    },
+    "1": {
+      "timings_ms": {
+        "0": {
+          "n": 3,
+          "mean": 6768.529,
+          "median": 6788.7356,
+          "p95": 6810.0194,
+          "minimum": 6706.832,
+          "maximum": 6810.0194
+        },
+        "1": {
+          "n": 3,
+          "mean": 6793.687366666667,
+          "median": 6789.1548,
+          "p95": 6813.826,
+          "minimum": 6778.0813,
+          "maximum": 6813.826
+        }
+      },
+      "face_counts": [
+        1261948
+      ],
+      "column_counts": [
+        1793
+      ]
+    },
+    "2": {
+      "timings_ms": {
+        "0": {
+          "n": 3,
+          "mean": 5366.340633333333,
+          "median": 5354.7762,
+          "p95": 5445.8358,
+          "minimum": 5298.4099,
+          "maximum": 5445.8358
+        },
+        "1": {
+          "n": 3,
+          "mean": 5416.561833333333,
+          "median": 5410.9918,
+          "p95": 5470.7463,
+          "minimum": 5367.9474,
+          "maximum": 5470.7463
+        }
+      },
+      "face_counts": [
+        1480035
+      ],
+      "column_counts": [
+        1793
+      ]
+    }
+  }
+}

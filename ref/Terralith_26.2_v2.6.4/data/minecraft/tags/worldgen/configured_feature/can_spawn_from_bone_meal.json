@@ -1,0 +1,23 @@
+{
+    "replace": false,
+    "values": [
+        "terralith:alpha/flowers",
+        "terralith:alpha/flowers_2",
+        "terralith:birch/flowers",
+        "terralith:canyon/blooming/flowers",
+        "terralith:canyon/blooming/flowers_white",
+        "terralith:cherry/flowers_extra",
+        "terralith:flower/blue/flowers",
+        "terralith:flower/lavender/flower",
+        "terralith:flower/lavender/flowers",
+        "terralith:flower/white/flowers",
+        "terralith:forest/vanilla/flowers",
+        "terralith:forest/vanilla/flowers_windswept",
+        "terralith:highlands/flowers",
+        "terralith:highlands/forest/flowers",
+        "terralith:highlands/temperate/flowers",
+        "terralith:sakura/flowers",
+        "terralith:skylands/spring/flowers",
+        "terralith:taiga/lush/flowers"
+    ]
+}

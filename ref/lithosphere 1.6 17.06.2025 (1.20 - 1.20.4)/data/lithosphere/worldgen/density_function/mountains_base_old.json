@@ -1,0 +1,192 @@
+//[df-editor]:{"pos":[3170,569],"collapsed":false}
+{
+  //[df-editor]:{"pos":[3756,570],"collapsed":false}
+  "type": "flat_cache",
+  "argument": {
+  //[df-editor]:{"pos":[2644,569],"collapsed":false}
+  "type": "cache_2d",
+  "argument": {
+    //[df-editor]:{"pos":[1926,506],"collapsed":false}
+    "type": "minecraft:spline",
+    "spline": {
+      "coordinate": {
+        //[df-editor]:{"pos":[1534,474],"collapsed":false}
+        "type": "mul",
+        "argument1": {
+          //[df-editor]:{"pos":[1106,579],"collapsed":false}
+          "type": "add",
+          "argument1": {
+            //[df-editor]:{"pos":[432,589],"collapsed":false}
+            "type": "add",
+            "argument1": {
+              //[df-editor]:{"pos":[163,583],"collapsed":false}
+              "type": "mul",
+              "argument1": {
+                //[df-editor]:{"pos":[-606,537],"collapsed":false}
+                "type": "add",
+                "argument1": {
+                  //[df-editor]:{"pos":[-1038,440],"collapsed":false}
+                  "type": "mul",
+                  "argument1": {
+                    //[df-editor]:{"pos":[-1444,417],"collapsed":false}
+                    "type": "add",
+                    "argument1": {
+                      //[df-editor]:{"pos":[-1847,433],"collapsed":false}
+                      "type": "abs",
+                      "argument": {
+                        //[df-editor]:{"pos":[-2239,453],"collapsed":false}
+                        "type": "shifted_noise",
+                        "noise": "lithosphere:mountains_shape",
+                        "xz_scale": 105.90000000000047,
+                        "y_scale": 0,
+                        "shift_x": -100000, //[df-editor]:{"pos":[-3193,439],"collapsed":true}
+                        "shift_y": 0, //[df-editor]:{"pos":[-3421,558],"collapsed":true}
+                        "shift_z": 100000 //[df-editor]:{"pos":[-3195,729],"collapsed":true}
+                      }
+                    },
+                    "argument2": {
+                      //[df-editor]:{"pos":[-1842,613],"collapsed":false}
+                      "type": "abs",
+                      "argument": {
+                        //[df-editor]:{"pos":[-2241,657],"collapsed":false}
+                        "type": "shifted_noise",
+                        "noise": "lithosphere:mountains_shape",
+                        "xz_scale": 60.0000000000006,
+                        "y_scale": 0,
+                        "shift_x": 100000, //[df-editor]:{"pos":[-3195,729],"collapsed":true}
+                        "shift_y": 0, //[df-editor]:{"pos":[-3421,558],"collapsed":true}
+                        "shift_z": -100000 //[df-editor]:{"pos":[-3193,439],"collapsed":true}
+                      }
+                    }
+                  },
+                  "argument2": 0.5999999999999993 //[df-editor]:{"pos":[-1351,554],"collapsed":true}
+                },
+                "argument2": 1.5 //[df-editor]:{"pos":[-1007,578],"collapsed":true}
+              },
+              "argument2": {
+                //[df-editor]:{"pos":[-140,900],"collapsed":false}
+                "type": "minecraft:spline",
+                "spline": {
+                  "coordinate": {
+                    //[df-editor]:{"pos":[-414,910],"collapsed":false}
+                    "type": "add",
+                    "argument1": {
+                      //[df-editor]:{"pos":[-680,896],"collapsed":false}
+                      "type": "abs",
+                      "argument": {
+                        //[df-editor]:{"pos":[-907,957],"collapsed":false}
+                        "type": "mul",
+                        "argument1": 2.0000000000000004, //[df-editor]:{"pos":[-1358,794],"collapsed":true}
+                        "argument2": {
+                          //[df-editor]:{"pos":[-1399,866],"collapsed":false}
+                          "type": "noise",
+                          "noise": "lithosphere:mountains_valleys",
+                          "xz_scale": 0.20000000000000004,
+                          "y_scale": 0
+                        }
+                      }
+                    },
+                    "argument2": {
+                      //[df-editor]:{"pos":[-595,1178],"collapsed":false}
+                      "type": "mul",
+                      "argument1": {
+                        //[df-editor]:{"pos":[-883,1194],"collapsed":false}
+                        "type": "add",
+                        "argument1": {
+                          //[df-editor]:{"pos":[-1140,1204],"collapsed":false}
+                          "type": "abs",
+                          "argument": {
+                            //[df-editor]:{"pos":[-1383,1200],"collapsed":false}
+                            "type": "noise",
+                            "noise": "minecraft:jagged",
+                            "xz_scale": 1.0999999999999999,
+                            "y_scale": 0
+                          }
+                        },
+                        "argument2": -0.30000000000000004 //[df-editor]:{"pos":[-1236,1368],"collapsed":true}
+                      },
+                      "argument2": 0.4 //[df-editor]:{"pos":[-845,1377],"collapsed":true}
+                    }
+                  },
+                  "points": [
+                    {
+                      "location": 0.0002636959756417423,
+                      "value": 0.0016079171144931514,
+                      "derivative": 0
+                    },
+                    {
+                      "location": 0.25,
+                      "value": 0.5025172744345754,
+                      "derivative": 0.36574074074074464
+                    },
+                    {
+                      "location": 0.5680059985537048,
+                      "value": 0.9974804958648761,
+                      "derivative": 0
+                    },
+                    {
+                      "location": 0.877068240778131,
+                      "value": 1.1727179882717886,
+                      "derivative": 0.2
+                    },
+                    {
+                      "location": 3.006104525397133,
+                      "value": 1.3979741128283603,
+                      "derivative": 0
+                    }
+                  ]
+                }
+              }
+            },
+            "argument2": {
+              //[df-editor]:{"pos":[102,1433],"collapsed":false}
+              "type": "mul",
+              "argument1": "lithosphere:mountains_weathering", //[df-editor]:{"pos":[-357,1366],"collapsed":true}
+              "argument2": 0.15 //[df-editor]:{"pos":[-130,1536],"collapsed":true}
+            }
+          },
+          "argument2": {
+            //[df-editor]:{"pos":[935,910],"collapsed":false}
+            "type": "mul",
+            "argument1": {
+              //[df-editor]:{"pos":[680,904],"collapsed":false}
+              "type": "abs",
+              "argument": {
+                //[df-editor]:{"pos":[424,903],"collapsed":false}
+                "type": "noise",
+                "noise": "minecraft:erosion",
+                "xz_scale": 0.975,
+                "y_scale": 0
+              }
+            },
+            "argument2": 0.05 //[df-editor]:{"pos":[606,1101],"collapsed":true}
+          }
+        },
+        "argument2": 0.7999999999999999 //[df-editor]:{"pos":[1160,702],"collapsed":true}
+      },
+      "points": [
+        {
+          "location": -1.2,
+          "value": -0.6461375418382934,
+          "derivative": 0.587048994490454
+        },
+        {
+          "location": 0.3,
+          "value": 0.5,
+          "derivative": 0.8
+        },
+        {
+          "location": 1.3466961487857894,
+          "value": 1.523097380959721,
+          "derivative": 1.021015477029345
+        },
+        {
+          "location": 2.5563444318881157,
+          "value": 2.2988765929422055,
+          "derivative": 0
+        }
+      ]
+    }
+  }
+  }
+}

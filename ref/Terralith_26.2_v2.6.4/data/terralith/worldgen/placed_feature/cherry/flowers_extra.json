@@ -1,0 +1,39 @@
+{
+    "feature": "terralith:cherry/flowers_extra",
+    "placement": [
+        {
+            "type": "minecraft:count",
+            "count": 24
+        },
+        {
+            "type": "minecraft:in_square"
+        },
+        {
+            "type": "minecraft:heightmap",
+            "heightmap": "MOTION_BLOCKING"
+        },
+        {
+            "type": "minecraft:random_offset",
+            "xz_spread": {
+                "type": "uniform",
+                "min_inclusive": 0,
+                "max_inclusive": 6
+            },
+            "y_spread": {
+                "type": "uniform",
+                "min_inclusive": 0,
+                "max_inclusive": 2
+            }
+        },
+        {
+            "type": "minecraft:block_predicate_filter",
+            "predicate": {
+                "type": "minecraft:matching_blocks",
+                "blocks": "minecraft:air"
+            }
+        },
+        {
+            "type": "minecraft:biome"
+        }
+    ]
+}

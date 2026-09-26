@@ -1,0 +1,98 @@
+[
+  {
+    "file": "game24-after-0.csv",
+    "mode": "after",
+    "load_ms": 11405.1926,
+    "lighting_task_ms": 959.4991999999557,
+    "stages": {
+      "local_light": 1.9201000000079662,
+      "light_init": 57.006299999995456,
+      "light_seeds": 95.41249999998888,
+      "light_flood": 0.13380000000218997,
+      "light_halo": 578.6610999999866,
+      "connect_light": 29.24239999994622,
+      "boundary_scan": 195.86180000002608,
+      "boundary_flood": 1.2612000000022934
+    }
+  },
+  {
+    "file": "game24-after-1.csv",
+    "mode": "after",
+    "load_ms": 10997.596300000001,
+    "lighting_task_ms": 955.4677999999649,
+    "stages": {
+      "local_light": 1.8020999999966911,
+      "light_init": 57.58400000000059,
+      "light_seeds": 95.2101999999997,
+      "light_flood": 0.13229999999708883,
+      "light_halo": 576.417799999993,
+      "connect_light": 29.13989999999828,
+      "boundary_scan": 193.85439999998874,
+      "boundary_flood": 1.3270999999907716
+    }
+  },
+  {
+    "file": "game24-after-2.csv",
+    "mode": "after",
+    "load_ms": 11348.0108,
+    "lighting_task_ms": 1116.9223999999679,
+    "stages": {
+      "local_light": 2.132499999993633,
+      "light_init": 61.646100000001816,
+      "light_seeds": 97.2477999999976,
+      "light_flood": 0.15509999999973553,
+      "light_halo": 646.5304999999703,
+      "connect_light": 38.530300000008324,
+      "boundary_scan": 269.0465999999963,
+      "boundary_flood": 1.6335000000000957
+    }
+  },
+  {
+    "file": "game24-before-0.csv",
+    "mode": "before",
+    "load_ms": 11614.8421,
+    "lighting_task_ms": 9068.620700000007,
+    "stages": {
+      "local_light": 1.9099000000102928,
+      "light_init": 921.8801999999984,
+      "light_seeds": 1130.8837000000008,
+      "light_flood": 0.11320000000949844,
+      "light_halo": 2600.6576999999697,
+      "connect_light": 22.671600000041835,
+      "boundary_scan": 4388.459100000002,
+      "boundary_flood": 2.045299999974924
+    }
+  },
+  {
+    "file": "game24-before-1.csv",
+    "mode": "before",
+    "load_ms": 11083.2044,
+    "lighting_task_ms": 12254.292899999946,
+    "stages": {
+      "local_light": 1.9904000000079072,
+      "light_init": 874.6051999999997,
+      "light_seeds": 1134.4448999999956,
+      "light_flood": 0.11630000000190809,
+      "light_halo": 3400.626200000004,
+      "connect_light": 31.30409999993744,
+      "boundary_scan": 6808.082999999987,
+      "boundary_flood": 3.122800000013248
+    }
+  },
+  {
+    "file": "game24-before-2.csv",
+    "mode": "before",
+    "load_ms": 11561.4868,
+    "lighting_task_ms": 12934.484199999994,
+    "stages": {
+      "local_light": 4.200699999981034,
+      "light_init": 996.7368999999994,
+      "light_seeds": 1306.9094999999954,
+      "light_flood": 0.14310000000198872,
+      "light_halo": 3543.6820000000043,
+      "connect_light": 31.445100000024112,
+      "boundary_scan": 7048.184399999998,
+      "boundary_flood": 3.1824999999881776
+    }
+  }
+]

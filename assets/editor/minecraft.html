@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Minecraft 원본 · 월드 생성 작업실</title>
+  <link rel="stylesheet" href="minecraft.css">
+</head>
+<body>
+  <header><div><p class="eyebrow">월드 생성 작업실 / 원본 비교</p><h1>Minecraft <span>26.2</span></h1><p>일반 오버월드 · 읽기 전용</p></div><div class="actions"><button id="refresh-ours">편집기 작업 다시 가져오기</button><button id="theme">어두운 화면</button><button id="back">편집기로 돌아가기</button></div></header>
+  <div class="notice">원본의 시드·노이즈·스플라인 기본값을 확인하고 우리 월드와 비교합니다. 게임 규칙은 변경되지 않습니다.</div>
+  <div id="status" role="status">원본 비교 화면을 준비하고 있어요…</div>
+  <section class="setup" aria-label="비교 설정">
+    <label>Minecraft 시드<input id="seed" type="text" inputmode="numeric" value="1337" autocomplete="off" spellcheck="false"><small>부호 있는 64비트 정수</small></label>
+    <div class="ours-info"><strong>우리 월드</strong><p id="ours-info">설정을 불러오는 중…</p><label class="check"><input id="compare" type="checkbox" checked>나란히 비교</label></div>
+    <div class="actions"><button id="seed-from-ours">우리 시드와 맞추기</button><button id="refresh" class="primary">미리보기 갱신</button></div>
+  </section>
+  <nav class="tabs" aria-label="보기 선택"><button id="tab-map" class="active" aria-pressed="true">노이즈·결과 지도</button><button id="tab-curves" aria-pressed="false">스플라인 곡선</button></nav>
+  <main>
+    <section id="map-view">
+      <div class="toolbar"><label>표시할 값<select id="kind"></select></label><label>해상도<select id="resolution"><option>64</option><option selected>128</option><option>256</option><option>512</option></select></label><label class="check"><input id="auto-range" type="checkbox">두 지도의 공통 최솟값~최댓값으로 색상 맞추기</label></div>
+      <p id="kind-help" class="help"></p>
+      <div class="toolbar"><button id="zoom-in">＋ 확대</button><button id="zoom-out">− 축소</button><button id="origin">원점 주변</button><button id="whole">우리 월드 범위</button><span id="range-label"></span></div>
+      <details><summary>좌표 범위 직접 입력</summary><div class="range-fields"><label>시작 X<input id="x0" type="number" value="-2048" min="-30000000" max="30000000"></label><label>시작 Z<input id="z0" type="number" value="-2048" min="-30000000" max="30000000"></label><label>끝 X<input id="x1" type="number" value="2048" min="-30000000" max="30000000"></label><label>끝 Z<input id="z1" type="number" value="2048" min="-30000000" max="30000000"></label><button id="apply-range">범위 적용</button></div></details>
+      <div id="map-pair" class="map-pair"><article><div class="pane-title"><h2>Minecraft 원본</h2><span>순환하지 않음</span></div><canvas id="mc-map" width="720" height="520" aria-label="Minecraft 지도. 드래그 이동, 휠 확대, 클릭 값 조회"></canvas><p id="mc-stats" class="stats"></p></article><article id="ours-pane"><div class="pane-title"><h2>우리 월드</h2><span>131,072블록마다 순환</span></div><canvas id="ours-map" width="720" height="520" aria-label="우리 월드 지도. 원본과 같은 좌표 범위"></canvas><p id="ours-stats" class="stats"></p></article></div>
+      <div class="legend"><span id="low-label">−1</span><div></div><span id="high-label">1</span><small>검정 → 흰색 · 양쪽 동일 색상 범위</small></div>
+      <p class="help">드래그로 이동 · 휠로 확대 · 클릭으로 정확한 블록 좌표 값 조회. 픽셀은 해당 위치의 한 블록을 표본으로 봅니다. 넓은 범위의 잔굴곡 무늬는 축소 시 거칠게 보일 수 있습니다.</p>
+      <p class="help">각 지도는 원시 신호 또는 스플라인 출력입니다. 최종 블록 높이·동굴·대수층·바이옴 지도는 포함하지 않습니다. 우리 월드의 온도는 위도 영향이 있고, 강수량은 원본 습도와 의미가 다릅니다.</p>
+      <section class="probe"><div class="pane-title"><h2 id="probe-title">좌표의 계산값</h2><button id="probe-curves" disabled>이 입력으로 곡선 보기</button></div><div id="probe">지도에서 위치를 클릭하세요.</div></section>
+    </section>
+    <section id="curves-view" hidden>
+      <div class="toolbar"><label>가로축<select id="curve-axis"><option value="weirdness">Weirdness → PV 함께 변화</option><option value="groundness">Continentalness / Groundness</option><option value="smoothness">Erosion / Smoothness</option></select></label><label>Continentalness / Groundness<input id="curve-c" type="number" min="-2" max="2" step="0.01" value="0.25"></label><label>Erosion / Smoothness<input id="curve-e" type="number" min="-2" max="2" step="0.01" value="0"></label><label>Weirdness<input id="curve-w" type="number" min="-2" max="2" step="0.01" value="0"></label></div>
+      <p class="help">가로축 값만 바꾸고 나머지는 고정합니다. 같은 입력을 두 스플라인에 넣는 비교이므로 시드와 무관합니다. 곡선은 −1.2~1.2 구간이며 제어점 밖의 연장도 보여 줍니다.</p>
+      <div class="curve-legend"><span class="mc-key">━━ Minecraft 원본</span><span id="ours-curve-key" class="ours-key">┄┄ 우리 월드</span></div>
+      <article><h2>Offset · 높이 오프셋</h2><p class="help">스플라인 자체 출력. 원본 밀도 계산의 −0.50375 보정과 우리 높이 배율은 제외합니다.</p><canvas id="curve-offset" class="curve" width="1000" height="250" aria-label="Offset 비교 곡선"></canvas></article>
+      <article><h2>Factor · 압축 계수</h2><p class="help">우리 전체 압축 강도와 곱하기 전의 스플라인 값끼리 비교합니다.</p><canvas id="curve-factor" class="curve" width="1000" height="250" aria-label="Factor 비교 곡선"></canvas></article>
+      <article><h2>Jaggedness · 잔굴곡 강도</h2><p class="help">잔굴곡 노이즈와 곱하기 전의 스플라인 값끼리 비교합니다.</p><canvas id="curve-jaggedness" class="curve" width="1000" height="250" aria-label="Jaggedness 비교 곡선"></canvas></article>
+    </section>
+    <details><summary>원본 기준과 노이즈 설정</summary><p>26.2 일반 오버월드, Xoroshiro128++ 시드 처리, Improved Perlin 기반 NormalNoise 두 묶음. 원본의 1.0181268882175227배 입력과 진폭 보정을 유지합니다. Java 실행이나 MCP 파일은 페이지 사용에 필요하지 않습니다.</p><table><thead><tr><th>신호</th><th>첫 옥타브</th><th>옥타브 진폭 설정</th></tr></thead><tbody><tr><td>Continentalness</td><td>−9</td><td>1, 1, 2, 2, 2, 1, 1, 1, 1</td></tr><tr><td>Erosion</td><td>−9</td><td>1, 1, 0, 1, 1</td></tr><tr><td>Weirdness / Ridge</td><td>−7</td><td>1, 2, 1, 0, 0, 0</td></tr><tr><td>Temperature</td><td>−10</td><td>1.5, 0, 1, 0, 0, 0</td></tr><tr><td>Humidity / Vegetation</td><td>−8</td><td>1, 1, 0, 0, 0, 0</td></tr><tr><td>Shift</td><td>−3</td><td>1, 1, 1, 0</td></tr><tr><td>Jagged</td><td>−16</td><td>16옥타브 모두 1</td></tr></tbody></table><p>진폭 설정에 옥타브 감쇠가 추가 적용됩니다. 기후 신호는 원본 Shift 워핑과 좌표 배율 0.25를 사용하며, Jagged는 X/Z 1500배·Y=0으로 계산합니다. 블록 좌표의 직접 평가이며 청크 캐시·보간이나 옛 청크와의 혼합은 포함하지 않습니다.</p></details>
+  </main>
+  <script src="minecraft.js"></script>
+</body>
+</html>

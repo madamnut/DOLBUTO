@@ -1,0 +1,28 @@
+{
+  "fabric:load_conditions": {
+    "condition": "terralith:config",
+    "key": "recipe_changes"
+  },
+  "neoforge:conditions": [
+    {
+      "type": "terralith:config",
+      "key": "recipe_changes"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "###",
+    "RRQ",
+    "###"
+  ],
+  "key": {
+    "#": "#minecraft:stone_crafting_materials",
+    "Q": "minecraft:quartz",
+    "R": "minecraft:redstone"
+  },
+  "result": {
+    "id": "minecraft:observer",
+    "count": 1
+  }
+}

@@ -1,0 +1,35 @@
+{
+    "type": "minecraft:simple_block",
+    "config": {
+        "to_place": {
+            "type": "minecraft:noise_provider",
+            "noise": {
+                "amplitudes": [
+                    1,
+                    1.2,
+                    0.5,
+                    0.85,
+                    2,
+                    4.5
+                ],
+                "firstOctave": -6
+            },
+            "scale": 1,
+            "seed": 4,
+            "states": [
+                {
+                    "Name": "minecraft:white_tulip"
+                },
+                {
+                    "Name": "minecraft:lily_of_the_valley"
+                },
+                {
+                    "Name": "minecraft:azure_bluet"
+                },
+                {
+                    "Name": "minecraft:oxeye_daisy"
+                }
+            ]
+        }
+    }
+}

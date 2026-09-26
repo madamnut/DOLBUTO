@@ -1,0 +1,65 @@
+{
+  "biomes": [
+    "minecraft:modified_wooded_badlands_plateau",
+    "minecraft:wooded_badlands_plateau"
+  ],
+  "match": [
+    [
+      "minecraft:oak_log",
+      "minecraft:oak_leaves"
+    ]
+  ],
+  "replace": {
+    "config": {
+      "feature": {
+        "config": {
+          "features": [
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:oak_small"
+                },
+                "type": "terraforged:template"
+              },
+              "chance": 0.3
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:acacia_bush"
+                },
+                "type": "terraforged:template"
+              },
+              "chance": 0.2
+            }
+          ],
+          "default": {
+            "config": {
+              "template": "terraforged:oak_small"
+            },
+            "type": "terraforged:template"
+          }
+        },
+        "type": "minecraft:random_selector"
+      },
+      "decorator": {
+        "config": {
+          "placement": {
+            "config": {
+              "radius": 8,
+              "scale": 0.2,
+              "jitter": 0.8,
+              "biome_fade": 0.25,
+              "density_scale": 150,
+              "density_variation": 0.75
+            },
+            "type": "terraforged:fast_poisson_surface"
+          },
+          "filter": "biome"
+        },
+        "type": "terraforged:filter"
+      }
+    },
+    "type": "minecraft:decorated"
+  }
+}

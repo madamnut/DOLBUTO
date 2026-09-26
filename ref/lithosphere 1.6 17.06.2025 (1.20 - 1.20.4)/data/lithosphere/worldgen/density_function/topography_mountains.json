@@ -1,0 +1,114 @@
+//[df-editor]:{"pos":[2652,10],"collapsed":false}
+{
+  //[df-editor]:{"pos":[3756,570],"collapsed":false}
+  "type": "flat_cache",
+  "argument": {
+  //[df-editor]:{"pos":[2388,8],"collapsed":false}
+  "type": "cache_2d",
+  "argument": {
+    //[df-editor]:{"pos":[2153,3],"collapsed":false}
+    "type": "add",
+    "argument1": {
+      //[df-editor]:{"pos":[1790,-109],"collapsed":false}
+      "type": "add",
+      "argument1": "lithosphere:volcanic_mountains", //[df-editor]:{"pos":[1511,-226],"collapsed":false}
+      "argument2": "lithosphere:basic_topography" //[df-editor]:{"pos":[1530,-99],"collapsed":false}
+    },
+    "argument2": {
+      //[df-editor]:{"pos":[1661,130],"collapsed":false}
+      "type": "mul",
+      "argument1": {
+        //[df-editor]:{"pos":[953,-144],"collapsed":false}
+        "type": "minecraft:spline",
+        "spline": {
+          "coordinate": {
+            //[df-editor]:{"pos":[627,-212],"collapsed":false}
+            "type": "add",
+            "argument1": -0.05, //[df-editor]:{"pos":[301,-345],"collapsed":true}
+            "argument2": {
+              //[df-editor]:{"pos":[259,-246],"collapsed":false}
+              "type": "add",
+              "argument1": {
+                //[df-editor]:{"pos":[-52,-369],"collapsed":false}
+                "type": "mul",
+                "argument1": 0.2, //[df-editor]:{"pos":[-449,-451],"collapsed":true}
+                "argument2": {
+                  //[df-editor]:{"pos":[-479,-254],"collapsed":false}
+                  "type": "noise",
+                  "noise": "minecraft:jagged",
+                  "xz_scale": 250,
+                  "y_scale": 0
+                }
+              },
+              "argument2": "lithosphere:continents" //[df-editor]:{"pos":[-117,-233],"collapsed":true}
+            }
+          },
+          "points": [
+            {
+              "location": -0.5,
+              "value": 0,
+              "derivative": 0
+            },
+            {
+              "location": -0.164,
+              "value": 0,
+              "derivative": 0
+            },
+            {
+              "location": 0.7,
+              "value": 0.5,
+              "derivative": 1.3100436681222607
+            },
+            {
+              "location": 1.4957218502292502,
+              "value": 0.9966698642152904,
+              "derivative": 0
+            }
+          ]
+        }
+      },
+      "argument2": {
+        //[df-editor]:{"pos":[1304,230],"collapsed":false}
+        "type": "add",
+        "argument1": {
+          //[df-editor]:{"pos":[1037,222],"collapsed":false}
+          "type": "mul",
+          "argument1": {
+            //[df-editor]:{"pos":[747,221],"collapsed":false}
+            "type": "mul",
+            "argument1": {
+              //[df-editor]:{"pos":[500,215],"collapsed":false}
+              "type": "add",
+              "argument1": "lithosphere:roughness", //[df-editor]:{"pos":[160,47],"collapsed":true}
+              "argument2": {
+                //[df-editor]:{"pos":[255,234],"collapsed":false}
+                "type": "mul",
+                "argument1": "lithosphere:orogeny", //[df-editor]:{"pos":[-104,191],"collapsed":true}
+                "argument2": "lithosphere:mountains_base" //[df-editor]:{"pos":[-329,329],"collapsed":true}
+              }
+            },
+            "argument2": {
+              //[df-editor]:{"pos":[337,446],"collapsed":false}
+              "type": "mul",
+              "argument1": "lithosphere:mountains_shape", //[df-editor]:{"pos":[-155,454],"collapsed":true}
+              "argument2": "lithosphere:orogeny" //[df-editor]:{"pos":[-161,609],"collapsed":true}
+            }
+          },
+          "argument2": 0.04 //[df-editor]:{"pos":[645,484],"collapsed":true}
+        },
+        "argument2": {
+          //[df-editor]:{"pos":[1008,541],"collapsed":false}
+          "type": "mul",
+          "argument1": {
+            //[df-editor]:{"pos":[646,733],"collapsed":false}
+            "type": "mul",
+            "argument1": "lithosphere:orogeny", //[df-editor]:{"pos":[272,667],"collapsed":true}
+            "argument2": "lithosphere:mountains_base" //[df-editor]:{"pos":[280,822],"collapsed":true}
+          },
+          "argument2": 0.01 //[df-editor]:{"pos":[843,861],"collapsed":true}
+        }
+      }
+    }
+  }
+  }
+}

@@ -1,0 +1,263 @@
+//[df-editor]:{"pos":[3996,568],"collapsed":false}
+{
+  //[df-editor]:{"pos":[3756,570],"collapsed":false}
+  "type": "flat_cache",
+  "argument": {
+    //[df-editor]:{"pos":[3509,570],"collapsed":false}
+    "type": "cache_2d",
+    "argument": {
+      //[df-editor]:{"pos":[2377,565],"collapsed":false}
+      "type": "mul",
+      "argument1": {
+        //[df-editor]:{"pos":[1910,431],"collapsed":false}
+        "type": "minecraft:spline",
+        "spline": {
+          "coordinate": {
+            //[df-editor]:{"pos":[1534,474],"collapsed":false}
+            "type": "mul",
+            "argument1": {
+              //[df-editor]:{"pos":[-42,271],"collapsed":false}
+              "type": "add",
+              "argument1": {
+                //[df-editor]:{"pos":[-393,-18],"collapsed":false}
+                "type": "mul",
+                "argument1": {
+                  //[df-editor]:{"pos":[-573,-224],"collapsed":false}
+                  "type": "mul",
+                  "argument1": {
+                    //[df-editor]:{"pos":[-829,-520],"collapsed":false}
+                    "type": "mul",
+                    "argument1": {
+                      //[df-editor]:{"pos":[-1219,-855],"collapsed":false}
+                      "type": "minecraft:spline",
+                      "spline": {
+                        "coordinate": "lithosphere:continents", //[df-editor]:{"pos":[-1505,-918],"collapsed":true}
+                        "points": [
+                          {
+                            "location": 0,
+                            "value": 0,
+                            "derivative": 0
+                          },
+                          {
+                            "location": 1.25,
+                            "value": 1,
+                            "derivative": 0
+                          }
+                        ]
+                      }
+                    },
+                    "argument2": {
+                      //[df-editor]:{"pos":[-1120,-456],"collapsed":false}
+                      "type": "add",
+                      "argument1": {
+                        //[df-editor]:{"pos":[-1368,-504],"collapsed":false}
+                        "type": "mul",
+                        "argument1": {
+                          //[df-editor]:{"pos":[-1608,-624],"collapsed":false}
+                          "type": "add",
+                          "argument1": {
+                            //[df-editor]:{"pos":[-1809,-771],"collapsed":false}
+                            "type": "add",
+                            "argument1": 1.0999999999999999, //[df-editor]:{"pos":[-2158,-942],"collapsed":true}
+                            "argument2": {
+                              //[df-editor]:{"pos":[-2156,-787],"collapsed":false}
+                              "type": "mul",
+                              "argument1": -0.7, //[df-editor]:{"pos":[-2476,-926],"collapsed":true}
+                              "argument2": {
+                                //[df-editor]:{"pos":[-2429,-791],"collapsed":false}
+                                "type": "abs",
+                                "argument": {
+                                  //[df-editor]:{"pos":[-2694,-797],"collapsed":false}
+                                  "type": "shifted_noise",
+                                  "noise": "lithosphere:mountains_base",
+                                  "xz_scale": 1.6999999999999995,
+                                  "y_scale": 0,
+                                  "shift_x": -5000, //[df-editor]:{"pos":[-3228,-816],"collapsed":true}
+                                  "shift_y": 0, //[df-editor]:{"pos":[-3225,-678],"collapsed":true}
+                                  "shift_z": -5000 //[df-editor]:{"pos":[-3228,-816],"collapsed":true}
+                                }
+                              }
+                            }
+                          },
+                          "argument2": {
+                            //[df-editor]:{"pos":[-1907,-598],"collapsed":false}
+                            "type": "add",
+                            "argument1": {
+                              //[df-editor]:{"pos":[-2160,-594],"collapsed":false}
+                              "type": "mul",
+                              "argument1": {
+                                //[df-editor]:{"pos":[-2428,-574],"collapsed":false}
+                                "type": "abs",
+                                "argument": {
+                                  //[df-editor]:{"pos":[-2688,-581],"collapsed":false}
+                                  "type": "shifted_noise",
+                                  "noise": "lithosphere:mountains_base",
+                                  "xz_scale": 1.6,
+                                  "y_scale": 0,
+                                  "shift_x": 5000, //[df-editor]:{"pos":[-3235,-548],"collapsed":true}
+                                  "shift_y": 0, //[df-editor]:{"pos":[-3225,-678],"collapsed":true}
+                                  "shift_z": 5000 //[df-editor]:{"pos":[-3235,-548],"collapsed":true}
+                                }
+                              },
+                              "argument2": -0.7 //[df-editor]:{"pos":[-2457,-468],"collapsed":true}
+                            },
+                            "argument2": 1.3 //[df-editor]:{"pos":[-2173,-446],"collapsed":true}
+                          }
+                        },
+                        "argument2": {
+                          //[df-editor]:{"pos":[-1912,-317],"collapsed":false}
+                          "type": "add",
+                          "argument1": {
+                            //[df-editor]:{"pos":[-2323,-317],"collapsed":false}
+                            "type": "mul",
+                            "argument1": {
+                              //[df-editor]:{"pos":[-2588,-315],"collapsed":false}
+                              "type": "abs",
+                              "argument": {
+                                //[df-editor]:{"pos":[-2839,-314],"collapsed":false}
+                                "type": "noise",
+                                "noise": "lithosphere:mountains_base",
+                                "xz_scale": 1.7000000000000006,
+                                "y_scale": 0
+                              }
+                            },
+                            "argument2": 0.09999999999999992 //[df-editor]:{"pos":[-2559,-223],"collapsed":true}
+                          },
+                          "argument2": 0.9999999999999999 //[df-editor]:{"pos":[-2480,-107],"collapsed":true}
+                        }
+                      },
+                      "argument2": -0.9999999999999999 //[df-editor]:{"pos":[-1469,-322],"collapsed":true}
+                    }
+                  },
+                  "argument2": {
+                    //[df-editor]:{"pos":[-1209,-135],"collapsed":false}
+                    "type": "minecraft:spline",
+                    "spline": {
+                      "coordinate": {
+                        //[df-editor]:{"pos":[-1538,-116],"collapsed":false}
+                        "type": "mul",
+                        "argument1": "lithosphere:mountains_base", //[df-editor]:{"pos":[-1979,-173],"collapsed":true}
+                        "argument2": {
+                          //[df-editor]:{"pos":[-1920,211],"collapsed":false}
+                          "type": "mul",
+                          "argument1": 0.5, //[df-editor]:{"pos":[-2372,47],"collapsed":true}
+                          "argument2": "lithosphere:orogeny" //[df-editor]:{"pos":[-2417,183],"collapsed":true}
+                        }
+                      },
+                      "points": [
+                        {
+                          "location": 0.4991304347826091,
+                          "value": -0.0006956521739124866,
+                          "derivative": 0
+                        },
+                        {
+                          "location": 2.005217391304349,
+                          "value": 0.9959130434782613,
+                          "derivative": 0
+                        }
+                      ]
+                    }
+                  }
+                },
+                "argument2": 1.5000000000000007 //[df-editor]:{"pos":[-865,74],"collapsed":true}
+              },
+              "argument2": {
+                //[df-editor]:{"pos":[-486,354],"collapsed":false}
+                "type": "mul",
+                "argument1": "lithosphere:mountains_base", //[df-editor]:{"pos":[-877,274],"collapsed":true}
+                "argument2": 0.7999999999999999 //[df-editor]:{"pos":[-912,472],"collapsed":true}
+              }
+            },
+            "argument2": 1.2 //[df-editor]:{"pos":[1161,627],"collapsed":true}
+          },
+          "points": [
+            {
+              "location": -2.0008288243387504,
+              "value": -0.49897615549681923,
+              "derivative": 0
+            },
+            {
+              "location": -0.7722271935763148,
+              "value": -0.12420646904228239,
+              "derivative": 0.49344316811070665
+            },
+            {
+              "location": 0.4,
+              "value": 0.6,
+              "derivative": 0.8
+            },
+            {
+              "location": 2.6224934733128626,
+              "value": 3.1735981437831056,
+              "derivative": 0.3494421418602317
+            },
+            {
+              "location": 5.000299852617543,
+              "value": 6.583799642372736,
+              "derivative": 1.7304960909246236
+            },
+            {
+              "location": 5.156001748812116,
+              "value": 6.996412354006738,
+              "derivative": 0.33835761411195625
+            },
+            {
+              "location": 7.582408947589361,
+              "value": 6.011514694863861,
+              "derivative": 0
+            }
+          ]
+        }
+      },
+      "argument2": {
+        //[df-editor]:{"pos":[1930,771],"collapsed":false}
+        "type": "minecraft:spline",
+        "spline": {
+          "coordinate": {
+            //[df-editor]:{"pos":[1701,773],"collapsed":false}
+            "type": "add",
+            "argument1": {
+              //[df-editor]:{"pos":[1457,765],"collapsed":false}
+              "type": "abs",
+              "argument": {
+                //[df-editor]:{"pos":[1224,768],"collapsed":false}
+                "type": "noise",
+                "noise": "lithosphere:rivers",
+                "xz_scale": 0.7,
+                "y_scale": 0
+              }
+            },
+            "argument2": {
+              //[df-editor]:{"pos":[1403,1018],"collapsed":false}
+              "type": "mul",
+              "argument1": "lithosphere:mountains_weathering", //[df-editor]:{"pos":[917,1041],"collapsed":true}
+              "argument2": 0.3 //[df-editor]:{"pos":[1070,1245],"collapsed":true}
+            }
+          },
+          "points": [
+            {
+              "location": 0,
+              "value": 0,
+              "derivative": 0
+            },
+            {
+              "location": 0.5,
+              "value": 0.25,
+              "derivative": 0
+            },
+            {
+              "location": 2,
+              "value": 0.85,
+              "derivative": 0.33
+            },
+            {
+              "location": 3,
+              "value": 1,
+              "derivative": 0
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "fabric:load_conditions": {
+    "condition": "terralith:config",
+    "key": "recipe_changes"
+  },
+  "neoforge:conditions": [
+    {
+      "type": "terralith:config",
+      "key": "recipe_changes"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "###",
+    "#X#",
+    "#R#"
+  ],
+  "key": {
+    "#": "#minecraft:stone_crafting_materials",
+    "R": "minecraft:redstone",
+    "X": "minecraft:bow"
+  },
+  "result": {
+    "id": "minecraft:dispenser",
+    "count": 1
+  }
+}

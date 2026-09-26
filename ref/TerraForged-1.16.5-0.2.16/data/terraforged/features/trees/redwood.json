@@ -1,0 +1,118 @@
+{
+  "biomes": [
+    "minecraft:giant_spruce_taiga",
+    "minecraft:giant_spruce_taiga_hills",
+    "minecraft:giant_tree_taiga",
+    "minecraft:giant_tree_taiga_hills"
+  ],
+  "match": [
+    [
+      "minecraft:giant_trunk_placer",
+      "minecraft:spruce_log",
+      "minecraft:spruce_leaves"
+    ]
+  ],
+  "replace": {
+    "config": {
+      "feature": {
+        "config": {
+          "features": [
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:redwood_huge"
+                },
+                "type": "terraforged:template"
+              },
+              "context": {
+                "chance": 0.4,
+                "elevation": {
+                  "from": 0.15,
+                  "to": 0.0,
+                  "exclusive": false
+                },
+                "biome": {
+                  "from": 0.1,
+                  "to": 0.3,
+                  "exclusive": false
+                }
+              }
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:redwood_large"
+                },
+                "type": "terraforged:template"
+              },
+              "context": {
+                "chance": 0.2,
+                "elevation": {
+                  "from": 0.25,
+                  "to": 0.0,
+                  "exclusive": false
+                },
+                "biome": {
+                  "from": 0.05,
+                  "to": 0.25,
+                  "exclusive": false
+                }
+              }
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:spruce_large"
+                },
+                "type": "terraforged:template"
+              },
+              "context": {
+                "chance": 0.4,
+                "elevation": {
+                  "from": 0.35,
+                  "to": 0.15,
+                  "exclusive": false
+                }
+              }
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:spruce_small"
+                },
+                "type": "terraforged:template"
+              },
+              "context": {
+                "chance": 0.2,
+                "elevation": {
+                  "from": 0.5,
+                  "to": 0.2,
+                  "exclusive": false
+                }
+              }
+            }
+          ]
+        },
+        "type": "terraforged:context_selector"
+      },
+      "decorator": {
+        "config": {
+          "placement": {
+            "config": {
+              "radius": 6,
+              "scale": 0.3,
+              "jitter": 0.8,
+              "biome_fade": 0.3,
+              "density_scale": 250,
+              "density_variation": 0.75
+            },
+            "type": "terraforged:fast_poisson_surface"
+          },
+          "filter": "biome"
+        },
+        "type": "terraforged:filter"
+      }
+    },
+    "type": "minecraft:decorated"
+  }
+}

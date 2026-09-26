@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>월드 생성 작업실</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="light">
+  <header class="topbar">
+    <div class="brand"><span class="brand-icon" aria-hidden="true">▦</span><div><h1>월드 생성 작업실</h1><small>131,072 × 131,072 · 높이 512</small></div></div>
+    <div class="save-actions"><span id="save-state" class="badge" role="status">불러오는 중</span><button id="undo" title="직전 편집 되돌리기">↶ 되돌리기</button><button id="files-open">파일</button><button id="draft-save">작업 저장</button><button id="publish" class="primary">게임 규칙으로 확정</button><button id="theme-toggle" aria-pressed="false">어두운 화면</button><button id="map-toggle" aria-expanded="true">지도 접기</button></div>
+  </header>
+  <div id="status" role="status">편집기에 연결 중…</div>
+  <main>
+    <aside class="sidebar">
+      <nav id="tabs" aria-label="생성 규칙 목록"></nav>
+      <button id="minecraft-open" type="button">Minecraft 원본 ↗</button>
+      <div class="sidebar-note">규칙 트리 → 제어점 표 → 곡선·지도 확인<br>작업 저장 후 게임 규칙으로 확정하세요.<br><a href="https://github.com/jacobsjo/snowcapped" target="_blank" rel="noreferrer">Snowcapped UI 기반</a></div>
+    </aside>
+    <section class="editor-panel" aria-label="생성 규칙 편집">
+      <div class="editor-heading"><div><p id="editor-category" class="eyebrow">지형 스플라인</p><h2 id="editor-title">높이 오프셋</h2></div><div id="editor-tools" class="actions"></div></div>
+      <div id="form"></div>
+      <section id="spline-panel"><div id="spline-status" role="status"></div><div id="spline-form"></div></section>
+    </section>
+    <section class="workspace" aria-label="월드 지도">
+      <section id="spline-preview" class="spline-preview" aria-label="스플라인 미리보기" hidden></section>
+      <div class="map-toolbar"><div><p class="eyebrow">월드 미리보기</p><h2 id="map-title">대륙성</h2></div><div class="actions"><button id="map-expand" aria-pressed="false">지도 크게</button><label class="sr-only" for="map">표시 지도</label><select id="map"></select><button id="render" class="primary">미리보기 갱신</button></div></div>
+      <label class="check auto-preview"><input id="auto-preview" type="checkbox" checked>편집 후 지도 자동 갱신</label>
+      <div class="view-tools"><div class="actions"><button id="zoom-in" aria-label="지도 확대">＋</button><button id="zoom-out" aria-label="지도 축소">−</button><button id="whole">전체 월드</button><button id="random-area">랜덤 영역</button><button id="range-open">좌표·범위</button></div><span id="range-label"></span></div>
+      <details id="range-panel"><summary>미리보기 범위와 세부 설정</summary><div class="controls range">
+        <label>시작 X<input id="x0" type="number" value="0" min="0" max="131072"></label><label>시작 Z<input id="z0" type="number" value="0" min="0" max="131072"></label>
+        <label>끝 X<input id="x1" type="number" value="16384" min="0" max="131072"></label><label>끝 Z<input id="z1" type="number" value="16384" min="0" max="131072"></label><button id="apply-range">범위 적용</button>
+        <label>샘플 해상도<select id="resolution"><option>128</option><option selected>256</option><option>512</option><option>1024</option></select></label>
+        <label>Groundness 옥타브<select id="octave"><option value="-1">전체 합성</option></select></label><label class="check"><input id="weighted" type="checkbox">합성 기여분</label><label class="check"><input id="before-warp" type="checkbox">워핑 전</label>
+      </div></details>
+      <div class="compare-tools"><label class="check"><input id="compare" type="checkbox">변경 전·후 비교</label><label id="split-control" class="split-control" hidden>비교 경계<input id="compare-split" type="range" min="0" max="100" value="50"></label><span id="compare-label">비교 기준: 처음 불러온 규칙</span><button id="pin-baseline">현재 작업을 비교 기준으로</button></div>
+      <div id="map-stage" class="map-stage"><canvas id="map-canvas" width="900" height="600" aria-label="월드 지도. 드래그로 이동, 휠로 확대·축소합니다."></canvas><div id="empty-map">첫 지도를 준비하고 있어요…</div><div class="map-hint">드래그 이동 · 휠 확대 · 클릭 값 조회</div></div>
+      <div class="map-footer"><span id="legend">낮음 → 높음</span><span id="metrics"></span><button id="export-map">지도 PNG</button></div>
+      <div id="map-state" class="preview-state" role="status">지도를 준비하고 있어요.</div>
+      <details id="probe-panel"><summary>선택한 좌표의 노이즈 값</summary><div id="probe">지도에서 위치를 클릭하세요.</div></details>
+      <p class="help">높이 지도는 3D 굴곡 적용 전 기준면입니다. 동굴·오버행을 포함한 최종 블록 표면과 다를 수 있습니다.</p>
+    </section>
+  </main>
+  <dialog id="files-dialog" aria-labelledby="files-title"><div class="dialog-heading"><h2 id="files-title">파일과 작업 관리</h2><button id="files-close">닫기</button></div>
+    <div id="files-status" role="status"></div><div class="file-cards"><section><h3>불러오기</h3><p>저장한 작업을 이어 하거나 게임의 확정 규칙으로 돌아갑니다.</p><div class="actions"><button id="draft-load">저장한 작업 불러오기</button><button id="reload">확정 규칙 불러오기</button></div></section><section><h3>저장 방식</h3><p><b>작업 저장</b>은 초안만 보관합니다.<br><b>게임 규칙으로 확정</b>하면 다음 게임 실행부터 사용합니다. 이전 규칙은 자동 백업합니다.</p><p>실행 중인 게임: F8 → 확정 파일 불러오기 → 재생성</p></section></div>
+    <details><summary>고급 · JSON 가져오기 / 내보내기</summary><p>가져오기는 작업 초안만 바꿉니다.</p><div class="actions"><button id="export-json">JSON 내보내기</button><label class="file">JSON 가져오기<input id="import-json" type="file" accept=".json,application/json"></label><button id="validate">설정 검증</button></div><textarea id="raw" spellcheck="false" aria-label="설정 JSON"></textarea><div class="actions"><button id="refresh-json">현재 작업을 JSON에 표시</button><button id="apply-json">JSON을 작업에 반영</button></div></details>
+    <footer>브라우저 탭만 닫으면 편집기는 계속 실행됩니다. <button id="shutdown">편집기 종료</button></footer>
+  </dialog>
+  <script src="app.js"></script><script src="map-view.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+exact compared halo cells=123731712
+channels=sky,block,occlusion
+random batches=48
+checksum=4830

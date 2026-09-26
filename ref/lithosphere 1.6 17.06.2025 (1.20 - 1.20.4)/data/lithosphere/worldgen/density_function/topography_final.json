@@ -1,0 +1,9 @@
+//[df-editor]:{"pos":[1127,432],"collapsed":false}
+{
+  "type": "minecraft:flat_cache",
+  "argument": {
+	  //[df-editor]:{"pos":[729,445],"collapsed":false}
+	  "type": "cache_2d",
+	  "argument": "lithosphere:topography_swamps" //[df-editor]:{"pos":[340,436],"collapsed":false}
+  }
+}

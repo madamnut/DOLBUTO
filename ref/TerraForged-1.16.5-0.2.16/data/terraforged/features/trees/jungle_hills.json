@@ -1,0 +1,120 @@
+{
+  "biomes": [
+    "minecraft:bamboo_jungle_hills",
+    "minecraft:jungle_hills"
+  ],
+  "match": [
+    "minecraft:tree"
+  ],
+  "replace": {
+    "config": {
+      "feature": {
+        "config": {
+          "features": [
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:jungle_small"
+                },
+                "type": "terraforged:template"
+              },
+              "chance": 0.3
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:jungle_large"
+                },
+                "type": "terraforged:template"
+              },
+              "chance": 0.4
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:jungle_huge"
+                },
+                "type": "terraforged:template"
+              },
+              "chance": 0.3
+            },
+            {
+              "feature": {
+                "config": {
+                  "max_water_depth": 0,
+                  "ignore_vines": false,
+                  "heightmap": "MOTION_BLOCKING_NO_LEAVES",
+                  "minimum_size": {
+                    "limit": 0,
+                    "lower_size": 0,
+                    "upper_size": 0,
+                    "type": "minecraft:two_layers_feature_size"
+                  },
+                  "decorators": [],
+                  "trunk_provider": {
+                    "state": {
+                      "Properties": {
+                        "axis": "y"
+                      },
+                      "Name": "minecraft:jungle_log"
+                    },
+                    "type": "minecraft:simple_state_provider"
+                  },
+                  "leaves_provider": {
+                    "state": {
+                      "Properties": {
+                        "persistent": "false",
+                        "distance": "7"
+                      },
+                      "Name": "minecraft:oak_leaves"
+                    },
+                    "type": "minecraft:simple_state_provider"
+                  },
+                  "foliage_placer": {
+                    "radius": 2,
+                    "offset": 1,
+                    "height": 2,
+                    "type": "minecraft:bush_foliage_placer"
+                  },
+                  "trunk_placer": {
+                    "base_height": 1,
+                    "height_rand_a": 0,
+                    "height_rand_b": 0,
+                    "type": "minecraft:straight_trunk_placer"
+                  }
+                },
+                "type": "minecraft:tree"
+              },
+              "chance": 0.2
+            }
+          ],
+          "default": {
+            "config": {
+              "template": "terraforged:jungle_small"
+            },
+            "type": "terraforged:template"
+          }
+        },
+        "type": "minecraft:random_selector"
+      },
+      "decorator": {
+        "config": {
+          "placement": {
+            "config": {
+              "radius": 7,
+              "scale": 0.35,
+              "jitter": 0.8,
+              "biome_fade": 0.25,
+              "density_scale": 200,
+              "density_variation": 0.75
+            },
+            "type": "terraforged:fast_poisson_surface"
+          },
+          "filter": "biome"
+        },
+        "type": "terraforged:filter"
+      }
+    },
+    "type": "minecraft:decorated"
+  }
+}

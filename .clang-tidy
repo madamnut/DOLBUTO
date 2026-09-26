@@ -1,0 +1,7 @@
+# Vulkan uses signed enum flag constants and zero-initialized output structures.
+# Parameter ordering is reviewed at Vulkan call sites; suppress those generic style heuristics.
+Checks: '-*,clang-analyzer-*,bugprone-*,-bugprone-signed-bitwise,-bugprone-invalid-enum-default-initialization,-bugprone-easily-swappable-parameters,performance-*,modernize-use-nullptr'
+WarningsAsErrors: 'clang-analyzer-*'
+HeaderFilterRegex: '.*/src/.*'
+CheckOptions:
+  bugprone-easily-swappable-parameters.MinimumLength: '3'

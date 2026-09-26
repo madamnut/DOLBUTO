@@ -1,0 +1,46 @@
+//[df-editor]:{"pos":[1028,923],"collapsed":false}
+{
+  //[df-editor]:{"pos":[659,933],"collapsed":false}
+  "type": "cache_once",
+  "argument": {
+    //[df-editor]:{"pos":[209,936],"collapsed":false}
+    "type": "min",
+    "argument1": {
+      //[df-editor]:{"pos":[-127,784],"collapsed":false}
+      "type": "min",
+      "argument1": {
+        //[df-editor]:{"pos":[-410,722],"collapsed":false}
+        "type": "mul",
+        "argument1": {
+          //[df-editor]:{"pos":[-883,709],"collapsed":false}
+          "type": "add",
+          "argument1": "lithosphere:caves/claustrophobic_caves", //[df-editor]:{"pos":[-1255,703],"collapsed":true}
+          "argument2": 0 //[df-editor]:{"pos":[-1214,1409],"collapsed":true}
+        },
+        "argument2": 7.200000000000002 //[df-editor]:{"pos":[-707,1524],"collapsed":true}
+      },
+      "argument2": {
+        //[df-editor]:{"pos":[-396,871],"collapsed":false}
+        "type": "mul",
+        "argument1": {
+          //[df-editor]:{"pos":[-874,851],"collapsed":false}
+          "type": "add",
+          "argument1": "lithosphere:caves/connecting_caves", //[df-editor]:{"pos":[-1263,844],"collapsed":true}
+          "argument2": 0 //[df-editor]:{"pos":[-1214,1409],"collapsed":true}
+        },
+        "argument2": 7.200000000000002 //[df-editor]:{"pos":[-707,1524],"collapsed":true}
+      }
+    },
+    "argument2": {
+      //[df-editor]:{"pos":[-384,1186],"collapsed":false}
+      "type": "mul",
+      "argument1": {
+        //[df-editor]:{"pos":[-864,1207],"collapsed":false}
+        "type": "add",
+        "argument1": "lithosphere:caves/cavern", //[df-editor]:{"pos":[-1263,1204],"collapsed":true}
+        "argument2": 0 //[df-editor]:{"pos":[-1214,1409],"collapsed":true}
+      },
+      "argument2": 7.200000000000002 //[df-editor]:{"pos":[-707,1524],"collapsed":true}
+    }
+  }
+}

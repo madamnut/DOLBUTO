@@ -1,0 +1,103 @@
+//[df-editor]:{"pos":[2134,140],"collapsed":false}
+{
+  //[df-editor]:{"pos":[3756,570],"collapsed":false}
+  "type": "flat_cache",
+  "argument": {
+  //[df-editor]:{"pos":[1693,164],"collapsed":false}
+  "type": "cache_2d",
+  "argument": {
+    //[df-editor]:{"pos":[1083,193],"collapsed":false}
+    "type": "mul",
+    "argument1": 0.6, //[df-editor]:{"pos":[725,93],"collapsed":true}
+    "argument2": {
+      //[df-editor]:{"pos":[717,220],"collapsed":false}
+      "type": "minecraft:spline",
+      "spline": {
+        "coordinate": {
+          //[df-editor]:{"pos":[384,282],"collapsed":false}
+          "type": "add",
+          "argument1": {
+            //[df-editor]:{"pos":[68,223],"collapsed":false}
+            "type": "add",
+            "argument1": "lithosphere:volcanic_islands", //[df-editor]:{"pos":[-764,8],"collapsed":false}
+            "argument2": "lithosphere:continents" //[df-editor]:{"pos":[-296,280],"collapsed":false}
+          },
+          "argument2": {
+            //[df-editor]:{"pos":[134,511],"collapsed":false}
+            "type": "abs",
+            "argument": {
+              //[df-editor]:{"pos":[-105,521],"collapsed":false}
+              "type": "mul",
+              "argument1": {
+                //[df-editor]:{"pos":[-646,519],"collapsed":false}
+                "type": "noise",
+                "noise": "minecraft:erosion",
+                "xz_scale": 2.1,
+                "y_scale": 0
+              },
+              "argument2": 0.1 //[df-editor]:{"pos":[-438,716],"collapsed":true}
+            }
+          }
+        },
+        "points": [
+          {
+            "location": -1.213001338068079,
+            "value": -1.7064387458300765,
+            "derivative": 0
+          },
+          {
+            "location": -0.7627571197458174,
+            "value": -1.6061786740436106,
+            "derivative": 0.3380331078862123
+          },
+          {
+            "location": -0.48698253602343267,
+            "value": -1.4380004891114746,
+            "derivative": 0.7293714366314117
+          },
+          {
+            "location": -0.39693369235898035,
+            "value": -1.0595995730141685,
+            "derivative": 0.18476642943258864
+          },
+          {
+            "location": -0.11,
+            "value": -0.9528711094995431,
+            "derivative": 0.5755126435157493
+          },
+          {
+            "location": 0.055,
+            "value": -0.85,
+            "derivative": 0.15
+          },
+          {
+            "location": 0.139,
+            "value": -0.79,
+            "derivative": 0.7
+          },
+          {
+            "location": 0.14,
+            "value": -0.79,
+            "derivative": 0.2
+          },
+          {
+            "location": 0.2,
+            "value": -0.7555851617906912,
+            "derivative": 0.15986462319881958
+          },
+          {
+            "location": 0.5764376203349904,
+            "value": -0.7167748114217367,
+            "derivative": 0.059949233699557354
+          },
+          {
+            "location": 1.4999126514129806,
+            "value": -0.6132805437711915,
+            "derivative": 0
+          }
+        ]
+      }
+    }
+  }
+  }
+}

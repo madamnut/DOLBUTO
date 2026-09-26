@@ -1,0 +1,175 @@
+//[df-editor]:{"pos":[1927,848],"collapsed":false}
+{
+  //[df-editor]:{"pos":[3756,570],"collapsed":false}
+  "type": "flat_cache",
+  "argument": {
+  //[df-editor]:{"pos":[1678,850],"collapsed":false}
+  "type": "cache_2d",
+  "argument": {
+    //[df-editor]:{"pos":[1419,847],"collapsed":false}
+    "type": "add",
+    "argument1": -0.555, //[df-editor]:{"pos":[1168,665],"collapsed":true}
+    "argument2": {
+      //[df-editor]:{"pos":[637,853],"collapsed":false}
+      "type": "minecraft:spline",
+      "spline": {
+        "coordinate": {
+          //[df-editor]:{"pos":[336,846],"collapsed":false}
+          "type": "add",
+          "argument1": "lithosphere:river_roughness", //[df-editor]:{"pos":[-398,723],"collapsed":true}
+          "argument2": {
+            //[df-editor]:{"pos":[-20,879],"collapsed":false}
+            "type": "mul",
+            "argument1": {
+              //[df-editor]:{"pos":[-581,878],"collapsed":false}
+              "type": "abs",
+              "argument": {
+                //[df-editor]:{"pos":[-966,879],"collapsed":false}
+                "type": "noise",
+                "noise": "lithosphere:rivers",
+                "xz_scale": 0.7,
+                "y_scale": 0
+              }
+            },
+            "argument2": {
+              //[df-editor]:{"pos":[-386,1124],"collapsed":false}
+              "type": "clamp",
+              "min": 0.1,
+              "max": 1,
+              "input": {
+                //[df-editor]:{"pos":[-629,1130],"collapsed":false}
+                "type": "add",
+                "argument1": {
+                  //[df-editor]:{"pos":[-1284,1024],"collapsed":false}
+                  "type": "clamp",
+                  "min": 0,
+                  "max": 0.9999999999999999,
+                  "input": {
+                    //[df-editor]:{"pos":[-1618,827],"collapsed":false}
+                    "type": "add",
+                    "argument1": {
+                      //[df-editor]:{"pos":[-1891,651],"collapsed":false}
+                      "type": "mul",
+                      "argument1": "lithosphere:river_mask", //[df-editor]:{"pos":[-2356,652],"collapsed":false}
+                      "argument2": -0.8 //[df-editor]:{"pos":[-2149,837],"collapsed":true}
+                    },
+                    "argument2": 0.9999999999999992 //[df-editor]:{"pos":[-1870,963],"collapsed":true}
+                  }
+                },
+                "argument2": {
+                  //[df-editor]:{"pos":[-887,1237],"collapsed":false}
+                  "type": "add",
+                  "argument1": 0.10000000000000003, //[df-editor]:{"pos":[-1289,1225],"collapsed":true}
+                  "argument2": {
+                    //[df-editor]:{"pos":[-1148,1329],"collapsed":false}
+                    "type": "add",
+                    "argument1": {
+                      //[df-editor]:{"pos":[-1497,1317],"collapsed":false}
+                      "type": "abs",
+                      "argument": {
+                        //[df-editor]:{"pos":[-1845,1316],"collapsed":false}
+                        "type": "noise",
+                        "noise": "lithosphere:rivers_detail",
+                        "xz_scale": 3,
+                        "y_scale": 0
+                      }
+                    },
+                    "argument2": {
+                      //[df-editor]:{"pos":[-1387,1527],"collapsed":false}
+                      "type": "mul",
+                      "argument1": {
+                        //[df-editor]:{"pos":[-1635,1533],"collapsed":false}
+                        "type": "abs",
+                        "argument": {
+                          //[df-editor]:{"pos":[-1886,1540],"collapsed":false}
+                          "type": "noise",
+                          "noise": "lithosphere:rivers",
+                          "xz_scale": 0.7,
+                          "y_scale": 0
+                        }
+                      },
+                      "argument2": 0.5 //[df-editor]:{"pos":[-1769,1717],"collapsed":true}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "points": [
+          {
+            "location": 0.002150713233593282,
+            "value": 0.00283157812902024,
+            "derivative": 0
+          },
+          {
+            "location": 0.04556430113928506,
+            "value": 0.053225427270452236,
+            "derivative": 0
+          },
+          {
+            "location": 0.07896186418523429,
+            "value": 0.072,
+            "derivative": 0
+          },
+          {
+            "location": 0.10079873233066206,
+            "value": 0.19800802886104754,
+            "derivative": 0
+          },
+          {
+            "location": 0.13676533868783816,
+            "value": 0.23,
+            "derivative": 0
+          },
+          {
+            "location": 0.17273194504501424,
+            "value": 0.3577681409610177,
+            "derivative": 0
+          },
+          {
+            "location": 0.23438898451445841,
+            "value": 0.38772316197976187,
+            "derivative": 0
+          },
+          {
+            "location": 0.2665020259047942,
+            "value": 0.5325057635703576,
+            "derivative": 0
+          },
+          {
+            "location": 0.34,
+            "value": 0.5656221260946868,
+            "derivative": 0
+          },
+          {
+            "location": 0.4,
+            "value": 0.7459135514914128,
+            "derivative": 0.09838292737042877
+          },
+          {
+            "location": 0.6320222622401517,
+            "value": 0.8426675039419397,
+            "derivative": 0.7367765729832989
+          },
+          {
+            "location": 0.953557190932748,
+            "value": 1.3034812477103055,
+            "derivative": 2.650176228977901
+          },
+          {
+            "location": 1.236636844332311,
+            "value": 3.249141950234568,
+            "derivative": 11.062042422762687
+          },
+          {
+            "location": 1.274425255713071,
+            "value": 3.940363333744151,
+            "derivative": 44.120242722438554
+          }
+        ]
+      }
+    }
+  }
+  }
+}

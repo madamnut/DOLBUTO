@@ -1,0 +1,28 @@
+{
+    "type": "minecraft:simple_block",
+    "config": {
+        "to_place": {
+            "type": "minecraft:weighted_state_provider",
+            "entries": [
+                {
+                    "data": {
+                        "Name": "minecraft:pink_tulip"
+                    },
+                    "weight": 1
+                },
+                {
+                    "data": {
+                        "Name": "minecraft:white_tulip"
+                    },
+                    "weight": 1
+                },
+                {
+                    "data": {
+                        "Name": "minecraft:peony"
+                    },
+                    "weight": 1
+                }
+            ]
+        }
+    }
+}

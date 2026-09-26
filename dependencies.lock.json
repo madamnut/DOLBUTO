@@ -1,0 +1,106 @@
+[
+  {
+    "name": "sdl",
+    "repository": "libsdl-org/SDL",
+    "version": "release-3.4.16",
+    "commit": "fa2c02bb6e21974a89ea9824bc53c9932abe5f9c",
+    "url": "https://codeload.github.com/libsdl-org/SDL/tar.gz/fa2c02bb6e21974a89ea9824bc53c9932abe5f9c",
+    "sha256": "d246967187a4f37cc850608dbaf5cff9d1df4d731259903d25539755cdfcc657"
+  },
+  {
+    "name": "rmlui",
+    "repository": "mikke89/RmlUi",
+    "version": "6.3",
+    "commit": "ba95ffe8bfb6370efb2cdcca927eaad4710c5413",
+    "url": "https://codeload.github.com/mikke89/RmlUi/tar.gz/ba95ffe8bfb6370efb2cdcca927eaad4710c5413",
+    "sha256": "1541ef5577115e9368f8ed389b29f0925ef6572f326a33d378ea16c3cfa2cde8"
+  },
+  {
+    "name": "vma",
+    "repository": "GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator",
+    "version": "v3.4.0",
+    "commit": "3aa921224c154a0d2c43912bc88e1c42ce1f7607",
+    "url": "https://codeload.github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/tar.gz/3aa921224c154a0d2c43912bc88e1c42ce1f7607",
+    "sha256": "5935dc47d8659bb681f1b7218f903ec171d10c39509752fd64eb2c9daf601ced"
+  },
+  {
+    "name": "volk",
+    "repository": "zeux/volk",
+    "version": "1.4.350",
+    "commit": "3ca312a4f38baa63d8006b6905abbeeb89c8087d",
+    "url": "https://codeload.github.com/zeux/volk/tar.gz/3ca312a4f38baa63d8006b6905abbeeb89c8087d",
+    "sha256": "8c938b390b234ddee57c01d47933e708e5bf6f51ce8601b9e93154173c6ad5a1"
+  },
+  {
+    "name": "vulkan_headers",
+    "repository": "KhronosGroup/Vulkan-Headers",
+    "version": "v1.4.350",
+    "commit": "8864cdc896bbc2a9b6eb36b3218fc9ef57908d77",
+    "url": "https://codeload.github.com/KhronosGroup/Vulkan-Headers/tar.gz/8864cdc896bbc2a9b6eb36b3218fc9ef57908d77",
+    "sha256": "35824117f649befc664a12622bc801eddbba036ac03d906db400ee1c1e7903e9"
+  },
+  {
+    "name": "glm",
+    "repository": "g-truc/glm",
+    "version": "1.0.3",
+    "commit": "8d1fd52e5ab5590e2c81768ace50c72bae28f2ed",
+    "url": "https://codeload.github.com/g-truc/glm/tar.gz/8d1fd52e5ab5590e2c81768ace50c72bae28f2ed",
+    "sha256": "36eefbae41503e6822e8d9e1b4cc85c6a6621f17676f6258aaf0a64c2de0a09c"
+  },
+  {
+    "name": "imgui",
+    "repository": "ocornut/imgui",
+    "version": "v1.92.9b",
+    "commit": "f1cc2ae15e53a861a874c3034aae6798fde194ab",
+    "url": "https://codeload.github.com/ocornut/imgui/tar.gz/f1cc2ae15e53a861a874c3034aae6798fde194ab",
+    "sha256": "f30be7f3e2136615b1848a9afb72f6dfd8a60820ddf1c1a85997bf3b722e7cfc"
+  },
+  {
+    "name": "tracy",
+    "repository": "wolfpld/tracy",
+    "version": "v0.14.1",
+    "commit": "30997d5ca6bb632cc10807a1da8a6d3de0aeeb3c",
+    "url": "https://codeload.github.com/wolfpld/tracy/tar.gz/30997d5ca6bb632cc10807a1da8a6d3de0aeeb3c",
+    "sha256": "e9d527343623435de954a72ad211a1ae4b205cb877d5cc81b8bd505aac0a2cde"
+  },
+  {
+    "name": "freetype",
+    "repository": "freetype/freetype",
+    "version": "VER-2-14-1",
+    "commit": "526ec5c47b9ebccc4754c85ac0c0cdf7c85a5e9b",
+    "url": "https://codeload.github.com/freetype/freetype/tar.gz/526ec5c47b9ebccc4754c85ac0c0cdf7c85a5e9b",
+    "sha256": "d24f53b60034dc5c48e90d122d432a8f04a05b9e0a98c8d8e49b4a759207ce2e"
+  },
+  {
+    "name": "stb",
+    "repository": "nothings/stb",
+    "version": "2c980bb59875b0d32144a71867fbdebb2f77cd20",
+    "commit": "2c980bb59875b0d32144a71867fbdebb2f77cd20",
+    "url": "https://codeload.github.com/nothings/stb/tar.gz/2c980bb59875b0d32144a71867fbdebb2f77cd20",
+    "sha256": "9a955b1b49a4410088a2e0ee2a9c057c3c907d0c1d75454144cb980aca0ba515"
+  },
+  {
+    "name": "fastnoise2",
+    "repository": "Auburn/FastNoise2",
+    "version": "v1.1.1",
+    "commit": "903c1f2d2f9d53ddce94cd223f32727d9ab3aeaa",
+    "url": "https://codeload.github.com/Auburn/FastNoise2/tar.gz/903c1f2d2f9d53ddce94cd223f32727d9ab3aeaa",
+    "sha256": "1e756769d1739d67dd6ca3292dc8dd1a63f04ef2e7f01698deffc8f7a140e143"
+  },
+  {
+    "name": "fastsimd",
+    "repository": "Auburn/FastSIMD",
+    "version": "16450dae9528727e500e7254f635a671f9c7ee2d",
+    "commit": "16450dae9528727e500e7254f635a671f9c7ee2d",
+    "url": "https://codeload.github.com/Auburn/FastSIMD/tar.gz/16450dae9528727e500e7254f635a671f9c7ee2d",
+    "sha256": "b789e0430a812cf73d51ea6b884000ae4d7d1035218678b2e44eb6635bb87b3e"
+  },
+  {
+    "name": "json",
+    "repository": "nlohmann/json",
+    "version": "v3.12.0",
+    "commit": "55f93686c01528224f448c19128836e7df245f72",
+    "url": "https://codeload.github.com/nlohmann/json/tar.gz/55f93686c01528224f448c19128836e7df245f72",
+    "sha256": "67f4cdd9ca930c9c1e130af4a437c7fc98fab77a2846fc2d2a14b4943831f8ef"
+  }
+]

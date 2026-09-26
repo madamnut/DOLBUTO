@@ -1,0 +1,23 @@
+{
+    "type": "minecraft:simple_block",
+    "config": {
+        "to_place": {
+            "type": "minecraft:noise_provider",
+            "noise": {
+                "amplitudes": [
+                    1,
+                    1,
+                    1
+                ],
+                "firstOctave": -7
+            },
+            "scale": 1,
+            "seed": 69420,
+            "states": [
+                {
+                    "Name": "minecraft:rose_bush"
+                }
+            ]
+        }
+    }
+}

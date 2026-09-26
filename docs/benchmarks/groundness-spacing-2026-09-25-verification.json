@@ -1,0 +1,22 @@
+{
+  "unchanged_maps": 24,
+  "unchanged_octave_views": 8,
+  "new_spacings": [
+    4096.0,
+    2048.0,
+    1024.0,
+    512.0
+  ],
+  "custom_spacings": [
+    4096.0,
+    768.5,
+    320.25,
+    512.0
+  ],
+  "octave_reconstruction_max_error": 1.2012606021016836e-07,
+  "rejected_invalid_configs": 11,
+  "arbitrary_spacing_period": "exact endpoints",
+  "max_octaves": 16,
+  "roundtrip": "draft and publish passed",
+  "user_files": "unchanged"
+}

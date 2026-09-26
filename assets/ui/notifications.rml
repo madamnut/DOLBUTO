@@ -1,0 +1,6 @@
+<rml>
+<head><title>Notifications</title><link type="text/rcss" href="notifications.rcss" /></head>
+<body>
+  <div id="screenshot-notice"></div>
+</body>
+</rml>

@@ -1,0 +1,85 @@
+{
+  "biomes": [
+    "minecraft:flower_forest",
+    "terraforged:flower_plains"
+  ],
+  "match": [
+    [
+      "minecraft:birch_log",
+      "minecraft:birch_leaves",
+      "minecraft:oak_log",
+      "minecraft:oak_leaves"
+    ]
+  ],
+  "replace": {
+    "config": {
+      "feature": {
+        "config": {
+          "features": [
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:birch_forest"
+                },
+                "type": "terraforged:template"
+              },
+              "chance": 0.2
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:birch_large"
+                },
+                "type": "terraforged:template"
+              },
+              "chance": 0.2
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:oak_forest"
+                },
+                "type": "terraforged:template"
+              },
+              "chance": 0.2
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:oak_large"
+                },
+                "type": "terraforged:template"
+              },
+              "chance": 0.2
+            }
+          ],
+          "default": {
+            "config": {
+              "template": "terraforged:birch_forest"
+            },
+            "type": "terraforged:template"
+          }
+        },
+        "type": "minecraft:random_selector"
+      },
+      "decorator": {
+        "config": {
+          "placement": {
+            "config": {
+              "radius": 8,
+              "scale": 0.2,
+              "jitter": 0.8,
+              "biome_fade": 0.1,
+              "density_scale": 500,
+              "density_variation": 0.75
+            },
+            "type": "terraforged:fast_poisson_surface"
+          },
+          "filter": "biome"
+        },
+        "type": "terraforged:filter"
+      }
+    },
+    "type": "minecraft:decorated"
+  }
+}

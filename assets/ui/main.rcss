@@ -1,0 +1,22 @@
+body { display: block; width: 100%; height: 100%; margin: 0; font-family: Noto Sans KR; font-size: 16dp; color: #eceee4; background-color: #101917; }
+div { display: block; }
+#screen { display: flex; width: 100%; height: 100%; justify-content: center; align-items: center; }
+#menu-stack { width: 320dp; max-width: 85%; }
+.menu-button { display: block; box-sizing: border-box; width: 100%; padding: 16dp 20dp; margin: 8dp 0; background-color: #223029; border: 1dp #53664a; color: #eceee4; font-family: Noto Sans KR; font-size: 20dp; text-align: center; cursor: pointer; }
+.menu-button:hover, .menu-button:focus { background-color: #344537; border-color: #c5d990; }
+#play { background-color: #c5d990; border-color: #c5d990; color: #1b281a; }
+#play:hover, #play:focus { background-color: #daecaa; }
+#options-panel { display: none; width: 380dp; max-width: 85%; }
+body.options-open #menu-stack { display: none; }
+body.options-open #options-panel { display: block; }
+#options-title { font-size: 28dp; text-align: center; margin-bottom: 32dp; }
+#menu-distance-label { margin-bottom: 16dp; }
+#menu-distance-controls { display: flex; align-items: center; width: 100%; }
+#menu-distance-controls button { display: block; flex-shrink: 0; width: 32dp; height: 32dp; font-family: Noto Sans KR; font-size: 20dp; color: #e5eddd; background-color: #3b5036; text-align: center; cursor: pointer; }
+#menu-distance-controls button:hover, #menu-distance-controls button:focus { background-color: #5c7452; }
+#menu-render-distance { display: block; flex-grow: 1; width: 0; height: 32dp; margin: 0 12dp; cursor: pointer; }
+#menu-render-distance slidertrack { height: 6dp; margin-top: 13dp; background-color: #53664a; }
+#menu-render-distance sliderbar { width: 14dp; height: 28dp; margin-top: 2dp; background-color: #c5d990; }
+#menu-render-distance sliderbar:hover { background-color: #e0efb4; }
+#menu-render-distance sliderarrowdec, #menu-render-distance sliderarrowinc { width: 0; height: 0; }
+#options-help { font-size: 13dp; color: #bec9b9; margin: 16dp 0 32dp; }

@@ -1,42 +1,24 @@
-# Build output
-build/
-out/
-
-# Distribution output
-dist/
-
-# CMake
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-compile_commands.json
-
-# Ninja
-.ninja_deps
-.ninja_log
-
-# Visual Studio local files
-.vs/
-*.user
-*.suo
-
-# Binaries
-*.exe
-*.obj
-*.pdb
-*.ilk
-
-# Runtime world saves
-saves/
-logs/
+/.cache/
+/.tools/
+/build/
+/out/
+/CMakeUserPresets.json
+/compile_commands.json
+/.vs/
+*.rcc
+*.rdc
+imgui.ini
 screenshots/
-assets/textures/item/generated/
 
-# Local references
-ref/
+/worldgen.json
+/worldgen.json.tmp
 
-# OS / editor noise
-Thumbs.db
-.DS_Store
-*.tmp
-*.log
+/settings.json
+/settings.json.tmp
+
+/worldgen.draft.json
+/worldgen.draft.json.tmp
+/worldgen-backups/
+
+# Local Minecraft research sources and tooling; never publish or package.
+/ref/MCP-Reborn/

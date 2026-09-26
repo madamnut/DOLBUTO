@@ -1,0 +1,117 @@
+{
+  "biomes": [
+    "minecraft:birch_forest",
+    "minecraft:birch_forest_hills",
+    "minecraft:tall_birch_forest",
+    "minecraft:tall_birch_hills"
+  ],
+  "match": [
+    [
+      "minecraft:birch_log",
+      "minecraft:birch_leaves"
+    ]
+  ],
+  "replace": {
+    "config": {
+      "feature": {
+        "config": {
+          "features": [
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:birch_large"
+                },
+                "type": "terraforged:template"
+              },
+              "context": {
+                "chance": 0.2,
+                "elevation": {
+                  "from": 0.25,
+                  "to": 0.0,
+                  "exclusive": false
+                },
+                "biome": {
+                  "from": 0.1,
+                  "to": 0.3,
+                  "exclusive": false
+                }
+              }
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:birch_forest"
+                },
+                "type": "terraforged:template"
+              },
+              "context": {
+                "chance": 0.2,
+                "elevation": {
+                  "from": 0.3,
+                  "to": 0.0,
+                  "exclusive": false
+                },
+                "biome": {
+                  "from": 0.05,
+                  "to": 0.2,
+                  "exclusive": false
+                }
+              }
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:birch_small"
+                },
+                "type": "terraforged:template"
+              },
+              "context": {
+                "chance": 0.1,
+                "biome": {
+                  "from": 0.25,
+                  "to": 0.0,
+                  "exclusive": false
+                }
+              }
+            },
+            {
+              "feature": {
+                "config": {
+                  "template": "terraforged:birch_small"
+                },
+                "type": "terraforged:template"
+              },
+              "context": {
+                "chance": 0.1,
+                "elevation": {
+                  "from": 0.25,
+                  "to": 0.65,
+                  "exclusive": false
+                }
+              }
+            }
+          ]
+        },
+        "type": "terraforged:context_selector"
+      },
+      "decorator": {
+        "config": {
+          "placement": {
+            "config": {
+              "radius": 6,
+              "scale": 0.25,
+              "jitter": 0.8,
+              "biome_fade": 0.25,
+              "density_scale": 175,
+              "density_variation": 0.9
+            },
+            "type": "terraforged:fast_poisson_surface"
+          },
+          "filter": "biome"
+        },
+        "type": "terraforged:filter"
+      }
+    },
+    "type": "minecraft:decorated"
+  }
+}

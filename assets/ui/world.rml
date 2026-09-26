@@ -1,0 +1,243 @@
+<rml>
+  <head>
+    <title>World</title>
+    <link type="text/rcss" href="world.rcss" />
+    <link type="text/rcss" href="options.rcss" />
+  </head>
+  <body>
+    <div id="crosshair">+</div>
+    <div id="hotbar">
+      <div id="block-picker">
+        <div id="block-1" class="block-slot selected">
+          <img class="slot-frame" src="../textures/ui/hotbar_slot.png" />
+          <img class="block-icon" src="../textures/blocks/dirt.png" />
+          <img class="slot-selection" src="../textures/ui/hotbar_selection.png" />
+        </div>
+        <div id="block-2" class="block-slot">
+          <img class="slot-frame" src="../textures/ui/hotbar_slot.png" />
+          <img class="block-icon" src="../textures/blocks/grass_side.png" />
+          <img class="slot-selection" src="../textures/ui/hotbar_selection.png" />
+        </div>
+        <div id="block-3" class="block-slot">
+          <img class="slot-frame" src="../textures/ui/hotbar_slot.png" />
+          <img class="block-icon" src="../textures/blocks/rock.png" />
+          <img class="slot-selection" src="../textures/ui/hotbar_selection.png" />
+        </div>
+        <div id="block-4" class="block-slot">
+          <img class="slot-frame" src="../textures/ui/hotbar_slot.png" />
+          <img class="block-icon" src="../textures/blocks/sand.png" />
+          <img class="slot-selection" src="../textures/ui/hotbar_selection.png" />
+        </div>
+        <div id="block-5" class="block-slot">
+          <img class="slot-frame" src="../textures/ui/hotbar_slot.png" />
+          <div class="block-icon glow-icon" />
+          <img class="slot-selection" src="../textures/ui/hotbar_selection.png" />
+        </div>
+        <div id="block-6" class="block-slot">
+          <img class="slot-frame" src="../textures/ui/hotbar_slot.png" />
+          <img class="block-icon" src="../textures/fluid/water.png" />
+          <img class="slot-selection" src="../textures/ui/hotbar_selection.png" />
+        </div>
+        <div id="block-7" class="block-slot">
+          <img class="slot-frame" src="../textures/ui/hotbar_slot.png" />
+          <img class="block-icon" src="../textures/fluid/lava.png" />
+          <img class="slot-selection" src="../textures/ui/hotbar_selection.png" />
+        </div>
+        <div id="block-8" class="block-slot">
+          <img class="slot-frame" src="../textures/ui/hotbar_slot.png" />
+          <img class="block-icon" src="../textures/blocks/ice.png" />
+          <img class="slot-selection" src="../textures/ui/hotbar_selection.png" />
+        </div>
+        <div id="block-9" class="block-slot">
+          <img class="slot-frame" src="../textures/ui/hotbar_slot.png" />
+          <img class="block-icon" src="../textures/blocks/snow.png" />
+          <img class="slot-selection" src="../textures/ui/hotbar_selection.png" />
+        </div>
+        <div id="block-10" class="block-slot">
+          <img class="slot-frame" src="../textures/ui/hotbar_slot.png" />
+          <img class="slot-selection" src="../textures/ui/hotbar_selection.png" />
+        </div>
+      </div>
+    </div>
+    <div id="pause-overlay">
+      <div id="pause-panel">
+        <div class="pause-title">일시정지</div>
+        <button id="resume" class="pause-button">게임으로 돌아가기</button>
+        <button id="pause-options" class="pause-button">옵션</button>
+        <button id="return-menu" class="pause-button">시작 화면으로</button>
+      </div>
+      <div id="settings-panel" class="settings-panel">
+        <div class="settings-header">
+          <div id="settings-title">옵션</div>
+          <div class="settings-caption">그래픽 설정</div>
+        </div>
+        <div class="settings-body">
+          <div class="settings-sidebar">
+            <button id="settings-tab-display" class="settings-tab active">화면</button>
+            <button id="settings-tab-water" class="settings-tab">물</button>
+            <button id="settings-tab-clouds" class="settings-tab">구름</button>
+            <button id="settings-tab-shadows" class="settings-tab">그림자</button>
+            <button id="settings-tab-lighting" class="settings-tab">대기·빛</button>
+          </div>
+          <div id="settings-content" class="settings-content">
+            <div id="settings-page-display" class="settings-page active">
+              <div class="graphics-title">화면</div>
+              <div id="distance-label">렌더 거리 · 12컬럼 (192블록)</div>
+              <div id="distance-controls">
+                <button id="distance-less">−</button>
+                <input id="render-distance" type="range" min="1" max="64" step="1" value="12" />
+                <button id="distance-more">+</button>
+              </div>
+              <label class="option-toggle" for="graphics-lod">
+                <input id="graphics-lod" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">먼 지형 (LOD)</span></label>
+              <div id="graphics-lod_distance-label" class="option-label">먼 지형 거리 (컬럼) · 128</div>
+              <div class="option-row">
+                <input id="graphics-lod_distance" class="option-range" type="range" min="16" max="256" step="1" value="128" />
+                <input id="graphics-lod_distance-number" class="option-number" type="text" maxlength="3" value="128" />
+              </div>
+              <div class="option-help">1컬럼 = 16블록 · 가만히 있어도 주변을 채워요. 이번 실행 동안만 지형을 보관해요.</div>
+              <div id="fov-label" class="option-label">수직 시야각 · 75°</div>
+              <div class="option-row">
+                <input id="fov" class="option-range" type="range" min="30" max="110" step="1" value="75" />
+                <input id="fov-number" class="option-number" type="text" maxlength="3" value="75" />
+              </div>
+              <label class="option-toggle" for="view-bobbing">
+                <input id="view-bobbing" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">걷기 화면 흔들림</span></label>
+              <div class="option-help">걷거나 달릴 때 화면이 발걸음에 맞춰 움직여요.</div>
+              <label class="option-toggle" for="vsync">
+                <input id="vsync" class="option-check" type="checkbox" />
+                <span class="option-text">VSync · 모니터에 동기화</span></label>
+              <div id="fps-label" class="option-label">최대 FPS · 무제한</div>
+              <div class="option-row">
+                <input id="fps" class="option-range" type="range" min="30" max="500" step="1" value="120" disabled="disabled" />
+                <input id="fps-number" class="option-number" type="text" maxlength="3" value="120" disabled="disabled" />
+              </div>
+              <label class="option-toggle" for="fps-unlimited">
+                <input id="fps-unlimited" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">무제한</span></label>
+              <div id="fps-help" class="option-help">30~500 FPS · 무제한을 해제하면 숫자를 입력할 수 있어요.</div>
+              <div class="option-help">시야각과 FPS 숫자는 Enter 또는 다른 곳을 클릭하면 적용돼요. VSync를 켜면 수동 FPS 조절이 잠겨요.</div>
+            </div>
+            <div id="settings-page-water" class="settings-page">
+              <div class="graphics-title">물</div>
+              <label class="option-toggle" for="water-enabled">
+                <input id="water-enabled" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">고급 물 효과</span></label>
+              <label class="option-toggle water-child" for="water-depth">
+                <input id="water-depth" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">깊이에 따른 색·투명도</span></label>
+              <label class="option-toggle water-child" for="water-waves">
+                <input id="water-waves" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">잔물결</span></label>
+              <label class="option-toggle water-child" for="water-ssr">
+                <input id="water-ssr" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">반사 · 하늘·구름·SSR</span></label>
+              <label class="option-toggle water-child" for="water-refraction">
+                <input id="water-refraction" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">굴절</span></label>
+              <label class="option-toggle water-child" for="water-foam">
+                <input id="water-foam" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">물가 거품</span></label>
+              <label class="option-toggle water-child" for="water-caustics">
+                <input id="water-caustics" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">수중 빛 무늬</span></label>
+              <label class="option-toggle water-child" for="water-underwater-fog">
+                <input id="water-underwater-fog" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">수중 색감·안개</span></label>
+              <div class="option-help">물속 빛 무늬는 물 안팎에서 보이고, 수중 안개는 멀리 있는 풍경을 부드럽게 흐려요. 수면 위 굴절·물가 거품은 깊이 표현이 필요하며, 굴절은 잔물결과 함께 사용해요. 반사는 물속에서도 보이고, 거품은 물 위에서만 보여요.</div>
+            </div>
+            <div id="settings-page-clouds" class="settings-page">
+              <div class="graphics-title">구름</div>
+              <label class="option-toggle" for="graphics-clouds">
+                <input id="graphics-clouds" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">입체 구름</span></label>
+              <label class="option-toggle" for="graphics-cloud_shadows">
+                <input id="graphics-cloud_shadows" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">구름 그림자</span></label>
+              <div id="graphics-cloud_quality-label" class="option-label">구름 품질 · 2</div>
+              <div class="option-row">
+                <input id="graphics-cloud_quality" class="option-range" type="range" min="1" max="3" step="1" value="2" />
+                <input id="graphics-cloud_quality-number" class="option-number" type="text" maxlength="4" value="2" />
+              </div>
+              <div id="graphics-cloud_altitude-label" class="option-label">구름 중심 높이 (블록) · 640</div>
+              <div class="option-row">
+                <input id="graphics-cloud_altitude" class="option-range" type="range" min="320" max="1024" step="1" value="640" />
+                <input id="graphics-cloud_altitude-number" class="option-number" type="text" maxlength="4" value="640" />
+              </div>
+              <div id="graphics-cloud_coverage-label" class="option-label">구름 양 (%) · 50</div>
+              <div class="option-row">
+                <input id="graphics-cloud_coverage" class="option-range" type="range" min="0" max="100" step="1" value="50" />
+                <input id="graphics-cloud_coverage-number" class="option-number" type="text" maxlength="4" value="50" />
+              </div>
+              <div id="graphics-cloud_speed-label" class="option-label">구름 이동 속도 (블록/초) · 4</div>
+              <div class="option-row">
+                <input id="graphics-cloud_speed" class="option-range" type="range" min="0" max="20" step="1" value="4" />
+                <input id="graphics-cloud_speed-number" class="option-number" type="text" maxlength="4" value="4" />
+              </div>
+              <div class="option-help">게임 중 − / = 키로 구름 양을 1%씩 조절해요. 길게 누르면 계속 바뀌어요. 범위 0~100%이며 50%가 기본 구름 양이에요. 품질에 따라 구름층 두께와 세부 모양도 달라져요. 구름 그림자는 구름을 켰을 때 적용돼요.</div>
+            </div>
+            <div id="settings-page-shadows" class="settings-page">
+              <div class="graphics-title">그림자</div>
+              <label class="option-toggle" for="graphics-shadows">
+                <input id="graphics-shadows" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">태양·밤빛 방향 그림자</span></label>
+              <div id="graphics-shadow_distance-label" class="option-label">그림자 거리 (블록) · 192</div>
+              <div class="option-row">
+                <input id="graphics-shadow_distance" class="option-range" type="range" min="32" max="512" step="1" value="192" />
+                <input id="graphics-shadow_distance-number" class="option-number" type="text" maxlength="4" value="192" />
+              </div>
+              <div id="graphics-shadow_quality-label" class="option-label">그림자 품질 · 2</div>
+              <div class="option-row">
+                <input id="graphics-shadow_quality" class="option-range" type="range" min="1" max="3" step="1" value="2" />
+                <input id="graphics-shadow_quality-number" class="option-number" type="text" maxlength="4" value="2" />
+              </div>
+              <div class="option-help">카메라 근처에 해상도를 집중하는 그림자예요. 기본 거리 192블록, 품질 1: 1024² · 2: 2048² · 3: 4096². 매 프레임 갱신하며 TAA로 경계를 안정화해요. 불러온 지형 안에서 적용돼요.</div>
+            </div>
+            <div id="settings-page-lighting" class="settings-page">
+              <div class="graphics-title">대기·빛</div>
+              <label class="option-toggle" for="graphics-atmosphere">
+                <input id="graphics-atmosphere" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">하늘 색·노을·대기 산란</span></label>
+              <label class="option-toggle" for="graphics-sun_moon">
+                <input id="graphics-sun_moon" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">태양·달</span></label>
+              <label class="option-toggle" for="graphics-stars">
+                <input id="graphics-stars" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">별</span></label>
+              <div class="option-help">태양·달은 조명 방향을 따라 움직이고 구름 뒤로 가려져요. 달은 보름달이며 별은 밤에 보여요. 표시를 꺼도 월드 조명은 유지돼요.</div>
+              <label class="option-toggle" for="graphics-fog">
+                <input id="graphics-fog" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">거리·높이 안개</span></label>
+              <label class="option-toggle" for="graphics-shafts">
+                <input id="graphics-shafts" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">빛줄기</span></label>
+              <label class="option-toggle" for="graphics-taa">
+                <input id="graphics-taa" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">TAA · 화면과 그림자 깜빡임 완화</span></label>
+              <label class="option-toggle" for="graphics-bloom">
+                <input id="graphics-bloom" class="option-check" type="checkbox" checked="checked" />
+                <span class="option-text">블룸 · 밝은 빛 번짐</span></label>
+              <div id="graphics-shaft_quality-label" class="option-label">빛줄기 품질 · 2</div>
+              <div class="option-row">
+                <input id="graphics-shaft_quality" class="option-range" type="range" min="1" max="3" step="1" value="2" />
+                <input id="graphics-shaft_quality-number" class="option-number" type="text" maxlength="4" value="2" />
+              </div>
+              <div id="graphics-bloom_strength-label" class="option-label">블룸 강도 (%) · 12</div>
+              <div class="option-row">
+                <input id="graphics-bloom_strength" class="option-range" type="range" min="1" max="40" step="1" value="12" />
+                <input id="graphics-bloom_strength-number" class="option-number" type="text" maxlength="4" value="12" />
+              </div>
+              <div class="option-help">빛줄기는 방향 그림자를 켰을 때 적용돼요. 품질 1 낮음 · 2 보통 · 3 높음.</div>
+            </div>
+          </div>
+        </div>
+        <div class="settings-footer">
+          <div id="settings-help">변경하면 바로 적용되고 다음 실행에도 유지돼요.</div>
+          <button id="settings-back" class="settings-back">돌아가기</button>
+        </div>
+      </div>
+    </div>
+  </body>
+</rml>

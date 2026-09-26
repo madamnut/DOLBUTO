@@ -1,0 +1,28 @@
+{
+    "type": "minecraft:simple_block",
+    "config": {
+        "to_place": {
+            "type": "minecraft:noise_provider",
+            "noise": {
+                "amplitudes": [
+                    0.9,
+                    1
+                ],
+                "firstOctave": -7
+            },
+            "scale": 1,
+            "seed": 0,
+            "states": [
+                {
+                    "Name": "minecraft:white_tulip"
+                },
+                {
+                    "Name": "minecraft:orange_tulip"
+                },
+                {
+                    "Name": "minecraft:poppy"
+                }
+            ]
+        }
+    }
+}

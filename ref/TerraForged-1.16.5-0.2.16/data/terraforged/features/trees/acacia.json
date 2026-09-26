@@ -1,0 +1,70 @@
+{
+  "biomes": [
+    "minecraft:savanna",
+    "minecraft:savanna_plateau",
+    "minecraft:shattered_savanna",
+    "minecraft:shattered_savanna_plateau",
+    "terraforged:savanna_scrub",
+    "terraforged:shattered_savanna_scrub",
+    "terraforged:steppe"
+  ],
+  "match": [
+    [
+      "minecraft:acacia_log",
+      "minecraft:acacia_leaves"
+    ]
+  ],
+  "replace": {
+    "config": {
+      "feature": {
+        "config": {
+          "feature": {
+            "config": {
+              "features": [
+                {
+                  "feature": {
+                    "config": {
+                      "template": "terraforged:acacia_large"
+                    },
+                    "type": "terraforged:template"
+                  },
+                  "chance": 0.4
+                },
+                {
+                  "feature": {
+                    "config": {
+                      "template": "terraforged:acacia_small"
+                    },
+                    "type": "terraforged:template"
+                  },
+                  "chance": 0.15
+                }
+              ],
+              "default": {
+                "config": {
+                  "template": "terraforged:acacia_large"
+                },
+                "type": "terraforged:template"
+              }
+            },
+            "type": "minecraft:random_selector"
+          },
+          "decorator": {
+            "config": {},
+            "type": "minecraft:heightmap"
+          }
+        },
+        "type": "minecraft:decorated"
+      },
+      "decorator": {
+        "config": {
+          "count": 0,
+          "extra_chance": 0.225,
+          "extra_count": 1
+        },
+        "type": "minecraft:count_extra"
+      }
+    },
+    "type": "minecraft:decorated"
+  }
+}

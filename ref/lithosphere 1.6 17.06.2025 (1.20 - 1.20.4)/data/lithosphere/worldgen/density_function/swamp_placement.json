@@ -1,0 +1,143 @@
+//[df-editor]:{"pos":[1622,313],"collapsed":false}
+{
+  //[df-editor]:{"pos":[3756,570],"collapsed":false}
+  "type": "flat_cache",
+  "argument": {
+  //[df-editor]:{"pos":[1385,313],"collapsed":false}
+  "type": "cache_2d",
+  "argument": {
+    //[df-editor]:{"pos":[1106,319],"collapsed":false}
+    "type": "minecraft:spline",
+    "spline": {
+      "coordinate": {
+        //[df-editor]:{"pos":[876,321],"collapsed":false}
+        "type": "add",
+        "argument1": {
+          //[df-editor]:{"pos":[569,304],"collapsed":false}
+          "type": "add",
+          "argument1": {
+            //[df-editor]:{"pos":[165,-86],"collapsed":false}
+            "type": "minecraft:spline",
+            "spline": {
+              "coordinate": {
+                //[df-editor]:{"pos":[-453,-98],"collapsed":false}
+                "type": "noise",
+                "noise": "lithosphere:mesa_placement",
+                "xz_scale": 0.2,
+                "y_scale": 0
+              },
+              "points": [
+                {
+                  "location": 0,
+                  "value": 0,
+                  "derivative": 0
+                },
+                {
+                  "location": 0.5,
+                  "value": -2,
+                  "derivative": 0
+                }
+              ]
+            }
+          },
+          "argument2": {
+            //[df-editor]:{"pos":[248,329],"collapsed":false}
+            "type": "add",
+            "argument1": {
+              //[df-editor]:{"pos":[-27,275],"collapsed":false}
+              "type": "add",
+              "argument1": {
+                //[df-editor]:{"pos":[-356,282],"collapsed":false}
+                "type": "abs",
+                "argument": {
+                  //[df-editor]:{"pos":[-757,334],"collapsed":false}
+                  "type": "noise",
+                  "noise": "lithosphere:humidity",
+                  "xz_scale": 0.3,
+                  "y_scale": 0
+                }
+              },
+              "argument2": -0.2 //[df-editor]:{"pos":[-452,381],"collapsed":true}
+            },
+            "argument2": "lithosphere:erosion_detail" //[df-editor]:{"pos":[-1165,486],"collapsed":false}
+          }
+        },
+        "argument2": {
+          //[df-editor]:{"pos":[520,456],"collapsed":false}
+          "type": "add",
+          "argument1": {
+            //[df-editor]:{"pos":[-187,608],"collapsed":false}
+            "type": "minecraft:spline",
+            "spline": {
+              "coordinate": {
+                //[df-editor]:{"pos":[-430,613],"collapsed":false}
+                "type": "add",
+                "argument1": {
+                  //[df-editor]:{"pos":[-672,609],"collapsed":false}
+                  "type": "mul",
+                  "argument1": "lithosphere:erosion_detail", //[df-editor]:{"pos":[-1165,486],"collapsed":false}
+                  "argument2": 3 //[df-editor]:{"pos":[-1008,690],"collapsed":true}
+                },
+                "argument2": "lithosphere:orogeny" //[df-editor]:{"pos":[-880,806],"collapsed":false}
+              },
+              "points": [
+                {
+                  "location": 0.503565217391304,
+                  "value": 0.004347826086956719,
+                  "derivative": 0
+                },
+                {
+                  "location": 1.75,
+                  "value": -2,
+                  "derivative": 0
+                }
+              ]
+            }
+          },
+          "argument2": {
+            //[df-editor]:{"pos":[-198,940],"collapsed":false}
+            "type": "minecraft:spline",
+            "spline": {
+              "coordinate": "lithosphere:continents", //[df-editor]:{"pos":[-864,965],"collapsed":true}
+              "points": [
+                {
+                  "location": -0.3,
+                  "value": -1,
+                  "derivative": 0
+                },
+                {
+                  "location": -0.05,
+                  "value": 0,
+                  "derivative": 0.8344036966842363
+                },
+                {
+                  "location": 0.4101997289458542,
+                  "value": 0.15034429690187112,
+                  "derivative": 0
+                },
+                {
+                  "location": 2.0002734861642413,
+                  "value": -0.05276463848770696,
+                  "derivative": 0
+                }
+              ]
+            }
+          }
+        }
+      },
+      "points": [
+        {
+          "location": 0,
+          "value": 0,
+          "derivative": 0
+        },
+        {
+          "location": 0.1,
+          "value": 1,
+          "derivative": 0
+        }
+      ]
+    }
+  }
+  }
+}

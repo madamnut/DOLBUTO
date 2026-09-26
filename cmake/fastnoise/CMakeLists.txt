@@ -1,0 +1,38 @@
+# Use pinned local sources, without FastNoise2's CPM/bootstrap downloads.
+set(FASTSIMD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(FASTSIMD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory("${DEPS}/fastsimd" "${CMAKE_CURRENT_BINARY_DIR}/fastsimd-dependency" EXCLUDE_FROM_ALL)
+set(FastSIMD_SOURCE_DIR "${DEPS}/fastsimd")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/upstream.inl" "#include \"${DEPS}/fastnoise2/src/FastNoise/FastSIMD_Build.inl\"\n")
+# fastsimd_create_dispatch_library resolves SOURCES relative to this list directory.
+file(RELATIVE_PATH upstream_relative "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/upstream.inl")
+fastsimd_create_dispatch_library(FastSIMD_FastNoise RELAXED SOURCES "${upstream_relative}")
+fastsimd_create_dispatch_library(SandboxPeriodic RELAXED SOURCES "../../src/world/periodic_perlin.inl")
+foreach(target FastSIMD_FastNoise SandboxPeriodic)
+  target_include_directories(${target} SYSTEM PRIVATE "${DEPS}/fastnoise2/include" "${CMAKE_SOURCE_DIR}/src")
+  target_compile_definitions(${target} PRIVATE FASTNOISE_STATIC_LIB)
+  if(MSVC)
+    target_compile_options(${target} PRIVATE /fp:fast /GS-)
+  else()
+    target_compile_options(${target} PRIVATE -ffast-math)
+  endif()
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64|X86")
+    target_compile_options(${target} PRIVATE -mllvm -x86-use-vzeroupper=0)
+  endif()
+endforeach()
+add_library(FastNoise STATIC
+  "${DEPS}/fastnoise2/src/FastNoise/Metadata.cpp"
+  "${DEPS}/fastnoise2/src/FastNoise/SmartNode.cpp")
+target_include_directories(FastNoise SYSTEM PUBLIC "${DEPS}/fastnoise2/include")
+target_compile_definitions(FastNoise PUBLIC FASTNOISE_STATIC_LIB FASTNOISE2_VERSION="1.1.1")
+target_link_libraries(FastNoise PUBLIC FastSIMD FastSIMD_FastNoise)
+
+# Opt-in benchmark extension; never linked into world_core/game/editor.
+fastsimd_create_dispatch_library(BenchmarkPsrdSIMD RELAXED SOURCES "../../tools/benchmarks/psrd/psrd.inl" FEATURE_SETS AVX2)
+set_target_properties(BenchmarkPsrdSIMD PROPERTIES EXCLUDE_FROM_ALL TRUE)
+target_include_directories(BenchmarkPsrdSIMD SYSTEM PRIVATE "${DEPS}/fastnoise2/include")
+target_compile_definitions(BenchmarkPsrdSIMD PRIVATE FASTNOISE_STATIC_LIB)
+target_compile_options(BenchmarkPsrdSIMD PRIVATE /fp:fast /GS-)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  target_compile_options(BenchmarkPsrdSIMD PRIVATE -mllvm -x86-use-vzeroupper=0)
+endif()

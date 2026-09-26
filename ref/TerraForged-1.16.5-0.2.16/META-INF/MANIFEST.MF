@@ -1,0 +1,3490 @@
+Manifest-Version: 1.0
+Implementation-Title: TerraForged
+MixinConfigs: mixin.terraforged.json
+Implementation-Version: 1.16.5-0.2.16
+Specification-Vendor: TerraForged
+Specification-Title: TerraForged
+Implementation-Timestamp: 2022-10-23T16:41:08+0100
+Specification-Version: 1
+Implementation-Vendor: TerraForged
+
+Name: com/terraforged/mod/chunk/SetupFactory.class
+SHA-256-Digest: nyyWdUsbcf1yGzHWj4xxgGC8Ih4+EPCfAPwUEgUJsZw=
+
+Name: LICENSE/Noise2D.txt
+SHA-256-Digest: bUv3pZWeVJBxl3FQSH+31iMg53Y75UoR+1yGEGeky7U=
+
+Name: data/terraforged/structures/trees/acacia/large/acacia_2.nbt
+SHA-256-Digest: lO7w5HSPofT4LlrzL80MxKXJthrQ48l2R3VMWuCY6Tk=
+
+Name: com/terraforged/engine/settings/Settings.class
+SHA-256-Digest: MPvRnZHzeU4zTR4xMHgb4EDjVp+aGuV+651niola3BE=
+
+Name: data/terraforged/structures/trees/pine/scots_pine_small_1.nbt
+SHA-256-Digest: W/x8ZbCB+W4Hbf9rsmK0+O0yqbeVfwvOB60y6iK/I98=
+
+Name: com/terraforged/mod/util/nbt/NBTReader.class
+SHA-256-Digest: Twe1whX05byzsJsz6sAeC9srfrrQv9w0iFhLC+DUugg=
+
+Name: data/terraforged/structures/trees/birch/small/birch_bush_2.nbt
+SHA-256-Digest: 8KwcgVO6t9tN5gb9xl4su6J7yeiZb7t84+V1gZ8Xq8Q=
+
+Name: com/terraforged/mod/profiler/watchdog/WatchdogContext$1.class
+SHA-256-Digest: +uR3WMN8Pk5H9HPH40hoyce2Foi0lmVW6mMZqllBhnM=
+
+Name: com/terraforged/mod/util/TranslationKey.class
+SHA-256-Digest: F2vWozwa9DivkcCmbshFrlQETCxqMJaVCI77r+QZDsg=
+
+Name: com/terraforged/engine/concurrent/task/LazyCallable$CompleteAdap
+ ter.class
+SHA-256-Digest: +BwCp2DmqBtpRECExNIeOxpd19KuRrp/Kq7DwPsygfE=
+
+Name: com/terraforged/engine/world/terrain/region/RegionSelector.class
+SHA-256-Digest: MDooNulOAlvFpw48AHTMycVs1liRYDfktoWwkzQ6+Ag=
+
+Name: com/terraforged/mod/biome/provider/analyser/TFBiomeCollector.cla
+ ss
+SHA-256-Digest: e2krHeZh0LjC1jFT3A/HhW8jqDu6RjlLBJc/akT+wFk=
+
+Name: com/terraforged/mod/chunk/generator/Generator$Strongholds.class
+SHA-256-Digest: GSi2eaqeKj+aL8e+9pwXnJr+FrpYdErHy7Juhpvhsj0=
+
+Name: com/terraforged/mod/chunk/fix/RegionDelegate.class
+SHA-256-Digest: X7FB1bRtJQvWBY+za4HzZB0pL/qyXjTAy2Uy+ydc+Gc=
+
+Name: com/terraforged/mod/material/geology/GeoGenerator$Layer.class
+SHA-256-Digest: GC8AonJ9JDMp2PA0e2YFpvRCCrgIlq+CUa1kulhde5o=
+
+Name: com/terraforged/mod/structure/StructureTerrain.class
+SHA-256-Digest: CiO9yhsPm6z0+jXyPMZbY/t4VVuSy4OLnBOsh9at5CQ=
+
+Name: com/terraforged/mod/featuremanager/transformer/FeatureTransforme
+ r$1.class
+SHA-256-Digest: 5UxFL4YcRYPqKEbmLsR2aDQmBWahdnEn4EiqMxh2114=
+
+Name: data/terraforged/structures/trees/redwood/huge/redwood_massive_6
+ .nbt
+SHA-256-Digest: IfGTDw/L9SWfK9p/RLb6+UM0hFCtiE0tQOYLmyP6NzU=
+
+Name: data/terraforged/structures/trees/oak/small/oak_small_1.nbt
+SHA-256-Digest: N8tnkwgECwmbBtCj+W8WtWpcHVvGp7UoQlWjhwFaYzQ=
+
+Name: com/terraforged/mod/api/material/layer/LayerMaterial.class
+SHA-256-Digest: Vt0pfdMxnaQA9R/81ui3i4GlVKG7YF/jAeYqEgwKxiw=
+
+Name: com/terraforged/mod/featuremanager/template/template/BakedDimens
+ ions.class
+SHA-256-Digest: BNwH8KYCCHl2FMmtSF8l32/tknX4jm4oWUDj8+f1U/I=
+
+Name: com/terraforged/mod/featuremanager/util/identity/FeatureIdentifi
+ er.class
+SHA-256-Digest: o10IIfSXdMLT9Ijodaj92JlDPCAaohMK8z9xYs1bPyg=
+
+Name: com/terraforged/mod/featuremanager/template/decorator/Decorator$
+ Factory.class
+SHA-256-Digest: d5ZsSLQ0+UEIeyvn8PZLoLRLh/7XtD0m7X7dl++d9jY=
+
+Name: data/terraforged/structures/trees/oak/small/oak_bush_1.nbt
+SHA-256-Digest: VQDwgB/FccoQoZZpHeyE+oZ6Gl/VlKaStI2uJ19C4pk=
+
+Name: com/terraforged/engine/util/fastpoisson/Viewer.class
+SHA-256-Digest: lQEvB5OY1vgMNQe7UI7vk2Kvy8QrmkJnQM+6h/FI81o=
+
+Name: com/terraforged/noise/source/SimplexNoise2.class
+SHA-256-Digest: ZUFYOgpjpd/EHIQ84zQxWcRQ0RI94Sb5jr9kIRjmeZs=
+
+Name: com/terraforged/mod/api/material/state/DefaultState.class
+SHA-256-Digest: j7PipoE5cy0cavgF5+5GeLymX3uO13pnAWRQf7sYTuI=
+
+Name: com/terraforged/mod/api/biome/surface/builder/Delegate.class
+SHA-256-Digest: MCh9muq8Au6DztNnGJc+zcy7qUrJ6QgxTTt+QLI/ZdE=
+
+Name: com/terraforged/mod/api/material/state/CachedState.class
+SHA-256-Digest: bnRTbYFZGsQ6kdAJEV5IzjCM0Z1ksBMfTbSteJXoSSc=
+
+Name: com/terraforged/noise/modifier/Clamp.class
+SHA-256-Digest: KHOgPYgyzn/U9pBxkqmnTIv0fhX+kG2GBS8YCoofKzI=
+
+Name: com/terraforged/noise/source/CubicNoise.class
+SHA-256-Digest: xFIcuKwPffPPcigz1w7UWNKADYDKxia9pdcnhFi6Uyc=
+
+Name: data/terraforged/structures/trees/oak/huge/oak_big_2.nbt
+SHA-256-Digest: h2NnLzOB3c1UyTPjuLUif4vOE+Bak+4f3u7GRvl9j0E=
+
+Name: com/terraforged/mod/biome/surface/ForestSurface.class
+SHA-256-Digest: Hp8R3LvfRWiAyvZ51Ydy/rIfQi1e9QTb/+lcsx0ogpI=
+
+Name: data/terraforged/structures/trees/jungle/large/jungle_tall_3.nbt
+SHA-256-Digest: NHMmcXm3hxmwr5G+6u+R3BdD9oCIYzIHuezqZ2Y8ljI=
+
+Name: com/terraforged/engine/world/biome/modifier/BeachModifier.class
+SHA-256-Digest: J635TTbIL4rYZkK780gSYD4KmxYMsySR6d+ksoOeYUo=
+
+Name: com/terraforged/engine/render/RenderAPI.class
+SHA-256-Digest: KU4+lF2ex/6zULy5OTbVKC/6JZU41d4c4kEGide3Mo0=
+
+Name: com/terraforged/engine/world/continent/ContinentType.class
+SHA-256-Digest: xdReeNJQXgzY7CBLw0Rd1eOxhJsoAha3fcOiyVIRIM0=
+
+Name: com/terraforged/noise/source/CellEdgeNoise.class
+SHA-256-Digest: YgFdvnYV56+dAm3AdK1bjYXRrIhqKYNQ/+dMiwLsmAU=
+
+Name: com/terraforged/mod/featuremanager/modifier/FeatureModifiers.cla
+ ss
+SHA-256-Digest: 1IPphzwO5Ma068yqA1p3Q/h2Nuknq1F619X7k0ENu4Y=
+
+Name: com/terraforged/mod/data/gen/feature/Ores.class
+SHA-256-Digest: NscHkBduSVvIy3Glz1UOUIriTdAOEtetW6gLOJeceaA=
+
+Name: com/terraforged/noise/util/Vec2i.class
+SHA-256-Digest: GvJvyThtZN6UmBHpvDn1NnqeSjdiiBz30hIuFtd9Z/o=
+
+Name: data/terraforged/structures/trees/birch/large/birch_3.nbt
+SHA-256-Digest: w1d4k0LA+GyJQFFs34HHR/D+Y9vMB/cNICXQbXDKu3A=
+
+Name: data/terraforged/features/trees/willow.json
+SHA-256-Digest: +C0OGftqg4ghD/CJ5EbDkjFRvXerOZNNl3sV6CAx5bE=
+
+Name: com/terraforged/engine/render/RenderMode$1.class
+SHA-256-Digest: hI/47OF0M6bWZx8u86NKHC7+TYSF3FBzy9uQiBl54XA=
+
+Name: com/terraforged/engine/tile/chunk/ChunkWriter.class
+SHA-256-Digest: hNnS5eNOoWrsdpyXckY1Q2upfEb5UgBRVQ2ZkIXsAY8=
+
+Name: com/terraforged/engine/world/biome/TempCategory.class
+SHA-256-Digest: pRn5U2KZngMYplogv/NwTEzMVQbKK2dnZ+fcsfEU89I=
+
+Name: data/terraforged/templates/trees/jungle_small.json
+SHA-256-Digest: YRp5bRWMgvERFTDoIg/ourJU81WSNTmkKjEtHTf5XX4=
+
+Name: data/terraforged/structures/trees/dark_oak/small/dark_oak_bush_1
+ .nbt
+SHA-256-Digest: xdkuqeIjoA3qSdBtZpcom5/cfvmftTLAxX3IxK3OUBM=
+
+Name: com/terraforged/engine/world/WorldErosion$Validator.class
+SHA-256-Digest: 30QcRJnX7p+6MIBWCJZVyw9FO1BkLn8M/rO/2/0kuFY=
+
+Name: com/terraforged/mod/featuremanager/transformer/FeatureTransforme
+ r$Context.class
+SHA-256-Digest: 1g/s/aMl4s2uVTRFYJrj26H7q+yay1x/QmZ3NIkFuP8=
+
+Name: data/forge/tags/blocks/wg_sediment.json
+SHA-256-Digest: zEM+lSLkSGEPLMz1Zg9MLoxZH+0VzwkI3Kf/dPft7TA=
+
+Name: com/terraforged/mod/featuremanager/util/identity/Identifier.clas
+ s
+SHA-256-Digest: Did6k2WRoGzchMwi27z7Kf6/RmeG1YrE/93E2dsTm6c=
+
+Name: com/terraforged/mod/featuremanager/template/paste/Paste.class
+SHA-256-Digest: 4bxzHlOUFeZVy/YI055CET74d20PYPnRw3okDsyPOsM=
+
+Name: pack.mcmeta
+SHA-256-Digest: hz9QLCZeUAuye75CO5YuZrwqJacF9mZMcmQYKQxCvs4=
+
+Name: com/terraforged/engine/Seed.class
+SHA-256-Digest: aVxjRS2gcRawOUxfWb1sHmz8biHCIDWUv2lOj38eIHM=
+
+Name: com/terraforged/mod/featuremanager/transformer/FeatureTransforme
+ r$Builder.class
+SHA-256-Digest: FDLhHlQkGd2g20rnNjole3uonQ0wd4/HpKIdRkuDafU=
+
+Name: com/terraforged/mod/client/ClientEvents.class
+SHA-256-Digest: G1AR+ys9rNOih9oyv3+Ot7HcLzj4Xv3tbxTOI2x9DXw=
+
+Name: com/terraforged/mod/material/Materials.class
+SHA-256-Digest: sydtujvKiFGGbwsERmyIxJxOOvVskSTSrBFAh1OQQ8U=
+
+Name: com/terraforged/engine/world/biome/map/defaults/BiomeTemps.class
+SHA-256-Digest: Ws/dezRQuZ9iDROwFMt2OZ7a9RBHXI2EGBHbtgMbqt4=
+
+Name: com/terraforged/mod/featuremanager/template/StructureUtils.class
+SHA-256-Digest: uMiIs04e2+ZVf+ku+vliXND3woHgGJ9685LwfwKVfek=
+
+Name: com/terraforged/mod/profiler/Profiler$ProfilerSection.class
+SHA-256-Digest: TFoQdTaIpT6NgeS/ca0r/MVUwXZOcxU72NtEF+edi7I=
+
+Name: com/terraforged/noise/modifier/LegacyTerrace$Step.class
+SHA-256-Digest: bcuNgJIrjzifslmJN1Z6lyjIyDZWeEDZbr6ecx6nk0Y=
+
+Name: LICENSE/TerraForged.txt
+SHA-256-Digest: D2V0ePabx3I2Ud1V11umnnIIAr7hGzLbeqX8FyhAV/E=
+
+Name: com/terraforged/engine/settings/RiverSettings$River.class
+SHA-256-Digest: fTqddSLspVJUqgUkB9e2DkzWTSABrNtPZ2h+ecdBn8k=
+
+Name: com/terraforged/engine/serialization/serializer/AbstractWriter$1
+ .class
+SHA-256-Digest: QW+asbwpmoLsDogBTE2BwhLYNOBid1uJACmC+MSrD/Y=
+
+Name: com/terraforged/noise/modifier/Scale.class
+SHA-256-Digest: tX7JFmNva7b6Du+2WqjikSNw0OibrBrGOe0PK8i/IjE=
+
+Name: com/terraforged/mod/profiler/ProfilerPrinter.class
+SHA-256-Digest: WtVjtggTuG1iApD53F6fkNo4NxLAE1fMuSJC7ZuEGu8=
+
+Name: data/terraforged/features/shrubs/steppe_bush.json
+SHA-256-Digest: eB+IcvdP1iFyRMqV9blzU1E+fAu99Qa2fJYF7MrTMGs=
+
+Name: com/terraforged/engine/tile/Tile$FilterRegion.class
+SHA-256-Digest: gaCZF/a09bSOPb3Xr7sffc6YMrZ88CfcQux34IUzMS4=
+
+Name: com/terraforged/noise/func/EdgeFunc$3.class
+SHA-256-Digest: Hm/xvpDrP5krc3ZwnetjL3KMUyMx3iUh4xLc4fnw7zo=
+
+Name: com/terraforged/engine/world/biome/map/SimpleBiomeMap.class
+SHA-256-Digest: IiBu2Q8177rGepBPlI/yy1s2S9RyOZfwM4b11ggC5hU=
+
+Name: com/terraforged/engine/world/terrain/provider/StandardTerrainPro
+ vider.class
+SHA-256-Digest: wsM4cEfNfxUgT398zxDN+4XfnjrOVc9VbFbcI0h3umA=
+
+Name: com/terraforged/mod/biome/BiomeBuilders.class
+SHA-256-Digest: Z0FXf5WrqjbFPjtSSSduyN5+iCX/KMtd4Cn2IK/7oRs=
+
+Name: com/terraforged/engine/concurrent/Disposable.class
+SHA-256-Digest: gFDwQj9XQV34rXgFMv3IUmu+pYZD6SC7LpsPRBV13jY=
+
+Name: com/terraforged/mod/api/material/state/States.class
+SHA-256-Digest: jUrfIUJhr74D0c4bnoxos0kPnO/kDY3d4l+ZoCSjQ8c=
+
+Name: com/terraforged/engine/concurrent/cache/CacheManager.class
+SHA-256-Digest: go6AHgJC5xeFp3jtIOW3gIBTdFe0O1k2p7En/cf2jtU=
+
+Name: com/terraforged/mod/client/gui/element/TFLabel.class
+SHA-256-Digest: dS1yrI6dtAFtjexI6toGWNtAUCyBKF6vJWBQ0NZJW4U=
+
+Name: com/terraforged/mod/profiler/crash/test/CrashTestFeature$1.class
+SHA-256-Digest: jGkpTR7Naoo4McQrCMXMUcMBcis7jEhlcupTPU0o3V0=
+
+Name: com/terraforged/noise/modifier/AdvancedTerrace.class
+SHA-256-Digest: 0HA/YCI3DE8Hdaf14Zrpb2smLYTZTvnxEL30t7Qe2lU=
+
+Name: com/terraforged/engine/cell/Cell$1.class
+SHA-256-Digest: OqaDjXmNCvPvyOGGEUyYAMjKQKCUhW1n6SM3dmPSXRM=
+
+Name: com/terraforged/engine/render/RenderSettings.class
+SHA-256-Digest: VcFOT+LmLcVPeCXFtFFfbdhJ0VgOBwai7hKnRAFOo9k=
+
+Name: com/terraforged/engine/serialization/serializer/cereal/CerealWri
+ ter.class
+SHA-256-Digest: KAuG6NkOXTXBZk6sLBRiln682CEW5K5iZmORTSR/314=
+
+Name: com/terraforged/mod/api/biome/surface/Surface.class
+SHA-256-Digest: aKv7P0jYb9GG0im2VTKYfzDvx4qJ5UOOLI9Ku1+2NXQ=
+
+Name: com/terraforged/mod/featuremanager/util/codec/CodecHelper.class
+SHA-256-Digest: FtcHCLaHntu5BxZc3AKXogYvQBQpBECIoV7yiJNh5YA=
+
+Name: com/terraforged/mod/featuremanager/template/template/TemplateMan
+ ager.class
+SHA-256-Digest: 1MMJTZTbK1Dut5/jltuxQgy+WJ+LKMeZLINHEeORNAo=
+
+Name: com/terraforged/cereal/value/DataValue$1.class
+SHA-256-Digest: pL+Jda81oH4c6HkMB3JF4cTexqlEomMlzUCqVvPavRs=
+
+Name: com/terraforged/engine/module/Ridge$Mode$2.class
+SHA-256-Digest: /Egy1/Z1X+knrAIBsdHtwlPT1CPMclSA2PNFwl4nWq4=
+
+Name: com/terraforged/noise/modifier/LegacyTerrace.class
+SHA-256-Digest: DGUZ0L2Oy4VFDR+zo8akcM3nhSFBuKIeBAUCzCiYW0E=
+
+Name: data/terraforged/templates/trees/spruce_small.json
+SHA-256-Digest: YKKoszFVGCQWifOR8pE5Sc090p2Ze4a/r80CSO6tYnE=
+
+Name: com/terraforged/engine/concurrent/cache/map/Value.class
+SHA-256-Digest: RCuDMFRTQaOwczlgwksMpcbk0vc6ubeKK9EVdihFBFs=
+
+Name: com/terraforged/mod/featuremanager/util/identity/IdentityCache.c
+ lass
+SHA-256-Digest: sM3qUTz2WhU3t5wrLu3k/krl4I4aCzDi/WDMdajhMd0=
+
+Name: data/terraforged/features/trees/jungle_edge.json
+SHA-256-Digest: vsb80QNlANsUhxMKQgomJ0povqYChx/Gh7EjxvGLcGQ=
+
+Name: data/forge/tags/blocks/wg_dirt.json
+SHA-256-Digest: q1e9brMWZw2hbWHEYhyBw6gyUNOkeJU5uib6L5pHF/w=
+
+Name: com/terraforged/engine/tile/gen/TileGeneratorBatched.class
+SHA-256-Digest: M5eIrRL6Y3mq0/Tb48t3IocJanG+DfgvYKCpanPOi9Y=
+
+Name: com/terraforged/engine/serialization/annotation/Unstable.class
+SHA-256-Digest: W0+PXeardpe4svpAt/LapDW5X/P6QExy0VfAl5tNnFc=
+
+Name: com/terraforged/noise/Source.class
+SHA-256-Digest: LYlJxH4Z+aGDba7xX/U6P2ojQjd7flXouAYK02ryeD8=
+
+Name: com/terraforged/noise/combiner/Combiner.class
+SHA-256-Digest: +9WgN2UPTjhsiVRyXM2aRW1B/kpef4jfqfaNuP/lMms=
+
+Name: com/terraforged/engine/world/rivermap/gen/GenRiver.class
+SHA-256-Digest: iWzL+hRV33eTDHFvG0DouI7P+dM9NAv5UzNTHqgOnBY=
+
+Name: com/terraforged/mod/featuremanager/template/template/BakedTransf
+ orm.class
+SHA-256-Digest: a8vFnIZ2zF8Pti4o96hxGu7XMLbMqrHvE6oPU1JmIM0=
+
+Name: data/terraforged/structures/trees/jungle/small/jungle_small_3.nb
+ t
+SHA-256-Digest: ZNdQ2ackGi0snWoHcp0r9dkyc2PNnyku9hvi4JZ0BbQ=
+
+Name: data/terraforged/structures/trees/birch/small/birch_bush_1.nbt
+SHA-256-Digest: unw7K2KbIJ4ICGmOjjlvNTopRvZMWygUi7IJT2kX2Nw=
+
+Name: com/terraforged/cereal/serial/DataReader.class
+SHA-256-Digest: qNhgqI1ZDa0SJwgkI3p+O+tIWOZ9fzVe3PnAFvzCShw=
+
+Name: com/terraforged/mod/config/PerfDefaults.class
+SHA-256-Digest: ATvpVR7hYds+iimrXlmhlya72kfE9LuKBinU+9dDxVE=
+
+Name: com/terraforged/mod/api/event/SetupEvent$Layers.class
+SHA-256-Digest: zndbgAVww967Z/prTnKjvct5pw47KCzN/q32zq3i7fk=
+
+Name: data/terraforged/features/shrubs/birch_forest_grass.json
+SHA-256-Digest: 8dI20LNj2UC5CZFdjnOKXVnXxr5W0ighOXRbCLP0v6Q=
+
+Name: com/terraforged/engine/filter/Modifier$1.class
+SHA-256-Digest: 3SRWEUCb8x9E7mLKxmaydO10dRt/OLtbfLtZ1vIN/mI=
+
+Name: data/terraforged/features/trees/redwood.json
+SHA-256-Digest: AyEnqPt1T9VrbAJrJ7Rdaeopdjfp/dhTdXbaworR34I=
+
+Name: com/terraforged/mod/client/gui/screen/overlay/OverlayScreen$2.cl
+ ass
+SHA-256-Digest: PYxHslOTG2CTH56CcPlau5+zgrUlzJkWHKWKm4N2Poo=
+
+Name: com/terraforged/mod/structure/StructureSearch$ThreadResource.cla
+ ss
+SHA-256-Digest: 157Q9hv3JCkahq6L8BGTN+L4zCIg0Zs53WMk8e4zeVk=
+
+Name: com/terraforged/mod/featuremanager/biome/BiomeFeature.class
+SHA-256-Digest: zEkHtHDaymXJqaQ6ndbyoEx1lfj4BYH/iciUA24pf8A=
+
+Name: com/terraforged/noise/func/CellFunc.class
+SHA-256-Digest: ubNKNFB+i8KaKgCUdKOMyTjLfvk4FBUyTv74I23Gt/U=
+
+Name: com/terraforged/engine/serialization/serializer/Deserializer.cla
+ ss
+SHA-256-Digest: +VqPWCiHeInOeiZOpn/ZhKK/j3/q2XiC9WwKyo7Ou70=
+
+Name: com/terraforged/engine/concurrent/pool/ArrayPool$Item.class
+SHA-256-Digest: XWCSgereMhFFsziuXxF+sz38FRJkKEkKpvajKTcin4k=
+
+Name: com/terraforged/mod/api/event/SetupEvent$Features.class
+SHA-256-Digest: sgsajwmaxwGmwsucWA4gKkwaEtmYfdmWfVrvNywWDlA=
+
+Name: com/terraforged/engine/world/terrain/TerrainCategory$8.class
+SHA-256-Digest: 6Q4vAYJE4qMgyNV/ydGGVP7N0cg+iEjpiqu529YE5rI=
+
+Name: data/terraforged/structures/trees/oak/huge/oak_big_1.nbt
+SHA-256-Digest: oYfdU0Fnli1Pw+unRrejodeaPvs4KhqJGavy4QyQWRY=
+
+Name: com/terraforged/engine/world/biome/map/BiomeMap$Builder.class
+SHA-256-Digest: Gmmps1ZbC2No627aMnWEoH829EzSlglw5zsi7yVPewA=
+
+Name: com/terraforged/mod/biome/context/TFDefaultBiomes$1.class
+SHA-256-Digest: yVBHU9BeWEnAi7c0HuKNphK8TW5n2NAbtIFK9PfJV3o=
+
+Name: com/terraforged/mod/mixin/common/MixinDimensionGeneratorSettings
+ .class
+SHA-256-Digest: E/BMaWj8JZ9pSYgTo8NEDnh0+fvfPJqZlKkyntghhNA=
+
+Name: com/terraforged/engine/serialization/annotation/legacy/LegacyStr
+ ing.class
+SHA-256-Digest: ZZNJI30NL8rBmBRDHIYDON479tVlYwzLvY8YNoMeK5w=
+
+Name: com/terraforged/engine/world/heightmap/ControlPoints.class
+SHA-256-Digest: bzqK1GmqXd0vAxmU7lDQOZK2GFhnvr6wWwhi5uEsJws=
+
+Name: com/terraforged/mod/feature/feature/BushFeature$Config.class
+SHA-256-Digest: zG3/x7NiNwlQv+17NdKGyZMhAZ/ckzJowRQi4+Fvce8=
+
+Name: data/terraforged/structures/trees/jungle/large/jungle_tall_4.nbt
+SHA-256-Digest: YwKxhPa//t1FZf+aJ0uodl9xTW5ZRzg0O9VoRDX1NA4=
+
+Name: com/terraforged/mod/feature/context/modifier/BiomeModifier.class
+SHA-256-Digest: 8UntRAUAI9qq7yO2CELe3Kk77Yenow3RBryQNaSl2+4=
+
+Name: com/terraforged/engine/filter/Erosion$TerrainPos.class
+SHA-256-Digest: G/HyEC2EL1wksKWAvndOcHldwz/ZNbVK1S4KxG+Iv5k=
+
+Name: com/terraforged/mod/mixin/common/MixinTagMatchRuleTest.class
+SHA-256-Digest: cHC0XvfAurEV8gx6Ne2VcXMtMBc2gO6gVVRn+Nx/QAo=
+
+Name: com/terraforged/mod/client/gui/screen/page/PresetsPage$3.class
+SHA-256-Digest: 9XQSSvDb6oh8C7KCYWZz1t43ncif0a5ECX+4uKs3hhA=
+
+Name: com/terraforged/engine/util/pos/PosUtil$Visitor.class
+SHA-256-Digest: AUU36LWgdNnYefKpGUANqCj8SrcaTnHK8L53+3UTS5E=
+
+Name: com/terraforged/mod/config/ConfigManager.class
+SHA-256-Digest: qiCWLoE3D0qSPCCC1X9gnsADma75e4MjKJ0AHFSsPcg=
+
+Name: com/terraforged/mod/featuremanager/template/feature/TemplateFeat
+ ure.class
+SHA-256-Digest: jh0y2/zXu631YR5rlc7IVXm3eLMGqpjO+baJBtYCrlk=
+
+Name: com/terraforged/cereal/serial/DataBuffer.class
+SHA-256-Digest: SZqlleJrX+A2x1KtUYhTxYLvwwoH5zrvvl3yeQmjZGw=
+
+Name: com/terraforged/mod/util/Environment.class
+SHA-256-Digest: aE49Qa5G39K0U9nlHYxyDw5wvFlfwPiYGMfxOwPXbMA=
+
+Name: com/terraforged/engine/filter/Filterable.class
+SHA-256-Digest: b3+bEoaAFfcQu5fhBwdos9pEdDS9TdBkPoYHMvN/1is=
+
+Name: com/terraforged/mod/feature/context/ContextSelectorFeature.class
+SHA-256-Digest: VPU6psCiFN1qu+czzeJaMNpYepK70OW8JwKxy4WFd+4=
+
+Name: com/terraforged/mod/featuremanager/modifier/Jsonifiable.class
+SHA-256-Digest: FWJxFuua+1AfG9kk28xNou9XmeTmRNfayl8zgRhacoo=
+
+Name: com/terraforged/cereal/spec/DataSpecs.class
+SHA-256-Digest: mV1naAdw6PCc2qtwPkuisE+///N4/ao1jjKU98Xr730=
+
+Name: com/terraforged/engine/util/poisson/Poisson$Visitor.class
+SHA-256-Digest: o8MLdHtusw/ygwzGpN4rfy2sTdIepKjPMzsKhLRLgNU=
+
+Name: com/terraforged/engine/world/biome/modifier/OceanModifier.class
+SHA-256-Digest: kvC6rkNWX9jEe5vKPkEUPS7IbCaHGVld+ZzGyYuagDs=
+
+Name: com/terraforged/mod/client/gui/element/TFToggle.class
+SHA-256-Digest: aXCGMnIyPAwvNPf2jg1a7ejxuDlVyWUQQHAq7s4gXGs=
+
+Name: com/terraforged/engine/settings/WorldSettings$ControlPoints.clas
+ s
+SHA-256-Digest: +YxdOUemnImU1Q9waYsQEOw4tqIon1sTGXXjhk5Bg+M=
+
+Name: com/terraforged/engine/util/RollingGrid$1.class
+SHA-256-Digest: sky8zrFuS9dTtFr+5/c5rCVYZPvo4+0EnJH9tPKCpNw=
+
+Name: com/terraforged/noise/modifier/Threshold.class
+SHA-256-Digest: 2itep4joIAj9u5vcFaQbGMn7dYQuoJ2BKCo9QaJvwWw=
+
+Name: com/terraforged/mod/api/chunk/column/DecoratorManager.class
+SHA-256-Digest: rhhWlrm+lgIhyFvAVHhkr7Od0mHtKm39U7j/t7eWxHc=
+
+Name: data/terraforged/features/trees/flower_plains.json
+SHA-256-Digest: ui33d75KtgjyMIDXVmTbfhZ7paJZUpm/vOhaXHM7Uig=
+
+Name: com/terraforged/mod/server/command/search/BothSearchTask.class
+SHA-256-Digest: jnawBdEAkeZkKalSMzDLzzRTFiUmc8qn39pRNfDYLsk=
+
+Name: com/terraforged/engine/util/Boundsf$Builder.class
+SHA-256-Digest: i4T0k2Yej30/Ta65V0op0QWvlWdP54X0wXLjpKZH0SI=
+
+Name: com/terraforged/mod/api/biome/surface/builder/Combiner.class
+SHA-256-Digest: q4gauilWh7sxsko9sQZkpM3DNmB/soiRFI7ZXRF38HQ=
+
+Name: com/terraforged/engine/world/continent/advanced/AbstractContinen
+ t.class
+SHA-256-Digest: 4q5Wu9kRyOE9PSifvKN3vqFUoY/Q8wEEU9dL1gL2G2U=
+
+Name: com/terraforged/noise/domain/AddWarp.class
+SHA-256-Digest: Vdd2dP8mDP2bf7BrFS3Zg40Eld/h5VWqqn9Elc0GkPI=
+
+Name: com/terraforged/mod/client/gui/screen/ScrollPane.class
+SHA-256-Digest: NJ+kozenvJMER786iLNqXQIm4l6kz0F45lZKDOty9uE=
+
+Name: com/terraforged/mod/client/gui/screen/page/PresetsPage$4.class
+SHA-256-Digest: R+BVHqBkAYmaayfNvsPn2BIkyGyS7WUlkU0rC07pK7o=
+
+Name: com/terraforged/mod/featuremanager/util/delegate/WorldDelegate.c
+ lass
+SHA-256-Digest: 0HDr9jS8mmU/qkamVUebWuCfjx02FxVZtluXeYAtF4c=
+
+Name: com/terraforged/noise/util/N2DUtil$PixelShader.class
+SHA-256-Digest: oEcJLjVuyyu3R3IXK7R4ULJGRUyOgR5DphGXnkouskA=
+
+Name: com/terraforged/mod/server/command/search/condition/SearchCondit
+ ion$Factory.class
+SHA-256-Digest: T74jJq4ZtSJM/p4dRBknAGW4wwSaeZUH3Rm0NvKkqNM=
+
+Name: com/terraforged/mod/profiler/timings/RollingTimingsStack$1.class
+SHA-256-Digest: Ls1e6VzMjqHbejDxPT1MvQ7VIIydnaIXxxL12RNwFkU=
+
+Name: com/terraforged/mod/server/command/search/TerrainSearchTask.clas
+ s
+SHA-256-Digest: L9/zyH82Dw/Ij8McexXROxg82KgqQQT90HgVt3eyJH4=
+
+Name: data/terraforged/structures/trees/spruce/small/spruce_small_1.nb
+ t
+SHA-256-Digest: iGf9nv3oDpEKvw2395tVFT/mlJFEa6/APj1RN05lHIs=
+
+Name: com/terraforged/mod/featuremanager/matcher/dynamic/DynamicPredic
+ ate.class
+SHA-256-Digest: 62kBn5ClTWYz+gcfUfkwdW+C0EOIxmFZQKN3lwoJAGQ=
+
+Name: com/terraforged/mod/chunk/column/BaseDecorator.class
+SHA-256-Digest: 5+ESF6Sd+yk189HdL0JtTZyY7hcd1XRt4Tc9y0DwCk0=
+
+Name: com/terraforged/mod/client/gui/screen/preview/RenderMode$6.class
+SHA-256-Digest: Eot4RoE7CvsLxudXDo8XtdovxGshNc7rtOLe7IKJnmg=
+
+Name: data/terraforged/structures/mushrooms/brown/brown_mushroom_1.nbt
+SHA-256-Digest: WprZFBc/7jo8sgBUIXjv1uOlRksCIwzVK7h89BTg2kk=
+
+Name: com/terraforged/engine/tile/chunk/ChunkStripeBatchTask$Zoom.clas
+ s
+SHA-256-Digest: 6csqJ5EpmdzLXk4AIZtWznfd6qq2HmQexVl+ePYkS+U=
+
+Name: com/terraforged/mod/featuremanager/template/paste/PasteConfig.cl
+ ass
+SHA-256-Digest: Bf/cP332F37ToQ6eTpCzu1GmY8vqHTjdrl3gqNVCP0w=
+
+Name: com/terraforged/engine/tile/api/TileFactory.class
+SHA-256-Digest: 4vRZYNlDMB5zgZwfDWnP+fPne6lBuzcabCgWgl130M8=
+
+Name: com/terraforged/mod/profiler/watchdog/ChunkTimeoutException.clas
+ s
+SHA-256-Digest: ud15EPMvmqqEF01A/vbFlsEP3DMYHUrurStJuVaKfR0=
+
+Name: com/terraforged/mod/chunk/generator/TerrainCarver.class
+SHA-256-Digest: GiJ8nN8Z/EOlZIHd/BXtREO+KCojSbhaJFyFaOtXESQ=
+
+Name: com/terraforged/engine/world/biome/map/set/BiomeSet.class
+SHA-256-Digest: BFMdCaxNTpjUGmnyopxgQWf9a+xx4GBePrkK3I26NwY=
+
+Name: com/terraforged/noise/modifier/Curve.class
+SHA-256-Digest: eveuIUiH4T8xJQE7N4r5y9MaomSgKzHF8KMxwRm4ou8=
+
+Name: com/terraforged/mod/api/material/state/ExtendedState.class
+SHA-256-Digest: HQdcAjIHmjz+w4JiAFGef8zl73StUnqlvaWPKUtwH24=
+
+Name: com/terraforged/mod/featuremanager/transformer/InjectionPosition
+ .class
+SHA-256-Digest: 4nSVMtw22eOhq8Et6aff7xy8j3yG1AjEbVjdhf0n3Gw=
+
+Name: com/terraforged/engine/concurrent/batch/BatchTaskException.class
+SHA-256-Digest: 7qb9YvuoeQtF3+8FbSk4IYhqjy53HNx/twjvnuO7PNU=
+
+Name: com/terraforged/mod/featuremanager/template/type/tree/TreePlacem
+ ent.class
+SHA-256-Digest: EEdzYSF8A1TcVN8nHRg/yhKEe+/UQbCdrS7NueZlrKY=
+
+Name: com/terraforged/engine/world/continent/ContinentLerper2.class
+SHA-256-Digest: c7y/DSE+FI/0jrtpARqIwno1xNMXwKScFi0IiTIwc6M=
+
+Name: com/terraforged/noise/selector/MultiBlend$Node.class
+SHA-256-Digest: 0f/2N7z3Klq7f1tHtai7ngwvHrNDzTivEkJlfCfWFrc=
+
+Name: com/terraforged/mod/server/ServerEvents$Dedicated.class
+SHA-256-Digest: stKqHEF/PjpN6jIxNKoMDQAGeD9jJh6IwEReD6OnQNM=
+
+Name: com/terraforged/mod/profiler/Profiler$1.class
+SHA-256-Digest: sGCnbAxPeo2LrF0PpFPP5NjLn3KdNNspDRxr5HT0Yhk=
+
+Name: data/terraforged/structures/trees/pine/scots_pine_small_2.nbt
+SHA-256-Digest: sxSsAHNor394usiFqkabGH90qqVJnxaijqW1TOCMvTk=
+
+Name: data/terraforged/structures/trees/acacia/large/acacia_1.nbt
+SHA-256-Digest: kubbGUb2Bguz9IwBKsP8MdTTf/KNK976BxCHuxYuCE0=
+
+Name: data/terraforged/structures/trees/dark_oak/large/dark_oak_tall_5
+ .nbt
+SHA-256-Digest: cwzD4V5oe8lAvuto/Rga5MZ26wsaAtiVjmMErGHuaeg=
+
+Name: com/terraforged/engine/world/biome/modifier/DesertWetlandModifie
+ r.class
+SHA-256-Digest: wgIz0FyVB68whCvIo5oGhDmXu4kSDIaCziZtw+5Gsnc=
+
+Name: com/terraforged/mod/chunk/generator/StructureGenerator.class
+SHA-256-Digest: F2Z/VAA9A2BgBP8cE05BPGc9qdtKqBRlC2Awy/skUp8=
+
+Name: data/terraforged/features/shrubs/plains_bush.json
+SHA-256-Digest: VASwuOxCHl6WQl5BvrR8kLwQLU444dkJ+Fb5hJOUNv0=
+
+Name: terraforged.png
+SHA-256-Digest: d95386aY9KjIHiOaJFjj4bPtx02DioMenlbuKfi/lWM=
+
+Name: com/terraforged/engine/module/Ridge$Mode$3.class
+SHA-256-Digest: Ha1c4H138fSfexV+Mg0z+pHEyBZed8WYEzSx2/tmJDI=
+
+Name: data/terraforged/templates/trees/oak_large.json
+SHA-256-Digest: lX1GTHyaguVACtPMo0OPdTcrxfCjuAvUOcojQJUtKlA=
+
+Name: com/terraforged/mod/client/gui/page/Page$1.class
+SHA-256-Digest: xu/dgd6b5ZLr0rT9tgSfYfdcO0tWb+kEAjuoyuBLp+A=
+
+Name: com/terraforged/noise/func/Interpolation$3.class
+SHA-256-Digest: t4/5eMZuk7SneRgycXhGw/uNw/w0HdOQMedyaq7zHQ8=
+
+Name: com/terraforged/engine/concurrent/SimpleResource.class
+SHA-256-Digest: XacZ7WbURZfQeJkrdreIY/bs97mE2joqO/x9fJ1Of/Y=
+
+Name: com/terraforged/engine/world/rivermap/river/RiverCarver.class
+SHA-256-Digest: QelBMuX5T4CaJUqR1yKEQCmSy4ds+AXJM7vPAlimEts=
+
+Name: com/terraforged/engine/world/WorldErosion.class
+SHA-256-Digest: 7V7qGuFo4q7dClOZcBpELe8rZmleUc/y29jpt3NMbro=
+
+Name: data/terraforged/structures/trees/birch/forest/forest_birch_1.nb
+ t
+SHA-256-Digest: hAGu+77xZFaaz8Z1HfCmWU5Htw0Pg32HHYSNCRlTgGs=
+
+Name: com/terraforged/mod/LevelType$RegistryGetter.class
+SHA-256-Digest: EA5dqZrD3bC/Pw9SC8rc3wqNS6+wqBDcQ9uTSod+3qs=
+
+Name: com/terraforged/mod/featuremanager/predicate/DeepWater.class
+SHA-256-Digest: TjrnRjzlpJdPZRA8/yrMqSyNYiSZfecQ4zuzmG3JJlU=
+
+Name: com/terraforged/mod/client/gui/screen/page/PresetsPage.class
+SHA-256-Digest: uvkVFNmqcTGXM9kY/uRAV/vLMRWIIJQnpWTrMH/7NCw=
+
+Name: LICENSE/Cereal.txt
+SHA-256-Digest: bUv3pZWeVJBxl3FQSH+31iMg53Y75UoR+1yGEGeky7U=
+
+Name: com/terraforged/engine/serialization/annotation/legacy/LegacyFlo
+ at.class
+SHA-256-Digest: ISO5MUE3VsxoXTRWoFvdxTh+9Vqqv3gAOc97jfmK5CA=
+
+Name: com/terraforged/mod/util/reflect/Accessor.class
+SHA-256-Digest: oSv4bnKFFic5DXZ/qcJusNBp6o3e9e8EywjdlS7X/EY=
+
+Name: com/terraforged/mod/featuremanager/util/codec/EncoderFunc.class
+SHA-256-Digest: vlwg3g44c7GwMuwUWCd0BdlHhyN2qcPUVn7D42xW15I=
+
+Name: com/terraforged/mod/client/gui/screen/preview/RenderMode$5.class
+SHA-256-Digest: aw4B+gdPDJ5gOv5fHVPaLk0V3DCy9MD81hKKwipzLzg=
+
+Name: com/terraforged/engine/serialization/annotation/Serializable.cla
+ ss
+SHA-256-Digest: EhTChJbWPBKXHbCfBMTcgXqi0FlM9+TMl8Z/F3LRdVc=
+
+Name: com/terraforged/mod/server/command/search/condition/SearchCondit
+ ion.class
+SHA-256-Digest: GHHIIU9UX7VGWDzmIVD/yQrw5oduhjHEmanmW4xSAoo=
+
+Name: data/terraforged/features/trees/acacia.json
+SHA-256-Digest: sU0ngHUKSGRjQXrniVidWSHceKfJJswtBwCHDxMcO9A=
+
+Name: com/terraforged/mod/featuremanager/template/template/Template$Pa
+ steProvider.class
+SHA-256-Digest: 6d1aSz1emv5wm6LGA8XzviECyfcByocrLUkq44c/LVE=
+
+Name: com/terraforged/noise/source/BillowNoise.class
+SHA-256-Digest: fRR2641+HJuRFMDdBjumZoe4gFEbmGCAgj6fsr8oqeI=
+
+Name: com/terraforged/mod/featuremanager/template/buffer/TemplateBuffe
+ r.class
+SHA-256-Digest: UKkiD5IK+dTDUfHWeQ5gYl4CZ2jlVtTO8L7cZtZqRGA=
+
+Name: com/terraforged/noise/combiner/Multiply.class
+SHA-256-Digest: 53a4JrP/2jpxYKAyzNTGRVisGQEwIUKIkKmbZQm2r9M=
+
+Name: com/terraforged/engine/world/terrain/ITerrain.class
+SHA-256-Digest: JuOxSLMZKR1XAO1XuknDW5nJUvlP5n8utIPF2TPgP/c=
+
+Name: com/terraforged/engine/world/rivermap/RiverCache.class
+SHA-256-Digest: 5v49U6rKBAkZTTplWzFmJOxrNEzJBQuN6prrR1HHCy8=
+
+Name: com/terraforged/mod/featuremanager/template/type/tree/TreeDecora
+ torFactory.class
+SHA-256-Digest: 62PMy+Z8YdVonNCtGcSiWr9TkBnOsmlcnAbZc2uJlPA=
+
+Name: data/terraforged/structures/trees/redwood/huge/redwood_massive_5
+ .nbt
+SHA-256-Digest: p0ShXVBqNvDp8ak4GO2t25hfIxjDW2qJv0EyQ8rznoM=
+
+Name: com/terraforged/mod/Log.class
+SHA-256-Digest: Fn/cJ0iDuSwJ5SQaC4oj22rPKcUsFvSxVWrmjQJ5ICY=
+
+Name: data/terraforged/templates/trees/acacia_small.json
+SHA-256-Digest: FvjbfD9TIjVqRCJfE8pqxZz8Ajr48XmcK40i9nUUZAE=
+
+Name: com/terraforged/mod/biome/provider/BiomeResources.class
+SHA-256-Digest: hCsIrXXIynxUlvy5A7OyHl4xw9QakhlfIHpALD3b+L8=
+
+Name: com/terraforged/mod/util/quadsearch/QuadSearchTester.class
+SHA-256-Digest: jDAfWZbii3ETfB0/1ogsU5MVC8q3NUOGSEq+CH+8jTM=
+
+Name: com/terraforged/mod/featuremanager/predicate/MinHeight.class
+SHA-256-Digest: 83Bwz5BG1y+MMOqNVpZ3RCovzKM2Tfbk1KUT4ckyyrE=
+
+Name: data/terraforged/templates/trees/birch_large.json
+SHA-256-Digest: mh/5O+J0hDmuqRmF9so6nMKohMJhECMvJFBUpW7yhHk=
+
+Name: com/terraforged/engine/world/continent/fancy/Island.class
+SHA-256-Digest: lVQOgPqOpUDJVbLkXLr7zTA9f1T+TrZMlf3Er/MgyDI=
+
+Name: data/terraforged/structures/trees/redwood/huge/redwood_massive_4
+ .nbt
+SHA-256-Digest: NLiPfM7uJwjxKoh3BTudIE4CJQgtcoF35Of9jtoE+9I=
+
+Name: com/terraforged/mod/client/gui/page/Page$Column.class
+SHA-256-Digest: 1clvR5ZQkIPHHEHm1DIbIdX0Zl69CRxLusFHklaMEFI=
+
+Name: com/terraforged/mod/data/WorldGenExport$EncodeResult.class
+SHA-256-Digest: Zo6orUbwYfZZSrYg+tIha63IS/+b4zaeFv18uWBfIwA=
+
+Name: data/terraforged/templates/trees/willow_large.json
+SHA-256-Digest: sk/lKyG/31EkMNA+KGyKCz7RqMT/S7vCfa+Wtb1o2Mw=
+
+Name: com/terraforged/engine/NumConstants.class
+SHA-256-Digest: qS/EeuMSzWK9n3ZGugB3pqgqS2EIM8IiG9Jp2IZ2PcA=
+
+Name: com/terraforged/mod/chunk/generator/TerrainCarver$BiomeLookup.cl
+ ass
+SHA-256-Digest: HoQoj9VwRp6j/UXHjs3ocyu7pjkSaKC5NZRnSw9TPYQ=
+
+Name: com/terraforged/mod/feature/TerraFeatures.class
+SHA-256-Digest: rMt7+cA69UgGDojpwmYpX0m16RTzFo73bH7gWyPk0eg=
+
+Name: com/terraforged/mod/chunk/column/ErosionDecorator.class
+SHA-256-Digest: I89yO0nY+f4Qfi26A+0jOsWVwsbra5hFpuPdJCzWHp0=
+
+Name: data/terraforged/features/shrubs/cold_steppe_bush.json
+SHA-256-Digest: o4biFcCKv3ADzwK+3YKcogY1MzIyLHB+zsS2+W3QVjU=
+
+Name: com/terraforged/engine/world/terrain/LandForms.class
+SHA-256-Digest: DgpCLAdrpJ231x1BZ39VDK4HzUdSwxnbZRcodlirSvA=
+
+Name: com/terraforged/mod/client/gui/element/TFButton.class
+SHA-256-Digest: 93LbTv14q6269Tz27zipHyvvHoZQ+tTGuZ1fiOjbZt4=
+
+Name: com/terraforged/mod/featuremanager/template/template/TemplateReg
+ ion.class
+SHA-256-Digest: HNqDrtVUyyZaQGV8gf5a8JVQfDhYkUTkSE9ZkfP3Xkg=
+
+Name: com/terraforged/mod/featuremanager/template/template/BakedTempla
+ te.class
+SHA-256-Digest: SfFQKh97rSG9N5z0vh1XLK621DMUC25CBt66bfiQxTg=
+
+Name: com/terraforged/mod/client/gui/screen/preview/PreviewPage$2.clas
+ s
+SHA-256-Digest: MadybjXVR3I1Z5jCAIH6kPwZW/2/JNdnG4q+gOvhF6U=
+
+Name: com/terraforged/engine/util/fastpoisson/FastPoisson$Visitor.clas
+ s
+SHA-256-Digest: o2zufu1fKF/wYUt6Gu8ULRjA2djLAh6CaSAXYRLffMY=
+
+Name: com/terraforged/mod/profiler/timings/Top3TimingStack.class
+SHA-256-Digest: x/TKL7kTKbWn7LtjS3sNGWkbgLYeOk648baWKnscmkU=
+
+Name: com/terraforged/mod/featuremanager/biome/BiomeFeatures$Builder.c
+ lass
+SHA-256-Digest: VcQYWXsdcfjsNxoaYR23SVMHSla/668S2zIHFdnrBJw=
+
+Name: com/terraforged/mod/profiler/crash/test/CrashTestConfig.class
+SHA-256-Digest: 9bRqk5MUtg9oBzG4opNPy4LjFrjRWobw6s7A0mIm6uE=
+
+Name: com/terraforged/engine/serialization/annotation/Limit.class
+SHA-256-Digest: 4GSAIdMXwBu+0PvashWus6ddMfygamYHS3EBTfmDvgs=
+
+Name: com/terraforged/mod/featuremanager/event/FeatureModifierEvent.cl
+ ass
+SHA-256-Digest: WFNrAk/OkNh0uMFc651QSylKFXATBd1O7SZBhR+yL8A=
+
+Name: presets/TerraForged - Lite.json
+SHA-256-Digest: RWXRrzrVhomkFkv5lEp28BeWLXRMMBB0z5jNYPG6l4E=
+
+Name: com/terraforged/engine/world/rivermap/Rivermap.class
+SHA-256-Digest: D6ef++Hb6ftsnrbx57Owwa08kyBcayKm3uWRzKD3hpY=
+
+Name: com/terraforged/mod/data/gen/FeatureGenerator.class
+SHA-256-Digest: /ciZ75eYE+Aqv9bPYTKz9JjGNAGv69JSFfIRpGQTm6A=
+
+Name: data/terraforged/structures/trees/dark_oak/large/dark_oak_tall_4
+ .nbt
+SHA-256-Digest: M9eyD0r41xmRouCKL/fuipwqTO+qXjqYLygytO07btI=
+
+Name: com/terraforged/mod/chunk/column/post/SnowEroder.class
+SHA-256-Digest: pNy4jQdR/PXbs86pa7Bj4wwl2lyf0kdYU1evHSlZ0k0=
+
+Name: com/terraforged/mod/feature/decorator/poisson/FastPoissonConfig.
+ class
+SHA-256-Digest: OoRDcDAdKOW53pkIF7uSXnwFBI6vCDCyZdNRgV/CCjU=
+
+Name: com/terraforged/mod/profiler/timings/TimingStack$Visitor.class
+SHA-256-Digest: MEY2HUH6ygtej7coTQOLCsy49qfVJRWlYidUp71AU78=
+
+Name: data/terraforged/templates/trees/acacia_bush.json
+SHA-256-Digest: MyzRzwK29odEHZilPehibqzTVNzmDFnY7g4uumupXPw=
+
+Name: biomes.png
+SHA-256-Digest: vTEsaY/nlbL9T3o2t8mCKFyAPGE7WkzELJgtJs9MSvc=
+
+Name: data/terraforged/structures/trees/birch/forest/forest_birch_2.nb
+ t
+SHA-256-Digest: Cm9cJkJjIqgytqGkOSAbVevVph9eeTDRmReI0vpAKFU=
+
+Name: com/terraforged/mod/api/material/WGTags.class
+SHA-256-Digest: lapvJnIXBAW32xvV1H6kVUv/yatopzsDM8G+BQOF3Rc=
+
+Name: com/terraforged/mod/biome/surface/SwampSurface.class
+SHA-256-Digest: wim+bY1D9qyYOUpEPqaUsgS8s2WMhDp+moA21ZU+9m8=
+
+Name: com/terraforged/engine/world/continent/fancy/FancyContinent.clas
+ s
+SHA-256-Digest: 4rdBrBqmdBDalAP2XFbHcPUxqnxpcAqP/6sj47h8TPk=
+
+Name: com/terraforged/mod/chunk/generator/BaseGenerator.class
+SHA-256-Digest: UZolIxNis4SK+p6SIf6ZknfAeekjQSVd00Hgcic3w3M=
+
+Name: com/terraforged/mod/feature/decorator/filter/FilterDecoratorConf
+ ig.class
+SHA-256-Digest: jnntt6uIwLrbfSln0rP56TyQ8Ww1Y1NvADDMNz+J9sA=
+
+Name: com/terraforged/mod/featuremanager/predicate/FeaturePredicate.cl
+ ass
+SHA-256-Digest: 7It33GIDo3THmOU3PERAoURh8vhicmJARt/4ft2XkTs=
+
+Name: com/terraforged/engine/world/geology/DepthBuffer.class
+SHA-256-Digest: JtS24ZSMWadveSwiCopLY1opJuxOSyZJyRKqwNIYJA4=
+
+Name: com/terraforged/noise/domain/DirectionWarp.class
+SHA-256-Digest: B8GZzPUMnxnYcfLtgYzE1CNpPPFxjVOr3rq7uTKzEvU=
+
+Name: com/terraforged/engine/world/biome/modifier/ModifierManager.clas
+ s
+SHA-256-Digest: 9rzaYvdWC6eYsZI1qpb2B4NMZDeimCKqBqkTvTb3OMw=
+
+Name: com/terraforged/mod/feature/decorator/poisson/FastPoissonDecorat
+ or.class
+SHA-256-Digest: ofk8gy3uRsm2ukDNNsGQMTpaECn7Ktu5Cm47y8URqU8=
+
+Name: com/terraforged/mod/chunk/settings/DimensionSettings.class
+SHA-256-Digest: Rl57iDV+5m23o58RjjuaqzctGgptTLpo0YXKnIpy9NU=
+
+Name: com/terraforged/mod/mixin/common/MixinMinecraftServer.class
+SHA-256-Digest: v18urnRWl95Ag7l/zsT6uJ/IGMh9v3kyDPGqMCsBec8=
+
+Name: com/terraforged/mod/chunk/generator/Generator$Carvers.class
+SHA-256-Digest: HRlASYnmsPHGgNYE8u3Ikr+Rl0o2NxQFk5KJmvgLelo=
+
+Name: com/terraforged/mod/feature/decorator/ContextualDecorator.class
+SHA-256-Digest: ALb1JOWBRHFcx/5Ifq3QpZoaBkfEx9t3fVgsKVT8TGE=
+
+Name: com/terraforged/mod/featuremanager/matcher/biome/BiomeMatcherPar
+ ser$Collector.class
+SHA-256-Digest: CO2dh1Q6ssu98w6auPjM4SbgL/gIO8I2tqCB1ZUqBRM=
+
+Name: com/terraforged/engine/world/climate/ClimateModule.class
+SHA-256-Digest: y8C+O6UZghqYb7dN/TtARh9rh7iKMSTuMZpi1cbHLaA=
+
+Name: com/terraforged/mod/profiler/crash/test/CrashTestFeature$Setup.c
+ lass
+SHA-256-Digest: khOLP44WJKczM6OIyeP1PDPM7H1Qn2AhfmD4sdXZWjA=
+
+Name: com/terraforged/engine/world/biome/map/BiomeCollector.class
+SHA-256-Digest: UjHX5S8oTV7pNQPB5CH1if7MpN4OLERnGGipI8sA4kQ=
+
+Name: com/terraforged/mod/material/geology/GeoGenerator.class
+SHA-256-Digest: OseE+EvcYTWfQCNQDr2dle4UZilqa2wvCF8WnE2gqwo=
+
+Name: com/terraforged/mod/profiler/watchdog/WatchdogCtx.class
+SHA-256-Digest: 7EE8lsfwFJDl7s63c8AFrUoFvHkn9cj9VD3saXqYsKU=
+
+Name: com/terraforged/mod/feature/decorator/FilterDecorator.class
+SHA-256-Digest: 7ZoSXwqmGVpcmIwy7EYVEbGuOBJvoYqFAu6EX4UWEUY=
+
+Name: com/terraforged/noise/func/EdgeFunc.class
+SHA-256-Digest: V0U9gVSMSlqcnY2t7yxrvq2cgKyC/uYKI+AyMf9OR3w=
+
+Name: com/terraforged/engine/tile/chunk/ChunkGenTask$Zoom.class
+SHA-256-Digest: WqthWJr82+DqZ8j+DNpmsnGf0shgzl+48HbQyb2+RDA=
+
+Name: com/terraforged/mod/chunk/fix/RegionFix.class
+SHA-256-Digest: +JuUXl9NpO0eGivDVPxdAIopTPUgDdrmAqbb4UNe1Gk=
+
+Name: com/terraforged/mod/LevelType$1.class
+SHA-256-Digest: D2jHlq9PfR7kN9kbFYIfWdM/O4p129wmHpz3gbjGv9w=
+
+Name: com/terraforged/mod/biome/provider/analyser/BiomeFilter.class
+SHA-256-Digest: Ht4awW3gcWvknWy7oeMqcnO9CYqgobOyqa9BMpxMTOc=
+
+Name: data/terraforged/features/ores/gold.json
+SHA-256-Digest: vcbcquanb/ogcDih/xLkFAAL571Sa9W3KXtD8qi90Zc=
+
+Name: com/terraforged/engine/world/terrain/TerrainCategory$4.class
+SHA-256-Digest: xExy5qiL/qxluOBWOKO8OyAl6s5EgOI2YWXLpNN3vDY=
+
+Name: data/terraforged/features/trees/oak_plains.json
+SHA-256-Digest: b1HBS6cSIXZhuxx5HKQnpx+tD+T71bGwMV0i4PlyYaU=
+
+Name: com/terraforged/mod/featuremanager/matcher/feature/FeatureMatche
+ rParser.class
+SHA-256-Digest: JxLH3wTWQNJZ2tS5dCLYNwORUIyokbkk1k+uo69M8gc=
+
+Name: com/terraforged/engine/world/terrain/populator/TerrainConfig.cla
+ ss
+SHA-256-Digest: Z61VsiT9AzioeHsT15y2NUsS2V2WR8wUtkagZjfeiZ0=
+
+Name: com/terraforged/engine/util/RollingGrid$Chunk.class
+SHA-256-Digest: i8HroXrso/AZkeo7/GkIdf7sHL542KqF53v6Z80nqhk=
+
+Name: com/terraforged/mod/chunk/generator/StrongholdGenerator.class
+SHA-256-Digest: 3G5z7bFjxggv1TijxjwjcakXETEA9f6/Z/41j1GxoA8=
+
+Name: com/terraforged/noise/modifier/Map.class
+SHA-256-Digest: Xb2RCMzMj7Blh12RcIXfQkHmcExfy98LeEIIzSXP40w=
+
+Name: com/terraforged/mod/featuremanager/template/template/TemplateLoa
+ der.class
+SHA-256-Digest: ZEukUsWBLuSoYnKLt9SOZaT2eCWhhgiOvCNi9tL6fhA=
+
+Name: biomes.txt
+SHA-256-Digest: 9Qy++hAEQrS994aJA3dhOs/2QwPWUL3M17mo7LYFQXs=
+
+Name: com/terraforged/mod/featuremanager/transformer/FeatureTransforme
+ r.class
+SHA-256-Digest: UuRa1HvkaxmXuOeeSDxKtikoOIq9+adS9YHj66aU8nI=
+
+Name: com/terraforged/mod/featuremanager/template/type/FeatureTypes.cl
+ ass
+SHA-256-Digest: GkkYKHPgM4oeRXH16tm/HOEi2g9qcam1DHaBn+3PM5I=
+
+Name: com/terraforged/cereal/value/DataValue.class
+SHA-256-Digest: xFoheutgVX1b7+uKYzg59bWvrr3VDgNZbRosxpOAadw=
+
+Name: com/terraforged/mod/structure/StructureSearch$FastThreadResource
+ .class
+SHA-256-Digest: x/2xh9Ws49y29uifVmTNyCdmIjQlevhhqeZwaA7/jxI=
+
+Name: com/terraforged/noise/func/SCurve.class
+SHA-256-Digest: taGBJf/LRspVdpaZW8qehIviNv7JsO1POBlWlrPi8Jg=
+
+Name: com/terraforged/engine/render/RenderBuffer.class
+SHA-256-Digest: 3z7Gnhjh5a+lqo9Z1QOBL+KpUhkfN4o5Ju+mEedbKS0=
+
+Name: com/terraforged/engine/serialization/annotation/legacy/LegacyBoo
+ l.class
+SHA-256-Digest: qJVZnrfYxRvt2eL1HdpwEFlED0tev6ImA/HERD9kYgM=
+
+Name: com/terraforged/mod/server/command/arg/TerrainArgType.class
+SHA-256-Digest: JECYjNdsCGiCxWCcoivp7iqrWdZE61MfZWVQ6JdRrPA=
+
+Name: com/terraforged/engine/serialization/serializer/Reader.class
+SHA-256-Digest: pe3YwfsRFoJ8rZ7o/TlYrH5hPNjrpo2ogLdnjFPONzg=
+
+Name: data/terraforged/features/sediments/clay.json
+SHA-256-Digest: q/WBHWJB0SscRq/Nyxa2fhWd5K00rn4G9Tu+TSD7QwM=
+
+Name: com/terraforged/mod/chunk/column/ColumnResource.class
+SHA-256-Digest: DL7NWqE67dxeUIZD2tpjjPK1QvLvSe6ma6NVkR8tR0Q=
+
+Name: com/terraforged/mod/client/gui/screen/page/PresetsPage$7.class
+SHA-256-Digest: DmPNq0bz0foHQXdXOdPCz92004e9VN3ifnFxiGI+M5I=
+
+Name: com/terraforged/engine/world/biome/map/BiomeMap.class
+SHA-256-Digest: +wwn1AH8UNfD395l/m96GGwA24qFEG/mMb8BlF+FN/4=
+
+Name: com/terraforged/engine/world/continent/advanced/AdvancedContinen
+ tGenerator.class
+SHA-256-Digest: OxEoa4jAnIX1qL2lg/F/w+kTMFFJzEHSaxnI6IY5TOU=
+
+Name: com/terraforged/mod/feature/feature/BushFeature.class
+SHA-256-Digest: mIOFdIEZEbOW/HwBA0kaqt5E0NoJZCfvG1ZeOHZsrUc=
+
+Name: com/terraforged/noise/func/EdgeFunc$2.class
+SHA-256-Digest: r1nNG5BCmN/e1OxSZhw1LZKyLJ0ybOp79Lhml0npeYo=
+
+Name: com/terraforged/mod/featuremanager/template/template/Template$Pa
+ steFunc.class
+SHA-256-Digest: SNHwybsl8J3+SLQAPnqmXsJyr9SsvaOgrFfxiV3CZ7E=
+
+Name: com/terraforged/cereal/spec/Context.class
+SHA-256-Digest: L85wfWq/5T17odAk17W2EZakRQK/G/AVJWZ+dAH3L7Q=
+
+Name: data/terraforged/structures/mushrooms/red/red_mushroom_2.nbt
+SHA-256-Digest: CM8vuZgDyMcKfKYZho2o2rPwH7WXSu2jE1Z0QzwK48U=
+
+Name: com/terraforged/noise/selector/MultiBlend.class
+SHA-256-Digest: nwdiwVX8IKcA1jMhWsj1JpDcsdhY2K70yIbdHHUxl14=
+
+Name: com/terraforged/engine/tile/Size.class
+SHA-256-Digest: ooWWqihj4qZNh9wmcU4rOGUpwQCyhVbw5PQomJVjt2g=
+
+Name: com/terraforged/mod/data/gen/LangGenerator.class
+SHA-256-Digest: 8aZeSsO4OyHdf9xu0zJwzQekvkQrU/JCJjImLa/Tjbk=
+
+Name: com/terraforged/engine/world/biome/map/BiomeMapBuilder.class
+SHA-256-Digest: ub1ZYJXrAhjOEvW95GuYWE+MLAzYAwLe0IteUdNm9DQ=
+
+Name: com/terraforged/mod/profiler/crash/WorldGenException.class
+SHA-256-Digest: ymmbYIL9Izk56j8gQL+DiEB3JYGTaKVX7M9Qlb7u8qg=
+
+Name: com/terraforged/engine/world/terrain/TerrainType$1.class
+SHA-256-Digest: osMQJltwoZNXYNPmDLSvUgJOYEM05tT2kHOQFCsvcY4=
+
+Name: com/terraforged/mod/util/reflect/MethodAccessor.class
+SHA-256-Digest: ccys2hu+e2jWQG60vDqcO3IJhvBCmpDMYDqGQkDrRvE=
+
+Name: com/terraforged/engine/tile/gen/TileGeneratorStriped.class
+SHA-256-Digest: QItAB6X+ESCbQ8mILcWH86aBnMwvhEgJ7qWw69YA2FM=
+
+Name: com/terraforged/mod/featuremanager/matcher/dynamic/DynamicMatche
+ r.class
+SHA-256-Digest: Wu9BtXXEPS5PPnqlanp82TOsNcVIIRaFHAkjuJaTZJ0=
+
+Name: com/terraforged/engine/module/Select.class
+SHA-256-Digest: RQd7hmvbnY7ckekPPRuVMnrfoMHVnugaqCYGJ/kqvA4=
+
+Name: data/terraforged/structures/trees/oak/large/oak_3.nbt
+SHA-256-Digest: Z9b8/UhATwUMRiRz2MNoIPw2I4/ZAlZjaCMiyef1EYU=
+
+Name: com/terraforged/noise/util/N2DUtil$1.class
+SHA-256-Digest: 6FyHyzK5Au7N6zlG5AEnQWWgVM7B78lOMA54OYSeIXU=
+
+Name: com/terraforged/engine/util/Boundsf.class
+SHA-256-Digest: Yl0aLZS2HHx6MMsCICDdaHmm/cvAw/h6P5/oHe7KADQ=
+
+Name: com/terraforged/mod/chunk/util/FastChunk.class
+SHA-256-Digest: Ih+OxkSJcqOT7yqwWPguhLw9ojQtn1d8RIBQ5XK3PSg=
+
+Name: com/terraforged/mod/client/gui/screen/page/PresetsPage$5.class
+SHA-256-Digest: FIAgVFs44pMSZueT5ZNE+ACZduuc86YN/lrKQNltpmk=
+
+Name: com/terraforged/engine/world/rivermap/river/RiverConfig$1.class
+SHA-256-Digest: CQUrf/6oQKrwn5DpsvseK6IEU1p+zPZ0c58tkBIUApE=
+
+Name: data/terraforged/features/trees/dark_oak.json
+SHA-256-Digest: WOEfGb9zy8ZfYqw9pTeN6UZVhq/DQdrzOdjU8YayY6A=
+
+Name: com/terraforged/mod/biome/spawn/SpawnSearch.class
+SHA-256-Digest: IdbJqOzfrLu5TKVqP7ml0O5K8ukH6C8iTBAYIKfMNno=
+
+Name: data/terraforged/structures/trees/jungle/huge/jungle_massive_5.n
+ bt
+SHA-256-Digest: g8jyAC49tfA8TBHdE91pFeUzuXw7IjyN8eZFKDHP36M=
+
+Name: data/terraforged/structures/trees/oak/small/oak_small_4.nbt
+SHA-256-Digest: Ooa+Q0NCFiOEUvNYn/32uAR7NEI0ALTfw+lFCHXJKNI=
+
+Name: com/terraforged/mod/client/gui/screen/preview/RenderMode.class
+SHA-256-Digest: t+6lFppuRZa/RvkYhZqnBi/4c+h6KbP0CezNwjfrM/M=
+
+Name: META-INF/mods.toml
+SHA-256-Digest: ZwIyWWOCMqrRO0SZXfIfqrwse07KyNZloWqBTMKYLvw=
+
+Name: com/terraforged/engine/world/biome/map/BiomeContext.class
+SHA-256-Digest: Ct5dYOXPdOgA6DXlq/RxJw9Ydzpq8vKXhFjNRdX0UAs=
+
+Name: com/terraforged/cereal/spec/SubSpec.class
+SHA-256-Digest: cPsgCIPH9dwMXtRrfwQi8cWjYnRJ2e9LtJociX5YT+o=
+
+Name: com/terraforged/engine/world/heightmap/Levels.class
+SHA-256-Digest: p50WW8mU9vI/ZCCwabl5KbGPdE7eIcGheEiFl6P5+88=
+
+Name: com/terraforged/mod/api/chunk/ChunkDelegate.class
+SHA-256-Digest: AL1X0A9WFOGIiuxQ9cWkz6aCQe8jI87ZmptTOMaVBkA=
+
+Name: com/terraforged/mod/util/RangeModifier.class
+SHA-256-Digest: YKBhlxlv5ysYc49pa0nKkgJ2HtX81lJz4Ng7gtSFfwM=
+
+Name: com/terraforged/mod/feature/DecorationAccessor.class
+SHA-256-Digest: 1ZePv6dNxxSU+ZEpzMzaXzX3jkAlWp1JXB19Om3OW1Q=
+
+Name: data/terraforged/features/sediments/gravel.json
+SHA-256-Digest: Zs4gghIcfaY45DpXHdISPdVONR5Dgn1RqcZqCydwlbU=
+
+Name: com/terraforged/engine/world/biome/modifier/WetlandModifier.clas
+ s
+SHA-256-Digest: S8fWl6M+MLaSaYoYRjZe50/IUj9XuMmHldtMYLSCwaU=
+
+Name: com/terraforged/mod/structure/StructureTerrainResource.class
+SHA-256-Digest: nke5tVYuLglxojREv1iRRdnYOKJVHsePHFg+MYVReLM=
+
+Name: com/terraforged/engine/settings/WorldSettings$Properties.class
+SHA-256-Digest: Y6gAxswVYKgHbIDZCF95QPlQdkPn6ku3nIa8tMIDpS8=
+
+Name: com/terraforged/mod/client/gui/screen/page/PresetsPage$2.class
+SHA-256-Digest: I5DAPrHs57UsC2OldUeqyqUxq8a2GU6/DmR/gq1L0QE=
+
+Name: com/terraforged/engine/tile/chunk/ChunkStripeBatchTask.class
+SHA-256-Digest: FVwKk3gSbOT2yD4vQWaa/nzayBlmv7oa9ieS3NwZSjY=
+
+Name: com/terraforged/mod/feature/VolcanoPredicate.class
+SHA-256-Digest: 6TgKVpNhMnDlFj5B84wX3gAx49Lg0R8+QAWO+XYQFPE=
+
+Name: com/terraforged/mod/client/gui/element/DependencyBinding.class
+SHA-256-Digest: Lhor/ewwA8I30DsH79xVsahByXdkj6gAUjHvzIqjtLc=
+
+Name: com/terraforged/noise/modifier/Abs.class
+SHA-256-Digest: +D3Fm9inKTIOtMYZ8KliU57UxGZuZgLX9I8A5wfEcOg=
+
+Name: com/terraforged/engine/concurrent/Resource$1.class
+SHA-256-Digest: njfddCFToIhJG3n0HX9acz3z2/RtdSoI/u3GKhI75nw=
+
+Name: com/terraforged/mod/util/function/IOFunction.class
+SHA-256-Digest: M498hFTrOGQrYRY+sEfZ64a9WqE6UlhrYtO97x74oMY=
+
+Name: com/terraforged/engine/serialization/io/TileIO.class
+SHA-256-Digest: NZvWOoxAhfD8UxTku4mjNKuqRwxcWvrP5NW7My3uSRY=
+
+Name: com/terraforged/engine/world/biome/DesertBiomes.class
+SHA-256-Digest: A76TO+R0fjmKDDRHYf0mjnCL9Tq8P0XwHE1FSNLBBC4=
+
+Name: com/terraforged/engine/concurrent/cache/map/LongMap.class
+SHA-256-Digest: G0sPPwTALYxM1M107NnIrjZTY7SI4LrBjocLU8I9jI4=
+
+Name: com/terraforged/mod/util/nbt/NBTLeavesFixer$1.class
+SHA-256-Digest: v/JLZWP/H8KbToACztILzMRuCRdNHBizcuIHBfPcFHM=
+
+Name: com/terraforged/engine/concurrent/pool/ThreadLocalPool$1.class
+SHA-256-Digest: yl5XLRVipIAgfvmhFplhvhPyyKUj961ziWhdOunu1g8=
+
+Name: com/terraforged/mod/chunk/generator/Generator$Features.class
+SHA-256-Digest: zKDdYMUJ6nw/ZRr9G3fMTtQ1c+GqNnTKmktgUmzAdDQ=
+
+Name: com/terraforged/mod/client/gui/screen/overlay/OverlayScreen$1.cl
+ ass
+SHA-256-Digest: Gr6Rnnl0OS+HxakbocAALmsv4Uozn18m5g+y3rYq3aI=
+
+Name: data/terraforged/features/ores/diamond.json
+SHA-256-Digest: cchxpTobpHTRXxABKQej9cuGgnD5e78hn2a0yMFx9q8=
+
+Name: com/terraforged/engine/world/continent/fancy/Segment.class
+SHA-256-Digest: BQYKJvDu4c4PCDPkPUkFQxde6L/s9tgT81APNPtwtfo=
+
+Name: data/terraforged/features/trees/fir_forest.json
+SHA-256-Digest: jfY1lUmF4IchILtx67roHWkHyUhaN63/e50x+xAIZao=
+
+Name: com/terraforged/engine/world/heightmap/HeightmapCache$1.class
+SHA-256-Digest: cDmrGWUTTj91rlT+lbwUAx8JIw6R+yEir+WFQf2Q9jM=
+
+Name: data/terraforged/structures/trees/birch/small/birch_small_2.nbt
+SHA-256-Digest: 4unO+B4OmJ5T+ig5WG/E1qNh53rbVc/8iqaW+MbTJOk=
+
+Name: com/terraforged/engine/module/MultiBlender.class
+SHA-256-Digest: 0Kp/oTn2IiGMxukISk72ChNPRf7ziCmlMNtfiu4ThNs=
+
+Name: data/terraforged/features/trees/spruce_tundra.json
+SHA-256-Digest: p8HFYQixRSuiBHkkf8L36tkDzWgNZdqdTGZVUj5Cnf8=
+
+Name: com/terraforged/mod/server/command/search/condition/TerrainMatch
+ .class
+SHA-256-Digest: wFU3pw7/DOb4gza8oIF5rnYlsCXBBdyrF5w0132xwlo=
+
+Name: com/terraforged/engine/module/Ridge$Mode$1.class
+SHA-256-Digest: XHmd5m48RGqtI0+oUX4YCP5bEoRiXn7Pdk8E8mFZsKc=
+
+Name: data/terraforged/structures/trees/willow/small/weeping_willow_sm
+ all_2.nbt
+SHA-256-Digest: yp7HHH3g4m4Dijad7H2x2ch+J8KN0DNFo/N1IBDr3pk=
+
+Name: com/terraforged/mod/server/command/search/condition/TerrainCondi
+ tions.class
+SHA-256-Digest: nbTVvNZk2fuRwggcyCZMMJPeLszsfv8P/EqutbV9lYg=
+
+Name: data/terraforged/structures/mushrooms/red/red_mushroom_1.nbt
+SHA-256-Digest: 2xF2tY1O9Fr4534jLOl8GHWmj2Fx2jcOs7Ihisjj0aU=
+
+Name: com/terraforged/noise/func/EdgeFunc$5.class
+SHA-256-Digest: WtAuvh/tyvMZuDORpZlKNucHGxM8OhqJY8jvIzt5VRQ=
+
+Name: com/terraforged/mod/feature/context/ContextSelectorConfig.class
+SHA-256-Digest: iFgnbuLczMmNIDmkmAqHKrJ9OaUVqyhi0OGY30JnTMw=
+
+Name: com/terraforged/mod/chunk/settings/preset/PresetManager.class
+SHA-256-Digest: gtF0E2oVhaoTq0V30NX61PHTqornwmvxde25maCH2s0=
+
+Name: com/terraforged/engine/concurrent/batch/SyncBatcher.class
+SHA-256-Digest: FAi28U+12wqTEV5oxRSPnDI0vFq+5qJ3/XSG0hZoDk4=
+
+Name: com/terraforged/mod/chunk/settings/preset/Preset.class
+SHA-256-Digest: mJFPeIZ41BztBGJqzH6SYcq7FelUFEoLJiidQmubu3I=
+
+Name: com/terraforged/engine/concurrent/pool/ObjectPool$Item.class
+SHA-256-Digest: j6+kZprqE6q9RHTFW8alsRfzlp0WyLFvvK93iRFS8VE=
+
+Name: com/terraforged/engine/world/biome/modifier/VolcanoModifier.clas
+ s
+SHA-256-Digest: 7DQIISg8ZXDscUWjQNTdaRuBdbqkinRY8g95GhlT9UQ=
+
+Name: com/terraforged/noise/func/EdgeFunc$4.class
+SHA-256-Digest: 69y/bQYKMzwDZBxsVHFBrzDvWcYFh4guKz5yYlQnogQ=
+
+Name: com/terraforged/engine/Engine.class
+SHA-256-Digest: kT+zXxjIwIa1H/5zXqlkATWsIBbaG7VIABPJcW0Efjs=
+
+Name: com/terraforged/engine/world/terrain/TerrainCategory$9.class
+SHA-256-Digest: 18G2nocBmw3NXxaDfDwHXgwCKN4hLX4gVp2A95B6uxw=
+
+Name: data/terraforged/structures/trees/oak/large/oak_2.nbt
+SHA-256-Digest: sf83zBzkusCnmnKBs5Gc35vXvXrkyLivJgkwgJcFDiM=
+
+Name: com/terraforged/mod/api/event/SetupEvent$Surface.class
+SHA-256-Digest: TapJ5gBqTSP0q43SAEULGeVybEiiGBykPGnjPJuP9wY=
+
+Name: com/terraforged/noise/domain/Domain$1.class
+SHA-256-Digest: jNZboFjs/Gmu5WAL4P8xw9Nx94LyM8Ji3wDK8E61q4E=
+
+Name: com/terraforged/noise/modifier/Alpha.class
+SHA-256-Digest: uZzzT2g9Vva/vWDvFBP0ssDHXp3jPvZ8snyrpfXSqEM=
+
+Name: com/terraforged/mod/client/gui/screen/DemoScreen.class
+SHA-256-Digest: YLs2+v/8EXCNTLhRlySDFcidZrQ+vgWeHzFv5DCJIas=
+
+Name: data/terraforged/structures/trees/jungle/huge/jungle_massive_6.n
+ bt
+SHA-256-Digest: UKnbyBf6DRZHh8Jl9ZqdKpP2NUh2ieMqFf7hWUXCldI=
+
+Name: com/terraforged/engine/tile/gen/TileGeneratorAsync.class
+SHA-256-Digest: r0dQfVwMAut+WlCUvCoj3ydSm/VHhPTZC6ZsdJ4c5iQ=
+
+Name: data/terraforged/structures/trees/acacia/bush/acacia_bush_1.nbt
+SHA-256-Digest: AGMOu999YxPejJZBBLyq+urBWHLm4PMFVD9T53qVZc8=
+
+Name: com/terraforged/engine/cell/Cell$Visitor.class
+SHA-256-Digest: 5oNg8uZjt2wB8Vsh5vAGj2F751VNnGa4wzXBP3RGxVs=
+
+Name: com/terraforged/engine/settings/WorldSettings$Continent.class
+SHA-256-Digest: umdVUQ50Tf9eXmf7S8TFeUfEJbjDjIWgsL5lNpONy2c=
+
+Name: LICENSE/Engine.txt
+SHA-256-Digest: D2V0ePabx3I2Ud1V11umnnIIAr7hGzLbeqX8FyhAV/E=
+
+Name: com/terraforged/noise/func/CellFunc$3.class
+SHA-256-Digest: MNgv2pvM7Ye4PPn1KyMns0p7VPhHRBUPACroNzvWRrM=
+
+Name: com/terraforged/mod/featuremanager/transformer/FeatureInjector.c
+ lass
+SHA-256-Digest: 819JtV+t7HYPKChjmWMF6W8GZEQoReLxlFDpK3IIzU0=
+
+Name: data/terraforged/structures/trees/birch/small/birch_small_1.nbt
+SHA-256-Digest: zEtuSU++kPk7IvEctjeOgr0uWzatndxyYUe3byLobk8=
+
+Name: com/terraforged/engine/world/terrain/TerrainCategory$7.class
+SHA-256-Digest: tSHnMiPyrhGaRFu6HGHsTtDV2B43AqxUNx0aIx+vOkM=
+
+Name: com/terraforged/engine/concurrent/task/LazyCallable.class
+SHA-256-Digest: oMk+6q1J+8VuOomP/xVk3gzmaqOob42YQabnm4VYWmA=
+
+Name: com/terraforged/engine/tile/chunk/ChunkGenTask.class
+SHA-256-Digest: lLxKGM/gKws8OkiQZKKyrgOaW2uqg82ESKq4AP5/ASM=
+
+Name: com/terraforged/mod/featuremanager/matcher/biome/BiomeMatcher.cl
+ ass
+SHA-256-Digest: fwmRacguIoyMhSLzgMMCOEm7ZFn0ty6YuXqpE/YZqW8=
+
+Name: data/terraforged/structures/trees/oak/small/oak_small_3.nbt
+SHA-256-Digest: awIW7UgvXQNx4JBYGoSqMfXyQ6S6pbuIX/9Xtdz58i4=
+
+Name: com/terraforged/engine/world/biome/type/BiomeTypeColors.class
+SHA-256-Digest: UcvqY83JCOHjK4Ti2q3E/QnC50ckirqbdZjXCw8Rxnw=
+
+Name: com/terraforged/engine/world/biome/modifier/WarmLakeModifier.cla
+ ss
+SHA-256-Digest: ZA+EUjaMZ2CS98/MnZdG7G8fZxlCw5rCUfwlTrisHMk=
+
+Name: com/terraforged/engine/serialization/annotation/Range.class
+SHA-256-Digest: H4z6zVLB8GpFsmWb2FFCsw6p9qFSAlvzDPSSk60vHZA=
+
+Name: com/terraforged/mod/featuremanager/template/processor/StateProce
+ ssor.class
+SHA-256-Digest: x/2EdreBrQ+aQ73RoiE1vTWD3RDv1morjjc7YhCEPIg=
+
+Name: data/terraforged/templates/trees/brown_mushroom.json
+SHA-256-Digest: L864vCrIKm179BBbqOBZJnvxyv72uhHgVZedPgUkBSM=
+
+Name: com/terraforged/mod/api/biome/surface/MaskedSurface.class
+SHA-256-Digest: FQ+05Bh4qdz/8S4tPLxHwA8JlWFMBo1hLLjps+mYSUA=
+
+Name: com/terraforged/engine/util/FastRandom.class
+SHA-256-Digest: +YuKRfYSiEnhIrFvF9/n5bCAUAkzTHR5hyjlQSRMIho=
+
+Name: com/terraforged/engine/cell/Tag.class
+SHA-256-Digest: ZBBHshevY4MYcMTFgXvnn/E6Xif7zhW8Bfx5svCR7xc=
+
+Name: com/terraforged/mod/util/nbt/NBTWriter.class
+SHA-256-Digest: mwf58dUOQsIR0ryPRfxPIepUccPqsATB24EIcUlMTHI=
+
+Name: com/terraforged/engine/concurrent/pool/ObjectPool.class
+SHA-256-Digest: CooiFYchFWOp/Zih7Pqs2TeKE0Oe7A1CJuwaFVijR6A=
+
+Name: com/terraforged/mod/util/DimUtils.class
+SHA-256-Digest: sAW/TdleFc1ZFVvz3nlJiFHQcMVUSr0S2Fgd/x7V8rw=
+
+Name: data/terraforged/structures/trees/oak/forest/forest_oak_2.nbt
+SHA-256-Digest: iSYPAkU9u9OqhYs4jm+lDLlZuJVGQbouE4MWc2HUfN4=
+
+Name: com/terraforged/engine/render/RenderWorld2$RegionHolder.class
+SHA-256-Digest: vAwfVclBrn7WyjHCrBuWIOyrxRbLP9yEAWm3zsLjQhM=
+
+Name: com/terraforged/engine/tile/Tile$GenChunk.class
+SHA-256-Digest: lLrxR7ZatHEXPROPNZ5f8xHOQBO1c0wxnpBoi5udPRM=
+
+Name: com/terraforged/mod/client/gui/element/TFSlider.class
+SHA-256-Digest: meBRhjKQxBp49Vl6WR8YwcNKYksh+i0V6vQ2XNc/f+U=
+
+Name: com/terraforged/mod/RegistrationEvents.class
+SHA-256-Digest: Xtl9lpGwyoWXISSxJ+vVql6qatoySCBvIym2dM2SMGA=
+
+Name: com/terraforged/mod/featuremanager/template/buffer/PasteBuffer.c
+ lass
+SHA-256-Digest: kVGASJ+f6rx6RN8SlZHQaYvxhy0qa6yfNPE7MfsChzk=
+
+Name: com/terraforged/mod/api/event/SetupEvent$Geology.class
+SHA-256-Digest: RfV9TyawX62ZOOAVpyH4tFGh7XxJaJ50cV6cFenXXJo=
+
+Name: com/terraforged/mod/data/gen/LangGenerator$DataGenSettings.class
+SHA-256-Digest: JPxWbmonTKTyklb4qMtzvmGemtjWtb7pOlk2u0nB1Gc=
+
+Name: com/terraforged/mod/util/ListView$FilterIterator.class
+SHA-256-Digest: 0DsdTM88shJDgXSIkNaYU2X+IZeAXjkpgZ3q/ndZdc8=
+
+Name: data/terraforged/structures/trees/oak/large/oak_5.nbt
+SHA-256-Digest: anpz9rrzoQyuskIm5PBzPWpnGLrYEGqZM9sdD3hp09o=
+
+Name: com/terraforged/engine/world/biome/map/set/TemperatureSet.class
+SHA-256-Digest: 2j0WlMpi2M2GgmjeJV3D89Nn5w2dhj8lNZLb6fD3RwY=
+
+Name: data/terraforged/templates/trees/dark_oak_small.json
+SHA-256-Digest: Zvn7gAt2gJoc7kdyO5Y4oSFyJvbb11Ti5blxX1rWOaM=
+
+Name: com/terraforged/mod/api/event/SetupEvent$Decorators.class
+SHA-256-Digest: PKg+y4FwTfpGubYJaWOKdwDVYv3WzW/7hqNnYmDG6GM=
+
+Name: com/terraforged/engine/render/RenderWorld2.class
+SHA-256-Digest: p496zFddKbGEQ8r473aV098FLbLTNPuz+4ceswuOOSg=
+
+Name: com/terraforged/mod/profiler/timings/Top3TimingStack$Entry.class
+SHA-256-Digest: pX4ZB4V5Is4yroKSYj0EzBGWPS65qqIlG+MvnqJgoio=
+
+Name: com/terraforged/mod/feature/decorator/poisson/FastPoissonAtSurfa
+ ce.class
+SHA-256-Digest: OR1uJJ1JbyLNBT6LwouL4gubJUqRWu0zZ+o7QNVur+M=
+
+Name: data/terraforged/structures/trees/spruce/bush/spruce_bush_1.nbt
+SHA-256-Digest: IwvZd75sLxnWiMGI4+NtF8j0mkkQu3f+edT9QLfFLSI=
+
+Name: com/terraforged/engine/world/terrain/TerrainCategory$1.class
+SHA-256-Digest: ZyB77tNbHsSBsBPp+Ckqxghp7epZuF5hO1g4l6+NXcU=
+
+Name: com/terraforged/engine/world/terrain/special/VolcanoPopulator.cl
+ ass
+SHA-256-Digest: NKAuTCHiohfQn68O5rIRcQqZ7A3kgi4rcP8bydw63bc=
+
+Name: com/terraforged/engine/concurrent/cache/ExpiringEntry.class
+SHA-256-Digest: ijfWM9UfP/0pZcb1R4ADiqDGE6+otKBD19KaBONGB6g=
+
+Name: com/terraforged/cereal/Cereal.class
+SHA-256-Digest: /mywqQVdZW1ywHhDrX1x8yTdobaXHC6fxic2HAph1YM=
+
+Name: com/terraforged/engine/serialization/annotation/Hide.class
+SHA-256-Digest: S1sLYDsKOwPkMU7kK4es32bpbDncVFnJElfvT6okoUM=
+
+Name: data/terraforged/structures/trees/jungle/small/jungle_small_2.nb
+ t
+SHA-256-Digest: 87INbssii5zryaL1gBcdhg7yL7C3qYdc/dZK8OeAVoo=
+
+Name: com/terraforged/noise/combiner/Sub.class
+SHA-256-Digest: eEnqkcDyu1nGNHxviLtriZrdlXt0bDOMM4y4LxTA368=
+
+Name: data/terraforged/templates/trees/redwood_huge.json
+SHA-256-Digest: NWQuu3WNmUMky7FcR5PAgtBoJ35DLPxNmjA0/cRczeg=
+
+Name: com/terraforged/engine/serialization/annotation/Sorted.class
+SHA-256-Digest: r0We78c8/eUURroEsLT/XY8ZMKCrkg3s5ye4m/fLdNc=
+
+Name: com/terraforged/engine/util/pos/PosIterator.class
+SHA-256-Digest: L9+X+iNv2S8fVFTnAAVg9Y8D1ROq8WLwH7uQI42keb4=
+
+Name: data/terraforged/features/trees/oak_wooded_badlands.json
+SHA-256-Digest: g1vYyqC0i4QvxPXlzBi75Ldt6ek1+Aa/mfrRO/zQxkw=
+
+Name: com/terraforged/engine/cell/Cell$ContextVisitor.class
+SHA-256-Digest: zE++mwAgHNvKwmTNTqHqFosOIucbfjpJ7sNGKKjjEQA=
+
+Name: com/terraforged/engine/serialization/annotation/Name.class
+SHA-256-Digest: C4TMT9+XS7qm9iQu1xA79goV4OMxbeFeLLAOlOO1k0I=
+
+Name: com/terraforged/engine/concurrent/thread/ThreadPool.class
+SHA-256-Digest: OqzPN1T4L5UhN92/j1wREQJXS4iuULSR7A2NDe/Vu+Q=
+
+Name: com/terraforged/engine/settings/TerrainSettings$General.class
+SHA-256-Digest: q+QDx2pO46FhAPhGAF5/+crFYDjyW3C6nQ+LKGwiNLo=
+
+Name: com/terraforged/noise/selector/Selector.class
+SHA-256-Digest: FSn61V6WNTObwIBAIoakoPb9JrTZOEFQsrgwJDp9s7A=
+
+Name: com/terraforged/mod/biome/spawn/SpawnHandler.class
+SHA-256-Digest: iQaG0vtxlyPPY7k1fLLtFzGzYmAky02CHWLL08i2xMk=
+
+Name: com/terraforged/noise/source/Builder.class
+SHA-256-Digest: Db3Bgvnzxsqqe23un8ItzGOcgLaBkk/Ah8NcD0YaY7s=
+
+Name: data/terraforged/templates/trees/birch_small.json
+SHA-256-Digest: ZZszXGuOC8U9EPBUgstUI6JfE3DED/4f5spNZYaCDJA=
+
+Name: com/terraforged/mod/client/gui/element/TFTextBox.class
+SHA-256-Digest: TCsWrGe2MBSTJzJb1apdtgdP3uNLeE1lrfnuN7fghGU=
+
+Name: com/terraforged/engine/world/climate/Moisture.class
+SHA-256-Digest: i0n02O2enSyvrQcbpJiblz+Fp2aUKg1ROWIyl+pj5is=
+
+Name: com/terraforged/engine/world/continent/simple/SingleContinentGen
+ erator.class
+SHA-256-Digest: QfajrjYsWHVSo4SZeg4lLGUHS5pP1Vah5SeH2b92vCA=
+
+Name: com/terraforged/mod/biome/surface/BryceSurface.class
+SHA-256-Digest: vpEskJRnOcBJwQQGkwYYGS36aff+Vg4uJNJBBn/BaIo=
+
+Name: com/terraforged/engine/settings/RiverSettings$Wetland.class
+SHA-256-Digest: 48OKzBNrcJ2Ig0B3bvH72yAv/3QYlwO4Zl5yLdOqua8=
+
+Name: com/terraforged/mod/api/material/state/StateSupplier.class
+SHA-256-Digest: jd2CTAy5V7KLh8zRWVwMkZsAGDTynGNqBLdXJOGnu3c=
+
+Name: com/terraforged/engine/world/terrain/region/RegionModule.class
+SHA-256-Digest: kTQ4igrGAC2xAtY5PpuGtlRyEyflHTw6CCibk8ZEYgQ=
+
+Name: com/terraforged/mod/chunk/generator/Generator.class
+SHA-256-Digest: i9cLhgJKXnbl4DA/2P64R0JSsNEOc9jIwpNj8BKEizE=
+
+Name: com/terraforged/noise/func/CellFunc$2.class
+SHA-256-Digest: sJ+7U6GIoeC9swRyqOEAuxxEBceCVIwdCxfx9Ml9Wx8=
+
+Name: data/terraforged/blocks/saplings/acacia_sapling.json
+SHA-256-Digest: AoxJfQ/vZT0nyW/A9f7MkX+RI1tdV99kCNJQeeKqxfk=
+
+Name: com/terraforged/noise/modifier/Modifier.class
+SHA-256-Digest: FMjERl1iZyGvv5AEmDLZ7SeyuwPo4SVzFEFv8xIHP30=
+
+Name: data/terraforged/structures/trees/willow/small/weeping_willow_sm
+ all_1.nbt
+SHA-256-Digest: CQ3SA9sJQtOgXgNRHBYBIFI9qd3H6zxdXuIR/otd7xg=
+
+Name: com/terraforged/mod/feature/BlockDataConfig.class
+SHA-256-Digest: U9wWf+tU5gEAmw6qaTItGMZp0Ee+1CzFDt0/GqSRa2c=
+
+Name: com/terraforged/engine/world/terrain/TerrainCategory$6.class
+SHA-256-Digest: vXL35rHF3Z5eV2wPBN4hyX+uRvxkolyrdsD9Z61ZJFI=
+
+Name: com/terraforged/mod/chunk/generator/TerrainCarver$1.class
+SHA-256-Digest: 8wKBVHHqP1sia/LgAHqIli6Fj3S5yr0M4e++uBhyqH4=
+
+Name: com/terraforged/engine/world/continent/fancy/World.class
+SHA-256-Digest: ZSYaSkaR4bg2qqdiTePRHM+ZcGe170zBwLXT8A49TMA=
+
+Name: com/terraforged/mod/featuremanager/matcher/feature/Search.class
+SHA-256-Digest: uIVTcOYRZWJUfgASsom764VLocQrujDsWn2Wro4+nRM=
+
+Name: data/terraforged/structures/trees/acacia/bush/acacia_bush_2.nbt
+SHA-256-Digest: AGMOu999YxPejJZBBLyq+urBWHLm4PMFVD9T53qVZc8=
+
+Name: com/terraforged/mod/feature/feature/FreezeLayer.class
+SHA-256-Digest: MQg4sDIKroQofx5Xj6uCdIC2F2thOEEb1OOZfTl7od0=
+
+Name: com/terraforged/mod/featuremanager/matcher/BiomeFeatureMatcher.c
+ lass
+SHA-256-Digest: cQ3Abfai5EUVpmCADJcsCChN3sIiVbubcM9Uy+KWROY=
+
+Name: com/terraforged/mod/server/command/search/BiomeSearchTask.class
+SHA-256-Digest: +aUD8D8kyAeoFV9Nv6SrYapZV4q86CCVS7qPuoMIuL4=
+
+Name: com/terraforged/mod/chunk/generator/SurfaceGenerator.class
+SHA-256-Digest: WkMUcRT6+J92w6L4JinRoV7L0jYIxxjQTKreWu4BMiI=
+
+Name: com/terraforged/mod/featuremanager/util/FeatureDebugger.class
+SHA-256-Digest: ZtRXYnYKICywAuOxAFqtbp5tbgJ2br16EzJg9yQ9RDw=
+
+Name: com/terraforged/engine/util/metric/Metric$Timer.class
+SHA-256-Digest: 7GSdkxReOJ3EpEeRVAz0jgipr7HX4Bvus/KwpEKfy5A=
+
+Name: com/terraforged/noise/modifier/PowerCurve.class
+SHA-256-Digest: TlB+2aAerkjO435t3T5YWXqKVAz6EyTPJKtbNrRkCNQ=
+
+Name: com/terraforged/mod/client/gui/GuiKeys.class
+SHA-256-Digest: uFGLHUftlkBLhIo0uPW1cypB6+O/taCSnat5BBP8YTM=
+
+Name: com/terraforged/mod/data/gen/feature/Shrubs.class
+SHA-256-Digest: I4Iu1cMjpMglDIf2O0scfxZeZ6ESkDuHa00t1E1TXAY=
+
+Name: com/terraforged/mod/client/gui/screen/preview/Preview.class
+SHA-256-Digest: VgBkZL3ncRwGy9zuPXFOJD/YtCadtJt2o4ayd+sMDws=
+
+Name: data/forge/tags/blocks/wg_stone.json
+SHA-256-Digest: rMtWM4bYXQRwEZl8YxzHYxVFwdPu+a78cLiYL8Wcvb4=
+
+Name: com/terraforged/mod/api/event/SetupEvent$BiomeModifier.class
+SHA-256-Digest: K9LEWP5AvO0QLEdFBIv5Gxxmsw4N9rzXlmwvah0cidQ=
+
+Name: com/terraforged/engine/world/geology/Stratum.class
+SHA-256-Digest: ru4w/EVKr7v6seWjE98XMrG7RT7goSuh9SVCLFhAOwg=
+
+Name: com/terraforged/mod/featuremanager/template/BlockUtils.class
+SHA-256-Digest: vpsxSShq97UyGJg4CvlcD3QuT8ZINOv9IoinnWJEOtg=
+
+Name: com/terraforged/engine/world/continent/MutableVeci.class
+SHA-256-Digest: fm3YkXSXGEwcfTpchdeOyvxuNy45LXsHzTo/gVTtNeY=
+
+Name: com/terraforged/engine/world/continent/SpawnType.class
+SHA-256-Digest: cfOxY89FeVmun6OWhiO2nu3Dnk5TKVkAty6lPGqYQ7E=
+
+Name: com/terraforged/engine/world/geology/Stratum$Visitor.class
+SHA-256-Digest: lBDEj5kWDhrw5Ib4CpeuWL1jGywVcVAgCaZRCaPGuyM=
+
+Name: com/terraforged/noise/util/NoiseSpec.class
+SHA-256-Digest: erOXJ8a/M9QZ49RfAQRmoE5BJ3Ah3PV/dh1UDkVmaJA=
+
+Name: com/terraforged/mod/featuremanager/matcher/feature/FeatureMatche
+ r$Builder.class
+SHA-256-Digest: BciET2lylKxOh54jp/w4z9WQw8Yv/1ct+sL26xVb3qc=
+
+Name: data/terraforged/features/shrubs/forest_bush.json
+SHA-256-Digest: rbJfbp1sVdF1CsziUYSpR9r8zfyvZ0wyCPRDy5Sum3k=
+
+Name: com/terraforged/mod/chunk/settings/StructureSettings$StructureSp
+ read.class
+SHA-256-Digest: SjtRzSAV3mbDqnCB3MoFv3glpUrXdcbb8CN3ny5+p74=
+
+Name: com/terraforged/cereal/serial/DataWriter.class
+SHA-256-Digest: pqWvLyKBPlYQSV5rXPrCAIUGjnk3IRSbwrjuJIzv1Sk=
+
+Name: com/terraforged/engine/world/biome/modifier/BiomeModifier.class
+SHA-256-Digest: QtXV7qb77RJtBZSHjmfCFIO8eHtzfUvHJ6+M2GKMlE0=
+
+Name: com/terraforged/engine/world/rivermap/river/RiverConfig.class
+SHA-256-Digest: VZ6p1K5VOU5PpiEjYc/nlwXkFKJcLiBrnnawmeHZZig=
+
+Name: com/terraforged/mod/biome/provider/BiomeCache.class
+SHA-256-Digest: tkX9MmmowmkR4T2El5mTFRvrLQlXDMeheOK43mp8pCM=
+
+Name: com/terraforged/engine/world/terrain/TerrainCategory$3.class
+SHA-256-Digest: I4GqvEfM+VWofQZQReSJ01DqviwXeKc0ugpq32xLqWM=
+
+Name: data/terraforged/structures/trees/jungle/small/jungle_small_1.nb
+ t
+SHA-256-Digest: pOsRRtCoP1LxyJUe7q+uFvh3DkqHk+F7asyeMfxj9D8=
+
+Name: com/terraforged/noise/util/Vec2f.class
+SHA-256-Digest: YxpcWsa05ydD4okxsCZMJENer5O2CHEE/Ehs7D4Ec5s=
+
+Name: com/terraforged/mod/featuremanager/modifier/ModifierList.class
+SHA-256-Digest: NYz7eqt6MXuEQoEUqLOF1fBMuIfTEAYTCtzTCSpT3vw=
+
+Name: com/terraforged/mod/feature/feature/FreezeLayer$BiomeAccessor.cl
+ ass
+SHA-256-Digest: kXiBXcV22/bN08LPWl6JnZtUvPYR1X4146TdyttYs1Q=
+
+Name: com/terraforged/mod/client/gui/element/TFSlider$BoundSlider.clas
+ s
+SHA-256-Digest: wRrMKnABAkq+B1LhSrR9voh5L81FLmRWNBCscYrFaI0=
+
+Name: com/terraforged/engine/concurrent/pool/ArrayPool.class
+SHA-256-Digest: BvZ1dfZ9UJvyN/E8pt3d5MgEPeMG8IM3iDOBqYYbnYE=
+
+Name: com/terraforged/mod/biome/TFBiomeContainer.class
+SHA-256-Digest: Gn0OtoRVHuYCo+aEh6ttaidqAkzgOXwh2pquuQg5n3U=
+
+Name: com/terraforged/mod/util/nbt/DynamicReader.class
+SHA-256-Digest: G8Rz+KfEK+nyStvJ5lsnRkGj4J4zhfH8CWtwLzmaf7M=
+
+Name: com/terraforged/engine/world/biome/modifier/AbstractOffsetModifi
+ er.class
+SHA-256-Digest: arvtn8T6pvJBwuRiWeMJtCz5/PrJaO4SGoM0pcSqlk4=
+
+Name: data/terraforged/structures/trees/oak/small/oak_small_2.nbt
+SHA-256-Digest: ssc3rp7+CleOD/etz8M2nn5QiKHBO2r9ooxx5Ku+sAI=
+
+Name: com/terraforged/cereal/spec/SpecName.class
+SHA-256-Digest: LI8cjbucpZkk1WLMzNTgrQjw7sJTcJSvT6teoQxyQXM=
+
+Name: com/terraforged/noise/source/Rand.class
+SHA-256-Digest: gkbdAXfRLSR2YVcV/bYHhz2LtF/3WxQIbqLPGe46Z3Q=
+
+Name: com/terraforged/noise/func/CellFunc$1.class
+SHA-256-Digest: GFWg2tvZaepX1iZ/kxVC6uUCGJnSJH4pS7K8RzUh7lY=
+
+Name: data/terraforged/structures/trees/spruce/bush/spruce_bush_2.nbt
+SHA-256-Digest: gOqBACpMgiNiKu+D7hbdOIcUBJFzBtpv7GkDUtsE5rA=
+
+Name: com/terraforged/engine/world/rivermap/river/Network$1.class
+SHA-256-Digest: j20m7qtdPLtuely1W/kUCOrqr7WUymtCP/jFsuX8+5U=
+
+Name: com/terraforged/engine/concurrent/cache/Cache.class
+SHA-256-Digest: Sj91vcat8mPD9I/AOmvLTdiJHbQt9KhnN3O6zoky/tc=
+
+Name: com/terraforged/mod/biome/provider/TFBiomeProvider.class
+SHA-256-Digest: fnhRowb9L80CSS1mnXGqLjzituUmYyH9mRhQoyu44do=
+
+Name: com/terraforged/mod/featuremanager/template/decorator/DecoratorC
+ onfig.class
+SHA-256-Digest: oUZJw8TlVtXNvuJHeqzyC8MzGSpYtuuYEDh5wPbdso8=
+
+Name: com/terraforged/mod/profiler/watchdog/WatchdogContext.class
+SHA-256-Digest: 3yiyy9KPC6dBo157gJUFVxKEsbaM3sykFf+69XeFLbg=
+
+Name: data/terraforged/structures/trees/birch/large/birch_1.nbt
+SHA-256-Digest: ZbuyhusgWqMvW5+gi4GV6W97EP8K4Bo+B/D6CKO7Wk8=
+
+Name: data/terraforged/structures/trees/birch/large/birch_2.nbt
+SHA-256-Digest: dU6hWL1TlZdxUrj95rZWWGjLluvbfyX/p7CkdhcHRYc=
+
+Name: com/terraforged/mod/feature/context/modifier/RangeContextModifie
+ r.class
+SHA-256-Digest: EmfPn747ideePF47JY1J8aP8KTJTFtuQpLsX+FEyvjM=
+
+Name: data/terraforged/templates/trees/pine.json
+SHA-256-Digest: DEckLZ4SctyioE58QUlm8ltjmBuafcLbccUrM+TLR+A=
+
+Name: data/terraforged/structures/trees/dark_oak/small/dark_oak_bush_2
+ .nbt
+SHA-256-Digest: gZ2UAi6WijnEfCqcQI30/sznFIvBpLpyViPdNXN8yC8=
+
+Name: com/terraforged/engine/concurrent/cache/map/StampedBoundLongMap.
+ class
+SHA-256-Digest: AfKJfot4FFENepY3u4Gq64Pmo6yKmcfuqQx6WwRnkmI=
+
+Name: data/terraforged/templates/trees/oak_small.json
+SHA-256-Digest: zPNelyUwdc9iZFLlj6PM3EVe7aiM0mi79oknxWY1FP8=
+
+Name: com/terraforged/mod/api/material/geology/StrataConfig$Config.cla
+ ss
+SHA-256-Digest: gIBGKhAfGD7sv+CmirTeX+uqO8pI+lSA4mBhbn7EYCQ=
+
+Name: com/terraforged/engine/settings/ClimateSettings.class
+SHA-256-Digest: l88vd5Kaleecb+T4riV7irSetGz7R8PPFn263HegZyc=
+
+Name: com/terraforged/engine/world/terrain/TerrainCategory$10.class
+SHA-256-Digest: wh6uLMYKUHbQD49OtYHKj6fxOFPHTtjKDDK+MSAlPPQ=
+
+Name: data/terraforged/templates/trees/spruce_large.json
+SHA-256-Digest: gBaZjOfwaGdnfnwBDL5niMThvz7IqXp109OK8EPrmN0=
+
+Name: com/terraforged/engine/world/biome/type/BiomeType.class
+SHA-256-Digest: RvE2dFctzdYhcCPCOTRDh6ZN/z+YOUWPD3R6FNdgGOk=
+
+Name: com/terraforged/mod/featuremanager/data/DataManager.class
+SHA-256-Digest: nXj8ZysBH1BmuHHfyBrRbGUV///Lu+6OziNdc+cWq70=
+
+Name: com/terraforged/engine/world/biome/map/defaults/DefaultBiome$Fac
+ tory.class
+SHA-256-Digest: tqAc5UFw1Z2eW+pSlDmbjxOV0WwVyut6YYHis0w6M4U=
+
+Name: com/terraforged/mod/client/gui/element/TFSlider$Float.class
+SHA-256-Digest: j/3MokHUewhj4JvalDSheSabCsldDy4TtS6I3Mz9T3A=
+
+Name: data/terraforged/structures/trees/oak/large/oak_4.nbt
+SHA-256-Digest: zgWFire2enaOIBhQmlfvxRgQY/Wyi99fMXOaIvtU4FE=
+
+Name: com/terraforged/engine/world/continent/SimpleContinent.class
+SHA-256-Digest: OP1c61tVaiqBiWI9Me6sEa3pu6bcT8/QW612oL1MpgQ=
+
+Name: com/terraforged/engine/world/rivermap/RiverGenerator.class
+SHA-256-Digest: QZxKg/9ndh2qMtYQeVWCyNHgKR/FKVSSSKKxXm2dgpU=
+
+Name: com/terraforged/noise/selector/Blend.class
+SHA-256-Digest: g9rcuTMm9AQ8+Xph6r+TwhuPAucJgCG1OwCvb8ldQPI=
+
+Name: com/terraforged/engine/settings/FilterSettings$Smoothing.class
+SHA-256-Digest: 2u6aNaNVKqB2bJRJMq3GFiF2QSxBkVvoVzVsNxqCmJU=
+
+Name: com/terraforged/engine/filter/Filter$Visitor.class
+SHA-256-Digest: 2BtO1MDgKeq5dhmwxjAUI7u0uUksjWxqWe/ffbG9Dx8=
+
+Name: com/terraforged/engine/world/climate/Compressor.class
+SHA-256-Digest: GHEXT1Rd0hRhFFtdJW2vuwO/vgJeoJN2ri3X5/zXnfw=
+
+Name: com/terraforged/engine/world/heightmap/WorldLookup.class
+SHA-256-Digest: i9jTMX3wH9up03p+WjRL2XIyF+/9k4l+7n9zwz8VYBA=
+
+Name: com/terraforged/engine/world/terrain/TerrainCategory$2.class
+SHA-256-Digest: G9OMQtZ1rmS8ypeMw1n58wK4QWYutYMTjnuRYhTQ0P8=
+
+Name: com/terraforged/engine/settings/RiverSettings.class
+SHA-256-Digest: eweMLov/PYB36KR2OIhvow1FNxULHGQ30urTdHRJ7v4=
+
+Name: com/terraforged/mod/biome/surface/DunesSurface.class
+SHA-256-Digest: 7OCryDSc7D5FukdvvBv49nSBfPH7TPKMqwQuXvTH2Os=
+
+Name: com/terraforged/engine/world/continent/fancy/FancyContinentGener
+ ator.class
+SHA-256-Digest: KCK4DTiTcJN2F91VrGp3IbWWdbW05yuyuQ1x1To45Fk=
+
+Name: com/terraforged/engine/concurrent/batch/ForkJoinBatcher.class
+SHA-256-Digest: iWv5IXMzpcMTokBj0+AYxno1ZX1zdiQ3UzKQlagJBlI=
+
+Name: com/terraforged/engine/tile/gen/CallableTile.class
+SHA-256-Digest: 2JDSv6emGNxHzDr7+vEl18+8itAtvMXOzvUG36MlGfQ=
+
+Name: com/terraforged/mod/data/DataGen$IOConsumer.class
+SHA-256-Digest: J/x54HG4eax6JQq+THvW1E2ggmCm9CY5AuUU3wQf1Sw=
+
+Name: data/terraforged/structures/trees/pine/huangshan_pine_3.nbt
+SHA-256-Digest: e0GKd6bAoiJKjHdOhkFCjvuxCKjKxYIL5DfUxp/h4BQ=
+
+Name: data/terraforged/structures/trees/acacia/small/acacia_small_2.nb
+ t
+SHA-256-Digest: stJ2tgOkgTySjzW92WXcTi+rVkNe/seFmNXj1XIVmg4=
+
+Name: com/terraforged/noise/source/PerlinNoise2.class
+SHA-256-Digest: cTGiQhiF5tuOHRfFjOFz7KwNiMGPlNFlj4OK9Hkyo1Y=
+
+Name: com/terraforged/engine/serialization/serializer/AbstractWriter$C
+ ontext.class
+SHA-256-Digest: XMgwbqZkkKcFldszwq1ldaNmUTAmOHYJz5ym4HdmgMQ=
+
+Name: data/terraforged/structures/trees/spruce/large/spruce_3.nbt
+SHA-256-Digest: 0SiJQB3pGHv5YlpHZnzVQVRmrpNagjnk+BJqgCe8OYk=
+
+Name: com/terraforged/noise/Noise.class
+SHA-256-Digest: ox5UaKebAdIz33w6UVkcyUtU8ELUiKpyGxYH6NIl0R4=
+
+Name: com/terraforged/mod/featuremanager/matcher/biome/BiomeMatcherPar
+ ser.class
+SHA-256-Digest: jS56LuiPATgTWi2EZpeohT7DJvpRZUnW0Kzdc/zWnBw=
+
+Name: com/terraforged/engine/serialization/io/pre/PreGenerator.class
+SHA-256-Digest: SXs1Dooe0IzXoM56EWl0stDNe6RP5S7cbuB6qB8acwM=
+
+Name: com/terraforged/engine/world/rivermap/gen/GenWarp.class
+SHA-256-Digest: sH4aFw7KyJcxc2/MfI6pCpXByC4+vfU55OMMIAI7krQ=
+
+Name: com/terraforged/noise/modifier/Invert.class
+SHA-256-Digest: 4WG79ePXWAr0YcbA8/FErS/eBBRMbYTo6yMliLK70c8=
+
+Name: com/terraforged/mod/chunk/fix/ChunkCarverFix.class
+SHA-256-Digest: By7fvIAa0/zulsfGxwnKhi3JP1zVaWV7nwt/qK+EgHE=
+
+Name: com/terraforged/noise/source/Constant.class
+SHA-256-Digest: i4+3NSzRsjO7neuZAvfhRPUU+koNySkeXBYi0h2Blck=
+
+Name: com/terraforged/engine/cell/Reorder.class
+SHA-256-Digest: bIzai6VeVZKkjuiN8UUV4GA0cD21X81lne4J0eQxsyc=
+
+Name: data/terraforged/structures/mushrooms/brown/brown_mushroom_7.nbt
+SHA-256-Digest: t/+alcjKdJPRo0jpDamWXlAA1uDU0zEG0AOjT5yFSF0=
+
+Name: com/terraforged/engine/util/RollingGrid$Generator.class
+SHA-256-Digest: f4BXW329m2HhsGuZnOPRDKeJz+7PreA84zoCXaB8lpY=
+
+Name: com/terraforged/engine/tile/gen/TileResources.class
+SHA-256-Digest: wua56shDfmQGfR5dKhld/k9KSmHhvEVCBdM9A6UAO0w=
+
+Name: com/terraforged/mod/featuremanager/util/codec/Codecs.class
+SHA-256-Digest: Ce+szyyM6ymk2bSfDCnu4zat8kktJf8AFqv+8Yjfuyo=
+
+Name: data/terraforged/templates/trees/red_mushroom.json
+SHA-256-Digest: AngqzTJwKLChWk5u849vAgybTlzU0kdbgqMKUW1Wio0=
+
+Name: com/terraforged/cereal/value/DataObject.class
+SHA-256-Digest: BD236qJsfOKu1VIkkT3/D3SoDaJ3XzTAC9jGZDcf91M=
+
+Name: com/terraforged/engine/world/terrain/TerrainCategory.class
+SHA-256-Digest: wPScrhbH779KfRwcTAPtQ4oKNwlL+vnS+rG+6x++b3s=
+
+Name: com/terraforged/mod/featuremanager/util/DummySet.class
+SHA-256-Digest: U229VjkDhfvHljqM8x9ql9W2iiodkrtpquMoZQq+wzs=
+
+Name: com/terraforged/mod/client/gui/element/TFRandButton.class
+SHA-256-Digest: IVZqN5pktR36fw3xN9yxdQOa6tj9fUadwcQmvKR6mYk=
+
+Name: com/terraforged/engine/concurrent/Disposable$Listener.class
+SHA-256-Digest: TC5b9pemyBMsoJHSEmSocgAjMNiGZP4THNbL7gh6BDY=
+
+Name: com/terraforged/mod/api/biome/surface/SurfaceManager.class
+SHA-256-Digest: Qo31MFh7zQ8s7/pPUYJyDee8EXVecFDPhR1DbHdfeaQ=
+
+Name: data/terraforged/structures/trees/dark_oak/small/dark_oak_3.nbt
+SHA-256-Digest: ihR52n9YXMAtOmSkZ6Xq8REZ7IkZHq/lZGlTIRiPsug=
+
+Name: com/terraforged/mod/client/gui/screen/page/PresetsPage$1.class
+SHA-256-Digest: wPnUAx8EIH6X4q5Gwnqh9xx4Uf6liwYZmASMLOBNogk=
+
+Name: com/terraforged/mod/client/gui/screen/preview/PreviewPage.class
+SHA-256-Digest: ZxXUfQXIMF78IdHgFwGUhjnnaR/mFAvRYOIDc5JQuqQ=
+
+Name: com/terraforged/mod/data/gen/feature/Sediments.class
+SHA-256-Digest: f6kyfJZCqSN5aTMu3g5Ur84Lqw0NWxmVboE1+/6KotQ=
+
+Name: com/terraforged/noise/selector/VariableBlend.class
+SHA-256-Digest: yLKx+49kB4WYsnGwYtogQ2oEY+HfRdN8YNj6GQCvz1A=
+
+Name: com/terraforged/mod/client/gui/element/Element.class
+SHA-256-Digest: 3aD/Wu3GywxFc261RZnu8U1om2ieIOSl5RuwhNtuh5Q=
+
+Name: com/terraforged/engine/tile/gen/TileGenerator$Builder.class
+SHA-256-Digest: 7J9dIxeFgahibn/rw5rZnlBrMnus8FhaG/Z2ZiWfhV8=
+
+Name: com/terraforged/mod/feature/context/modifier/ContextModifier.cla
+ ss
+SHA-256-Digest: 0KAQJFTr++AtOpQ6zilexR2FHtlPGfyNdOlXvrDMwSA=
+
+Name: data/terraforged/structures/trees/jungle/huge/jungle_massive_2.n
+ bt
+SHA-256-Digest: xSffI8SzXhxE+Y5KljwxSd8I+CfEkXkF9MNI8I1WYJo=
+
+Name: com/terraforged/mod/feature/decorator/poisson/DensityNoise.class
+SHA-256-Digest: ukRiJAJj+5m0ZWOEQXl3R5kkd44HskOKnJ51SBl1CXI=
+
+Name: com/terraforged/engine/concurrent/batch/BatchTask$Notifier.class
+SHA-256-Digest: fg62HLQzrRiIMFpJZr23IC9XkdPI0g9/0i68gNzquR4=
+
+Name: com/terraforged/mod/featuremanager/data/ModDataPackFinder.class
+SHA-256-Digest: vrxmo4tAfJpO4L/G6iYznUtiaKkK5pbGItd2y0VG8yM=
+
+Name: com/terraforged/engine/serialization/annotation/Comment.class
+SHA-256-Digest: 47P08yhOxmlcs/4xvWkdGlDb2SLopk7ckZCqxFj+wsw=
+
+Name: data/terraforged/blocks/saplings/dark_oak_sapling.json
+SHA-256-Digest: Uho5lb18W3/Kcg8jc1p6RbBltpgqlLfnHBZZKay2D0s=
+
+Name: com/terraforged/mod/client/gui/screen/ConfigScreen.class
+SHA-256-Digest: CDf/HHYOMhBBGTH3ZA0r9rb3ufV1zQbSNDH2cAzxARc=
+
+Name: com/terraforged/noise/combiner/Add.class
+SHA-256-Digest: zziTg9XH7FMhEnylSYZF1WA+vvTQXMoF2eqe1s/w74c=
+
+Name: com/terraforged/engine/concurrent/batch/TaskBatcher.class
+SHA-256-Digest: NJV1f3yMxX6hqKERACf7a7AYUBWLvlVHV2aFT5zKCz0=
+
+Name: com/terraforged/engine/module/Ridge$Noise.class
+SHA-256-Digest: /ADx8xry5kxBBFP35CCiF+a99WBRrvb2Sb3gtGyve1Q=
+
+Name: com/terraforged/mod/client/gui/screen/preview/RenderMode$3.class
+SHA-256-Digest: UFHy6UL/NqPAOghnjNLWcQzwUzbMSC3MadVtUwHN8EQ=
+
+Name: com/terraforged/engine/world/terrain/TerrainCategory$5.class
+SHA-256-Digest: evVg1dZtD+fXZyoVvz9aVQ+oYnEr+JoJn/3uUz4OxuY=
+
+Name: com/terraforged/noise/func/EdgeFunc$1.class
+SHA-256-Digest: +9QlPoUkd5C2VSCx9NqdzDARZK7A7yNDIkNVAOBxcko=
+
+Name: data/forge/tags/blocks/wg_erodible.json
+SHA-256-Digest: ZxX4xQRvUNd1G9YjPGEL4awNHZKe4GcGjE0JF7JEc6Y=
+
+Name: data/terraforged/blocks/saplings/jungle_sapling.json
+SHA-256-Digest: ms67F1NwIvE7JY7bbQhALer8u2hgfGaeaPXx/jaGVIY=
+
+Name: data/terraforged/features/trees/pine.json
+SHA-256-Digest: vLISXL83pogtENI4CafjCO1izM3XVSGCGUtBOYa1CXg=
+
+Name: data/terraforged/structures/trees/pine/scots_pine_2.nbt
+SHA-256-Digest: cQbUY7PgI0ZhWmcm1zGnQKeLxLtFP/CfYjNK37RxDT8=
+
+Name: mixin.terraforged.refmap.json
+SHA-256-Digest: ORUwbyCB75WZ/dfZ2syaFELH9VCSD6cJrkI5qJHcBtA=
+
+Name: com/terraforged/mod/featuremanager/template/feature/Placement.cl
+ ass
+SHA-256-Digest: Vv5DJFPj4Yx8uc6VX45Sdxq/PeZqOoajYPUOua2Z8q4=
+
+Name: com/terraforged/engine/concurrent/pool/ThreadLocalPool$Pool.clas
+ s
+SHA-256-Digest: XkqttuEEwLtrOOYcPltfnwcVtYk/2TbY1d5KnWGT35g=
+
+Name: com/terraforged/mod/api/material/layer/LayerManager.class
+SHA-256-Digest: 8+XarmxDvh/ZcTLiMbnhJ4mqZ7583g7ofc9QUramGdM=
+
+Name: com/terraforged/mod/util/TagFixer.class
+SHA-256-Digest: h+yomBNR41wF1x7ZN7wwjG6kXtLbSdKo9IS48xnQI5o=
+
+Name: com/terraforged/cereal/spec/DataFactory.class
+SHA-256-Digest: qsInngxzoa6JIZ1OAGTbBzcHFfxaM8coxc3txyzl1fE=
+
+Name: com/terraforged/mod/featuremanager/util/BlockReader.class
+SHA-256-Digest: K+a0qhZ/dJJJrO14leH9ItF/ZeHY/TMT4nuAGmJhJBI=
+
+Name: com/terraforged/mod/util/nbt/DynamicReader$1.class
+SHA-256-Digest: 3Vnc+Qa1E/18ZaGpo2XLZSuRVDY0aLNEX8IZ20PG9Vg=
+
+Name: com/terraforged/engine/util/fastpoisson/FastPoissonContext.class
+SHA-256-Digest: u6FtL1cGScdXf+JRlh5J0ophz7kHl+MJ35Z7ajwFz9E=
+
+Name: com/terraforged/mod/data/gen/LangGenerator$1.class
+SHA-256-Digest: 3Dsjntar4uMU84+9pPQBtBcMVp+dW10f0/VRKvo7ixo=
+
+Name: com/terraforged/engine/util/poisson/Poisson.class
+SHA-256-Digest: Dhbe+wDiW9nM7jTFujFixbUAxsmwwaT6ziQQ4b1HTzc=
+
+Name: com/terraforged/mod/client/gui/screen/page/SimplePreviewPage.cla
+ ss
+SHA-256-Digest: l4p/QD4XXQlKdOTi+GzqTtv6YBuTfG+XVdvJmetwEjo=
+
+Name: com/terraforged/mod/util/ListView$1.class
+SHA-256-Digest: 7GQyHG3kZQKafWtdmMmmo4x0Vpyu8CkAa4xK3JUn/zM=
+
+Name: com/terraforged/engine/concurrent/task/LazyCallable$RunnableAdap
+ ter.class
+SHA-256-Digest: OW+p/eJCGFWJKICinyEJAuziaQX+/rYbdcWx50fqbs8=
+
+Name: com/terraforged/engine/world/heightmap/Heightmap.class
+SHA-256-Digest: 1S9TvnXBWrCC5uXU0rY2BrlW7+yyBREjGwG3ic+G8uk=
+
+Name: com/terraforged/mod/featuremanager/modifier/ModifierSet.class
+SHA-256-Digest: eNM3kzcdBhuOrsrP1garKv3uDi3gfu6VZ5VgmTWwL4g=
+
+Name: com/terraforged/engine/tile/chunk/ChunkHolder.class
+SHA-256-Digest: YEgbsbuKtIbbqcQu9xict0BQZOFa3xywbFF4h36/9ug=
+
+Name: com/terraforged/engine/concurrent/thread/SimpleThreadFactory.cla
+ ss
+SHA-256-Digest: Y8aakQTTv9vCW+qm2Yfhy2QVceSnpwwFsc/Ei0fYAg0=
+
+Name: com/terraforged/mod/featuremanager/predicate/SingleBiome.class
+SHA-256-Digest: JlVs1XMISs06t9vjSJwHDi0+dG1nkInQ+AsvqgcLS28=
+
+Name: com/terraforged/engine/world/rivermap/lake/LakeConfig.class
+SHA-256-Digest: a/HnCHc8FpMNaixxoe2tWcn00E9GpUw7IXHNk7+agLg=
+
+Name: com/terraforged/mod/client/gui/element/TFSlider$Int.class
+SHA-256-Digest: kVuVgcTBZ8CtryitmSWl4q22GHIKNYJrFKRPrcnz7NY=
+
+Name: com/terraforged/mod/biome/ModBiomes.class
+SHA-256-Digest: aEfrkacKEbrG4HkC1apH138yqEgvWPU9sR9XiB7efrI=
+
+Name: com/terraforged/mod/client/gui/screen/page/PresetsPage$6.class
+SHA-256-Digest: K0UeQ+LP0HkH5sdOh6Ef7gqgeWNS9XeUoIwc0RAin6w=
+
+Name: com/terraforged/engine/world/continent/simple/SimpleRiverGenerat
+ or.class
+SHA-256-Digest: bwU6ip8dY+ny8zP4fH/sPl4XEXS77jBdjRPVPrsfJy4=
+
+Name: com/terraforged/engine/render/RenderMode$8.class
+SHA-256-Digest: IlsPmFb8AOMBATqzAZSepQCYzX2L6cqVxoYSafI5mds=
+
+Name: data/terraforged/templates/trees/oak_forest.json
+SHA-256-Digest: 80QLygxHjJlerX7d7G/L6cXl7vRrbb4ldf+nLuMQaAk=
+
+Name: com/terraforged/mod/util/function/IOSupplier.class
+SHA-256-Digest: aiyXzoWQDWuYbZ+2qLvX6v5eUZGmC+QpEvYhV6a2HCA=
+
+Name: com/terraforged/engine/world/terrain/populator/ScaledPopulator.c
+ lass
+SHA-256-Digest: 8LfTpx/X4p/YSfKUV7OflRQH+s4NVpgpmQzD8kIxADU=
+
+Name: com/terraforged/engine/world/terrain/populator/TerrainPopulator.
+ class
+SHA-256-Digest: LgFSDNfMuphjyhqjvAyvd0PjXhWsLpj67LW4iXcBOR8=
+
+Name: com/terraforged/mod/client/gui/element/TFButton$1.class
+SHA-256-Digest: +vb3LmyAlGvbXcZDvYjQ/KObBIr68RvrpWcnTwBGxPg=
+
+Name: com/terraforged/mod/featuremanager/util/codec/DecoderFunc.class
+SHA-256-Digest: ANPt2tHJLNyq3qCN1Q6uAOnnibTLJNJfo7ZtPBV1oBE=
+
+Name: com/terraforged/cereal/CerealSpec.class
+SHA-256-Digest: y0W0qrQUB4tpJpQ82sf61VFtCefUfk/LqAHJZ2kONgA=
+
+Name: data/terraforged/structures/mushrooms/red/red_mushroom_5.nbt
+SHA-256-Digest: 6ftOifsNGaMmVAtwDt6idedknY7xJAm9Dbv+CmAzYW0=
+
+Name: com/terraforged/mod/chunk/generator/BiomeGenerator.class
+SHA-256-Digest: o9Md3a+9K4KpJfsKMJ9FgNsr+EthMN8cs8FmeqpFZAQ=
+
+Name: com/terraforged/engine/world/biome/modifier/DesertColorModifier.
+ class
+SHA-256-Digest: iZ5hUMRDv+UVBWLVlR7mjV9sLMUDMIVE2AjbhXnsxxU=
+
+Name: com/terraforged/noise/func/DistanceFunc$2.class
+SHA-256-Digest: C8pc4QgER7PQqVuc/7pD/w28sd/spXPXAipadyvoPJg=
+
+Name: data/terraforged/structures/trees/spruce/large/spruce_4.nbt
+SHA-256-Digest: O2NpDZfBaAX09sF6W630Yzup2QCNX4mZ93X3BeqF8NQ=
+
+Name: com/terraforged/engine/render/RegionRenderer.class
+SHA-256-Digest: rZpb09IZxlD/XLTfhNgDM7qe//sh5WjnypbVR8sGbBg=
+
+Name: com/terraforged/engine/serialization/io/CellIO.class
+SHA-256-Digest: vYbHFsXSvDtdaoJQ6vNFPFbJ6TjsvJ8mOo86iuAe7wQ=
+
+Name: com/terraforged/mod/profiler/crash/ServerCrashHandler.class
+SHA-256-Digest: JuGkkeKuknR6WkgKeDcj96s8aa5JJOlIF5Eysy/U+EU=
+
+Name: com/terraforged/mod/profiler/Profiler.class
+SHA-256-Digest: Vn1v+VwTHOKxKaHaoAa/DXbF6NdU9AKxEg7qsxeRZeU=
+
+Name: com/terraforged/noise/util/Noise.class
+SHA-256-Digest: //Jvxgz5/eQ/uq8ClamXS4ZIRplrYmAYzPzS3eXcsv0=
+
+Name: com/terraforged/mod/server/ServerEvents.class
+SHA-256-Digest: 8wR91FZLOQE3YTGryMD77REs2xjn0OkOIYpdCl24Pak=
+
+Name: com/terraforged/engine/filter/Erosion.class
+SHA-256-Digest: nZi3DVhxSTP9/FYYGHMzap3ddi23Ks/Yz7OtTsw7FVA=
+
+Name: data/terraforged/structures/trees/oak/forest/forest_oak_1.nbt
+SHA-256-Digest: 6ZIEifDc6tVonlU5qizIgxVhXfr7CAifE61AtpOw2wc=
+
+Name: com/terraforged/engine/tile/chunk/ChunkReader.class
+SHA-256-Digest: pvv3aSHubN8BtziaHQfuX6H/Qz+ZE5WiTt6lqJ0h2m4=
+
+Name: com/terraforged/engine/world/terrain/provider/TerrainProviderFac
+ tory.class
+SHA-256-Digest: SVtKWSiQ262l5c6tUXI9O0vLtH6Cj/6rkjs7BfPj+5o=
+
+Name: com/terraforged/engine/util/fastpoisson/LongIterSet.class
+SHA-256-Digest: qJ2W6e6Iu4VSYVjCwF5WjG9tv7+Dp8sgCtEplzsTRu8=
+
+Name: com/terraforged/mod/client/gui/screen/ConfigScreen$1.class
+SHA-256-Digest: TX+RbX0Kdb8F/CpZgqONcKzpfdGIMa8zzg97IsOVhT0=
+
+Name: com/terraforged/mod/profiler/crash/CrashReportBuilder.class
+SHA-256-Digest: b7Ec6w59X0BsEn1lKAAPVfjhD8P1K+c8pSabKTanfrU=
+
+Name: data/terraforged/structures/trees/dark_oak/large/dark_oak_tall_1
+ .nbt
+SHA-256-Digest: FUAQSIIDfnsdUT7Fv12NqVv93tiCo9buHrwPsGKC7l4=
+
+Name: com/terraforged/mod/feature/context/modifier/Elevation.class
+SHA-256-Digest: Vtd98S7cAyDKE3PwAZUtRcLMbpXwc4fYTl5gLIb2lPU=
+
+Name: data/forge/tags/blocks/wg_clay.json
+SHA-256-Digest: Nj/uyvlOSew/zFc9y5Nsllu1SsdlEhyfDNEqgmKj9L0=
+
+Name: data/terraforged/templates/trees/oak_huge.json
+SHA-256-Digest: bACJJCA/MjvJACrRVk3bqFAtdFNW84KSg7jyUrpX188=
+
+Name: com/terraforged/mod/server/command/search/condition/VolcanoMatch
+ .class
+SHA-256-Digest: YQAQgqF9hrF/8NaP3ucK59SHYo+cPUQy4QuvzDgYHkc=
+
+Name: com/terraforged/engine/world/biome/type/BiomeTypeLoader.class
+SHA-256-Digest: HOwpQD6fi1aJeO+Lz3WlWn2/oiI8s0FKJUcLQrAtWeQ=
+
+Name: com/terraforged/mod/biome/provider/BiomeHelper.class
+SHA-256-Digest: 7kcZhTci8HXf3gh3z71DP+t45pJj0Aj/rfpXs+fneq4=
+
+Name: com/terraforged/mod/featuremanager/transformer/FeatureParser.cla
+ ss
+SHA-256-Digest: IU4TFqfL+BdtCDU4FC/3E0lfZ69ccYPtE6XWRjCYuH0=
+
+Name: data/terraforged/structures/trees/dark_oak/small/dark_oak_2.nbt
+SHA-256-Digest: rGAukQVK7XRO9lt8xHt5AkI2XXxsZWmdizvN1jb4Nrg=
+
+Name: com/terraforged/engine/world/heightmap/RegionConfig.class
+SHA-256-Digest: XSU9rmPYWEO1p46/16t1nrWgyZZJnfDULh+7sa1p1xQ=
+
+Name: com/terraforged/engine/world/rivermap/river/River.class
+SHA-256-Digest: YiZW9RrfzvpOLj7hqFoZdQ4IGMx+zAfwwyYlSOh2UJ4=
+
+Name: data/terraforged/structures/trees/jungle/huge/jungle_massive_1.n
+ bt
+SHA-256-Digest: Ra1YQQRh2rlfXAE5rO4NXfQBsrUrkba4y8rxDQN6hKg=
+
+Name: com/terraforged/mod/biome/provider/BiomeWeights.class
+SHA-256-Digest: Imk6N4gNgyhZuwGbLOAUHjxrewFlsfk+LZsKcokYApU=
+
+Name: com/terraforged/mod/feature/feature/DiskFeature.class
+SHA-256-Digest: O/WJwKVp6anPeVO37DrKb4/d4kJADNT+7JH2eX/TmzE=
+
+Name: com/terraforged/engine/serialization/serializer/Serializer.class
+SHA-256-Digest: y6KgkTRPQEZgK1bMIeTaAqFPpQ/imZ2BMxps/0PiI9E=
+
+Name: data/terraforged/structures/mushrooms/brown/brown_musroom_6.nbt
+SHA-256-Digest: +gLmmgKEIL3ohZ6wAcX9+DEaqtB9+zBCOk597WTrNqs=
+
+Name: com/terraforged/engine/concurrent/batch/Batcher.class
+SHA-256-Digest: 6swmKwphXgWcJO4KNYiEE9QzdN1V78neQ/0Hi7H4OIU=
+
+Name: com/terraforged/engine/tile/gen/TileCache.class
+SHA-256-Digest: sAOL4JvlmXCtfidEnByP9HA9mufELe80z4tugW8kEYs=
+
+Name: com/terraforged/engine/concurrent/cache/SafeCloseable.class
+SHA-256-Digest: FxpZNpA5gko+zCjJTO76fYqCouh0UPqUkkZ0eQzMJEI=
+
+Name: com/terraforged/mod/profiler/crash/test/CrashTestFeature.class
+SHA-256-Digest: qD+cJd0/tclo75H5kWBBPDhzuUePOZ8U2vsZvBEo+eE=
+
+Name: com/terraforged/noise/modifier/Power.class
+SHA-256-Digest: gDEgDPusVslNM3on2/0BMiwVJB2JUJ+WG75kmwvL5Pg=
+
+Name: com/terraforged/engine/util/NameUtil.class
+SHA-256-Digest: sGgbLeXLu477QlVeuvFSj5CNw6bXQ5iBqfSn3+oMPAI=
+
+Name: com/terraforged/engine/world/rivermap/wetland/WetlandConfig.clas
+ s
+SHA-256-Digest: T2C0BuMWTSiJ+wY+p14JArayuYJUY3CrOweXsEJnaDc=
+
+Name: data/terraforged/structures/trees/pine/scots_pine_1.nbt
+SHA-256-Digest: xS4HCjU5f6DI11+MOo+uePZrGLTwUxA1QGOlBugROoc=
+
+Name: com/terraforged/noise/source/NoiseSource.class
+SHA-256-Digest: H8p4sfjMNOg8fdXr8rGswd1qp1Vf9YUkLdo0IQUOMSM=
+
+Name: com/terraforged/engine/util/pos/PosUtil.class
+SHA-256-Digest: xSE7yHHHEfnfu3UPh0u08/llTUFW5xwJ9S/cuUaYsxo=
+
+Name: com/terraforged/engine/concurrent/thread/ThreadPools.class
+SHA-256-Digest: j8f1AMFd4aZnaat4R2JTz+R2fGw/Hr+bcuehe7YWArs=
+
+Name: com/terraforged/engine/world/biome/map/BiomeContext$Properties.c
+ lass
+SHA-256-Digest: qTVvY3bb1r9x5clhcwVPa6hRpZB2QoT3tu+0dcKQA50=
+
+Name: com/terraforged/mod/chunk/settings/TerraSettings.class
+SHA-256-Digest: q2VHvkdg6m8PZcseL+yR6+YgvPF3yib4X/WnPsBZRfg=
+
+Name: com/terraforged/engine/world/terrain/ITerrain$Delegate.class
+SHA-256-Digest: C9SHDvE9cr7ismCv8Uc1h2Rr7dNP7VY/pXSzcKKepNo=
+
+Name: com/terraforged/engine/world/terrain/CompositeTerrain.class
+SHA-256-Digest: qj2wD4Ag3mpWO9mMsdi8VDjexu6iNxMzwdu7I2ivqnI=
+
+Name: com/terraforged/noise/modifier/Freq.class
+SHA-256-Digest: 9oij5FN1LaVDcyYd0SV8rzmX51KHqfEsOFtJvC26TKU=
+
+Name: com/terraforged/engine/serialization/io/RuntimeIOException.class
+SHA-256-Digest: sHFeWo3S6lrbBd63eekU3pvR8D6FFy8kIQVtjHVLlx8=
+
+Name: com/terraforged/mod/profiler/crash/CrashHandler.class
+SHA-256-Digest: Ult8izca9KQobgBoLwNDyvYzdYl2xPSKpkoioiz8aqw=
+
+Name: data/terraforged/structures/trees/birch/forest/forest_birch_4.nb
+ t
+SHA-256-Digest: DdosfRnvFv5kQxd8ag2WYKOn8ME2RhqdDZ+citSx4n8=
+
+Name: data/terraforged/structures/trees/pine/huangshan_pine_2.nbt
+SHA-256-Digest: 3A7Hl5BiErK0eZNaOUYWf1DbWmdZoGcFPyzqD/BwXHg=
+
+Name: com/terraforged/mod/data/gen/feature/Trees.class
+SHA-256-Digest: FRwh4WRf3zXMc9VOTBnYO4RDfuIn27ywQ29o8OyTs64=
+
+Name: com/terraforged/noise/util/N2DUtil.class
+SHA-256-Digest: cVxKu+DplStP7bgM3GyE2y3THMrMoMVs4hEGcaYTwas=
+
+Name: com/terraforged/mod/chunk/util/ChunkRegionBoundingBox.class
+SHA-256-Digest: 8LGOBxXonLKxJCOQCs3FdjrqCekpw/hHl6DXnVjYx5U=
+
+Name: com/terraforged/mod/profiler/crash/test/CrashTestConfig$CrashTyp
+ e.class
+SHA-256-Digest: W8cktFvskFYRhdfhqFuqww0WcBxA8RW02nYOeoI40is=
+
+Name: com/terraforged/engine/concurrent/pool/ObjectPool$1.class
+SHA-256-Digest: 3Y5Kzp0JvHab5JhqSGvqTYzbjOLf875D9nKzPVDdDWE=
+
+Name: com/terraforged/engine/world/continent/simple/MultiContinentGene
+ rator.class
+SHA-256-Digest: avKrMX1W51uvZESc96yQ3/6zbuCJpO8wbDNwwl/YbEo=
+
+Name: data/terraforged/structures/mushrooms/red/red_mushroom_4.nbt
+SHA-256-Digest: XFLJLmhghM47Dr+yW6lvmFllrJBbGqurnBGgR8umBQo=
+
+Name: com/terraforged/mod/featuremanager/data/ModDataPackFinder$ModSup
+ plier.class
+SHA-256-Digest: ne8ujHgTeem6oFs55mxTps7a4CXP7SBL9/cS+uCZTcA=
+
+Name: com/terraforged/noise/modifier/Modulate.class
+SHA-256-Digest: 2RkmjuCvrTH/WYuTMGJQWztVM+kVw9/ZEfY1s2wdVg4=
+
+Name: com/terraforged/noise/modifier/Terrace$1.class
+SHA-256-Digest: dTHm+wru2DttBZTiU0wPFDWEta0bAFIjy1jiXEsHuUU=
+
+Name: com/terraforged/mod/server/command/search/condition/VolcanoMatch
+ $LocalSearch.class
+SHA-256-Digest: +tbTZFPjaS9M7U7XqC7BdsWCYALchFoqTo7xJBsbhlM=
+
+Name: com/terraforged/mod/util/DataUtils.class
+SHA-256-Digest: I42EFzzVH06HvGYTU6YNdWwfznyoWuAtiRwXToxSsNI=
+
+Name: data/terraforged/structures/trees/jungle/huge/jungle_massive_4.n
+ bt
+SHA-256-Digest: XdJmTCL3k1snGQg1NcS33Eo+HaM7mBOdTpSaUiR4Q8w=
+
+Name: com/terraforged/engine/concurrent/pool/ArrayPool$ArrayConstructo
+ r.class
+SHA-256-Digest: 1jOqWd8FruNwRAxc1XfBSVocpZ3mNr1l4SEareQwonA=
+
+Name: com/terraforged/engine/settings/WorldSettings.class
+SHA-256-Digest: C1BvMeWKufdFYpsxhJBVoFAgIp6+IT8j9hjdSksVPP4=
+
+Name: com/terraforged/engine/concurrent/task/LazySupplier.class
+SHA-256-Digest: KPNZmWlRpHy7h76vnagHBPVLgbYnD/81y+ke0q+pUyo=
+
+Name: com/terraforged/mod/data/WorldGenBiomes.class
+SHA-256-Digest: J9YaMCwWsS9ndN1T4cnoFjPGS2+n2qxslDgGHhYmgPo=
+
+Name: com/terraforged/engine/world/biome/map/defaults/FallbackBiomes.c
+ lass
+SHA-256-Digest: 2XUTQr/QzvzEhUGUWiFTt8QsCQW7slU1vVfxP485KkU=
+
+Name: data/terraforged/templates/trees/dark_oak_large.json
+SHA-256-Digest: ofSOfFD/lGxIxulpIBiPdzyJ8oo8m4lW5443X8h3ENQ=
+
+Name: com/terraforged/cereal/spec/DataSpec.class
+SHA-256-Digest: ixY5WvUcMTceEy8Wi3YtsQZ7h7XffQ97wTI6VZUIxag=
+
+Name: data/terraforged/structures/trees/dark_oak/large/dark_oak_tall_2
+ .nbt
+SHA-256-Digest: pVN8yOEXtVm4EHzEs+N9SuM/Oz9dH2rf5zy/y9IU82w=
+
+Name: com/terraforged/engine/world/rivermap/river/BaseRiverGenerator.c
+ lass
+SHA-256-Digest: dQUyiJxEX6K+pk842+FaYiV/O84i+R/cZERI7FzZ3xY=
+
+Name: com/terraforged/noise/domain/DomainWarp.class
+SHA-256-Digest: JGpbmm7BSmD5Tzr6d1NWKY07yi/ddBIyRYCGHwmovmk=
+
+Name: com/terraforged/engine/concurrent/cache/map/SynchronizedLongMap.
+ class
+SHA-256-Digest: iQxgXscCZ7nlp21qK4urCMUSolGDMrAgns2Amq8HamI=
+
+Name: com/terraforged/mod/profiler/watchdog/WarnTimer.class
+SHA-256-Digest: R3LxwVfxH/WmbyzT+k2ZCzM5px0V/MpQ0wbRUyAkaTA=
+
+Name: com/terraforged/mod/TerraForgedMod.class
+SHA-256-Digest: yrddgBo7uv3ui/b5ly9XFOMF6lJgX/QJUsAKyCOUVwk=
+
+Name: data/terraforged/structures/trees/spruce/large/spruce_5.nbt
+SHA-256-Digest: pMDdyNs38deoD0NO9Z4+Y4VhBiNcVO10O4Vm+5nqT6g=
+
+Name: com/terraforged/engine/settings/TerrainSettings.class
+SHA-256-Digest: 9m5mLvr3DRmfJbQtIlIDzyRmJFevSgsU3eIUmN4gIHY=
+
+Name: com/terraforged/noise/source/CellNoise.class
+SHA-256-Digest: sb7PcFaJYZQ1QvnwoOVi5/37LWW1100lS1qWOWD+DEo=
+
+Name: com/terraforged/mod/chunk/TFChunkGenerator$1.class
+SHA-256-Digest: gKwd5QFy/LpePDmOhGBn6ZX00YT8akaiInx8y09e/GY=
+
+Name: data/terraforged/structures/trees/redwood/large/redwood_tall_1.n
+ bt
+SHA-256-Digest: TuCrO0R+9FgpmnBGaG7dCnQYUHUBoPEKeGxeF5cteTQ=
+
+Name: com/terraforged/engine/world/rivermap/river/Network.class
+SHA-256-Digest: xpNIv4LKU2358nuSKfdJ7zWhLy8p2DX2EpueLoya9QM=
+
+Name: com/terraforged/noise/func/DistanceFunc$3.class
+SHA-256-Digest: juGMpIZQvyJUFCD2L7hSvohD0LIgXXluKIU9AX4pqzE=
+
+Name: com/terraforged/mod/chunk/settings/DimensionSettings$DimensionGe
+ nerators.class
+SHA-256-Digest: TRH+JjUFyhcJySHz3PJ32QNaQ3qFKL4Uf2bJ4Je+1n4=
+
+Name: data/terraforged/templates/trees/birch_forest.json
+SHA-256-Digest: zWgLYuOugmIK1Ak8vWask1UfqRxEwMHfJDF7qn8tGKA=
+
+Name: com/terraforged/mod/client/gui/screen/preview/PreviewPage$1.clas
+ s
+SHA-256-Digest: Z+Wh0wFplFk3ZAYfCIhFFcRqLvA0IEkvyrFzXoHhngU=
+
+Name: com/terraforged/mod/featuremanager/template/feature/TemplateFeat
+ ureConfig.class
+SHA-256-Digest: 0p8HXxL8F5UEs2AufEw6dCjtToFUrHhS0323RPosImI=
+
+Name: data/terraforged/structures/trees/oak/large/oak_1.nbt
+SHA-256-Digest: sf83zBzkusCnmnKBs5Gc35vXvXrkyLivJgkwgJcFDiM=
+
+Name: com/terraforged/mod/api/event/SetupEvent$Terrain.class
+SHA-256-Digest: z3dPDyZ/o5pAzDLwc7DHhuQUpw8sCdLDkkiU1wFYzjU=
+
+Name: data/terraforged/features/trees/oak_badlands.json
+SHA-256-Digest: XEXRJ+36Lva8NPX9FS9Cozz8ctZ6q2QVdrM5+I2cUdQ=
+
+Name: com/terraforged/noise/func/MidPointCurve.class
+SHA-256-Digest: JqmxVoAPDj4IOFNfshInvaE8HAgZKbF/JmvfPSBSZ2k=
+
+Name: com/terraforged/noise/combiner/Max.class
+SHA-256-Digest: 2P+WBDA/l8xusOVgjGjXe2QPDf+ym/6dq25IGIRhhnQ=
+
+Name: data/terraforged/features/ores/gold_extra.json
+SHA-256-Digest: F803pDytw41e71iRevAEnOj0UoVijwN0xg1Px8MfhRM=
+
+Name: com/terraforged/engine/world/continent/Continent.class
+SHA-256-Digest: imVHObvujmFiBd01mG8zPYNeESL+DACEl8OqSPGjdTY=
+
+Name: com/terraforged/engine/world/continent/fancy/FancyRiverGenerator
+ .class
+SHA-256-Digest: I94UdOi0oppMHGCl/495a0FaUPXNvovBjsoI70ggh7o=
+
+Name: com/terraforged/noise/func/Interpolation$1.class
+SHA-256-Digest: yL7p9TpTkg1N075YQjHde/cL+W0qvoOYJ/tWJZjtuKA=
+
+Name: com/terraforged/mod/client/gui/page/BasePage.class
+SHA-256-Digest: 3tMStniG4vgQ0hOa/D4Tups2ihmBIq86c4Gg1OjRH+M=
+
+Name: com/terraforged/engine/util/Variance.class
+SHA-256-Digest: NS81MxSAX32Ym8KHEX/7+oq220QMObJCe9Ph9BgF5uI=
+
+Name: com/terraforged/noise/source/Line.class
+SHA-256-Digest: yl2k9qIRTnEgQITYmQ+3vn9xetnFnF9mC3ZgguC7yL0=
+
+Name: com/terraforged/engine/world/terrain/ConfiguredTerrain.class
+SHA-256-Digest: 5mOiaWFYdc6RsnHFG8XHFOklNeg+uG5tuT6Pg8h5T/8=
+
+Name: data/terraforged/structures/trees/spruce/small/spruce_small_4.nb
+ t
+SHA-256-Digest: KVLuvwRMLxjf+oTAMfSXgwvp2e2YtRZIooD3bnGywUc=
+
+Name: com/terraforged/mod/featuremanager/util/codec/CodecException.cla
+ ss
+SHA-256-Digest: k0nDBMMwIV8Lw7tcQnSV/haPSEb5P4QnXuopal+CK6k=
+
+Name: com/terraforged/mod/featuremanager/template/buffer/BufferIterato
+ r.class
+SHA-256-Digest: FVrRWwP02tF7IMhsGZ7ImLBhVxXDttABvz9DQ3HKHtw=
+
+Name: data/terraforged/structures/trees/willow/large/weeping_willow_bi
+ g_1.nbt
+SHA-256-Digest: pFjhvc4y8RVFtdg6OJJZfMYd4DLW4B5LnnlJUHbQP0E=
+
+Name: com/terraforged/engine/concurrent/task/LazyCallable$CallableAdap
+ ter.class
+SHA-256-Digest: UNKrD05qlfMMkH1AWFd9EIFJbN7VvHI6IJ34Ug0YtGM=
+
+Name: data/terraforged/structures/trees/birch/forest/forest_birch_3.nb
+ t
+SHA-256-Digest: c4rmJhSnfkvMRVPEEr4m+z+V7oES/NDJ122HL/GLZrU=
+
+Name: com/terraforged/mod/featuremanager/template/template/Template.cl
+ ass
+SHA-256-Digest: UTGD8t1S/WAL9T9mxDJa0zdUAoa3mcUdsPJbcuOAmts=
+
+Name: com/terraforged/engine/filter/Erosion$1.class
+SHA-256-Digest: zyPkKdyptWCF7yum9Em3Y3/+g4HPOVVfgYX23LNkq1U=
+
+Name: com/terraforged/engine/util/metric/Metric.class
+SHA-256-Digest: ugcdvGR/LqIxg1qOPRaisKM7tKZuGO/Thv/19UHEwX4=
+
+Name: com/terraforged/engine/concurrent/thread/BatchingThreadPool.clas
+ s
+SHA-256-Digest: oKDsbgWv3EMW17hY01K9a11LXU81EQBMwaDJInQ73po=
+
+Name: com/terraforged/noise/modifier/Grad.class
+SHA-256-Digest: yTfYrxGpwwa2gMUdBQv1z2xcOGfZRG8LnfKYi5akPAM=
+
+Name: com/terraforged/mod/featuremanager/template/decorator/Decorator.
+ class
+SHA-256-Digest: 11fA7LDDUEjLDSQzR0UgPGYdvcXj+zI4Q7RlqtH/peY=
+
+Name: com/terraforged/mod/client/gui/element/TFSlider$BoundInt.class
+SHA-256-Digest: QdniJh6m5M1eefODebkKeWhYG4VY11jSWLUYktHlKps=
+
+Name: com/terraforged/engine/world/terrain/TerrainType.class
+SHA-256-Digest: XlhNEHiA25bRvFfM3V56GHHkq9Gj6wbAPqSb0X5Us/c=
+
+Name: data/terraforged/structures/trees/pine/huangshan_pine_1.nbt
+SHA-256-Digest: kfa05ekKStsmd+a4e0vL9ClkpAUlbIcxOqaTD5PPVas=
+
+Name: com/terraforged/mod/chunk/generator/Generator$Mobs.class
+SHA-256-Digest: qSx8uAQ0cddtTU9+drM6EJH/xbJPkoPnqppqL9tMHyk=
+
+Name: com/terraforged/engine/filter/Erosion$Factory.class
+SHA-256-Digest: TsDCSJ5oC41BK/4rApTuF9ZBSF5gM2hDPmfyaldQsz8=
+
+Name: com/terraforged/mod/featuremanager/modifier/FeatureModifierLoade
+ r.class
+SHA-256-Digest: 6bOrxcAiC/776cQncZ4twYjzY/1Ei38CmE8PZ+cWPME=
+
+Name: data/terraforged/structures/trees/acacia/small/acacia_small_1.nb
+ t
+SHA-256-Digest: dq0w/ovPJUql7Pad/3GLQ/qivYfanxLhg4ofmVvei6Q=
+
+Name: com/terraforged/engine/filter/BeachDetect.class
+SHA-256-Digest: MCw4X6Knf/jWQXe8PWEcnjHxIdUpJZg/EoOCc38t4nc=
+
+Name: com/terraforged/mod/profiler/crash/test/CrashTestFeature$Init.cl
+ ass
+SHA-256-Digest: zPLVHLQrcE+bqDePKDTw/GNoinLpAGB/6Ic5Eh9FKiw=
+
+Name: com/terraforged/mod/featuremanager/template/type/tree/TreeDecora
+ tor.class
+SHA-256-Digest: H4ZZDSqULePPTAunkrcWnCIQ4kvMakCiObzvGHS/Qbk=
+
+Name: com/terraforged/mod/client/gui/page/Page.class
+SHA-256-Digest: ZFFpoqdT7TYYxE4dU6mnMXcWeSCAwdlr6ksOpd84D2Q=
+
+Name: com/terraforged/engine/world/rivermap/river/Network$Builder.clas
+ s
+SHA-256-Digest: uvZKbgtCUDE87Ip70Zm8xbQVhW3FjLBWWD3Y8Lrdhb0=
+
+Name: com/terraforged/noise/func/Interpolation$2.class
+SHA-256-Digest: /7C7I3Cw7F+PFAhQ+hccIkIsHSBvMJ99BtNz5HKLDWI=
+
+Name: com/terraforged/mod/util/nbt/DynamicReader$StreamIndexer.class
+SHA-256-Digest: igeOUCcom7I6sXI9tFAfTQIsNYi+1glHnhbM3+J0gfs=
+
+Name: com/terraforged/mod/biome/provider/BiomeModifierManager.class
+SHA-256-Digest: m9R3r6Gbut8sb8M06VKCFPlImeoJh0AtgSCLoJPZ57U=
+
+Name: com/terraforged/mod/featuremanager/util/delegate/SeedWorldDelega
+ te.class
+SHA-256-Digest: jSd9PEajjgfmEepQERgfJ14OzZ85agr3eQU7cL5HL2w=
+
+Name: com/terraforged/engine/world/biome/map/set/BiomeTypeSet.class
+SHA-256-Digest: XTb6eQbVGiriKIpY0bbeEit6f34Dq4q8+LyFqPXGrjg=
+
+Name: com/terraforged/mod/client/gui/screen/preview/RenderMode$8.class
+SHA-256-Digest: Gz0Q5y0bk/C0dc46/dYc/ZScA2a3fg8hMCuZWtiln8c=
+
+Name: com/terraforged/mod/biome/surface/DesertSurface.class
+SHA-256-Digest: WUAIpbqrfpeuJyywX+QmIBfY3TO5tLqILSSvRDFgJmE=
+
+Name: com/terraforged/engine/world/heightmap/HeightmapCache.class
+SHA-256-Digest: +QQ5yNL1qa/oG8JqPfPXOi7OE+G29B604POXyFKyY8U=
+
+Name: com/terraforged/mod/chunk/settings/StructureSettings.class
+SHA-256-Digest: +pY5+a+riFC8JbywONULFVQ4difbp/FBr0nGhodzH60=
+
+Name: com/terraforged/engine/world/geology/Strata$Builder.class
+SHA-256-Digest: +jhbjlNgvdUQq9mO7Z0FHXXiwnH1/GlUirev6Jl/6Fs=
+
+Name: com/terraforged/engine/world/rivermap/river/RiverWarp.class
+SHA-256-Digest: Z2xJTY32LTmPGBAyzYTJSM6BZ8/OGKFpL6lFyHhurL4=
+
+Name: com/terraforged/mod/feature/context/modifier/RangeContextModifie
+ r$Factory.class
+SHA-256-Digest: ohrZInk4LKYFOxSRcWI//eVvWVgeSWZTSEMFKGV0MrU=
+
+Name: com/terraforged/engine/tile/chunk/ChunkBatchTask.class
+SHA-256-Digest: As9cvjY9HxrtlymgffGJjCViNJHWlDFSfj2crfmd4Hk=
+
+Name: com/terraforged/mod/profiler/Section.class
+SHA-256-Digest: l02Y13qNAF2XIEehvUqtsAffJKT6q6hfCYkLFjdpPv8=
+
+Name: com/terraforged/engine/module/Ridge$Mode.class
+SHA-256-Digest: 93UCLDjWE9XPHL0MNqSKCdyUsaJEgZhnYjQFDtjhpqs=
+
+Name: com/terraforged/engine/filter/Filter.class
+SHA-256-Digest: OnrHYFMzQkA2rGYuBLSv7V1tqn+qCr12vMFNQIHZuBc=
+
+Name: data/terraforged/structures/trees/dark_oak/large/dark_oak_tall_3
+ .nbt
+SHA-256-Digest: BqxvY9x3iGt9jC28f27qIgWoeUiuJFDNdVRim6LP6Sk=
+
+Name: com/terraforged/engine/render/RenderWorld.class
+SHA-256-Digest: NVkTlgtnhKpDNUrQXafD874GvNoKgcJvOneN7rfonyE=
+
+Name: com/terraforged/engine/world/continent/simple/ContinentGenerator
+ .class
+SHA-256-Digest: KbQTOZrT9F2S+3PN4qLcADJOxn+JToIewtSqzkFCPGI=
+
+Name: com/terraforged/mod/api/material/geology/StrataConfig.class
+SHA-256-Digest: ddRzRyjhHwJD6CHw+i9rpXgLlpF6I4I3v1CxmkVJfoo=
+
+Name: com/terraforged/engine/world/WorldFilters.class
+SHA-256-Digest: A9EdobJ1ZP8V7W0Y0tQqf0eHEbx0sYRh5m4jhKlyDT4=
+
+Name: com/terraforged/mod/material/geology/GeoGenerator$1.class
+SHA-256-Digest: 2w/aYBZV4pp8jrwjLbeSjKe2KBjVNccpwlNuDZnj+7E=
+
+Name: com/terraforged/mod/api/biome/surface/SurfaceChunk.class
+SHA-256-Digest: xoY9tdaNfKM+LZ318Gdgjk+QkVqBmgZbmuIw6i+lyaE=
+
+Name: com/terraforged/mod/config/ConfigRef.class
+SHA-256-Digest: UskX7GeHWEQZ5TXeHXYI8uWAeV+utfieK1hcbyLTsU0=
+
+Name: data/terraforged/structures/trees/jungle/huge/jungle_massive_3.n
+ bt
+SHA-256-Digest: RIw1c3Oshh8WkuwvsKWl7NwBCUn9lWdCZa/qJC5K5go=
+
+Name: com/terraforged/mod/LevelType.class
+SHA-256-Digest: NdHMla1EyhR3rm5PfnAomwCyeuadQSvatUXRl7OdBzM=
+
+Name: com/terraforged/mod/api/biome/surface/SurfaceContext.class
+SHA-256-Digest: BdOjoTdJXIon3EYxEVmMXmGIb4NoFxN7UcRy9nC7cME=
+
+Name: com/terraforged/mod/chunk/GeneratorResources.class
+SHA-256-Digest: hIM25G+FNHs4gOQhkWBJPY8Y0ZXqFRdY0PCs621psNg=
+
+Name: com/terraforged/engine/world/biome/map/set/RiverSet.class
+SHA-256-Digest: TABrB/PArBm2Eut4pyBX5+tDb8Tfx3LIXoM/zug1CIo=
+
+Name: com/terraforged/mod/profiler/watchdog/ContextQueue.class
+SHA-256-Digest: 8w/R5l5G564//+i5gXddVO2rTRI9MrnwVotdz4nfSyA=
+
+Name: com/terraforged/mod/profiler/timings/Top3TimingStack$1.class
+SHA-256-Digest: VpoKzHAXO+e2anNBkuBJzUq9N7O4J0em8E+7/yZhVNE=
+
+Name: com/terraforged/mod/featuremanager/template/type/tree/TreeDecora
+ torBuffer.class
+SHA-256-Digest: EivEts6WSECykyiHubBe2lWvV/HjDxzXRxpljcfgHLc=
+
+Name: com/terraforged/mod/profiler/timings/RollingTimingsStack$Entry.c
+ lass
+SHA-256-Digest: UlZl1ia9n5x57t+/xVxa2o29uIO5hyYvUdoMYS2Vsxk=
+
+Name: com/terraforged/noise/selector/Select.class
+SHA-256-Digest: qvbONgXAsqBlSUbOXBF+STIGYW2M4+Ciro12ZYq/Vg0=
+
+Name: data/terraforged/blocks/saplings/spruce_sapling.json
+SHA-256-Digest: FHk3err+1UdNhX0odGWwEQHj0why2xRSHNDyQbxKeis=
+
+Name: com/terraforged/engine/world/biome/map/set/WetlandSet.class
+SHA-256-Digest: 7tSEKD0kWbrFlArAo2m42irUavUbL4T05JuEiC3De8A=
+
+Name: com/terraforged/mod/feature/sapling/SaplingConfig.class
+SHA-256-Digest: QLvp7DV4toyRk96hpWaiSmtN+TxSgxGRTna6Zi75+TQ=
+
+Name: data/terraforged/features/trees/jungle_hills.json
+SHA-256-Digest: eSTBztix/30pxDnicsOKvlB+A5QdX07B+lgqMcK/jsU=
+
+Name: com/terraforged/engine/world/rivermap/lake/Lake.class
+SHA-256-Digest: pkSgXqmgG8ale+s6n0ibLh1KB22kfB678+cnM8YNe6I=
+
+Name: com/terraforged/mod/featuremanager/FeatureManager.class
+SHA-256-Digest: oFd6pda9T8q7Ottlc/2Yeq9Dbf5WGvHrTD6P0zxWh/I=
+
+Name: com/terraforged/engine/concurrent/cache/map/StampedLongMap.class
+SHA-256-Digest: 6mQH3IqYBSnSrFMCoQ92W3hrIl/HLEWn5cVIbYr0jQI=
+
+Name: com/terraforged/mod/api/feature/decorator/DecorationContext.clas
+ s
+SHA-256-Digest: y1gO+8i8PZFa2b23IDTXCR50fnco+iL0/SM7ojIZl4g=
+
+Name: com/terraforged/mod/featuremanager/util/codec/EncoderFunc$Simple
+ .class
+SHA-256-Digest: Wsq6P1LOJFywRu4oF3hZdwLR8mcqfrPq3SQpjzgNhaI=
+
+Name: data/terraforged/structures/trees/willow/large/weeping_willow_bi
+ g_2.nbt
+SHA-256-Digest: xlfWxMJm9L8K0KVwh4GNZjG1KR61jh01jYKHep2oFZY=
+
+Name: data/terraforged/structures/trees/spruce/small/spruce_small_3.nb
+ t
+SHA-256-Digest: F7wJ0lvvXR0VJtWiI2KTS8u6WrVFN+Rx0R8Ye6cev8s=
+
+Name: com/terraforged/noise/selector/Base.class
+SHA-256-Digest: iiRbQSRafcOlRWWXI6+N0s/Gguvrk3NnYeYCFp/Qzjo=
+
+Name: com/terraforged/engine/filter/Steepness.class
+SHA-256-Digest: Bnx4lHovVGeNxBQIZR/F2haGT30h+O0TKJsGmQFJy3w=
+
+Name: com/terraforged/engine/world/WorldGeneratorFactory.class
+SHA-256-Digest: wVaO5oWPh4Z84Dwn6GxZ9MBc5cEJiwCtn5fyF+OipyE=
+
+Name: com/terraforged/mod/client/gui/screen/preview/RenderMode$7.class
+SHA-256-Digest: zaWutZwqXFgq5YzYjMW2impUXteLhB4ztiCO467aCMA=
+
+Name: data/terraforged/features/shrubs/birch_forest_bush.json
+SHA-256-Digest: pAv6hZRFsQB82GoYb6QitGcCaroVuLjA3yJZAUPF040=
+
+Name: com/terraforged/engine/concurrent/pool/ThreadLocalPool$PoolResou
+ rce.class
+SHA-256-Digest: O4q8ePOWRl7JFPDzlhrhNDUVmrAo7tMHUP63C9USZJQ=
+
+Name: mixin.terraforged.json
+SHA-256-Digest: MUTaRLo6uNqWNxnlkQcTdYlIwCH7Em/Kf/RWxozGyW4=
+
+Name: com/terraforged/mod/featuremanager/template/buffer/BufferBitSet.
+ class
+SHA-256-Digest: ZyXjdYt23dO6j5G8lLAXOOdzi9J2k1fOfmwIOpPxn1s=
+
+Name: com/terraforged/engine/render/RenderMode.class
+SHA-256-Digest: kZM1Q1iftAPj8+3+ODzOm0H/shxJjMKNzuucaYuE5DU=
+
+Name: com/terraforged/cereal/spec/DataSpec$Builder.class
+SHA-256-Digest: Y212GXF2ogcHBxEhXYi7qtN/i7Wj1Pj4CeSgLKtNCfw=
+
+Name: data/terraforged/features/ores/redstone.json
+SHA-256-Digest: ffrygZ5euGCRNyN3Wg6LQ3paZ3Oe7se7Py08nBqSE68=
+
+Name: com/terraforged/noise/combiner/Min.class
+SHA-256-Digest: ESl3eIV+qVDy/UbSWyriGFz/zMvbAw+0fhWJk4QQvT4=
+
+Name: com/terraforged/engine/util/poisson/PoissonContext.class
+SHA-256-Digest: 6TIQZWb35Bkwpgi2PWV522dgiukgQppEUOMT4DWQjh4=
+
+Name: com/terraforged/mod/structure/StructureSettingsCache.class
+SHA-256-Digest: 6uG+8IwM7MufCC0MXy8Xt1Gve/ye0frlO0EH+hOOjU4=
+
+Name: com/terraforged/mod/util/quadsearch/QuadSearchTester$1.class
+SHA-256-Digest: nioLr01XygXWIuCKieHaSziUyz29k0Zc9xR2VGiev6E=
+
+Name: data/terraforged/templates/trees/redwood_large.json
+SHA-256-Digest: xSU6wUjHor36r7+sm7NZPMONK+ZwOziIOBwR7bYBuQ4=
+
+Name: data/terraforged/structures/mushrooms/red/red_mushroom_3.nbt
+SHA-256-Digest: WPZPSTScRgq9l5Hc0R5XbeTvXHMnvXpIxhSRuJjyBQ0=
+
+Name: com/terraforged/mod/biome/surface/SteppeSurface.class
+SHA-256-Digest: VXY21bs+xYDQBqnzrlzT5iDUqXWoXglcYj/ECrbfYi4=
+
+Name: com/terraforged/mod/featuremanager/data/ModDataPackFinder$1.clas
+ s
+SHA-256-Digest: HLIQMktQ+F8EtqF54ojaaY4AyDoB+cxeLmCWnsJSFoo=
+
+Name: data/terraforged/templates/trees/jungle_huge.json
+SHA-256-Digest: x3+cvLMLa4VqeVEizSFugjm/wWvVjbSdbTzBblhG2Ag=
+
+Name: com/terraforged/mod/chunk/generator/Generator$Structures.class
+SHA-256-Digest: W3Au5UtLspW9801bPEcUOIAYpA1kzxK45/BpGp9Ryio=
+
+Name: com/terraforged/mod/featuremanager/data/FolderDataPackFinder.cla
+ ss
+SHA-256-Digest: 3h6pE3oSkN3fJCQlEae+HR+q0qwvjUQpDK9uHsLmVz0=
+
+Name: com/terraforged/engine/settings/FilterSettings$Erosion.class
+SHA-256-Digest: lzDuGOEqz7JBwvg/SnYpIFfRjDdBqH/aL9Kc2jEJeYs=
+
+Name: com/terraforged/engine/world/biome/modifier/MountainModifier.cla
+ ss
+SHA-256-Digest: Eoyd/ZPq/baNN3p1bGzQdZ5fOoVohILGvPUqXnzFdxs=
+
+Name: com/terraforged/mod/structure/StructureLocator.class
+SHA-256-Digest: AkRBYJiu7ZE0O3+4qsAIZTdl41A6a3b4wme6glPWr/w=
+
+Name: com/terraforged/mod/featuremanager/matcher/dynamic/DynamicList.c
+ lass
+SHA-256-Digest: m9jyQbCEZLf1/5jMmmZyKlHOz6hEPByYQJOevV3GQ2A=
+
+Name: com/terraforged/mod/structure/StructureSearch.class
+SHA-256-Digest: PsJ9C97e03QZVWsiX3HXwqHaPH58q1Ug293aIwjLg+k=
+
+Name: com/terraforged/noise/source/SimplexNoise.class
+SHA-256-Digest: TGDxkFSQQWUGGu/+jwb0larTANk1D4WvSvhtfGgV6XM=
+
+Name: com/terraforged/engine/concurrent/cache/CacheEntry.class
+SHA-256-Digest: ysZM5mR7ugxysCRZnSu4bVjSsvoL5ur5rIDwpnV1HE4=
+
+Name: com/terraforged/mod/server/command/search/ChunkGeneratorSearch.c
+ lass
+SHA-256-Digest: eV5g1nJeQARdrm/VJiaLRMyKJRrcPtwemsnV23xwLwo=
+
+Name: com/terraforged/engine/world/rivermap/river/Range.class
+SHA-256-Digest: bdMjdz5fNfeVh2TkyC9dUQZ+wqWafbzv05CAkGIwpN4=
+
+Name: com/terraforged/engine/concurrent/thread/WorkerFactory.class
+SHA-256-Digest: Kh8D//orRMkE9VpjFC7quGgzH3qSNmjFFE9qglHKcJc=
+
+Name: data/terraforged/structures/mushrooms/brown/brown_mushroom_3.nbt
+SHA-256-Digest: csOv3LeNcGoRG3IzigiUpNXiWtyHaszga4+uEH+T2Kg=
+
+Name: com/terraforged/engine/ThreadContext.class
+SHA-256-Digest: ET5gMdnnmGEqedPyV3PYBucZ3S8Hmi0CKc6rhdMeQ5o=
+
+Name: com/terraforged/mod/biome/context/BiomeProperties.class
+SHA-256-Digest: 3iHKh6kb3Uu60j86rqPrjgHg2ymIwA/8o6KMyfYNzUY=
+
+Name: com/terraforged/mod/featuremanager/predicate/MinDepth.class
+SHA-256-Digest: 9EmXMhcSZWLp50NI+n0YIj+CTemX13Z6pw7iyNOKZno=
+
+Name: com/terraforged/mod/data/DataGen.class
+SHA-256-Digest: XfG7S/bmUfDW3BW847wrMNKC8q9KrxmYC5Ssh/PwBV4=
+
+Name: com/terraforged/mod/featuremanager/predicate/MatchBiome.class
+SHA-256-Digest: zLnGI1zjiYsPAzju7hBsXQmzZUufjjnnRjO3KlqeuUQ=
+
+Name: com/terraforged/mod/util/ListView.class
+SHA-256-Digest: k+I3fy4tCshXf7ETZINTYISzXJeW+gvyXjPgg02/iCw=
+
+Name: com/terraforged/engine/render/RenderMode$7.class
+SHA-256-Digest: Bc6vQbdg4BpKUR8UjSPiYEC2o7B2wXzgNZUEjXufjtk=
+
+Name: com/terraforged/mod/biome/provider/analyser/BiomeAnalyser.class
+SHA-256-Digest: rnuvOv4xSy+ho1OkwRGE04t1v0doa7lr271YqizJ4QE=
+
+Name: com/terraforged/mod/biome/context/TFBiomeContext.class
+SHA-256-Digest: yOnG5K1Q/JYL+Ua19sV1RzQtki5e8byA9c9bHTdMVXM=
+
+Name: com/terraforged/mod/chunk/TFTerrainProvider.class
+SHA-256-Digest: ye7K9nQW1jj99sXYVHPuLeJUON0/NwSBErFmMRtqu+4=
+
+Name: com/terraforged/mod/feature/context/modifier/None.class
+SHA-256-Digest: T1G0BW9QbcZ8I6TZC4nXJJC8JWpLGQfV3MvKvVW9VRY=
+
+Name: com/terraforged/engine/serialization/serializer/AbstractWriter.c
+ lass
+SHA-256-Digest: bnbrOCW5mCEhX4ynMbN0vny6Hp8I5ker+ikwBufkLnE=
+
+Name: com/terraforged/mod/featuremanager/transformer/FeatureReplacer.c
+ lass
+SHA-256-Digest: VVP2A6EGzKOFcw1Oc1dB2A/67PezHFA0GHRX9Eyu2AM=
+
+Name: com/terraforged/mod/profiler/timings/RollingTimingsStack.class
+SHA-256-Digest: A8jSDq1FwO3tppDlFHY4NuK0h3aHWp543MU4N5X2rkI=
+
+Name: com/terraforged/mod/structure/StructureSearchChunk.class
+SHA-256-Digest: h6w/yS+gR2ySi/eOb8G1wcKC0xwV1PFZeK2g2Bto1JQ=
+
+Name: com/terraforged/engine/world/rivermap/LegacyRiverCache.class
+SHA-256-Digest: uykz3Vjr1t7wjZZwK7s7XJ6gNCfeCCYKl0qqOYSMW6c=
+
+Name: data/terraforged/structures/trees/spruce/small/spruce_small_2.nb
+ t
+SHA-256-Digest: g3hZuVHmV9Eu1++NB8px1TlAWdlhlkw38JW7ZIw5IrE=
+
+Name: com/terraforged/engine/concurrent/pool/ArrayPool$1.class
+SHA-256-Digest: 7tWzctURTm0F0dXOC0pO/OVKX+DRnWrphYr9HLl9glM=
+
+Name: com/terraforged/mod/util/quadsearch/SearchContext.class
+SHA-256-Digest: xiH2NDZCzaktxIJvIy7K+kOFqSxP3dEQui7vTAoS/4k=
+
+Name: com/terraforged/mod/client/gui/screen/page/WorldPage.class
+SHA-256-Digest: tHzdqapqd5hhx3rnzOFaFL2+hMqleZSU4+eez/y1JgQ=
+
+Name: com/terraforged/engine/module/Blender.class
+SHA-256-Digest: 65D1F1SKuH6twP+5El2GYySVNYrpzJ4M9pUZdLiRyoU=
+
+Name: com/terraforged/mod/biome/surface/IcebergsSurface.class
+SHA-256-Digest: GSJL4TmzNx9SLTuuTDOC0UTyk0mGJxksHwiwjQgoHIE=
+
+Name: data/terraforged/structures/trees/redwood/huge/redwood_massive_3
+ .nbt
+SHA-256-Digest: KmgpTq9Q6BkBc8sLoW7oHI3RhWUIv7Mf6CZgd9Kz0QQ=
+
+Name: com/terraforged/mod/profiler/watchdog/UncheckedException.class
+SHA-256-Digest: J6VgEV/+cK1EaHkmOSPgYS9ytXQTdTQZUVavh8bcLRQ=
+
+Name: com/terraforged/engine/concurrent/pool/ThreadLocalPool.class
+SHA-256-Digest: LpGOnpj2afKXtxAfS3X7oYWtJ5wrPWHGKQ34hFaOF8c=
+
+Name: com/terraforged/mod/chunk/column/post/LayerDecorator.class
+SHA-256-Digest: KskNit4C7hZVuzMROXmfAms4MhthQGPvjISI06ok3Jw=
+
+Name: com/terraforged/engine/world/terrain/Terrain.class
+SHA-256-Digest: OzjgQ4V9NaRNniUcK8EKPs+WwOWn2DPYa4xf39dvYYo=
+
+Name: com/terraforged/engine/world/geology/Strata.class
+SHA-256-Digest: ovpS7R5rJ0Tguq4Ig4uubDK8kndoIRmTLGV9nYwFiec=
+
+Name: com/terraforged/mod/util/setup/SetupDebug.class
+SHA-256-Digest: vV05gQw/JDKY6zDqihMmhmtMurcCTYj8jhzpLnvyPUQ=
+
+Name: com/terraforged/mod/chunk/TerraContext.class
+SHA-256-Digest: g2RS75GiqMu4pYhCljYhQPYXSFeEG+0bFgFolEUz4WA=
+
+Name: data/terraforged/structures/trees/redwood/large/redwood_tall_3.n
+ bt
+SHA-256-Digest: eJKF5ETr73h1it5sGlgUNMAhNq8KHDORk1bpCAA/G70=
+
+Name: com/terraforged/mod/client/gui/screen/ConfigScreen$2.class
+SHA-256-Digest: FIIcgzyMI49a3Yx+kPsy6uz0pKyEnjwYwGKlNRQB5Zg=
+
+Name: com/terraforged/engine/settings/ClimateSettings$BiomeShape.class
+SHA-256-Digest: w+DUxP7igHXxad3Wb7PdGeAs+0q9i8uOQ43GK/YgTHU=
+
+Name: com/terraforged/engine/util/fastpoisson/FastPoisson.class
+SHA-256-Digest: NzeEEkuxBhE/qxBiBcqa5Bf5ah3ONbLJtho3asSDFXk=
+
+Name: com/terraforged/mod/TerraForgedMod$ForgeEvents.class
+SHA-256-Digest: a3NoOt32GM9DY5GLLGLBh8zdvNrJKBQCoiWBt0b0k0U=
+
+Name: com/terraforged/mod/featuremanager/predicate/MaxHeight.class
+SHA-256-Digest: fE5V/lUYQtiXMS+yYlfFE6hkWQ0q93W9nEbwvj/QnFU=
+
+Name: com/terraforged/engine/render/RenderWorld2$1.class
+SHA-256-Digest: W51eqs8wekchBLCo8NUlOJvsBjTR0mayEyN1+Qz6z5w=
+
+Name: com/terraforged/engine/tile/gen/CallableZoomTile.class
+SHA-256-Digest: 7WX3ov0VD2oknT+NtMiwTW2QV/3l+idkLkcJO+p2UBg=
+
+Name: assets/terraforged/lang/en_us.json
+SHA-256-Digest: 1tk6b/9Ourflql9bzngixp42/fOkmuMhNfD0c9QAAuw=
+
+Name: com/terraforged/mod/biome/provider/analyser/BiomeAnalyser$1.clas
+ s
+SHA-256-Digest: QXJ1LP1uD9otByrbPJcVPu8BK5LyVFcRXC/6by/WM8I=
+
+Name: com/terraforged/mod/client/gui/screen/preview/RenderMode$4.class
+SHA-256-Digest: 5cZ4HmUL/zZJdlpybvCeedSJNd4aUnXqBHYcJNxES3M=
+
+Name: com/terraforged/engine/render/RenderMode$2.class
+SHA-256-Digest: 36urOuDNqv8RAfU3oCxax9VTiSc2cZP8QZB+RycsZVY=
+
+Name: com/terraforged/mod/chunk/generator/Generator$Terrain.class
+SHA-256-Digest: DFxk7vDtP0zV0p19uh/ty+vTqbhBUj8BNRMBtWF9rTQ=
+
+Name: com/terraforged/mod/util/nbt/NBTLeavesFixer.class
+SHA-256-Digest: lI0qfV3R0ND6ftjoDkaY6pFSEEUPzcAeKS6JBGct1xI=
+
+Name: com/terraforged/engine/concurrent/Resource.class
+SHA-256-Digest: igjJmcYKXlyQkvZmZOnbRGqcy0SYZ4qwK9p+ljTJrwQ=
+
+Name: com/terraforged/engine/util/poisson/PoissionVisualizer.class
+SHA-256-Digest: +ViqlMBU79XCUtBO3QtLiiF3XxUi9knotxudFJWZlxc=
+
+Name: com/terraforged/mod/profiler/timings/TimingStack.class
+SHA-256-Digest: wp9EeQ1hD9RplFadr7M5fzUrYiG8t3qzIpx5Q4qGj0w=
+
+Name: com/terraforged/engine/module/Ridge.class
+SHA-256-Digest: onG7FQSm1fdHq/ifTmeY9LvDJeux4xglhzrIkxj7A5s=
+
+Name: com/terraforged/noise/func/DistanceFunc$1.class
+SHA-256-Digest: gaKlXKHPcw4dzr/noFbgt/qsupkPJfpit1WfOHxLZVQ=
+
+Name: com/terraforged/engine/concurrent/cache/map/LoadBalanceLongMap.c
+ lass
+SHA-256-Digest: jUUJT1uWhdX2Up25rnw73fjqaKdYVMj5aKpFh8IvlsQ=
+
+Name: com/terraforged/mod/featuremanager/FeatureSerializer.class
+SHA-256-Digest: TRnpQITmwSVQvk5tZHomQ7eL+MQHym2GcZdc6vLgF6Q=
+
+Name: com/terraforged/mod/biome/utils/BiomeUtils.class
+SHA-256-Digest: //xwonEjgm71bkg32WF91owyMegOUlR7no0eQdk3lLQ=
+
+Name: com/terraforged/mod/featuremanager/template/decorator/NoDecorato
+ rFactory.class
+SHA-256-Digest: OsLUK5OEHZqDgG8UrmUzoQZtsVM7E1w6DNkzzgw00p0=
+
+Name: com/terraforged/mod/api/chunk/column/ColumnDecorator.class
+SHA-256-Digest: UHwUXdpyJxdkYIeBmls6bpNwSUm5X2PdQbNVHHrVxr8=
+
+Name: com/terraforged/engine/cell/Populator.class
+SHA-256-Digest: aM6USY2RA+y3G7J6OKDUeXdlNjhBr2xIjZ6piXmgrr4=
+
+Name: com/terraforged/mod/client/gui/screen/overlay/OverlayRenderer.cl
+ ass
+SHA-256-Digest: Gz+3LCa2Zz3HjmKKx4GpcYXZoEVW+ouzq/bjDELoLsY=
+
+Name: com/terraforged/mod/featuremanager/matcher/feature/FeatureMatche
+ r.class
+SHA-256-Digest: LNMkTo02+SProVa3Kw4j/mm1Ee77BqJ1A60WAI7TI8o=
+
+Name: com/terraforged/mod/featuremanager/matcher/feature/Rule.class
+SHA-256-Digest: tCFoXmo39qyk4n47XvlyY6XCSDBEILtqESkAD5cdLD8=
+
+Name: com/terraforged/mod/chunk/generator/MobGenerator.class
+SHA-256-Digest: d9Jubw63mSO4qqDuhEc48DUWJSd+1e0vZIqYn612k50=
+
+Name: com/terraforged/engine/concurrent/thread/EmptyThreadPool.class
+SHA-256-Digest: UyUscaWsrXOh14WTinFLxhJ1bxDsod44XlTzthA9q4o=
+
+Name: com/terraforged/mod/util/nbt/NBTLeavesFixer$Rule.class
+SHA-256-Digest: 7KJegt9HbP2diQkXR8DIkhMeNqDoXKW4fW1sDofZomc=
+
+Name: com/terraforged/engine/util/Visualizer.class
+SHA-256-Digest: pCygmUn+vVegWTodQq3kzAL2K4oOvJMu6rQYPR4Iyfo=
+
+Name: com/terraforged/noise/modifier/Steps.class
+SHA-256-Digest: V267zyxevncoMSQlKwDQL5MLfc6DLyBFzRjzmBSSpq8=
+
+Name: com/terraforged/mod/chunk/util/ChunkBitSet.class
+SHA-256-Digest: dBB5UrLWm+gncqGvdgU7dRj1sE/yIsIrcbLv8d0aRVc=
+
+Name: com/terraforged/mod/api/material/geology/GeologyManager.class
+SHA-256-Digest: 8DH8jFIvohbLM2BF4HQhraYLG84StCba7dFVkfM07XI=
+
+Name: com/terraforged/mod/client/gui/screen/page/UpdatablePage.class
+SHA-256-Digest: jILAqNfzKReOitN9x4lVAgiNjaRVO//lyQG4+t6MzFs=
+
+Name: data/terraforged/features/shrubs/marsh_bush.json
+SHA-256-Digest: iCdkzcJFBZirkV68eCNV9Vn5gPoGwcwkFIP96jZXiZw=
+
+Name: com/terraforged/mod/api/chunk/column/DecoratorContext.class
+SHA-256-Digest: WpYjz9gOfCNbxhphHIIlWrYoKQQ9k5IXH3nLbEnkubg=
+
+Name: com/terraforged/engine/render/RenderMode$9.class
+SHA-256-Digest: dvH63UWAyQnD6oRFzBe/Su0Wg+BrJ8Qxt8RWJmPsVyo=
+
+Name: com/terraforged/noise/modifier/Cache.class
+SHA-256-Digest: oCRI1dxKZ/Ae9TIbVkjoVL/nIbbP4YNnhK2lufDuk/E=
+
+Name: com/terraforged/engine/module/Ridge$1.class
+SHA-256-Digest: LCZAqqBerYyxulETdyPvLhEYxmu6bHgq4qNpCp91BMU=
+
+Name: com/terraforged/mod/client/gui/screen/preview/RenderMode$2.class
+SHA-256-Digest: EqGhCxUIiUzM5G3NndMTG8Y/KzcFSGufG5hHT/RfFKI=
+
+Name: com/terraforged/mod/feature/context/ContextualFeature.class
+SHA-256-Digest: seZwmwbGOth6a8vsJM598HkDxBbVf8o/7Rq2+VY0aEk=
+
+Name: data/terraforged/structures/trees/redwood/large/redwood_tall_2.n
+ bt
+SHA-256-Digest: RdglqmssoQsFFluwyRVoFtCO/W26ATGFS6vSFU20/gI=
+
+Name: com/terraforged/engine/world/continent/ContinentType$1.class
+SHA-256-Digest: CqFWdVM/NYlBsTx/Xx+mUM+V5zR2EFsA/BQnIupFXdk=
+
+Name: com/terraforged/engine/tile/api/TileProvider.class
+SHA-256-Digest: nruCSN1hozNVX7udJ/kLjSLou2aK/K6RqNJ0X6cpHRo=
+
+Name: data/terraforged/structures/mushrooms/brown/brown_mushroom_2.nbt
+SHA-256-Digest: YjsR7vk+1UT1KWXes+RB/SuC4kCBwGhkXlJp3Rl/NOo=
+
+Name: com/terraforged/mod/feature/decorator/filter/PlacementFilter.cla
+ ss
+SHA-256-Digest: U4xqWv2bEDLdt8EIROh4lvzuI/QMwq7AlLLBT4MMtWw=
+
+Name: com/terraforged/mod/biome/surface/StoneForestSurface.class
+SHA-256-Digest: cUdlfVu+GNU0wzw99ppVoRUNCUBtE4+c+doXiMdYM74=
+
+Name: com/terraforged/engine/world/rivermap/river/RiverConfig$Builder.
+ class
+SHA-256-Digest: 2ejhn8a6V9fCgtl7CFElV640zEi94xOYl2DUIC86H2E=
+
+Name: com/terraforged/engine/world/continent/ContinentLerper3.class
+SHA-256-Digest: yIJ9cIAQi1dxYaB7K4fJwKk/b7V2UQFaTEB5tP/f9os=
+
+Name: com/terraforged/noise/modifier/Boost.class
+SHA-256-Digest: d+Ibhmh12SG4HkI3cd+9MUh1xZm7UBDk5mNNUTDiJNo=
+
+Name: com/terraforged/engine/tile/gen/TileGenerator.class
+SHA-256-Digest: VYJn4TzogI7904g3tDYySvEU1HeYpLMdX47u4Q2TY6w=
+
+Name: com/terraforged/mod/util/quadsearch/Search.class
+SHA-256-Digest: Jl4uCGMB9HqIC7AF8+UJHTHPWT8yB5/+3fepN0WzV0o=
+
+Name: data/terraforged/features/ores/iron.json
+SHA-256-Digest: eVgTG6JhuCJzGtsqLmDstxseN96f2ofiVw4hsf0Zvhg=
+
+Name: com/terraforged/mod/client/gui/element/TFCheckBox.class
+SHA-256-Digest: iodQQiYEzz2fpiiAQ1f2OiO1AotnOQblsoazF0tJ3ug=
+
+Name: data/terraforged/features/shrubs/taiga_scrub_bush.json
+SHA-256-Digest: WOa1MCkq/xB39rjxrdUevmEwB3UM1y6pve+TRi6MZhE=
+
+Name: com/terraforged/engine/tile/chunk/ChunkWriter$Visitor.class
+SHA-256-Digest: H3vBFjjrl36hSeNQsPCzkg6KMToVpf3jqICADpAx3ls=
+
+Name: com/terraforged/noise/Module.class
+SHA-256-Digest: jK24ufcCORjzwIhvaJ/tOTMNa4x+O5FpfMA53S0g/eA=
+
+Name: com/terraforged/mod/featuremanager/predicate/BiomePredicate.clas
+ s
+SHA-256-Digest: U3wMHXEkZQiv6WtH/Qi0lYmOAIfekesb4g7jxj2UogU=
+
+Name: data/terraforged/templates/trees/willow_small.json
+SHA-256-Digest: qMfLtfhn3UwotYqPN30lc2mkka1+u7/MpINvvK1XaFQ=
+
+Name: com/terraforged/mod/client/gui/page/SimplePage.class
+SHA-256-Digest: he/ypyXkbjMN/c5QnoUPCzEJHZHFfDd2gMZzREq3oBU=
+
+Name: com/terraforged/engine/world/biome/map/defaults/DefaultBiomes.cl
+ ass
+SHA-256-Digest: uNu8LjQTdFf+mSS8o0JTLhkvMudrnUw/+t3ZZRUCJAc=
+
+Name: com/terraforged/mod/feature/BlockDataConfig$Parser.class
+SHA-256-Digest: B0JCh0jmUb6pWquBBAwM/WefGp5eFMQD1+rFVtmWbI0=
+
+Name: com/terraforged/mod/featuremanager/template/template/Dimensions.
+ class
+SHA-256-Digest: 9a4NQ61LDs0djpvenowayYvxrdaJWWKRyuEEGn5CJkQ=
+
+Name: data/terraforged/blocks/saplings/birch_sapling.json
+SHA-256-Digest: R09ycNsVk0SJS6y02xSlsmd+X7juIBwtIRsfPVjuC7M=
+
+Name: data/terraforged/structures/trees/redwood/huge/redwood_massive_2
+ .nbt
+SHA-256-Digest: 0OjcImXCb5HXPak252B8ycd2rOVTthCQU1ACXjibdpo=
+
+Name: com/terraforged/engine/world/terrain/region/RegionLerper.class
+SHA-256-Digest: SbCsHJdf4BaLgJFVfnEqu0bSLOmARaNJWqIgLBtCMsg=
+
+Name: com/terraforged/mod/featuremanager/transformer/AbstractFeatureIn
+ jector.class
+SHA-256-Digest: x4RjNQ92yshggCnFqPZIlEhSe3DatCeoFRdhxwyh4s0=
+
+Name: com/terraforged/engine/world/geology/Geology.class
+SHA-256-Digest: PfhgEDtcUQ8dcTCa4yrQnOo1gQPg/yVWe01ow+4zz6k=
+
+Name: com/terraforged/noise/modifier/Terrace$Step.class
+SHA-256-Digest: 51e3hM2xtyP+ZJR7b6tzcCYKgRg/LC6ENtcUy/mWNp0=
+
+Name: com/terraforged/mod/feature/decorator/poisson/BiomeVariance$1.cl
+ ass
+SHA-256-Digest: vds+F3lisdacSeoRmqNWw0Gra6Ahwh2JFBq3ZNb7UB4=
+
+Name: com/terraforged/mod/featuremanager/predicate/Direct.class
+SHA-256-Digest: cO5/lR2Lp54w4Z53x5tZiRb5jKlWrfBmiApDy8GZQPY=
+
+Name: com/terraforged/mod/featuremanager/template/decorator/BoundsReco
+ rder.class
+SHA-256-Digest: 2Xjw2Rlml5utDsudV09QkRoed7VeiG0G0xHayEnjR9I=
+
+Name: com/terraforged/engine/settings/ClimateSettings$RangeValue.class
+SHA-256-Digest: qJ/XBetY9fznyOJLPp/2RO5MVjtHNZp0ZEjgiBoGE+0=
+
+Name: com/terraforged/noise/func/DistanceFunc.class
+SHA-256-Digest: P1L8HH5idh1d+GNdXFDtGGFdV8vMM4szqkzCov2OLrI=
+
+Name: com/terraforged/mod/client/gui/screen/Splashes.class
+SHA-256-Digest: PhiwI+g3QBUc00jDhuPibHJ32fdVi5oCG/3QEHLhEbs=
+
+Name: com/terraforged/mod/data/WorldGenExport.class
+SHA-256-Digest: D/HCiO8XLVh7jABBg334VXAHGmFWqyb+cduE3aE/buo=
+
+Name: com/terraforged/mod/api/material/geology/StrataGenerator.class
+SHA-256-Digest: kAaMC/LWm8lMsFQiTWhCnGFU3hLQXqwBCzLvWgstOGQ=
+
+Name: com/terraforged/engine/concurrent/ThreadLocalResource.class
+SHA-256-Digest: NMSLSx6J9p/umKqnEHqU1nR6UbeLMY7qOjxGP1Y0sx4=
+
+Name: com/terraforged/noise/source/RidgeNoise.class
+SHA-256-Digest: z24PbAR213pTnj31bYCujv4lV1L+XXHwzHcFvG59r6k=
+
+Name: com/terraforged/engine/cell/Cell.class
+SHA-256-Digest: 6tuRZS5n6IBJZmZBO6B4C8QyWJQzeIfvxyMFdnpGygI=
+
+Name: com/terraforged/engine/serialization/annotation/Rand.class
+SHA-256-Digest: 2LCy0P2id1ezQPUTN5VlbX+K7u+1iRnaJjB52HBN6RQ=
+
+Name: com/terraforged/noise/source/Sin.class
+SHA-256-Digest: 8Cz4L/qpO8HzFyXdft8Q9gpqDU9BUFPAjjBdUDFgQHs=
+
+Name: com/terraforged/noise/source/PerlinNoise.class
+SHA-256-Digest: Cq9quqRtGgnxRpK1kRXZZhX06JF9HbC9EPS0hybpFsQ=
+
+Name: data/terraforged/templates/trees/jungle_large.json
+SHA-256-Digest: yphKN4OfnCL8cXza+rHvlYjFiUUDokEPc0K7wEzKSLA=
+
+Name: com/terraforged/engine/settings/RiverSettings$Lake.class
+SHA-256-Digest: v5Y0DIx90YelIezmXjnD+r4LeM8HjTt68mUo8xC3Yw4=
+
+Name: com/terraforged/mod/api/event/SetupEvent.class
+SHA-256-Digest: fahTvtIBWDLD7RwhDZdCs4HdzsfMkv/tGqHOFpSOtd0=
+
+Name: com/terraforged/noise/source/SimplexRidgeNoise.class
+SHA-256-Digest: /hD7XGRRR7CqEWEV8aY1/ZbNgzHOdJKDlMxMckitL4k=
+
+Name: com/terraforged/noise/modifier/Warp.class
+SHA-256-Digest: /1Z3M5JBQqW3iXSEWpRcmxW/niDfyZuUeo3kfxE4xPg=
+
+Name: data/terraforged/blocks/saplings/oak_sapling.json
+SHA-256-Digest: /n6VdCFoZzETWt5SitDQ7bsw7Ik8q2HJA9n2vdZ5Irc=
+
+Name: com/terraforged/noise/func/Interpolation.class
+SHA-256-Digest: N21p0+oo28UJK6jTyXfRkf41hCwETh4z97FVvQSqkg8=
+
+Name: com/terraforged/mod/api/chunk/column/BlockColumn.class
+SHA-256-Digest: y+5zSVpvn6bxo5NvDyGk9SCQdKsNlXT9+O9k479Kges=
+
+Name: com/terraforged/engine/concurrent/batch/BatchTask.class
+SHA-256-Digest: EmQt3QLNmV3Uyl9McyBrQX+YzWWCfznQvy+cZ6dHNX4=
+
+Name: com/terraforged/mod/chunk/settings/DimensionSettings$BaseDecorat
+ or.class
+SHA-256-Digest: Tg2v1RER0mEuZjJvyYBT7wCYAYtwtTIRrVqW/GKSEDc=
+
+Name: com/terraforged/mod/chunk/generator/Generator$Surfaces.class
+SHA-256-Digest: VknP8xtJq9/eyBmaBHUxRRST+ACf9vyvS0VDUfZbDmA=
+
+Name: com/terraforged/mod/client/gui/screen/preview/RenderMode$1.class
+SHA-256-Digest: UcyA8amNV2eb5xFnOH1MC6duG9mCYS0an39PUK6dAg4=
+
+Name: com/terraforged/mod/biome/utils/BiomeBuilder.class
+SHA-256-Digest: SEGTD0HQCaIFY4SwaYv9X0651ckWqkp+YXnjLOQrMhQ=
+
+Name: com/terraforged/engine/world/geology/Strata$1.class
+SHA-256-Digest: W4x+5C4DILFb0TedGPBsHbCVIPSyn9JmlUwnA3ebY28=
+
+Name: data/terraforged/features/sediments/dirt.json
+SHA-256-Digest: +tbsQ7fuDxy+p0frWi179tCP/dwbNtIOgkZbazehYGc=
+
+Name: com/terraforged/engine/world/continent/ContinentType$3.class
+SHA-256-Digest: GNkYEOswi6HpfBrB5MsVp2tzKNXlxbo3qvNwkgBubvY=
+
+Name: data/terraforged/features/trees/oak_forest.json
+SHA-256-Digest: Z+SSSStL3yRZVwwxv9XybEp6lMK2KrIRkz2zqRpW4go=
+
+Name: com/terraforged/mod/featuremanager/biome/BiomeFeatures.class
+SHA-256-Digest: rZXGFIILACdtwOqc4yg/9ea5UmNjfWPKxYtHQ6DAZH4=
+
+Name: com/terraforged/engine/concurrent/task/LazyCallable$FutureAdapte
+ r.class
+SHA-256-Digest: t90R776pIxjJ1pYYAM54aGrYr4yhk9N1Mw2i+XEgwCc=
+
+Name: com/terraforged/engine/filter/Smoothing.class
+SHA-256-Digest: pP3XWZmgPAoO+ZGzije+ZG4+TADs5UzAM2RH2JSfsjQ=
+
+Name: com/terraforged/mod/util/reflect/FieldAccessor.class
+SHA-256-Digest: /uLR3zNovYVmdRK6jNprXnnk79lPQxOYSEx+x4sBWss=
+
+Name: com/terraforged/engine/world/GeneratorContext.class
+SHA-256-Digest: IhZ3LgMk5+UWFZ1RUEA6thv9J73LOr4EPQVU4qBkE34=
+
+Name: com/terraforged/mod/structure/StructureSearch$1.class
+SHA-256-Digest: cUi/Q4gHKmeAn4YkawKUFLcI3DA+VqlCD9Td8AZatuQ=
+
+Name: com/terraforged/engine/filter/Modifier.class
+SHA-256-Digest: APkdn9GviGkVCGdaF6VhXSHYPffCSumsQmoKBgYAyz4=
+
+Name: com/terraforged/engine/tile/Tile.class
+SHA-256-Digest: LrkPPcEOIZ7ozIZ4eUZmS6APU0ospc8XWY76KQHnuQg=
+
+Name: com/terraforged/mod/featuremanager/template/type/FeatureType.cla
+ ss
+SHA-256-Digest: WVj7uCILjyyMYXlLxVe/QFKYxFg3KF+t6sdDxq6CwAw=
+
+Name: com/terraforged/mod/data/WorldGenBlocks.class
+SHA-256-Digest: cXS6D5SARNHg7CEhl0U1cJbfxjGsu0KkgUEqhKvMqiY=
+
+Name: com/terraforged/engine/util/ListUtils.class
+SHA-256-Digest: N6N+2+ERLtApCYm+7/v4u/ekIHUtE5OZyd4tbY3rFt8=
+
+Name: com/terraforged/engine/world/biome/modifier/CoastModifier.class
+SHA-256-Digest: 4pOz49wK506W4NsK7ESbFcWWZwAO4t0FTPZQrB7FEmA=
+
+Name: com/terraforged/engine/world/terrain/provider/TerrainProvider.cl
+ ass
+SHA-256-Digest: 3VwJbzUI2bw8LpxW0xEElgMTFgjBMV+RblpaEeSJMBo=
+
+Name: com/terraforged/noise/modifier/Cache$Value.class
+SHA-256-Digest: NtyX9etADfoj9WkbpTkh1I/ZJlsWX9HQN6Pk7khN3k8=
+
+Name: com/terraforged/noise/modifier/Bias.class
+SHA-256-Digest: vAKViPmlzVBwmCTlcIJikb7R5dn+/s7VEPd5UEjUyo8=
+
+Name: data/terraforged/features/shrubs/forest_grass.json
+SHA-256-Digest: xkrJvy0l/bp7Tl+sTRNPp5mQk5mO1kXidMUImOImbd8=
+
+Name: com/terraforged/noise/func/CurveFunc.class
+SHA-256-Digest: oqMXRdkxeyWahvxQd4iW5BGYt2nzNDkfYeq8tU2BWtY=
+
+Name: com/terraforged/engine/world/WorldGenerator.class
+SHA-256-Digest: 71ZdDJqb1d/Cp0Syf5GXZt6lPXzZc/WLo3Hl3KwetDI=
+
+Name: com/terraforged/mod/biome/provider/analyser/BiomePredicate.class
+SHA-256-Digest: EdRxbS218YWoNyzGvaxCZsh4rSj8n+nhf5jXjJ70uWs=
+
+Name: com/terraforged/mod/client/ClientCrashHandler.class
+SHA-256-Digest: 7rljXLgL0vrfd0k6s3c+TNGKPqcvN6ut/VKqJNapvFQ=
+
+Name: com/terraforged/mod/featuremanager/modifier/Modifier.class
+SHA-256-Digest: 5iSnyR7GuALrlmmnfNCaZd0IaA9arXNVwA4PBzmlU1E=
+
+Name: com/terraforged/engine/render/RenderRegion.class
+SHA-256-Digest: 1jt6SXrOqBLXF01L7MRDEWhRlcbJq5xJdd0sGgqwgCg=
+
+Name: com/terraforged/engine/serialization/annotation/legacy/LegacyInt
+ .class
+SHA-256-Digest: 0yHO1VHAWYCsWJrN75jEjheuuUj7nxEpKWC3lWgAvYU=
+
+Name: com/terraforged/mod/util/reflect/ReflectUtils.class
+SHA-256-Digest: BSdF+KrokpRkvhsHRymi3TRiJBXvdC7uUrFXuiND+OY=
+
+Name: com/terraforged/cereal/value/DataList.class
+SHA-256-Digest: XIyWfxaNKwW8B+QMCw6i+SenjMKdDzjaYk/qxx3Spg8=
+
+Name: presets/TerraForged - Huge Biomes.json
+SHA-256-Digest: 0PPjL4srqQ9lys1jT69O8D9xyjF/ubIozBiN4jUGx70=
+
+Name: com/terraforged/mod/client/gui/element/TFSlider$BoundFloat.class
+SHA-256-Digest: vlab8m0kTkNstnYvSYfYJSnuGg4foayHBBMqUdrljK0=
+
+Name: data/terraforged/structures/trees/jungle/large/jungle_tall_1.nbt
+SHA-256-Digest: q324DVZtkARBoOS20VpPZd5eLOWJ+eZGwRKZyo3egE0=
+
+Name: presets/TerraForged - Beautiful.json
+SHA-256-Digest: Zx0vL46WJfqRU7uVBv734T+ZZOlkty9F20T6cE8vm+k=
+
+Name: com/terraforged/engine/serialization/serializer/Writer.class
+SHA-256-Digest: eT3UiBVv7yXNDzEPdGlcILN/93jO0IvmdLyVm33CIzc=
+
+Name: com/terraforged/mod/featuremanager/template/paste/PasteType.clas
+ s
+SHA-256-Digest: XXapUPawHc5iufgZkazwvAWYCDGd6ai5IFgg5ibLN5I=
+
+Name: com/terraforged/noise/selector/MultiBlend$1.class
+SHA-256-Digest: yud8yfWCHWrhQh8mMNgCiBlS02+7yzUhMCRqkjDg2CM=
+
+Name: com/terraforged/mod/chunk/column/BedrockDecorator.class
+SHA-256-Digest: lYagiGWtwHYgzd3sqZifTyjJw2/ae2EsyyUmD8Eysrg=
+
+Name: com/terraforged/engine/settings/ClimateSettings$BiomeNoise.class
+SHA-256-Digest: 2G0XQWcCmGDOhxhb1U5hO5IzZ4IQ1qKL6UNBS3/oj8M=
+
+Name: com/terraforged/engine/world/biome/map/defaults/DefaultBiomeSele
+ ctor.class
+SHA-256-Digest: w/P54ihCFcv6HGv0nE8jA7qjqcy2tV1XEOH6xXEwWcI=
+
+Name: com/terraforged/mod/featuremanager/data/TagLoader.class
+SHA-256-Digest: yx9Dw50JB12Ir0639EvU/oPCbkPC37s7n8TZeDfo4W4=
+
+Name: com/terraforged/engine/world/continent/ContinentType$2.class
+SHA-256-Digest: ZgnWdltIVrBNxE+WMhK1ANgr+uRSnXyUF9y6jGMkXE4=
+
+Name: data/terraforged/features/trees/spruce.json
+SHA-256-Digest: bQVen/3L26IKLoomuxMYODWhDC5OHj7jskhLbrTb+AU=
+
+Name: data/terraforged/structures/trees/dark_oak/small/dark_oak_1.nbt
+SHA-256-Digest: amXPskq14h8XvBHbl7AayQ++wILLKP693kYt3wtP5C0=
+
+Name: com/terraforged/mod/data/gen/FeatureInjectorProvider.class
+SHA-256-Digest: s2SBZ4qJ3++aJFpM0CEuUyr31NDD/5gUFX2IddRV27w=
+
+Name: com/terraforged/engine/world/biome/map/BiomeContext$Defaults.cla
+ ss
+SHA-256-Digest: zDFB6veNMLiZE0s4sULTRJs+8NRMdgcQl1iX66pCRpg=
+
+Name: com/terraforged/mod/server/command/TerraCommand.class
+SHA-256-Digest: q97lHphsDqo5XK7Gx/O8fmBZOTs4CRWi3hoAcg2HG0I=
+
+Name: com/terraforged/engine/settings/FilterSettings.class
+SHA-256-Digest: doAa0C8LnTZcfik1pOWqszfpD6UQ+1yMYQUYS3vL7OA=
+
+Name: data/terraforged/features/trees/birch_oak.json
+SHA-256-Digest: zlgTyUERdTSjjuWgO+VIu2XnWFk6K69ss3VNhfHrJos=
+
+Name: com/terraforged/mod/chunk/generator/FeatureGenerator.class
+SHA-256-Digest: qlzCBavdN1o4uXDkgKa4+zxUwi2rAkGI7sRI8f9Hka0=
+
+Name: com/terraforged/mod/client/gui/screen/Instance.class
+SHA-256-Digest: 7cQWiE/F5IaWeIuqOBafIuIdwfHgOoUnnv39GSh11Oo=
+
+Name: com/terraforged/cereal/spec/DataAccessor.class
+SHA-256-Digest: MbHfaj0x6y4PbD7MbG2FXfotCnNuzGAYuY5B8azmkEk=
+
+Name: data/terraforged/structures/trees/redwood/huge/redwood_massive_1
+ .nbt
+SHA-256-Digest: Ba+onlG+oj+3MnznI/Rnip8TmenCYd88R3/GfSaer3g=
+
+Name: com/terraforged/engine/serialization/annotation/Restricted.class
+SHA-256-Digest: amVQ6m3bk1GYCs3mfu4tL8pBMtFz4ca2gQAicpWKS8Y=
+
+Name: com/terraforged/mod/biome/provider/BiomeModifierManager$1.class
+SHA-256-Digest: HZBup1CI6SCNB9pOm7mi3peU8a/rOlCXDiZUP0vlVn0=
+
+Name: com/terraforged/mod/biome/context/BiomeDefaults.class
+SHA-256-Digest: Q4iY+kEmOEoPTDPDWiOxAWkId83kRlo8errnH77Sw/8=
+
+Name: data/terraforged/structures/trees/spruce/large/spruce_1.nbt
+SHA-256-Digest: O6w1WgPGidHWCXuiWbzeUZDJsQtvuLSNkk091QQhf3M=
+
+Name: data/terraforged/features/trees/jungle.json
+SHA-256-Digest: oI6SH/2sXfXbGph7kxB9iA9AR0v+ofMjOsvEL8u03kI=
+
+Name: com/terraforged/cereal/spec/DefaultData.class
+SHA-256-Digest: d4ZCggGFoaWyuXqSsM593yrTduRM23FIWt6fKi8N30c=
+
+Name: com/terraforged/mod/featuremanager/template/decorator/DecoratorB
+ uffer.class
+SHA-256-Digest: d5FP7MvSS0jtW3FEolE0xwMHGRIjN85XkdgsDopUla8=
+
+Name: com/terraforged/engine/serialization/serializer/cereal/CerealRea
+ der.class
+SHA-256-Digest: g3fEsr6tQspAxOkv/q+uReEaGRg3WtEU0ie9vAa5Rok=
+
+Name: com/terraforged/noise/util/N2DUtil$PosVisitor.class
+SHA-256-Digest: myb/mX+/IT5FJ7RJx6nqGIsL+xgIDh/OyzteiI3fmF8=
+
+Name: com/terraforged/mod/featuremanager/matcher/feature/Matcher.class
+SHA-256-Digest: KR3ieERki3LijdzL1pdXOnAyKsJx1lH24kA2ziN28K0=
+
+Name: com/terraforged/noise/modifier/Terrace.class
+SHA-256-Digest: D8Un8KJj6yziV/HYkpQKp2uGI7HAg+oCJGfCB4je35A=
+
+Name: com/terraforged/engine/render/RenderMode$6.class
+SHA-256-Digest: IaSEKtRGdm2s0FFmPOLOM9YUwOnG4qO/dNgMRx6p3Pc=
+
+Name: com/terraforged/engine/world/rivermap/lake/LakeConfig$Builder.cl
+ ass
+SHA-256-Digest: 4Ff0SiMvoj8LjHYnKcd9zKDQKcbNKiK335QMx9KfmPc=
+
+Name: com/terraforged/mod/chunk/util/DummyBlockReader.class
+SHA-256-Digest: s5guoD94tcEi+qz2UbS8xDXqGrHD1nyB3JZFuEHLEfg=
+
+Name: com/terraforged/noise/modifier/VariableCurve.class
+SHA-256-Digest: ky3HDwb0KzWjCaDW+9+v33a2zPZHWGUxeRyGYOv+dLI=
+
+Name: com/terraforged/mod/material/geology/GeoManager.class
+SHA-256-Digest: kekcUv8AK9gWN6d6QlfUNGzJSTH2KyiyYlLc/uUg2z8=
+
+Name: data/terraforged/structures/trees/pine/stone_pine_2.nbt
+SHA-256-Digest: p3xpHVkEFElWrhN2EXaGMm68zoi2k6HEEc54fDNdi0s=
+
+Name: data/terraforged/templates/trees/acacia_large.json
+SHA-256-Digest: eL6JSZaqykQ61jthFJFGUENGzm2NUwqApYyJkpZ5ShM=
+
+Name: com/terraforged/engine/render/HSBBuf.class
+SHA-256-Digest: GvKFHZ9rP4p0g08YDoYofZP8/G/IAY9rXP5wPEhcHBc=
+
+Name: com/terraforged/engine/util/RollingGrid.class
+SHA-256-Digest: fn0h8hDBJ5d+Dm/KEkKKq9JPLQFq74XkbXbzD0F0KXo=
+
+Name: data/terraforged/structures/mushrooms/brown/brown_mushroom_4.nbt
+SHA-256-Digest: fCswx5/o6h1JMc3ra04sRrBdHQNMktuqleqbozuN2ng=
+
+Name: com/terraforged/mod/featuremanager/template/feature/Placement$1.
+ class
+SHA-256-Digest: hZh2nIOP2JGZiblHxyl7aepYDWoJaI/qvRXPCH8v7Oc=
+
+Name: com/terraforged/mod/featuremanager/transformer/FeatureAppender.c
+ lass
+SHA-256-Digest: 7pEMgW/82IViPo2gcz2wuO5+MUnpb1LIW8ZuDSuBchI=
+
+Name: com/terraforged/mod/chunk/settings/StructureSettings$StructureSe
+ paration.class
+SHA-256-Digest: bxQc5hoL4qlONx+YgGlCk72073O4vCDPBn0NAE8cL44=
+
+Name: com/terraforged/engine/util/metric/Metrics.class
+SHA-256-Digest: Ei/cEg+tcqsYF6xY+9g+eFXLqkWes1TrolBgk5KVxn4=
+
+Name: com/terraforged/engine/world/rivermap/wetland/Wetland.class
+SHA-256-Digest: eQYWxnp9vcpyECodjM5E6Ct5fw3wdodfi2upu4JG9Ps=
+
+Name: com/terraforged/mod/feature/BlockDataManager.class
+SHA-256-Digest: V6d8aZJk8f8LwxIGeRZbsT9Md2PNN9TYEE03XaTAlxU=
+
+Name: com/terraforged/engine/world/rivermap/river/RiverCarver$Settings
+ .class
+SHA-256-Digest: VTO1Mtt11/7Gn6ov9rFuH8DgqFn0fpng961GTGYlwgE=
+
+Name: data/terraforged/structures/trees/oak/small/oak_bush_2.nbt
+SHA-256-Digest: Qhm256YOoxuSWt3rc5nX/h1Y7Em1NmSAZnoqMuvmN2M=
+
+Name: com/terraforged/mod/chunk/settings/Miscellaneous.class
+SHA-256-Digest: ESTuVpFFlLBtzTo1ONJfUqeB040xlntF+Nd+QrmWlVI=
+
+Name: com/terraforged/mod/feature/sapling/SaplingListener.class
+SHA-256-Digest: KA1BMjrNvhWlbAoahB4k0WKQl2GVW3XjuDf/4KCnKqw=
+
+Name: com/terraforged/mod/featuremanager/util/codec/DecoderFunc$Simple
+ .class
+SHA-256-Digest: bVgyjZ4am1V2LEM6hixMWVjEAtcOLKgbv+muFZo29pE=
+
+Name: presets/TerraForged - Vanilla-ish.json
+SHA-256-Digest: C9PgY1150Kdsl0B1JTS1tEXcafcUrHEnZ0qQgR+QPGk=
+
+Name: com/terraforged/engine/world/climate/Climate.class
+SHA-256-Digest: zn8VuRGg4WvHbtY/cibpzqyfPfAZWYpXA8vvlsA9Em0=
+
+Name: com/terraforged/mod/chunk/generator/Generator$Biomes.class
+SHA-256-Digest: zHTcu2s63Oa/vqUFyGMsrU2WXMrm1Z17C+TA4tiOsRg=
+
+Name: com/terraforged/mod/chunk/TFChunkGenerator.class
+SHA-256-Digest: 35b2Y/V+KFgWDeC2I/rR0Rm8Un6Dw/VXQ1GasL0vr50=
+
+Name: com/terraforged/engine/render/RenderMode$3.class
+SHA-256-Digest: 3DHLchLsJ2KK5WyCENGDkrhSj/rLC3m41ES8IYzgMpY=
+
+Name: com/terraforged/engine/concurrent/batch/BatchTimeoutException.cl
+ ass
+SHA-256-Digest: t8l+Y5ub0dpYk7nplwMRipFrAWjP7Zvi1QW/qtytBWM=
+
+Name: com/terraforged/engine/settings/TerrainSettings$Terrain.class
+SHA-256-Digest: gbkYQHUlby5poLs34j0nCUcrvIXDHU8nSC/A7ubBw2M=
+
+Name: com/terraforged/engine/serialization/annotation/NoName.class
+SHA-256-Digest: t+vHRA+hDkbZS8EkDG7tl9UIhB5z/d7fFN6MmV2pMss=
+
+Name: com/terraforged/mod/profiler/watchdog/Watchdog.class
+SHA-256-Digest: GDBM01o264HrVVHDJ7uzxgSYDyw0NcigJ5jSa3bkviE=
+
+Name: com/terraforged/engine/world/continent/ContinentType$4.class
+SHA-256-Digest: 8fBRAsEMLcHrFnZMwdGqEQMQyXxALloT+/zwha2WXh4=
+
+Name: com/terraforged/mod/featuremanager/FeatureDecorator.class
+SHA-256-Digest: pFeCxwK5jBqAhVnI8KGJ8X+RNYw4Tk3ZNS1s7aHBnNc=
+
+Name: com/terraforged/mod/util/quadsearch/QuadSearch.class
+SHA-256-Digest: 3u4baPfwQiAx7dhmExFU2omIIxw0IO5Rmx5NQRclsjQ=
+
+Name: com/terraforged/mod/util/Flags.class
+SHA-256-Digest: oRzQ/CA9/FZFoSs4wqatoBUPqnrLYwjpIwDlWtb5zkc=
+
+Name: com/terraforged/noise/domain/CompoundWarp.class
+SHA-256-Digest: caBdKaSELhhGpG6MiFCR5CQVA/lSSW4UA6jIhaOmG2Y=
+
+Name: com/terraforged/engine/tile/chunk/ChunkBatchTask$Zoom.class
+SHA-256-Digest: 34I2aKJ/uVVSxcWMDBA6dDTewcBy+lb/ZXtN+2E5eRk=
+
+Name: com/terraforged/mod/server/command/search/condition/ExactTerrain
+ Match.class
+SHA-256-Digest: t53DWiUCXkCeQLMq34obD1+cfUywuhoTgFgo09S2J8s=
+
+Name: com/terraforged/mod/client/gui/screen/ScrollPane$Entry.class
+SHA-256-Digest: +ucLRf/zg/3GXQD0lJ2dPaFES40jDx3lp12n1s+6sbk=
+
+Name: com/terraforged/engine/render/RenderMode$4.class
+SHA-256-Digest: WZb4L8tyELqHOImdTT23D0WJVVjsFdashrA7iboasug=
+
+Name: com/terraforged/engine/serialization/io/pre/PreConfig.class
+SHA-256-Digest: 8/NsAYGxIgBBz7GotpiXp4lQBuUnb1HwxgCRyn5kspg=
+
+Name: com/terraforged/mod/feature/decorator/poisson/BiomeVariance.clas
+ s
+SHA-256-Digest: dGR1N7k3j2COADBldLcaIySpZ0crhppvykz5VCtfvu4=
+
+Name: data/terraforged/structures/trees/redwood/large/redwood_tall_4.n
+ bt
+SHA-256-Digest: yHpxQff+Xi9XHeHUa+XjCjGGh0LxrDVkfm5sqyaAfPY=
+
+Name: com/terraforged/mod/server/command/search/Search.class
+SHA-256-Digest: jP5lnF9VIQLr2jUBR5lZGYwVssMY7tnjCGUeyJdjBtI=
+
+Name: com/terraforged/mod/api/biome/surface/CachedSurface.class
+SHA-256-Digest: UtVVTESU+af+nxQwFHdUYrsJzOie6gal3DUYOn30h/4=
+
+Name: com/terraforged/mod/feature/context/ChanceContext.class
+SHA-256-Digest: tk/AG/y//9i67OWYsQq6kRPJo30+YWHKDoijjHkdadg=
+
+Name: data/terraforged/features/ores/coal.json
+SHA-256-Digest: QqAFJKIFEqgQbf1lPfIZVXgwAk3XAnP8E03iAiZnbuU=
+
+Name: com/terraforged/engine/world/heightmap/HeightmapCache$CachedCont
+ ext.class
+SHA-256-Digest: VNQKujH6owgoa4x0gCM2B4zX71lSCt6uYOm9yz+rEgw=
+
+Name: com/terraforged/mod/featuremanager/data/ResourceVisitor.class
+SHA-256-Digest: YlmpeDFOxWsEyQfdboWTw/mySJ81O75gyRMUdZEJ5Ag=
+
+Name: com/terraforged/mod/api/chunk/ChunkContext.class
+SHA-256-Digest: DFXdgWjRe13irsTk1B4t/+4s0LGDLK41SAVwlhMOLSY=
+
+Name: com/terraforged/mod/util/nbt/NBTLeavesFixer$RuleSet.class
+SHA-256-Digest: lfoq5yfP7D/Jtx53MNjCrNA5is1ZDTI0yriXKjx5A6E=
+
+Name: com/terraforged/mod/biome/provider/BiomeModifierManager$Builder.
+ class
+SHA-256-Digest: Ouvk8Qz+vndcYh1pPf1EK/KFYrC4CmKATgBXDm0GsgA=
+
+Name: data/terraforged/structures/trees/jungle/large/jungle_tall_2.nbt
+SHA-256-Digest: P/MzdbJvcMoS2ZuS2dSV2NRq1yM2PcRBHpSoWHWuHfg=
+
+Name: com/terraforged/noise/util/NoiseUtil.class
+SHA-256-Digest: 3d7rwsHRvzguXtTjPHlTp1L0K2T0hY6Q54ls22wFWIw=
+
+Name: com/terraforged/mod/util/nbt/DynamicWriter.class
+SHA-256-Digest: JM28b2WuCWgsYRx1h7sWL9pD0a035BGfd+Y9pg7Oows=
+
+Name: com/terraforged/noise/modifier/LegacyTerrace$1.class
+SHA-256-Digest: qJK4zJosVQ/3sKc5JGiyCoQHVws+VGuiURQnnSZJzAc=
+
+Name: com/terraforged/mod/client/gui/screen/overlay/OverlayScreen.clas
+ s
+SHA-256-Digest: O6NASzr0VGk+n5OZ9YWih30VokNjq7nR80gOqhg6VUI=
+
+Name: com/terraforged/mod/util/setup/SetupHooks.class
+SHA-256-Digest: 2pXZD4+xPiGpJb5LXXgWVCrGKxbn4auPeQxnUdqhpGI=
+
+Name: com/terraforged/mod/featuremanager/util/Json.class
+SHA-256-Digest: eOoi+dbHIAbQOieI6jhmQghxVHVDi1PZXfWwWh1sNg0=
+
+Name: com/terraforged/mod/featuremanager/template/processor/BlockRepla
+ cer.class
+SHA-256-Digest: 03ThrJn3Jp08TC5OaVtFldKqjsf+gdygm0oh5DV0I3s=
+
+Name: com/terraforged/mod/chunk/column/BaseGeoDecorator.class
+SHA-256-Digest: 5khRYJgjtiFrFqjBdNWpO3Y0nLknuR46bgOm+cRjn3I=
+
+Name: com/terraforged/engine/world/biome/map/defaults/DefaultBiome.cla
+ ss
+SHA-256-Digest: AiFrKFluvym8C+MhFZyc/c0doCyf/tIADgerk3ZMGzs=
+
+Name: com/terraforged/noise/domain/CumulativeWarp.class
+SHA-256-Digest: QgcZKYRWBQYkWBznQmcMktYDTQAQVo4V10XRiNFiR6I=
+
+Name: com/terraforged/mod/feature/Matchers.class
+SHA-256-Digest: j2qV8F1cDqWAs7KW0lSroaTNO1LkU7bkoMJ5NDXwE3U=
+
+Name: com/terraforged/mod/featuremanager/template/template/BlockInfo.c
+ lass
+SHA-256-Digest: inG4a3+5Vvah5kVZAFSy9RA0+hXN3f+azEGrAKGygoI=
+
+Name: com/terraforged/noise/modifier/Cache$1.class
+SHA-256-Digest: yac4Jy5XEdB1NOSIdw4ixo5wP9jvzVrSJKJAPCKyHo4=
+
+Name: com/terraforged/engine/world/biome/modifier/AbstractMaxHeightMod
+ ifier.class
+SHA-256-Digest: kcdjeSCKkLpRwVCdfZvJ3541Fe5jrIiUPnHBzvTUD2w=
+
+Name: com/terraforged/mod/biome/context/TFDefaultBiomes.class
+SHA-256-Digest: TKCb5oJDBt41qjHbxbDw44WE4Gm2+KySfIl43bjMI0s=
+
+Name: data/terraforged/structures/trees/pine/stone_pine_1.nbt
+SHA-256-Digest: lmBg6VDv/pEHoAy5X5PJfbIwX3C5UT/OVgZbTGEyqoU=
+
+Name: com/terraforged/mod/client/gui/screen/preview/PreviewSettings.cl
+ ass
+SHA-256-Digest: 4KWSkENewO47cvA2AP7VWq7roxB6bHahr1yuFdMG4PE=
+
+Name: com/terraforged/mod/featuremanager/util/RegistryInstance.class
+SHA-256-Digest: 8S3ACWJpYsWb0ELDXHABMWByysMS6SgBJUHTpzcY9EI=
+
+Name: com/terraforged/noise/domain/Domain.class
+SHA-256-Digest: 8H/8dQS2MfArvneTYQUVcTwP0U0oSrjXjHvzNliqRBQ=
+
+Name: com/terraforged/mod/util/PropertyUtils.class
+SHA-256-Digest: aPanrOQfMw65JccBtD8LNsT7TCdmCM/cOYC4yD1mE7U=
+
+Name: com/terraforged/noise/util/Points.class
+SHA-256-Digest: rGK0JnXVYMRP6MFZIKsjgnH93KQni5imnaJDmQ1WG2A=
+
+Name: data/terraforged/structures/trees/spruce/large/spruce_2.nbt
+SHA-256-Digest: g3hZuVHmV9Eu1++NB8px1TlAWdlhlkw38JW7ZIw5IrE=
+
+Name: com/terraforged/engine/world/climate/Temperature.class
+SHA-256-Digest: UVH4BVQtrO/dhcHcLWctHH+i6Ywm5/cZZZZsYpeaLYU=
+
+Name: data/terraforged/features/trees/birch.json
+SHA-256-Digest: absNaHTEGmvifVNLAy2lMTFnHQ38bfvv+WOQihmQtvw=
+
+Name: data/terraforged/structures/mushrooms/brown/brown_mushroom_5.nbt
+SHA-256-Digest: eDF6T3pZhM1ZJc7/hJwIISmFIHoORuJk59UieS5m6zM=
+
+Name: com/terraforged/engine/render/RenderMode$5.class
+SHA-256-Digest: 6zkaXi3dHlZUMVV+gxJGd0o6mg9EYFbnAp6UOrUML5M=
+
