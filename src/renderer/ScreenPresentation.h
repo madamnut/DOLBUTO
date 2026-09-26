@@ -26,12 +26,20 @@ namespace dolbuto
         struct BloomOverlay
         {
             bool active = false;
-            float intensity = 0.35f;
+            float intensity = 0.28f;
         };
 
         struct OxygenOverlay
         {
             float effect = 0.0f;
+        };
+
+        struct ToneMapping
+        {
+            bool enabled = true;
+            float exposure = 1.0f;
+            float contrast = 1.0f;
+            float saturation = 1.0f;
         };
 
         void drawSkySprites(
@@ -48,6 +56,8 @@ namespace dolbuto
         void drawSceneComposite(
             VkCommandBuffer commandBuffer,
             const Texture& sceneTexture,
+            const Camera& camera,
+            float fovRadians,
             VkExtent2D extent,
             const RendererAssetStore& assets,
             const SpriteRenderPath& sprites,
@@ -60,6 +70,8 @@ namespace dolbuto
             WaterOverlay waterOverlay,
             const Texture& waterBlurTexture,
             OxygenOverlay oxygenOverlay,
+            ToneMapping toneMapping,
+            uint64_t worldTicks,
             int climateOverlayMode) const;
 
         void drawCrosshair(

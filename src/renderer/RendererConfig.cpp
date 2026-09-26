@@ -66,13 +66,17 @@ namespace dolbuto
         constexpr int DefaultClayDiskHalfHeight = 1;
         constexpr float DefaultFluidWaterAlpha = 0.8f;
         constexpr bool DefaultFluidWaterScreenBlurEnabled = true;
-        constexpr float DefaultFluidWaterScreenBlurSpread = 1.0f;
-        constexpr float DefaultFluidWaterScreenBlurIntensity = 0.75f;
-        constexpr float DefaultFluidWaterScreenBlurTint = 0.025f;
+        constexpr float DefaultFluidWaterScreenBlurSpread = 1.35f;
+        constexpr float DefaultFluidWaterScreenBlurIntensity = 0.72f;
+        constexpr float DefaultFluidWaterScreenBlurTint = 0.50f;
         constexpr bool DefaultBloomEnabled = true;
         constexpr float DefaultBloomThreshold = 1.0f;
-        constexpr float DefaultBloomIntensity = 0.35f;
-        constexpr float DefaultBloomRadius = 1.2f;
+        constexpr float DefaultBloomIntensity = 0.28f;
+        constexpr float DefaultBloomRadius = 1.35f;
+        constexpr bool DefaultToneMappingEnabled = true;
+        constexpr float DefaultToneMappingExposure = 1.0f;
+        constexpr float DefaultToneMappingContrast = 1.0f;
+        constexpr float DefaultToneMappingSaturation = 1.0f;
         constexpr uint32_t SplineLutVersion = 1;
         constexpr uint32_t SplineLutCount = 1024;
         constexpr float SplineLutInputMin = -2.0f;
@@ -214,6 +218,10 @@ namespace dolbuto
         defaults.bloomThreshold = DefaultBloomThreshold;
         defaults.bloomIntensity = DefaultBloomIntensity;
         defaults.bloomRadius = DefaultBloomRadius;
+        defaults.toneMappingEnabled = DefaultToneMappingEnabled;
+        defaults.toneMappingExposure = DefaultToneMappingExposure;
+        defaults.toneMappingContrast = DefaultToneMappingContrast;
+        defaults.toneMappingSaturation = DefaultToneMappingSaturation;
 
         const config::RenderConfig renderConfig = config::loadRenderConfig(configDirectory / "render.json", defaults);
         client_.renderConfig.fluidWaterAlpha = renderConfig.fluidWaterAlpha;
@@ -225,6 +233,10 @@ namespace dolbuto
         client_.renderConfig.bloomThreshold = renderConfig.bloomThreshold;
         client_.renderConfig.bloomIntensity = renderConfig.bloomIntensity;
         client_.renderConfig.bloomRadius = renderConfig.bloomRadius;
+        client_.renderConfig.toneMappingEnabled = renderConfig.toneMappingEnabled;
+        client_.renderConfig.toneMappingExposure = renderConfig.toneMappingExposure;
+        client_.renderConfig.toneMappingContrast = renderConfig.toneMappingContrast;
+        client_.renderConfig.toneMappingSaturation = renderConfig.toneMappingSaturation;
     }
 
     void RendererConfigBridge::loadViewmodelConfig(const std::filesystem::path& configDirectory)

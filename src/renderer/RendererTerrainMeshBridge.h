@@ -21,6 +21,7 @@ namespace dolbuto
             int subchunkY,
             const world::TerrainMesher::WorldBlockSampler& blockAtWorld,
             const world::TerrainMesher::WorldBlockStateSampler& blockStateAtWorld,
+            const world::TerrainMesher::WorldFluidSampler& fluidAtWorld,
             const world::TerrainMesher::WorldLightSampler& lightAtWorld) const;
 
         CompletedChunkMesh buildChunkMesh(

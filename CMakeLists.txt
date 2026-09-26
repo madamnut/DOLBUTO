@@ -126,6 +126,9 @@ set(SHADER_SOURCES
     shaders/sprite.frag
     shaders/sprite_scene.frag
     shaders/kawase_blur.frag
+    shaders/ssao.frag
+    shaders/ssao_blur.frag
+    shaders/ssao_apply.frag
     shaders/bloom_downsample.frag
     shaders/bloom_upsample.frag
     shaders/rmlui.vert

@@ -429,8 +429,8 @@ namespace dolbuto
         ShadowUniformData shadowData{};
         shadowData.params[0] = 0.0f;
         shadowData.params[1] = static_cast<float>(RendererVulkanState::ShadowMapSize);
-        shadowData.params[2] = 0.00012f;
-        shadowData.params[3] = 0.60f;
+        shadowData.params[2] = 0.00014f;
+        shadowData.params[3] = 0.62f;
         shadowData.cascadeSplits[0] = ShadowDistance;
 
         const uint64_t shadowWorldTicks = (worldTicks / ShadowSunTickStep) * ShadowSunTickStep;

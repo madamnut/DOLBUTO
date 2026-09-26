@@ -23,15 +23,19 @@ void main()
     float radius = max(pushData.params.z, 0.0);
     vec2 delta = texel * radius;
 
-    vec3 color = sampleSource(vec2(0.0)) * 0.20;
-    color += sampleSource(vec2( delta.x,  0.0)) * 0.10;
-    color += sampleSource(vec2(-delta.x,  0.0)) * 0.10;
-    color += sampleSource(vec2( 0.0,  delta.y)) * 0.10;
-    color += sampleSource(vec2( 0.0, -delta.y)) * 0.10;
-    color += sampleSource(vec2( delta.x,  delta.y)) * 0.10;
-    color += sampleSource(vec2(-delta.x,  delta.y)) * 0.10;
-    color += sampleSource(vec2( delta.x, -delta.y)) * 0.10;
-    color += sampleSource(vec2(-delta.x, -delta.y)) * 0.10;
+    vec3 color = sampleSource(vec2(0.0)) * 0.12;
+    color += sampleSource(vec2( delta.x,  0.0)) * 0.12;
+    color += sampleSource(vec2(-delta.x,  0.0)) * 0.12;
+    color += sampleSource(vec2( 0.0,  delta.y)) * 0.12;
+    color += sampleSource(vec2( 0.0, -delta.y)) * 0.12;
+    color += sampleSource(vec2( delta.x,  delta.y)) * 0.075;
+    color += sampleSource(vec2(-delta.x,  delta.y)) * 0.075;
+    color += sampleSource(vec2( delta.x, -delta.y)) * 0.075;
+    color += sampleSource(vec2(-delta.x, -delta.y)) * 0.075;
+    color += sampleSource(vec2( delta.x * 0.5,  delta.y * 0.5)) * 0.025;
+    color += sampleSource(vec2(-delta.x * 0.5,  delta.y * 0.5)) * 0.025;
+    color += sampleSource(vec2( delta.x * 0.5, -delta.y * 0.5)) * 0.025;
+    color += sampleSource(vec2(-delta.x * 0.5, -delta.y * 0.5)) * 0.025;
 
     outColor = vec4(color, 1.0);
 }

@@ -940,6 +940,7 @@ namespace dolbuto
         const uint32_t alphaBlend = quantizeUnsigned(a.alphaBlend, 63.0f, 0x3F);
         const uint32_t packedLight = static_cast<uint32_t>(a.packedLight);
         const uint32_t wavingType = static_cast<uint32_t>(a.wavingType) & 0x3u;
+        const uint32_t waterTint = quantizeUnsigned(a.waterTint, 15.0f, 0xF);
         packed.material = textureLayer |
             (mipDistanceScale << 8u) |
             (aoIndex(a.ao) << 18u) |
@@ -947,7 +948,7 @@ namespace dolbuto
             (aoIndex(c.ao) << 22u) |
             (aoIndex(d.ao) << 24u) |
             (alphaBlend << 26u);
-        packed.light = packedLight | (wavingType << 8u);
+        packed.light = packedLight | (wavingType << 8u) | (waterTint << 10u);
         return packed;
     }
 

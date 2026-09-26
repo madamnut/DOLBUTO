@@ -663,6 +663,7 @@ namespace dolbuto::config
         const std::string water = jsonObjectField(fluid, "water").value_or("{}");
         const std::string screenBlur = jsonObjectField(water, "screenBlur").value_or("{}");
         const std::string bloom = jsonObjectField(*text, "bloom").value_or("{}");
+        const std::string toneMapping = jsonObjectField(*text, "toneMapping").value_or("{}");
 
         if (const std::optional<float> value = jsonFloatField(water, "alpha"); value.has_value())
         {
@@ -699,6 +700,22 @@ namespace dolbuto::config
         if (const std::optional<float> value = jsonFloatField(bloom, "radius"); value.has_value())
         {
             config.bloomRadius = std::clamp(*value, 0.0f, 8.0f);
+        }
+        if (const std::optional<bool> value = jsonBoolField(toneMapping, "enabled"); value.has_value())
+        {
+            config.toneMappingEnabled = *value;
+        }
+        if (const std::optional<float> value = jsonFloatField(toneMapping, "exposure"); value.has_value())
+        {
+            config.toneMappingExposure = std::clamp(*value, 0.0f, 8.0f);
+        }
+        if (const std::optional<float> value = jsonFloatField(toneMapping, "contrast"); value.has_value())
+        {
+            config.toneMappingContrast = std::clamp(*value, 0.0f, 4.0f);
+        }
+        if (const std::optional<float> value = jsonFloatField(toneMapping, "saturation"); value.has_value())
+        {
+            config.toneMappingSaturation = std::clamp(*value, 0.0f, 4.0f);
         }
 
         return config;

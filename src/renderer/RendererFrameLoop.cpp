@@ -487,6 +487,8 @@ namespace dolbuto
             vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, vulkan_.timestampQueryPool, firstQuery);
         }
 
+        // Slot 1: shadow resources for world lighting. Shadow consumers in the
+        // scene pass must use the descriptor set for this frame-in-flight.
         if (gameSceneRenderEnabled)
         {
             updateShadowData(camera, cameraPosition, fovRadians, worldTicks);
@@ -511,6 +513,8 @@ namespace dolbuto
         scenePassInfo.clearValueCount = static_cast<uint32_t>(sceneClearValues.size());
         scenePassInfo.pClearValues = sceneClearValues.data();
 
+        // Slot 2: world scene MRT. This pass owns scene color, bloom source,
+        // and scene depth for world-space draw calls only.
         vkCmdBeginRenderPass(commandBuffer, &scenePassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
         VkViewport viewport{};
@@ -566,12 +570,21 @@ namespace dolbuto
         }
         vkCmdEndRenderPass(commandBuffer);
 
+        // Slot 3: scene-space post effects that read scene color/depth/shadow
+        // and write a post-processed scene color belong here.
+        if (gameSceneRenderEnabled)
+        {
+            drawSsaoTarget(commandBuffer, imageIndex, camera, cameraPosition, fovRadians, skyBrightness, worldTicks);
+        }
+
+        // Slot 4: first-person viewmodel. It loads scene color/bloom source but
+        // clears scene depth so held items do not interact with world depth.
         if (gameSceneRenderEnabled && showFirstPersonHand && menuOverlayMode == 0)
         {
             VkRenderPassBeginInfo viewmodelPassInfo{};
             viewmodelPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
             viewmodelPassInfo.renderPass = vulkan_.sceneLoadRenderPass;
-            viewmodelPassInfo.framebuffer = vulkan_.sceneFramebuffers[imageIndex];
+            viewmodelPassInfo.framebuffer = vulkan_.scenePostFramebuffers[imageIndex];
             viewmodelPassInfo.renderArea.offset = {0, 0};
             viewmodelPassInfo.renderArea.extent = vulkan_.swapchainExtent;
             viewmodelPassInfo.clearValueCount = static_cast<uint32_t>(sceneClearValues.size());
@@ -593,6 +606,7 @@ namespace dolbuto
             vkCmdEndRenderPass(commandBuffer);
         }
 
+        // Slot 5: offscreen post-process inputs for final presentation.
         if (gameSceneRenderEnabled && waterOverlay.active)
         {
             drawWaterBlurTargets(commandBuffer, imageIndex, waterOverlay);
@@ -611,6 +625,8 @@ namespace dolbuto
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();
 
+        // Slot 6: swapchain presentation. Scene composite, bloom, oxygen, water
+        // overlay, climate overlay, HUD, debug, radial menu, and UI draw here.
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
         VkViewport presentationViewport{};
@@ -631,7 +647,9 @@ namespace dolbuto
         {
             screenPresentation_.drawSceneComposite(
                 commandBuffer,
-                sceneColorTargets_[imageIndex],
+                scenePostColorTargets_[imageIndex],
+                camera,
+                fovRadians,
                 vulkan_.swapchainExtent,
                 rendererAssets_,
                 spriteRenderPath_,
@@ -643,10 +661,17 @@ namespace dolbuto
                     client_.renderConfig.bloomEnabled && imageIndex < bloomTargets_[0].size(),
                     client_.renderConfig.bloomIntensity
                 },
-                (client_.renderConfig.bloomEnabled && imageIndex < bloomTargets_[0].size()) ? bloomTargets_[0][imageIndex] : sceneColorTargets_[imageIndex],
+                (client_.renderConfig.bloomEnabled && imageIndex < bloomTargets_[0].size()) ? bloomTargets_[0][imageIndex] : scenePostColorTargets_[imageIndex],
                 waterOverlay,
-                (waterOverlay.active && imageIndex < waterBlurTargetsB_.size()) ? waterBlurTargetsB_[imageIndex] : sceneColorTargets_[imageIndex],
+                (waterOverlay.active && imageIndex < waterBlurTargetsB_.size()) ? waterBlurTargetsB_[imageIndex] : scenePostColorTargets_[imageIndex],
                 ScreenPresentation::OxygenOverlay{oxygenEffect},
+                ScreenPresentation::ToneMapping{
+                    client_.renderConfig.toneMappingEnabled,
+                    client_.renderConfig.toneMappingExposure,
+                    client_.renderConfig.toneMappingContrast,
+                    client_.renderConfig.toneMappingSaturation
+                },
+                worldTicks,
                 climateOverlayMode);
         }
         else
@@ -719,6 +744,7 @@ namespace dolbuto
     {
         if (imageIndex >= waterBlurTargetsA_.size() ||
             imageIndex >= waterBlurTargetsB_.size() ||
+            imageIndex >= scenePostColorTargets_.size() ||
             imageIndex >= vulkan_.waterBlurFramebuffersA.size() ||
             imageIndex >= vulkan_.waterBlurFramebuffersB.size())
         {
@@ -778,9 +804,149 @@ namespace dolbuto
         };
 
         const float spread = std::max(waterOverlay.blurSpread, 0.0f);
-        drawBlurPass(sceneColorTargets_[imageIndex], vulkan_.waterBlurFramebuffersA[imageIndex], waterBlurTargetsA_[imageIndex], 1.5f * spread);
+        drawBlurPass(scenePostColorTargets_[imageIndex], vulkan_.waterBlurFramebuffersA[imageIndex], waterBlurTargetsA_[imageIndex], 1.5f * spread);
         drawBlurPass(waterBlurTargetsA_[imageIndex], vulkan_.waterBlurFramebuffersB[imageIndex], waterBlurTargetsB_[imageIndex], 2.5f * spread);
     }
+
+
+
+    void Renderer::drawSsaoTarget(VkCommandBuffer commandBuffer, uint32_t imageIndex, const Camera& camera, Vec3 cameraPosition, float fovRadians, float skyBrightness, uint64_t worldTicks)
+    {
+        if (vulkan_.ssaoPipeline == VK_NULL_HANDLE ||
+            vulkan_.ssaoBlurPipeline == VK_NULL_HANDLE ||
+            vulkan_.ssaoApplyPipeline == VK_NULL_HANDLE ||
+            vulkan_.scenePostPipelineLayout == VK_NULL_HANDLE ||
+            imageIndex >= scenePostColorTargets_.size() ||
+            imageIndex >= ssaoRawTargets_.size() ||
+            imageIndex >= ssaoBlurTargets_.size() ||
+            imageIndex >= vulkan_.scenePostColorFramebuffers.size() ||
+            imageIndex >= vulkan_.ssaoRawFramebuffers.size() ||
+            imageIndex >= vulkan_.ssaoBlurFramebuffers.size() ||
+            imageIndex >= vulkan_.scenePostDescriptorSets.size() ||
+            imageIndex >= vulkan_.ssaoBlurDescriptorSets.size() ||
+            imageIndex >= vulkan_.ssaoApplyDescriptorSets.size())
+        {
+            return;
+        }
+
+        auto drawPostPass = [this, commandBuffer](
+            VkPipeline pipeline,
+            VkFramebuffer framebuffer,
+            const Texture& target,
+            VkDescriptorSet descriptorSet,
+            float radius,
+            float strength,
+            const std::array<float, 8>& extraParams)
+        {
+            VkClearValue clearColor{};
+            clearColor.color = {{1.0f, 1.0f, 1.0f, 1.0f}};
+
+            VkRenderPassBeginInfo passInfo{};
+            passInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            passInfo.renderPass = vulkan_.waterBlurRenderPass;
+            passInfo.framebuffer = framebuffer;
+            passInfo.renderArea.offset = {0, 0};
+            passInfo.renderArea.extent = {static_cast<uint32_t>(target.width), static_cast<uint32_t>(target.height)};
+            passInfo.clearValueCount = 1;
+            passInfo.pClearValues = &clearColor;
+
+            vkCmdBeginRenderPass(commandBuffer, &passInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            VkViewport viewport{};
+            viewport.x = 0.0f;
+            viewport.y = 0.0f;
+            viewport.width = static_cast<float>(target.width);
+            viewport.height = static_cast<float>(target.height);
+            viewport.minDepth = 0.0f;
+            viewport.maxDepth = 1.0f;
+            vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+            VkRect2D scissor{};
+            scissor.offset = {0, 0};
+            scissor.extent = {static_cast<uint32_t>(target.width), static_cast<uint32_t>(target.height)};
+            vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+            SpriteRenderPath::Push push{};
+            push.data[2] = 1.0f;
+            push.data[3] = 1.0f;
+            push.data[4] = 0.0f;
+            push.data[5] = 1.0f;
+            push.data[6] = 1.0f;
+            push.data[7] = -1.0f;
+            push.data[8] = 1.0f / std::max(static_cast<float>(target.width), 1.0f);
+            push.data[9] = 1.0f / std::max(static_cast<float>(target.height), 1.0f);
+            push.data[10] = radius;
+            push.data[11] = strength;
+            for (size_t i = 0; i < extraParams.size(); ++i)
+            {
+                push.data[8 + i] = extraParams[i];
+            }
+
+            const VkDeviceSize vertexOffset = 0;
+            VkBuffer vertexBuffer = textRenderPath_.vertexBuffer();
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &vertexOffset);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan_.scenePostPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+            vkCmdPushConstants(commandBuffer, vulkan_.scenePostPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(SpriteRenderPath::Push), &push);
+            vkCmdDraw(commandBuffer, 6, 1, 0, 0);
+
+            vkCmdEndRenderPass(commandBuffer);
+        };
+
+        drawPostPass(
+            vulkan_.ssaoPipeline,
+            vulkan_.ssaoRawFramebuffers[imageIndex],
+            ssaoRawTargets_[imageIndex],
+            vulkan_.scenePostDescriptorSets[imageIndex],
+            3.5f,
+            0.34f,
+            std::array<float, 8>{
+                1.0f / std::max(static_cast<float>(ssaoRawTargets_[imageIndex].width), 1.0f),
+                1.0f / std::max(static_cast<float>(ssaoRawTargets_[imageIndex].height), 1.0f),
+                3.5f,
+                0.34f,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f
+            });
+        drawPostPass(
+            vulkan_.ssaoBlurPipeline,
+            vulkan_.ssaoBlurFramebuffers[imageIndex],
+            ssaoBlurTargets_[imageIndex],
+            vulkan_.ssaoBlurDescriptorSets[imageIndex],
+            1.25f,
+            2.6f,
+            std::array<float, 8>{
+                1.0f / std::max(static_cast<float>(ssaoBlurTargets_[imageIndex].width), 1.0f),
+                1.0f / std::max(static_cast<float>(ssaoBlurTargets_[imageIndex].height), 1.0f),
+                1.25f,
+                2.6f,
+                0.0f,
+                0.0f,
+                0.0f,
+                0.0f
+            });
+        drawPostPass(
+            vulkan_.ssaoApplyPipeline,
+            vulkan_.scenePostColorFramebuffers[imageIndex],
+            scenePostColorTargets_[imageIndex],
+            vulkan_.ssaoApplyDescriptorSets[imageIndex],
+            0.0f,
+            0.0f,
+            std::array<float, 8>{
+                cameraPosition.x,
+                cameraPosition.y,
+                cameraPosition.z,
+                static_cast<float>(worldTicks),
+                camera.yaw(),
+                camera.pitch(),
+                fovRadians,
+                skyBrightness
+            });
+    }
+
+
 
     void Renderer::drawBloomTargets(VkCommandBuffer commandBuffer, uint32_t imageIndex)
     {
@@ -857,8 +1023,8 @@ namespace dolbuto
         };
 
         const float radius = std::max(client_.renderConfig.bloomRadius, 0.0f);
-        const float downsampleRadius = std::max(radius, 0.5f);
-        const float upsampleRadius = std::max(radius * 0.75f, 0.5f);
+        const float downsampleRadius = std::max(radius * 0.95f, 0.5f);
+        const float upsampleRadius = std::max(radius * 1.05f, 0.5f);
 
         if (imageIndex >= bloomSourceTargets_.size())
         {

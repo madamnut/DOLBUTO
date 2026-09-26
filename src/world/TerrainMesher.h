@@ -15,11 +15,13 @@ namespace dolbuto::world
     public:
         using BlockSampler = std::function<uint16_t(int, int, int)>;
         using BlockStateSampler = std::function<uint16_t(int, int, int)>;
+        using FluidSampler = std::function<uint16_t(int, int, int)>;
         using LightSampler = std::function<uint8_t(int, int, int)>;
-        using SolidSubchunkBuilder = std::function<TerrainSubchunkBuildData(const std::shared_ptr<ChunkData>&, int, const BlockSampler&, const BlockStateSampler&, const LightSampler&)>;
+        using SolidSubchunkBuilder = std::function<TerrainSubchunkBuildData(const std::shared_ptr<ChunkData>&, int, const BlockSampler&, const BlockStateSampler&, const FluidSampler&, const LightSampler&)>;
         using BlockOcclusionPredicate = std::function<bool(uint16_t)>;
         using WorldBlockSampler = std::function<uint16_t(int, int, int)>;
         using WorldBlockStateSampler = std::function<uint16_t(int, int, int)>;
+        using WorldFluidSampler = std::function<uint16_t(int, int, int)>;
         using WorldLightSampler = std::function<uint8_t(int, int, int)>;
 
         CompletedChunkMesh buildChunkMesh(
@@ -33,6 +35,7 @@ namespace dolbuto::world
             int subchunkY,
             const WorldBlockSampler& blockAtWorld,
             const WorldBlockStateSampler& blockStateAtWorld,
+            const WorldFluidSampler& fluidAtWorld,
             const WorldLightSampler& lightAtWorld,
             const SolidSubchunkBuilder& buildSolidSubchunk) const;
 

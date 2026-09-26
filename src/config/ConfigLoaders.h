@@ -89,8 +89,12 @@ namespace dolbuto::config
         float fluidWaterScreenBlurTint = 0.025f;
         bool bloomEnabled = true;
         float bloomThreshold = 1.0f;
-        float bloomIntensity = 0.35f;
-        float bloomRadius = 1.2f;
+        float bloomIntensity = 0.28f;
+        float bloomRadius = 1.35f;
+        bool toneMappingEnabled = true;
+        float toneMappingExposure = 1.0f;
+        float toneMappingContrast = 1.0f;
+        float toneMappingSaturation = 1.0f;
     };
 
     WorldConfig loadWorldConfig(const std::filesystem::path& path, const WorldConfig& defaults, int maxSeaLevel);

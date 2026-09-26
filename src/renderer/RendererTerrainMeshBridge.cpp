@@ -23,6 +23,7 @@ namespace dolbuto
         int subchunkY,
         const world::TerrainMesher::WorldBlockSampler& blockAtWorld,
         const world::TerrainMesher::WorldBlockStateSampler& blockStateAtWorld,
+        const world::TerrainMesher::WorldFluidSampler& fluidAtWorld,
         const world::TerrainMesher::WorldLightSampler& lightAtWorld) const
     {
         const std::shared_ptr<ChunkData>& chunk = chunks[4];
@@ -43,10 +44,11 @@ namespace dolbuto
             subchunkY,
             blockAtWorld,
             blockStateAtWorld,
+            fluidAtWorld,
             lightAtWorld,
-            [&geometryBuilder](const std::shared_ptr<ChunkData>& sourceChunk, int sourceSubchunkY, const world::TerrainMesher::BlockSampler& blockAt, const world::TerrainMesher::BlockStateSampler& blockStateAt, const world::TerrainMesher::LightSampler& lightAt)
+            [&geometryBuilder](const std::shared_ptr<ChunkData>& sourceChunk, int sourceSubchunkY, const world::TerrainMesher::BlockSampler& blockAt, const world::TerrainMesher::BlockStateSampler& blockStateAt, const world::TerrainMesher::FluidSampler& fluidAt, const world::TerrainMesher::LightSampler& lightAt)
             {
-                return geometryBuilder.buildSubchunkMesh(sourceChunk, sourceSubchunkY, blockAt, blockStateAt, lightAt);
+                return geometryBuilder.buildSubchunkMesh(sourceChunk, sourceSubchunkY, blockAt, blockStateAt, fluidAt, lightAt);
             });
 
         if (subchunkY >= 0 &&
@@ -83,9 +85,9 @@ namespace dolbuto
         return world::TerrainMesher().buildChunkMesh(
             chunks,
             generation,
-            [&geometryBuilder](const std::shared_ptr<ChunkData>& chunk, int subchunkY, const world::TerrainMesher::BlockSampler& blockAt, const world::TerrainMesher::BlockStateSampler& blockStateAt, const world::TerrainMesher::LightSampler& lightAt)
+            [&geometryBuilder](const std::shared_ptr<ChunkData>& chunk, int subchunkY, const world::TerrainMesher::BlockSampler& blockAt, const world::TerrainMesher::BlockStateSampler& blockStateAt, const world::TerrainMesher::FluidSampler& fluidAt, const world::TerrainMesher::LightSampler& lightAt)
             {
-                return geometryBuilder.buildSubchunkMesh(chunk, subchunkY, blockAt, blockStateAt, lightAt);
+                return geometryBuilder.buildSubchunkMesh(chunk, subchunkY, blockAt, blockStateAt, fluidAt, lightAt);
             },
             [this](uint16_t block)
             {

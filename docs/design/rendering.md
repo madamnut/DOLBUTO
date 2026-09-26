@@ -24,6 +24,8 @@
 - 식물 같은 `cross` 렌더 타입은 X자 스프라이트 형태로 만든다.
 - 블록 정의의 `waving` 값이 `plant` 또는 `leaves`이면 terrain vertex shader에서 시간 기반 바람 흔들림을 적용한다.
   `plant`는 아래쪽 정점을 고정하고 위쪽 정점만 X/Z 방향으로 흔들며, `leaves`는 큐브 잎 블록 전체를 약하게 흔든다.
+  흔들림은 Complementary 계열의 식생 wave처럼 주 바람 방향, 느린 gust, 빠른 flutter를 합성하며 원거리에서는 서서히 줄인다.
+  물 메쉬 vertex wave는 적용하지 않는다.
 - `fire` 렌더 타입은 바닥 불꽃용 컷아웃 쿼드 묶음으로 만든다.
 - `slab` 렌더 타입은 `blockStates`의 attach 상태를 읽어 셀 안의 반칸 cuboid를 별도 메쉬로 만들고, `half_slab`은 attach_grid 상태를 읽어 `0.5 x 0.5 x 1.0` 조각 메쉬를 만든다.
 - 청크 메싱은 주변 8청크 정보를 사용해 경계면을 처리한다.
@@ -96,13 +98,20 @@
 `src/renderer/RendererDroppedItems.cpp`는 `DroppedItemRuntime` update 호출, 렌더 후보 수집 입력 조립, push constant 준비, `DroppedItemRenderPath` draw 호출만 담는다.
 `src/renderer/RendererFrameLoop.cpp`는 frame acquire/submit/present, command buffer 기록, screenshot readback/BMP 저장, command buffer/sync object 생성을 담는다.
 `src/renderer/SkyRenderPath.h/.cpp`는 scene render pass의 첫 draw로 fullscreen sky shader를 호출한다. sky shader는 clear color 고정값 대신 `worldTicks`에서 계산한 태양 위치 방향, camera basis, FOV를 받아 view direction과 direction dot 값으로 하늘 위쪽/지평선/아래쪽 그라데이션, 일출/일몰 horizon glow, 태양 방향 glare를 계산한다.
-현재 구름 렌더링과 갓레이/볼류메트릭 라이트 렌더링은 제거되어 있다. 별도 cloud render path, cloud shader, cloud noise texture, cloud low-res target, cloud composite pass, `cloudCoverage` 디버그 입력, god ray shader, god ray render target은 사용하지 않는다. scene render pass는 sky, sun/moon, terrain, 도가니 용탕 수면, player, particle, dropped item, selection까지 그린다. 1인칭 viewmodel은 color load와 depth clear를 사용하는 scene load pass에서 마지막에 그린다.
+하늘 색은 태양 고도 기준의 밤/황혼/낮 ramp를 분리해서 섞는다.
+황혼에는 태양 방향 지평선의 주황 glow와 반대편의 약한 보라빛 horizon lift를 더하고, 낮에는 지평선 haze와 태양 방향의 좁은 glare만 더한다.
+밤에는 지형 조명용 `skyBrightness`와 별개로 낮은 RGB ramp를 유지하고, 달 방향에는 약한 푸른 glow만 더한다.
+갓레이/볼류메트릭 라이트 렌더링은 제거되어 있다. 구름은 별도 cloud target 없이 scene-space post apply 단계에서 scene color, scene depth, SSAO 결과를 읽어 합성한다. scene render pass는 sky, sun/moon, terrain, 도가니 용탕 수면, player, particle, dropped item, selection까지 그린다. 이후 scene-space post에서 SSAO를 적용하면서 depth-aware volumetric cloud composite도 함께 처리한다. 1인칭 viewmodel은 color load와 depth clear를 사용하는 scene load pass에서 마지막에 그린다.
 천체 방향은 `src/renderer/CelestialDirections.h`에서 계산한다. 먼저 `worldTicks`로 태양 위치 방향을 구하고, 달 위치 방향은 그 반대편으로 둔다. 태양 위치 방향은 카메라/월드 기준에서 태양이 있는 방향이며, 태양 스프라이트, sky 태양 glare, 지형 표면의 태양 입사 방향에 사용한다. sky와 태양/달 스프라이트 투영은 지형 렌더링과 같은 `terrainRight/terrainUp/terrainForward` basis를 사용해 카메라 pitch 변화가 지형과 같은 기준으로 반영되게 한다. 빛이 실제 진행하는 방향은 태양 위치 방향의 반대인 `sunlightTravelDirection`이며, shadow map의 light view forward에만 사용한다.
 태양 그림자는 `RendererShadow.cpp`의 단일 shadow space 패스로 만든다. shadow map은 2048 해상도 depth texture array의 0번 layer를 frame-in-flight별로 유지하고, scene render pass 전에 terrain solid/blend 메쉬와 3인칭 player mesh를 depth-only pipeline으로 한 번 그린다. shadow map, shadow uniform buffer, descriptor set은 frame-in-flight별로 분리해 이전 GPU frame이 읽는 shadow texture/matrix/descriptor를 다음 CPU frame이 덮어쓰지 않게 한다. 하늘의 태양/달 표시는 매 프레임 `worldTicks`를 쓰지만, shadow matrix용 태양 위치 방향은 시간 진행에 따른 미세한 shadow shimmer를 줄이기 위해 5틱 단위로 snap한 `worldTicks`를 사용한다.
 shadow projection은 cascade를 나누지 않고 카메라 중심의 고정 shadow distance 영역을 덮는 정사각형 orthographic 영역으로 잡는다. projection 중심은 카메라 위치를 light space로 옮긴 뒤 shadow texel 크기 단위로 snap하므로, 카메라 회전만으로 shadow projection이 움직이지 않는다. shadow map 기록과 receiver sampling은 Complementary 계열 쉐이더처럼 shadow clip 좌표의 XY를 중심 거리 기반으로 왜곡해 사용한다. 이 왜곡은 shadow map 중심부, 즉 플레이어 주변/카메라 중심 근처에 더 많은 텍셀을 배정하기 위한 것이며, terrain/player shadow vertex shader와 terrain shadow sampling shader가 같은 왜곡식을 사용해야 한다.
-terrain shadow vertex shader는 일반 terrain vertex shader와 같은 `waving` 변형을 적용하므로 풀과 나뭇잎 흔들림이 그림자에도 반영된다. terrain shadow pipeline은 약한 Vulkan depth bias를 사용하지만, player shadow pipeline은 발밑 peter panning을 줄이기 위해 caster depth bias를 사용하지 않는다.
-본 terrain/player draw는 `terrain_lit.frag`에서 shadow descriptor set을 샘플링하고, sky light 성분에만 shadow factor를 곱한다. shadow map 샘플링은 단일 shadow map layer 0에서 고정 12-sample Poisson PCF를 사용한다. 카메라에서 shadow distance 끝으로 가까워질수록 그림자를 서서히 fade out하고 PCF 반경을 키워 원거리 경계가 너무 딱딱하게 끊기지 않도록 한다. receiver 위치는 shadow texel size와 표면 normal/태양 방향 각도에 따라 normal 방향으로 조금 밀어서 샘플링하고, receiver bias도 같은 값들을 기준으로 조정해 shadow acne와 peter panning 사이의 균형을 맞춘다.
+terrain shadow vertex shader는 일반 terrain vertex shader와 같은 `waving` 변형을 적용하므로 풀과 나뭇잎 흔들림이 그림자에도 반영된다. 두 shader의 wave 함수와 거리 fade는 같은 식을 유지해야 본체와 그림자가 따로 흔들리지 않는다. terrain shadow pipeline은 약한 Vulkan depth bias를 사용하지만, player shadow pipeline은 발밑 peter panning을 줄이기 위해 caster depth bias를 사용하지 않는다.
+본 terrain/player draw는 `terrain_lit.frag`에서 shadow descriptor set을 샘플링하고, sky light 성분에만 shadow factor를 곱한다. shadow map 샘플링은 단일 shadow map layer 0에서 16-sample Poisson PCF를 사용한다. Poisson disk 회전은 화면 픽셀 노이즈가 아니라 shadow map texel 좌표 기반 hash로 고정해 카메라 움직임에 따른 패턴 흔들림을 줄인다. 각 depth 비교는 완전한 이진 판정 대신 작은 `smoothstep` 폭을 가진 soft compare로 처리해 경계 모자이크를 완화한다. 카메라에서 shadow distance 끝으로 가까워질수록 그림자를 서서히 fade out하고 PCF 반경을 키워 원거리 경계가 너무 딱딱하게 끊기지 않도록 한다. receiver 위치는 shadow texel size와 표면 normal/태양 방향 각도에 따라 normal 방향으로 조금 밀어서 샘플링하고, receiver bias도 같은 값들을 기준으로 조정해 shadow acne와 peter panning 사이의 균형을 맞춘다.
 1인칭 viewmodel은 같은 player pipeline layout을 쓰지만 shadow 적용 플래그를 끄고 그린다. 구름 그림자와 point/torch shadow는 아직 없다.
+공기 중 거리 안개는 별도 post target 없이 월드 fragment shader에서 처리한다.
+`terrain_lit.frag`, `terrain.frag`, `fluid.frag`, `molten.frag`는 카메라 상대 거리와 프레임 `skyBrightness`를 기준으로 RGB를 하늘색 계열 fog color에 섞는다.
+낮에는 긴 거리에서 옅은 청회색으로 빠지고, 밤에는 더 짧은 거리에서 어두운 남색으로 빠지며, 황혼 밝기 구간에서는 약한 온색 fog를 섞는다.
+fog는 alpha를 바꾸지 않고 RGB만 보정하며, fire와 molten bloom source는 멀리 갈수록 일부 감쇠한다.
 밤하늘은 지형의 시간대별 `skyBrightness`와 별개로 낮보다 훨씬 낮은 RGB ramp를 사용하고, 어두운 계조에서 줄무늬가 보이지 않도록 screen-space hash noise 기반의 약한 dither를 적용한다.
 하늘색 디버그를 위해 게임 화면에서 `[`를 누르고 있으면 하루 안의 시간이 해가 뜨는 방향으로 되감기고, `]`를 누르고 있으면 해가 지는 방향으로 빨리 진행된다. 이 입력은 `worldTicks`만 조정하므로 sky shader와 sun/moon sprite 위치가 같은 기준으로 움직인다.
 `src/renderer/RendererGameplayBridge.h/.cpp`는 block selection/edit/breaking, pickup/drop, inventory snapshot, block lookup/collision helper, gameplay 결과의 mesh/particle/audio 반영을 담당하는 `RendererGameplayBridge`를 담는다.
@@ -120,6 +129,52 @@ block tick 결과로 여러 블록이 제거되는 경우 `RendererGameplayBridg
 스카이라이트 전역 밝기는 `worldTicks`에서 시간 기반으로 계산한 `0.0~1.0` 범위의 `skyBrightness`로 렌더 프레임에 전달한다.
 `05:00~07:00`에는 최소 밝기 `0.08`에서 최대 밝기 `1.0`으로 부드럽게 밝아지고, `07:00~17:00`에는 최대 밝기를 유지하며, `17:00~21:00`에는 다시 최소 밝기로 어두워진다. `21:00~05:00`에는 최소 밝기를 유지한다.
 terrain/player/particle/selection/dropped item projection과 terrain/dropped item frustum culling, sky sprite projection은 이 값을 같은 프레임 기준으로 사용한다.
+## 렌더 파이프라인 슬롯
+
+`RendererFrameLoop::recordCommandBuffer`는 아래 순서를 기준으로 기록한다.
+새 시각 효과는 이 슬롯 중 하나에 명확히 속해야 하며, 기존 슬롯의 입력/출력 계약을 바꾸는 경우 이 문서를 함께 갱신한다.
+
+| 순서 | 슬롯 | 현재 역할 | 주요 입력 | 주요 출력 | 이후 확장 위치 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Shadow | 태양 shadow map과 shadow uniform 갱신 | camera, worldTicks, terrain/player mesh | frame-in-flight shadow map, shadow descriptor | 그림자 품질 개선 |
+| 2 | World Scene MRT | sky, sun/moon, terrain, fluid, molten, player, particle, dropped item, selection 렌더링 | shadow descriptor, terrain/fluid/item textures, frame lighting | scene color, bloom source, scene depth | 하늘/대기, 물 표면, material/PBR 일부 |
+| 3 | Scene-Space Post | SSAO factor, SSAO bilateral blur, SSAO apply | scene color, scene depth, shadow map | post scene color | 안개, light shaft, SSR |
+| 4 | Viewmodel | 1인칭 손/아이템 렌더링 | scene color/bloom source load, player light | scene color, bloom source | viewmodel 전용 색 보정 |
+| 5 | Offscreen Post Inputs | water blur target과 bloom pyramid 생성 | scene color, bloom source | water blur targets, bloom targets | bloom/glare 품질 개선 |
+| 6 | Swapchain Presentation | scene composite, bloom additive, water overlay, oxygen effect, climate overlay, HUD/UI | scene color, bloom target, water blur target, UI textures | swapchain image | tone mapping, exposure, final color grading |
+
+현재 scene color와 bloom source는 월드 scene pass에서 함께 기록되는 MRT이다.
+scene color는 최종 화면의 기본 색을 담고, bloom source는 태양/달/불/용탕처럼 명시적으로 빛 번짐을 만들어야 하는 픽셀만 담는다.
+scene depth는 world scene pass가 끝난 뒤 shader-read 상태가 되며, viewmodel pass는 같은 framebuffer를 load하되 depth만 clear한다.
+따라서 world depth를 필요로 하는 효과는 viewmodel pass 전에 있는 Scene-Space Post 슬롯에서 처리해야 하고, 화면 최종 색감만 다루는 효과는 Swapchain Presentation 슬롯에서 처리한다.
+
+SSAO는 world scene pass 직후 scene depth를 읽어 raw AO factor target을 만들고, depth-aware bilateral blur로 blurred AO factor target을 만든 뒤, 마지막 apply pass에서 scene color에 곱해 별도 post scene color target에 기록한다.
+이 apply shader는 같은 scene depth를 사용해 구름층 `Y=500..700` 안에서 depth-aware raymarch도 수행한다.
+구름 raymarch는 Complementary의 Unbound cloud 원리처럼 여러 procedural noise octave, 하루 단위 wind offset, 높이 profile, sun direction 기반 Beer/powder 근사 조명을 합성한다.
+density는 큰 weather/shape noise가 cloud coverage와 덩어리 면적을 정하고, medium breakup noise가 내부를 뭉툭하게 갈라주며, small erosion noise는 위쪽과 가장자리 위주로 깎는 구조다.
+height profile은 낮은 flat base를 빠르게 세운 뒤 위쪽에서 부드럽게 사라지게 만들어 아래는 비교적 평평하고 위쪽은 둥글게 부풀어 보이도록 한다.
+구름 sample의 view depth가 scene depth보다 뒤에 있으면 누적하지 않으므로 지형/오브젝트가 앞에 있는 경우 구름이 가려지고, 플레이어가 구름 위나 안에 있을 때는 구름이 아래 지형보다 앞에 합성될 수 있다.
+현재 구름은 별도 noise texture, low-res target, temporal/history buffer, cloud shadow, coverage 디버그 입력을 사용하지 않는다.
+이 효과는 기존 메싱 단계의 정적 vertex AO를 대체하지 않고, depth 차이를 이용해 플레이어/드랍 아이템/설치형 모델/지형 경계의 화면 공간 접촉부를 약하게 보강한다.
+SSAO factor shader는 sky depth를 제외하고, 원거리 depth에서는 반경과 강도를 줄이며, 큰 depth discontinuity는 silhouette halo로 보고 억제한다.
+또한 중심 픽셀 주변의 local depth contrast가 낮으면 강도를 줄여 평평한 면 전체가 더러워지는 일을 피한다.
+SSAO blur shader는 depth 차이가 큰 샘플을 낮은 가중치로 섞어 다른 표면의 AO가 넘어오지 않게 한다.
+1인칭 viewmodel은 SSAO가 적용된 post scene color target을 load한 뒤 같은 bloom source와 scene depth target을 사용해 그린다.
+최종 presentation, water screen blur, climate/oxygen overlay는 원본 scene color가 아니라 post scene color를 입력으로 사용한다.
+
+Complementary 계열 효과를 모방할 때의 기준 위치는 다음과 같다.
+
+- 톤매핑, 노출, 최종 색 보정: Swapchain Presentation 슬롯.
+- 하늘/태양/달/대기 색: World Scene MRT 슬롯.
+- 그림자 고도화: Shadow 슬롯과 World Scene MRT 슬롯의 shadow sampling.
+- bloom/glare: Offscreen Post Inputs 슬롯과 Swapchain Presentation 슬롯.
+- SSAO: Scene-Space Post 슬롯.
+- 안개: 현재 world fragment shader에서 처리한다.
+- light shaft: Scene-Space Post 슬롯.
+- 물 굴절/반사/foam: World Scene MRT 슬롯에서 표면 정보를 만들고, 필요한 화면공간 처리는 Scene-Space Post 슬롯.
+- 구름: 현재는 Scene-Space Post 슬롯의 SSAO apply shader에서 scene depth 기반 full-res raymarch/composite로 처리한다. 별도 cloud target, low-res upscale, temporal history가 필요하면 Scene-Space Post 슬롯 앞뒤 계약을 새로 문서화한 뒤 분리한다.
+- temporal/TAA/history: 모든 단일 프레임 효과가 안정된 뒤 별도 history contract를 정의해서 추가한다.
+
 1인칭 손과 든 아이템 viewmodel은 화면상 크기와 배치가 FOV 설정에 따라 흔들리지 않도록 별도 고정 FOV `60도`를 사용한다.
 FOV 설정은 `config/settings.json`의 `video.fovDegrees`에 저장되며 Options 화면에서 `30도 ~ 110도` 사이로 조정한다.
 달리기 중에는 실제 수평 이동이 발생할 때만 월드 FOV 목표값을 현재 Options FOV의 `1.15`배로 두고, 별도 최대값 clamp 없이 보간해 적용한다. Ctrl 또는 toggle sprint 상태여도 플레이어가 정지해 있으면 월드 FOV는 걷기 기본값으로 돌아간다.
@@ -368,9 +423,22 @@ blend 블록과 유체 렌더링은 alpha blending을 켜고 depth write를 끈 
 유체는 depth test를 유지하므로 블록, cutout 지형, 선택 외곽선, 플레이어가 scene depth buffer를 통해 유체를 가릴 수 있다.
 blend 블록도 depth test를 유지하고 depth write를 끈다.
 유체 pipeline은 `fluid.frag`를 사용한다.
-`fluid.frag`는 fluid texture array를 샘플링하고 render config의 고정 alpha 값을 적용한다.
+`fluid.frag`는 fluid texture array를 샘플링하되, 물 표면 색은 Complementary 계열 물처럼 낮/밤 `skyBrightness`, 카메라 거리, 시야각 Fresnel을 기준으로 재합성한다.
+수면 mesh 자체는 움직이지 않으며, 표면 색은 얕은 청록/깊은 청색 사이를 거리 기준으로 섞고 grazing angle에서는 하늘색 반사감을 더한다.
+수면의 실제 화면공간 반사는 아직 없지만, Fresnel이 강한 각도에서는 하늘색 반사 비중을 키우고 world-space 절차 glitter를 더해 fake reflection/glare를 만든다.
+alpha는 render config의 기본 물 alpha에 Fresnel과 거리 보정을 곱해 정면에서는 더 투명하고 비스듬한 각도에서는 더 불투명하게 보이게 한다.
 `config/render.json` 파일 읽기와 값 검증은 `src/config/ConfigLoaders.h/.cpp`의 `config::loadRenderConfig`가 맡는다.
-물 normal mapping, Fresnel alpha, depth absorption, SSR은 현재 렌더러에 포함되어 있지 않다.
+물 normal mapping, mesh wave, SSR은 현재 렌더러에 포함되어 있지 않다.
+카메라가 물속에 있거나 수면을 걸쳐 볼 때의 화면 보정은 presentation 단계의 water overlay가 처리한다.
+water overlay는 scene color를 Kawase blur한 결과를 물 영역에 덮고, 짙은 청록 계열 tint를 추가한다.
+완전히 물속에 있을 때는 blur와 tint를 더 강하게 적용해 Complementary의 underwater fog/color multiplier에 가까운 화면을 만든다.
+물속 또는 수면을 걸친 화면은 presentation sprite shader의 물 전용 composite 경로에서 scene color 샘플 UV를 약하게 흔들어, 수면 mesh를 움직이지 않고도 Complementary의 underwater distortion 계열 효과를 흉내낸다.
+완전히 물속에 있을 때는 태양이 카메라 앞쪽에 있으면 태양 screen position 기준의 절차 underwater light shaft overlay를 물 blur와 tint 사이에 additive로 그린다.
+이 underwater light shaft는 `skyBrightness`와 태양 고도, 산소 부족 효과에 따라 약해지며, 별도 volumetric raymarch나 물 mesh 변형은 사용하지 않는다.
+지형 cube face는 메싱 단계에서 인접 fluid를 확인해 물과 맞닿은 표면의 `waterTint`를 packed terrain quad의 light 상위 비트에 함께 저장한다.
+terrain vertex shader는 이 값을 복원하고, terrain fragment shader는 물속 표면에만 시간 기반 world-space caustics 패턴을 약하게 더한다.
+caustics는 별도 텍스처나 수면 mesh 변형 없이 `cameraPosition.w` 시간값, world position, `skyBrightness`를 사용한 절차 패턴으로 처리한다.
+물 항목의 1차 목표는 fake reflection/glare, underwater tint/blur/distortion/light shaft, caustics, 거리 기반 물안개까지이며, 진짜 SSR은 후속 `SSAO / SSR / PBR` 항목에서 다룬다.
 
 도가니 내부 용탕은 청크 유체 mesh가 아니라 block entity 상태를 읽어 매 프레임 별도 수평 quad instance로 그린다.
 용탕 표면은 `DroppedItemRenderPath`의 instance buffer 구조를 재사용하지만, 텍스처는 item texture array가 아니라 fluid texture array를 바인딩한다.
@@ -389,7 +457,7 @@ blend 블록도 depth test를 유지하고 depth write를 끈다.
 - `enabled`: 블룸 패스 사용 여부.
 - `threshold`: 밝기 threshold 기반 블룸에서 쓰던 값이다. 현재 알파 마스크 기반 bloom source를 사용하므로 첫 추출 단계에서는 사용하지 않는다.
 - `intensity`: 최종 화면에 더하는 블룸 세기.
-- `radius`: downsample/upsample sample offset 배율.
+- `radius`: downsample/upsample sample offset 배율. 기본값은 `1.35`이며 downsample은 이 값의 `0.95`배, upsample은 `1.05`배를 사용한다.
 
 월드 씬은 scene color target과 bloom source target을 함께 쓰는 MRT scene pass로 렌더링한다.
 scene color target에는 실제 화면 색을 쓰고, bloom source target에는 블룸 대상 픽셀만 쓴다.
@@ -400,10 +468,22 @@ solid 지형은 bloom source를 검정으로 덮어 뒤쪽 bloom을 완전히 �
 
 렌더 순서는 scene pass 이후 `bloom_downsample.frag`가 bloom source target을 1/4 해상도 target으로 downsample하고, 1/8, 1/16, 1/32 해상도로 순차 downsample한다.
 그 다음 `bloom_upsample.frag`로 작은 mip부터 큰 mip로 additive upsample해 여러 반경의 번짐을 합친다.
-최종 presentation pass에서는 scene color를 먼저 그리고, additive sprite pipeline으로 블룸 텍스처를 더한 뒤 물속 화면 블러와 기후 오버레이를 그린다.
-`fire` terrain fragment는 애니메이션 프레임 샘플 이후 scene color에는 조명 적용 fire 색을 쓰고, bloom source에는 그 색을 더 강한 emissive 값으로 기록하며, texture alpha가 없는 픽셀은 discard한다.
+downsample/upsample shader는 중심, 축, 대각선, half-offset sample을 섞는 tent 계열 kernel을 사용해 작은 발광체의 blocky blur와 과한 뿌연 느낌을 줄인다.
+최종 presentation pass에서는 scene color를 toneMapping 처리해서 먼저 그리고, additive sprite pipeline으로 블룸 텍스처를 더한 뒤 물속 화면 블러와 기후 오버레이를 그린다.
+`fire` terrain fragment는 애니메이션 프레임 샘플 이후 scene color에는 조명 적용 fire 색을 쓰고, bloom source에는 작은 근거리 glow가 되도록 낮춘 emissive 값을 기록하며, texture alpha가 없는 픽셀은 discard한다.
 태양과 달 스프라이트는 지형에 가려지는 기존 scene pass 순서를 유지하면서, `sprite_scene.frag`가 alpha 마스크 기반 bloom source도 더 강한 emissive 값으로 함께 출력한다.
+태양 스프라이트 bloom source scale은 달보다 높게 두고, 달과 용탕은 과하게 번지지 않도록 낮은 emissive scale을 사용한다.
 태양 주변 대기광은 `sky.frag`의 `solarGlare`로 처리하고, 태양/달 스프라이트 자체의 번짐은 bloom source 기반 포스트 블룸이 처리한다.
+
+톤매핑은 `config/render.json`의 `toneMapping` 섹션으로 제어한다.
+
+- `enabled`: scene color presentation draw에서 tone mapping을 적용할지 여부.
+- `exposure`: ACES 계열 tone mapping 전에 곱하는 노출 값.
+- `contrast`: tone mapping 이후 중간 회색 `0.5` 기준 대비 보정.
+- `saturation`: tone mapping 이후 luminance 기준 채도 보정.
+
+현재 톤매핑은 scene color에만 적용하고, 블룸은 기존 additive presentation 경로로 tone mapped scene 위에 더한다.
+물속 산소 고갈의 흑백/터널비전, 물 tint, climate overlay, HUD/UI는 tone mapped scene 이후에 적용한다.
 
 ## 블록 파괴 파티클
 
@@ -498,6 +578,7 @@ Groundness/Smoothness/Weirdness/PV 오버레이는 월드 원점 기준 `0..4096
 태양과 달 스프라이트는 시간에 따라 변하는 월드 방향에서 투영해 screen-space sprite로 렌더링한다.
 현재 투영 half-size는 화면 너비의 `0.04`이며, 높이는 viewport aspect ratio에 맞게 조정한다.
 태양과 달 스프라이트는 지형 occlusion을 유지하기 위해 scene pass 안에서 렌더링하고, 같은 draw에서 bloom source target에도 alpha 마스크 기반 emissive 색을 기록한다.
+태양/달 scene sprite shader는 `SpriteRenderPath`의 추가 push channel을 bloom scale로 읽어, 태양은 강하게 번지고 달은 약하게 번지도록 분리한다.
 렌더러는 `GameClient`에서 `worldTicks`를 받아 28800틱 하루 주기를 계산한다.
 `06H`에는 태양이 동쪽 지평선 근처에 있고, `12H`에는 머리 위에 있으며, `18H`에는 서쪽 지평선 근처에 있다. `00H`의 태양은 지평선 아래에 있고, 달은 항상 태양의 반대 방향을 사용한다.
 하늘 각도는 하루 주기 동안 감소하므로 `06H` 시작 시점에서 투영된 태양은 지는 것이 아니라 떠오른다.

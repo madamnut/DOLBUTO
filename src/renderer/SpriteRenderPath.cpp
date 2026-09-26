@@ -9,9 +9,10 @@ namespace dolbuto
         const Texture& texture,
         Rect rect,
         UvRect uv,
-        Color color) const
+        Color color,
+        Tone tone) const
     {
-        drawDescriptor(commandBuffer, pipelineLayout, vertexBuffer, texture.descriptorSet, rect, uv, color);
+        drawDescriptor(commandBuffer, pipelineLayout, vertexBuffer, texture.descriptorSet, rect, uv, color, tone);
     }
 
     void SpriteRenderPath::drawDescriptor(
@@ -21,7 +22,8 @@ namespace dolbuto
         VkDescriptorSet descriptorSet,
         Rect rect,
         UvRect uv,
-        Color color) const
+        Color color,
+        Tone tone) const
     {
         Push push{};
         push.data[0] = rect.centerX;
@@ -36,6 +38,10 @@ namespace dolbuto
         push.data[9] = color.g;
         push.data[10] = color.b;
         push.data[11] = color.a;
+        push.data[12] = tone.exposure;
+        push.data[13] = tone.contrast;
+        push.data[14] = tone.saturation;
+        push.data[15] = tone.enabled;
 
         const VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);

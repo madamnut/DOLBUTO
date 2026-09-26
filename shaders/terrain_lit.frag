@@ -53,9 +53,43 @@ float dynamicLight()
     return clamp((emission - length(fragWorldPosition)) / 15.0, 0.0, 1.0);
 }
 
-float interleavedGradientNoise(vec2 pixel)
+vec3 airFogColor(float skyBrightness)
 {
-    return fract(52.9829189 * fract(0.06711056 * pixel.x + 0.00583715 * pixel.y));
+    float day = smoothstep(0.10, 0.85, skyBrightness);
+    vec3 nightFog = vec3(0.014, 0.018, 0.032);
+    vec3 dayFog = vec3(0.58, 0.70, 0.82);
+    vec3 color = mix(nightFog, dayFog, day);
+    float twilight = smoothstep(0.10, 0.35, skyBrightness) * (1.0 - smoothstep(0.55, 0.95, skyBrightness));
+    return mix(color, vec3(0.58, 0.42, 0.34), twilight * 0.26);
+}
+
+float airFogFactor(float distanceFromCamera, float skyBrightness)
+{
+    float day = smoothstep(0.10, 0.85, skyBrightness);
+    float start = mix(82.0, 140.0, day);
+    float end = mix(260.0, 430.0, day);
+    float ramp = smoothstep(start, end, distanceFromCamera);
+    float density = 1.0 - exp(-max(distanceFromCamera - start, 0.0) * mix(0.0022, 0.00115, day));
+    return clamp(max(ramp * 0.72, density), 0.0, mix(0.78, 0.58, day));
+}
+
+float causticsPattern(vec3 worldPosition, float time)
+{
+    vec2 p = worldPosition.xz * 0.42 + vec2(worldPosition.y * 0.10, -worldPosition.y * 0.07);
+    vec2 flowA = p + vec2(time * 0.055, -time * 0.040);
+    vec2 flowB = mat2(0.62, 0.78, -0.78, 0.62) * p + vec2(-time * 0.035, time * 0.050);
+    float a = abs(sin(flowA.x * 3.8 + sin(flowA.y * 2.2 + time * 0.22)));
+    float b = abs(sin(flowB.y * 4.3 + cos(flowB.x * 2.0 - time * 0.18)));
+    float lines = smoothstep(0.82, 0.985, a) * smoothstep(0.52, 0.95, b);
+    float soft = smoothstep(0.72, 1.0, abs(sin((flowA.x + flowB.y) * 2.4 + time * 0.16)));
+    return clamp(lines * 0.75 + soft * 0.25, 0.0, 1.0);
+}
+
+float shadowHash(vec2 pixel)
+{
+    vec3 value = fract(vec3(pixel.xyx) * 0.1031);
+    value += dot(value, value.yzx + 33.33);
+    return fract((value.x + value.y) * value.z);
 }
 
 mat2 rotation2D(float angle)
@@ -95,32 +129,42 @@ float shadowVisibility(
 
     float centerDepth = texture(depthMap, vec3(shadowUv, 0.0)).r;
     float depthDelta = max(lightNdc.z - bias - centerDepth, 0.0);
-    float penumbra = smoothstep(0.00035, 0.0035, depthDelta);
+    float penumbra = smoothstep(0.00025, 0.0048, depthDelta);
     float poissonRadius = mix(basePoissonRadius, maxPoissonRadius, penumbra);
-    mat2 poissonRotation = rotation2D(interleavedGradientNoise(gl_FragCoord.xy) * 6.2831853);
+    vec2 shadowPixel = floor(shadowUv / max(texel, 0.0000001));
+    mat2 poissonRotation = rotation2D(shadowHash(shadowPixel) * 6.2831853);
 
-    float lit = 0.0;
-    const vec2 poissonOffsets[12] = vec2[](
-        vec2(-0.326, -0.406),
-        vec2(-0.840, -0.074),
-        vec2(-0.696, 0.457),
-        vec2(-0.203, 0.621),
-        vec2(0.962, -0.195),
-        vec2(0.473, -0.480),
-        vec2(0.519, 0.767),
-        vec2(0.185, -0.893),
-        vec2(0.507, 0.064),
-        vec2(0.896, 0.412),
-        vec2(-0.322, -0.933),
-        vec2(-0.792, -0.598)
+    float receiverDepth = lightNdc.z - bias;
+    float compareWidth = max(0.000045, bias * 0.35);
+    float lit = smoothstep(-compareWidth, compareWidth, centerDepth - receiverDepth) * 1.5;
+    float weight = 1.5;
+    const vec2 poissonOffsets[16] = vec2[](
+        vec2(-0.942016, -0.399062),
+        vec2( 0.945586, -0.768907),
+        vec2(-0.094184, -0.929389),
+        vec2( 0.344959,  0.293878),
+        vec2(-0.915886,  0.457714),
+        vec2(-0.815442, -0.879125),
+        vec2(-0.382775,  0.276768),
+        vec2( 0.974844,  0.756484),
+        vec2( 0.443233, -0.975116),
+        vec2( 0.537430, -0.473734),
+        vec2(-0.264969, -0.418930),
+        vec2( 0.791975,  0.190902),
+        vec2(-0.241888,  0.997066),
+        vec2(-0.814100,  0.914376),
+        vec2( 0.199841,  0.786414),
+        vec2( 0.143832, -0.141008)
     );
-    for (int i = 0; i < 12; ++i)
+    for (int i = 0; i < 16; ++i)
     {
         vec2 rotatedOffset = poissonRotation * poissonOffsets[i];
         float closestDepth = texture(depthMap, vec3(shadowUv + rotatedOffset * texel * poissonRadius, 0.0)).r;
-        lit += lightNdc.z - bias <= closestDepth ? 1.0 : 0.0;
+        float sampleWeight = mix(1.12, 0.82, clamp(length(poissonOffsets[i]), 0.0, 1.0));
+        lit += smoothstep(-compareWidth, compareWidth, closestDepth - receiverDepth) * sampleWeight;
+        weight += sampleWeight;
     }
-    return lit / 12.0;
+    return lit / weight;
 }
 
 float shadowFactor()
@@ -141,15 +185,16 @@ float shadowFactor()
     float ndotl = clamp(dot(normal, sunPositionDirection), 0.0, 1.0);
     float cascadeTexelSize = max(shadowData.cascadeTexelSizes.x, 0.0001);
     vec3 worldPosition = fragWorldPosition + pushData.cameraPosition.xyz;
-    float normalOffset = cascadeTexelSize * (0.20 + 0.50 * (1.0 - ndotl));
+    float normalOffset = cascadeTexelSize * (0.28 + 0.62 * (1.0 - ndotl));
     vec3 shadowSamplePosition = worldPosition + normal * normalOffset;
 
     float texel = 1.0 / max(shadowData.params.y, 1.0);
-    float receiverBias = clamp(shadowData.params.z + cascadeTexelSize * 0.00065, 0.00008, 0.00045);
-    float bias = receiverBias * (1.0 + (1.0 - ndotl) * 0.85);
-    float distanceFade = 1.0 - smoothstep(shadowData.cascadeSplits.x * 0.82, shadowData.cascadeSplits.x, cameraDistance);
-    float basePoissonRadius = mix(2.75, 1.20, distanceFade);
-    float maxPoissonRadius = mix(5.50, 2.25, distanceFade);
+    float receiverBias = clamp(shadowData.params.z + cascadeTexelSize * 0.00082, 0.00012, 0.00055);
+    float bias = receiverBias * (1.0 + (1.0 - ndotl) * 1.10);
+    float distanceFade = 1.0 - smoothstep(shadowData.cascadeSplits.x * 0.76, shadowData.cascadeSplits.x, cameraDistance);
+    float sunHeightSoftness = 1.0 + (1.0 - smoothstep(0.16, 0.64, sunPositionDirection.y)) * 0.55;
+    float basePoissonRadius = mix(3.40, 1.55, distanceFade) * sunHeightSoftness;
+    float maxPoissonRadius = mix(6.00, 3.00, distanceFade) * sunHeightSoftness;
     float visibility = shadowVisibility(shadowSamplePosition, shadowData.lightViewProjection[0], shadowMap, bias, basePoissonRadius, maxPoissonRadius, texel);
     float strength = clamp(shadowData.params.w, 0.0, 0.9);
     return mix(1.0, mix(1.0 - strength, 1.0, visibility), distanceFade);
@@ -187,20 +232,30 @@ void main()
     color.rgb *= fragAo * finalLight;
     if (fireAnimated)
     {
-        color.rgb *= 2.0;
+        color.rgb *= 1.85;
     }
     if (fragWaterTint > 0.0)
     {
         vec3 waterColor = vec3(0.18, 0.55, 0.70);
         float waterMix = clamp(fragWaterTint * max(pushData.fluidWaterParams.x, 0.35), 0.0, 0.75);
         color.rgb = mix(color.rgb, waterColor * finalLight, waterMix);
+        if (!fireAnimated)
+        {
+            vec3 worldPosition = fragWorldPosition + pushData.cameraPosition.xyz;
+            float daylight = smoothstep(0.18, 0.88, pushData.fluidWaterParams.y);
+            float caustics = causticsPattern(worldPosition, pushData.cameraPosition.w);
+            float causticsStrength = fragWaterTint * daylight * clamp(finalLight, 0.0, 1.0) * 0.24;
+            color.rgb += vec3(0.16, 0.28, 0.22) * caustics * causticsStrength;
+        }
     }
     float hurtFlash = clamp(pushData.dynamicLightParams.z, 0.0, 1.0);
     if (hurtFlash > 0.0)
     {
         color.rgb = mix(color.rgb, vec3(1.0, 0.0, 0.0), hurtFlash);
     }
+    float fog = airFogFactor(cameraDistance, pushData.fluidWaterParams.y);
+    color.rgb = mix(color.rgb, airFogColor(pushData.fluidWaterParams.y), fog);
     float outputAlpha = opaqueTerrain ? chunkFade : color.a * fragAlphaBlend * chunkFade;
     outColor = vec4(color.rgb, outputAlpha);
-    outBloom = fireAnimated ? vec4(color.rgb * 2.0, outputAlpha) : vec4(0.0, 0.0, 0.0, outputAlpha);
+    outBloom = fireAnimated ? vec4(color.rgb * 1.45 * (1.0 - fog * 0.65), outputAlpha) : vec4(0.0, 0.0, 0.0, outputAlpha);
 }

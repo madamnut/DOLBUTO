@@ -220,9 +220,57 @@ namespace dolbuto::world
             return sampleChunk->light[index];
         };
 
+        auto fluidAt = [&](int localX, int y, int localZ) -> uint16_t
+        {
+            if (y < 0 || y >= ChunkSizeY)
+            {
+                return FluidNone;
+            }
+
+            int chunkOffsetX = 0;
+            int chunkOffsetZ = 0;
+            int sampleX = localX;
+            int sampleZ = localZ;
+            if (sampleX < 0)
+            {
+                chunkOffsetX = -1;
+                sampleX += ChunkSizeX;
+            }
+            else if (sampleX >= ChunkSizeX)
+            {
+                chunkOffsetX = 1;
+                sampleX -= ChunkSizeX;
+            }
+
+            if (sampleZ < 0)
+            {
+                chunkOffsetZ = -1;
+                sampleZ += ChunkSizeZ;
+            }
+            else if (sampleZ >= ChunkSizeZ)
+            {
+                chunkOffsetZ = 1;
+                sampleZ -= ChunkSizeZ;
+            }
+
+            if (sampleX < 0 || sampleX >= ChunkSizeX || sampleZ < 0 || sampleZ >= ChunkSizeZ)
+            {
+                return FluidNone;
+            }
+
+            const std::shared_ptr<ChunkData>& sampleChunk = chunks[static_cast<size_t>((chunkOffsetZ + 1) * 3 + (chunkOffsetX + 1))];
+            if (!sampleChunk || sampleChunk->fluids.size() != ChunkBlockCount)
+            {
+                return FluidNone;
+            }
+
+            const size_t index = static_cast<size_t>((y * ChunkSizeZ + sampleZ) * ChunkSizeX + sampleX);
+            return sampleChunk->fluids[index];
+        };
+
         for (int subchunkY = 0; subchunkY < SubchunksPerChunk; ++subchunkY)
         {
-            TerrainSubchunkBuildData terrainSubchunk = buildSolidSubchunk(chunk, subchunkY, blockAt, blockStateAt, lightAt);
+            TerrainSubchunkBuildData terrainSubchunk = buildSolidSubchunk(chunk, subchunkY, blockAt, blockStateAt, fluidAt, lightAt);
             result.solidSubchunks[static_cast<size_t>(subchunkY)] = std::move(terrainSubchunk.solid);
             result.blendSubchunks[static_cast<size_t>(subchunkY)] = std::move(terrainSubchunk.blend);
             if (chunk->fluidSubchunkCounts[static_cast<size_t>(subchunkY)] > 0)
@@ -464,6 +512,7 @@ namespace dolbuto::world
         int subchunkY,
         const WorldBlockSampler& blockAtWorld,
         const WorldBlockStateSampler& blockStateAtWorld,
+        const WorldFluidSampler& fluidAtWorld,
         const WorldLightSampler& lightAtWorld,
         const SolidSubchunkBuilder& buildSolidSubchunk) const
     {
@@ -474,6 +523,7 @@ namespace dolbuto::world
 
         std::vector<uint16_t> meshingBlocks(static_cast<size_t>(MeshingSizeX * EditMeshingSizeY * MeshingSizeZ), BlockAir);
         std::vector<uint16_t> meshingBlockStates(static_cast<size_t>(MeshingSizeX * EditMeshingSizeY * MeshingSizeZ), 0);
+        std::vector<uint16_t> meshingFluids(static_cast<size_t>(MeshingSizeX * EditMeshingSizeY * MeshingSizeZ), FluidNone);
         const int worldXStart = chunk->chunkX * ChunkSizeX;
         const int worldYStart = subchunkY * SubchunkSize;
         const int worldZStart = chunk->chunkZ * ChunkSizeZ;
@@ -500,6 +550,7 @@ namespace dolbuto::world
                     const int worldX = worldXStart + meshX - MeshingBorder;
                     meshingBlocks[meshingIndex(meshX, meshY, meshZ)] = blockAtWorld(worldX, worldY, worldZ);
                     meshingBlockStates[meshingIndex(meshX, meshY, meshZ)] = blockStateAtWorld ? blockStateAtWorld(worldX, worldY, worldZ) : 0;
+                    meshingFluids[meshingIndex(meshX, meshY, meshZ)] = fluidAtWorld ? fluidAtWorld(worldX, worldY, worldZ) : FluidNone;
                 }
             }
         }
@@ -548,11 +599,33 @@ namespace dolbuto::world
             return meshingBlockStates[meshingIndex(meshX, meshY, meshZ)];
         };
 
+        auto fluidAt = [&](int localX, int y, int localZ) -> uint16_t
+        {
+            if (y < 0 || y >= ChunkSizeY)
+            {
+                return FluidNone;
+            }
+
+            const int meshY = y - yBase;
+            if (meshY < 0 || meshY >= EditMeshingSizeY)
+            {
+                return FluidNone;
+            }
+
+            const int meshX = localX + MeshingBorder;
+            const int meshZ = localZ + MeshingBorder;
+            if (meshX < 0 || meshX >= MeshingSizeX || meshZ < 0 || meshZ >= MeshingSizeZ)
+            {
+                return FluidNone;
+            }
+            return meshingFluids[meshingIndex(meshX, meshY, meshZ)];
+        };
+
         auto lightAt = [&](int localX, int y, int localZ) -> uint8_t
         {
             return lightAtWorld(worldXStart + localX, y, worldZStart + localZ);
         };
 
-        return buildSolidSubchunk(chunk, subchunkY, blockAt, blockStateAt, lightAt);
+        return buildSolidSubchunk(chunk, subchunkY, blockAt, blockStateAt, fluidAt, lightAt);
     }
 }

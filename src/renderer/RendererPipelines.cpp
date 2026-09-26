@@ -104,6 +104,37 @@ namespace dolbuto
 
 
 
+    void Renderer::createScenePostDescriptorSetLayout()
+    {
+        std::array<VkDescriptorSetLayoutBinding, 3> bindings{};
+        bindings[0].binding = 0;
+        bindings[0].descriptorCount = 1;
+        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[1].binding = 1;
+        bindings[1].descriptorCount = 1;
+        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[2].binding = 2;
+        bindings[2].descriptorCount = 1;
+        bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        VkDescriptorSetLayoutCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        createInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        createInfo.pBindings = bindings.data();
+
+        if (vkCreateDescriptorSetLayout(vulkan_.device, &createInfo, nullptr, &vulkan_.scenePostDescriptorSetLayout) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create scene post descriptor set layout.");
+        }
+    }
+
+
+
     void Renderer::createSkyPipeline()
     {
         const std::filesystem::path shaderDir = shaderDirectory();
@@ -225,6 +256,9 @@ namespace dolbuto
         VkShaderModule waterBlurFragShader = createShaderModule((shaderDir / "kawase_blur.frag.spv").string());
         VkShaderModule bloomDownsampleFragShader = createShaderModule((shaderDir / "bloom_downsample.frag.spv").string());
         VkShaderModule bloomUpsampleFragShader = createShaderModule((shaderDir / "bloom_upsample.frag.spv").string());
+        VkShaderModule ssaoFragShader = createShaderModule((shaderDir / "ssao.frag.spv").string());
+        VkShaderModule ssaoBlurFragShader = createShaderModule((shaderDir / "ssao_blur.frag.spv").string());
+        VkShaderModule ssaoApplyFragShader = createShaderModule((shaderDir / "ssao_apply.frag.spv").string());
 
         VkPipelineShaderStageCreateInfo vertStage{};
         vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -317,7 +351,7 @@ namespace dolbuto
         pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         pushRange.offset = 0;
         pushRange.size = sizeof(SpriteRenderPath::Push);
-        static_assert(sizeof(SpriteRenderPath::Push) == sizeof(float) * 12);
+        static_assert(sizeof(SpriteRenderPath::Push) == sizeof(float) * 16);
 
         VkPipelineLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -409,6 +443,42 @@ namespace dolbuto
             throw std::runtime_error("Failed to create bloom upsample pipeline.");
         }
 
+        VkPipelineLayoutCreateInfo scenePostLayoutInfo{};
+        scenePostLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        scenePostLayoutInfo.setLayoutCount = 1;
+        scenePostLayoutInfo.pSetLayouts = &vulkan_.scenePostDescriptorSetLayout;
+        scenePostLayoutInfo.pushConstantRangeCount = 1;
+        scenePostLayoutInfo.pPushConstantRanges = &pushRange;
+
+        if (vkCreatePipelineLayout(vulkan_.device, &scenePostLayoutInfo, nullptr, &vulkan_.scenePostPipelineLayout) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create scene post pipeline layout.");
+        }
+
+        stages[1].module = ssaoFragShader;
+        colorBlend.blendEnable = VK_FALSE;
+        pipelineInfo.layout = vulkan_.scenePostPipelineLayout;
+        pipelineInfo.renderPass = vulkan_.waterBlurRenderPass;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.ssaoPipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create SSAO pipeline.");
+        }
+
+        stages[1].module = ssaoBlurFragShader;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.ssaoBlurPipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create SSAO blur pipeline.");
+        }
+
+        stages[1].module = ssaoApplyFragShader;
+        if (vkCreateGraphicsPipelines(vulkan_.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vulkan_.ssaoApplyPipeline) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create SSAO apply pipeline.");
+        }
+
+        vkDestroyShaderModule(vulkan_.device, ssaoApplyFragShader, nullptr);
+        vkDestroyShaderModule(vulkan_.device, ssaoBlurFragShader, nullptr);
+        vkDestroyShaderModule(vulkan_.device, ssaoFragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, bloomUpsampleFragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, bloomDownsampleFragShader, nullptr);
         vkDestroyShaderModule(vulkan_.device, waterBlurFragShader, nullptr);
@@ -1264,10 +1334,11 @@ namespace dolbuto
         constexpr uint32_t MaxTextureDescriptorSets = 320;
         constexpr uint32_t MaxTerrainVertexDescriptorSets = 65536;
         constexpr uint32_t MaxShadowDescriptorSets = static_cast<uint32_t>(RendererVulkanState::FrameInFlightCount);
+        constexpr uint32_t MaxScenePostDescriptorSets = 48;
         constexpr uint32_t MaxShadowImageDescriptors = MaxShadowDescriptorSets * 2;
         std::array<VkDescriptorPoolSize, 3> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[0].descriptorCount = MaxTextureDescriptorSets + MaxShadowImageDescriptors;
+        poolSizes[0].descriptorCount = MaxTextureDescriptorSets + MaxShadowImageDescriptors + MaxScenePostDescriptorSets * 3;
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         poolSizes[1].descriptorCount = MaxTerrainVertexDescriptorSets;
         poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1278,7 +1349,7 @@ namespace dolbuto
         createInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         createInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         createInfo.pPoolSizes = poolSizes.data();
-        createInfo.maxSets = MaxTextureDescriptorSets + MaxTerrainVertexDescriptorSets + MaxShadowDescriptorSets;
+        createInfo.maxSets = MaxTextureDescriptorSets + MaxTerrainVertexDescriptorSets + MaxShadowDescriptorSets + MaxScenePostDescriptorSets;
 
         if (vkCreateDescriptorPool(vulkan_.device, &createInfo, nullptr, &vulkan_.descriptorPool) != VK_SUCCESS)
         {

@@ -36,6 +36,26 @@ float dynamicLight()
     return clamp((emission - length(fragWorldPosition)) / 15.0, 0.0, 1.0);
 }
 
+vec3 airFogColor(float skyBrightness)
+{
+    float day = smoothstep(0.10, 0.85, skyBrightness);
+    vec3 nightFog = vec3(0.014, 0.018, 0.032);
+    vec3 dayFog = vec3(0.58, 0.70, 0.82);
+    vec3 color = mix(nightFog, dayFog, day);
+    float twilight = smoothstep(0.10, 0.35, skyBrightness) * (1.0 - smoothstep(0.55, 0.95, skyBrightness));
+    return mix(color, vec3(0.58, 0.42, 0.34), twilight * 0.26);
+}
+
+float airFogFactor(float distanceFromCamera, float skyBrightness)
+{
+    float day = smoothstep(0.10, 0.85, skyBrightness);
+    float start = mix(82.0, 140.0, day);
+    float end = mix(260.0, 430.0, day);
+    float ramp = smoothstep(start, end, distanceFromCamera);
+    float density = 1.0 - exp(-max(distanceFromCamera - start, 0.0) * mix(0.0022, 0.00115, day));
+    return clamp(max(ramp * 0.72, density), 0.0, mix(0.78, 0.58, day));
+}
+
 void main()
 {
     float cameraDistance = length(fragWorldPosition);
@@ -49,7 +69,9 @@ void main()
     float skyLight = fragSkyLight * pushData.fluidWaterParams.y;
     float finalLight = lightCurve(max(max(skyLight, fragBlockLight), dynamicLight()));
     vec3 litColor = color.rgb * max(finalLight, 0.35) * fragAo;
-    vec3 emissive = color.rgb * 1.8;
-    outColor = vec4(litColor + color.rgb * 0.65, color.a);
-    outBloom = vec4(emissive, color.a);
+    vec3 emissive = color.rgb * 1.35;
+    float fog = airFogFactor(cameraDistance, pushData.fluidWaterParams.y);
+    vec3 foggedColor = mix(litColor + color.rgb * 0.65, airFogColor(pushData.fluidWaterParams.y), fog);
+    outColor = vec4(foggedColor, color.a);
+    outBloom = vec4(emissive * (1.0 - fog * 0.65), color.a);
 }

@@ -24,15 +24,23 @@ void main()
     float threshold = pushData.params.w;
     vec2 delta = texel * radius;
 
-    vec3 color = sampleSource(vec2(0.0)) * 0.25;
-    color += sampleSource(vec2( delta.x,  0.0)) * 0.09375;
-    color += sampleSource(vec2(-delta.x,  0.0)) * 0.09375;
-    color += sampleSource(vec2( 0.0,  delta.y)) * 0.09375;
-    color += sampleSource(vec2( 0.0, -delta.y)) * 0.09375;
-    color += sampleSource(vec2( delta.x,  delta.y)) * 0.09375;
-    color += sampleSource(vec2(-delta.x,  delta.y)) * 0.09375;
-    color += sampleSource(vec2( delta.x, -delta.y)) * 0.09375;
-    color += sampleSource(vec2(-delta.x, -delta.y)) * 0.09375;
+    vec3 color = sampleSource(vec2(0.0)) * 0.16;
+    color += sampleSource(vec2( delta.x,  0.0)) * 0.10;
+    color += sampleSource(vec2(-delta.x,  0.0)) * 0.10;
+    color += sampleSource(vec2( 0.0,  delta.y)) * 0.10;
+    color += sampleSource(vec2( 0.0, -delta.y)) * 0.10;
+    color += sampleSource(vec2( delta.x,  delta.y)) * 0.055;
+    color += sampleSource(vec2(-delta.x,  delta.y)) * 0.055;
+    color += sampleSource(vec2( delta.x, -delta.y)) * 0.055;
+    color += sampleSource(vec2(-delta.x, -delta.y)) * 0.055;
+    color += sampleSource(vec2( delta.x * 2.0,  0.0)) * 0.025;
+    color += sampleSource(vec2(-delta.x * 2.0,  0.0)) * 0.025;
+    color += sampleSource(vec2( 0.0,  delta.y * 2.0)) * 0.025;
+    color += sampleSource(vec2( 0.0, -delta.y * 2.0)) * 0.025;
+    color += sampleSource(vec2( delta.x * 0.5,  delta.y * 0.5)) * 0.03;
+    color += sampleSource(vec2(-delta.x * 0.5,  delta.y * 0.5)) * 0.03;
+    color += sampleSource(vec2( delta.x * 0.5, -delta.y * 0.5)) * 0.03;
+    color += sampleSource(vec2(-delta.x * 0.5, -delta.y * 0.5)) * 0.03;
 
     if (threshold >= 0.0)
     {

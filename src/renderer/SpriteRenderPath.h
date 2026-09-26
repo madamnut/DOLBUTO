@@ -31,9 +31,17 @@ namespace dolbuto
             float a = 1.0f;
         };
 
+        struct Tone
+        {
+            float exposure = 1.0f;
+            float contrast = 1.0f;
+            float saturation = 1.0f;
+            float enabled = 0.0f;
+        };
+
         struct Push
         {
-            float data[12]{};
+            float data[16]{};
         };
 
         void draw(
@@ -43,7 +51,8 @@ namespace dolbuto
             const Texture& texture,
             Rect rect,
             UvRect uv = {},
-            Color color = {}) const;
+            Color color = {},
+            Tone tone = {}) const;
 
         void drawDescriptor(
             VkCommandBuffer commandBuffer,
@@ -52,6 +61,7 @@ namespace dolbuto
             VkDescriptorSet descriptorSet,
             Rect rect,
             UvRect uv = {},
-            Color color = {}) const;
+            Color color = {},
+            Tone tone = {}) const;
     };
 }

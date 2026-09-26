@@ -51,6 +51,7 @@ namespace dolbuto
         createDescriptorSetLayout();
         createTerrainVertexDescriptorSetLayout();
         createShadowDescriptorSetLayout();
+        createScenePostDescriptorSetLayout();
         createSkyPipeline();
         createPipeline();
         createUiPipeline();
@@ -63,6 +64,7 @@ namespace dolbuto
         createDescriptorPool();
         createShadowResources();
         createSceneTargets();
+        createScenePostDescriptorSets();
         createFramebuffers();
 
         configBridge_ = std::make_unique<RendererConfigBridge>(client_, rendererAssets_, gpuResources_);
@@ -345,6 +347,18 @@ namespace dolbuto
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.bloomUpsamplePipeline, nullptr);
         }
+        if (vulkan_.ssaoPipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.ssaoPipeline, nullptr);
+        }
+        if (vulkan_.ssaoBlurPipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.ssaoBlurPipeline, nullptr);
+        }
+        if (vulkan_.ssaoApplyPipeline != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(vulkan_.device, vulkan_.ssaoApplyPipeline, nullptr);
+        }
         if (vulkan_.crucibleMoltenPipeline != VK_NULL_HANDLE)
         {
             vkDestroyPipeline(vulkan_.device, vulkan_.crucibleMoltenPipeline, nullptr);
@@ -361,6 +375,10 @@ namespace dolbuto
         {
             vkDestroyPipelineLayout(vulkan_.device, vulkan_.waterBlurPipelineLayout, nullptr);
         }
+        if (vulkan_.scenePostPipelineLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(vulkan_.device, vulkan_.scenePostPipelineLayout, nullptr);
+        }
         if (vulkan_.uiPipelineLayout != VK_NULL_HANDLE)
         {
             vkDestroyPipelineLayout(vulkan_.device, vulkan_.uiPipelineLayout, nullptr);
@@ -376,6 +394,10 @@ namespace dolbuto
         if (vulkan_.shadowDescriptorSetLayout != VK_NULL_HANDLE)
         {
             vkDestroyDescriptorSetLayout(vulkan_.device, vulkan_.shadowDescriptorSetLayout, nullptr);
+        }
+        if (vulkan_.scenePostDescriptorSetLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorSetLayout(vulkan_.device, vulkan_.scenePostDescriptorSetLayout, nullptr);
         }
         if (vulkan_.renderPass != VK_NULL_HANDLE)
         {

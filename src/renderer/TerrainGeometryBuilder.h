@@ -28,6 +28,7 @@ namespace dolbuto
             int subchunkY,
             const world::TerrainMesher::BlockSampler& blockAt,
             const world::TerrainMesher::BlockStateSampler& blockStateAt,
+            const world::TerrainMesher::FluidSampler& fluidAt,
             const world::TerrainMesher::LightSampler& lightAt) const;
 
     private:

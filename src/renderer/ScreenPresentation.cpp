@@ -37,17 +37,35 @@ namespace dolbuto
         SpriteRenderPath::Rect rect;
         if (projectSkyDirection(camera, aspect, fovRadians, visibleSunDirection, rect))
         {
-            sprites.draw(commandBuffer, pipelineLayout, spriteVertexBuffer, assets.sun, rect);
+            sprites.draw(
+                commandBuffer,
+                pipelineLayout,
+                spriteVertexBuffer,
+                assets.sun,
+                rect,
+                {},
+                {1.25f, 1.07f, 0.84f, 1.0f},
+                {2.4f, 0.0f, 0.0f, 1.0f});
         }
         if (projectSkyDirection(camera, aspect, fovRadians, visibleMoonDirection, rect))
         {
-            sprites.draw(commandBuffer, pipelineLayout, spriteVertexBuffer, assets.moon, rect, {}, {1.0f, 0.92f, 0.78f, 1.0f});
+            sprites.draw(
+                commandBuffer,
+                pipelineLayout,
+                spriteVertexBuffer,
+                assets.moon,
+                rect,
+                {},
+                {0.58f, 0.64f, 0.78f, 1.0f},
+                {0.45f, 0.0f, 0.0f, 1.0f});
         }
     }
 
     void ScreenPresentation::drawSceneComposite(
         VkCommandBuffer commandBuffer,
         const Texture& sceneTexture,
+        const Camera& camera,
+        float fovRadians,
         VkExtent2D extent,
         const RendererAssetStore& assets,
         const SpriteRenderPath& sprites,
@@ -60,6 +78,8 @@ namespace dolbuto
         WaterOverlay waterOverlay,
         const Texture& waterBlurTexture,
         OxygenOverlay oxygenOverlay,
+        ToneMapping toneMapping,
+        uint64_t worldTicks,
         int climateOverlayMode) const
     {
         float oxygenEffect = std::clamp(oxygenOverlay.effect, 0.0f, 1.0f);
@@ -71,7 +91,20 @@ namespace dolbuto
         SpriteRenderPath::Rect sceneRect{};
         sceneRect.halfWidth = 1.0f;
         sceneRect.halfHeight = 1.0f;
-        sprites.draw(commandBuffer, spritePipelineLayout, spriteVertexBuffer, sceneTexture, sceneRect, {0.0f, 1.0f, 1.0f, -1.0f}, {1.0f, oxygenEffect, 1.0f, -1.0f});
+        sprites.draw(
+            commandBuffer,
+            spritePipelineLayout,
+            spriteVertexBuffer,
+            sceneTexture,
+            sceneRect,
+            {0.0f, 1.0f, 1.0f, -1.0f},
+            {1.0f, oxygenEffect, 1.0f, -1.0f},
+            {
+                std::max(toneMapping.exposure, 0.0f),
+                std::max(toneMapping.contrast, 0.0f),
+                std::max(toneMapping.saturation, 0.0f),
+                toneMapping.enabled ? 1.0f : 0.0f
+            });
 
         if (bloomOverlay.active && bloomTexture.descriptorSet != VK_NULL_HANDLE && additiveSpritePipeline != VK_NULL_HANDLE)
         {
@@ -97,6 +130,10 @@ namespace dolbuto
 
             const float uvTop = (line + 1.0f) * 0.5f;
             const float uvBottom = 1.0f;
+            const bool fullyUnderwater = line <= -0.999f;
+            const float blurAlpha = std::clamp(waterOverlay.blurIntensity * (fullyUnderwater ? 0.92f : 0.58f), 0.0f, 1.0f);
+            const float distortionStrength = fullyUnderwater ? 0.0014f : 0.00085f;
+            const float distortionTime = static_cast<float>(worldTicks % celestial::TicksPerDay) * (1.0f / 20.0f);
             sprites.draw(
                 commandBuffer,
                 spritePipelineLayout,
@@ -104,15 +141,41 @@ namespace dolbuto
                 waterBlurTexture,
                 waterArea,
                 {0.0f, uvBottom, 1.0f, uvTop - uvBottom},
-                {1.0f, oxygenEffect, std::clamp(waterOverlay.blurIntensity, 0.0f, 1.0f), -1.0f});
-            constexpr float WaterTintR = 0.18f;
-            constexpr float WaterTintG = 0.55f;
-            constexpr float WaterTintB = 0.70f;
+                {fullyUnderwater ? 0.92f : 1.0f, oxygenEffect, blurAlpha, -3.0f},
+                {distortionTime, distortionStrength, 0.0f, 0.0f});
+            if (fullyUnderwater && additiveSpritePipeline != VK_NULL_HANDLE)
+            {
+                const Vec3 sunDirection = celestial::sunPositionDirection(worldTicks);
+                const float daylight = std::clamp((sunDirection.y + 0.04f) / 0.72f, 0.0f, 1.0f);
+                SpriteRenderPath::Rect sunRect{};
+                const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
+                const std::array<float, 3> visibleSunDirection{sunDirection.x, sunDirection.y, sunDirection.z};
+                if (daylight > 0.0f && projectSkyDirection(camera, aspect, fovRadians, visibleSunDirection, sunRect))
+                {
+                    const float sunScreenX = sunRect.centerX * 0.5f + 0.5f;
+                    const float sunScreenY = sunRect.centerY * 0.5f + 0.5f;
+                    const float shaftStrength = daylight * (1.0f - oxygenEffect) * 0.30f;
+                    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, additiveSpritePipeline);
+                    sprites.draw(
+                        commandBuffer,
+                        spritePipelineLayout,
+                        spriteVertexBuffer,
+                        assets.white,
+                        waterArea,
+                        {},
+                        {0.13f, 0.24f, 0.24f, -4.0f},
+                        {sunScreenX, sunScreenY, shaftStrength, distortionTime});
+                    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, spritePipeline);
+                }
+            }
+            constexpr float WaterTintR = 0.075f;
+            constexpr float WaterTintG = 0.255f;
+            constexpr float WaterTintB = 0.350f;
             const float waterGray = WaterTintR * 0.299f + WaterTintG * 0.587f + WaterTintB * 0.114f;
             const float waterR = WaterTintR + (waterGray - WaterTintR) * oxygenEffect;
             const float waterG = WaterTintG + (waterGray - WaterTintG) * oxygenEffect;
             const float waterB = WaterTintB + (waterGray - WaterTintB) * oxygenEffect;
-            const float waterTintAlpha = std::clamp(waterOverlay.tint, 0.0f, 1.0f) * (1.0f - oxygenEffect);
+            const float waterTintAlpha = std::clamp(waterOverlay.tint * (fullyUnderwater ? 0.80f : 0.42f), 0.0f, 1.0f) * (1.0f - oxygenEffect);
             if (waterTintAlpha > 0.0f)
             {
                 sprites.draw(commandBuffer, spritePipelineLayout, spriteVertexBuffer, assets.white, waterArea, {}, {waterR, waterG, waterB, waterTintAlpha});

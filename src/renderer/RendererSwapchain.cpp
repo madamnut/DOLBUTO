@@ -464,8 +464,11 @@ namespace dolbuto
     void Renderer::createSceneTargets()
     {
         sceneColorTargets_.clear();
+        scenePostColorTargets_.clear();
         bloomSourceTargets_.clear();
         sceneDepthTargets_.clear();
+        ssaoRawTargets_.clear();
+        ssaoBlurTargets_.clear();
         waterBlurTargetsA_.clear();
         waterBlurTargetsB_.clear();
         for (std::vector<Texture>& targets : bloomTargets_)
@@ -473,8 +476,11 @@ namespace dolbuto
             targets.clear();
         }
         sceneColorTargets_.reserve(vulkan_.swapchainImageViews.size());
+        scenePostColorTargets_.reserve(vulkan_.swapchainImageViews.size());
         bloomSourceTargets_.reserve(vulkan_.swapchainImageViews.size());
         sceneDepthTargets_.reserve(vulkan_.swapchainImageViews.size());
+        ssaoRawTargets_.reserve(vulkan_.swapchainImageViews.size());
+        ssaoBlurTargets_.reserve(vulkan_.swapchainImageViews.size());
         waterBlurTargetsA_.reserve(vulkan_.swapchainImageViews.size());
         waterBlurTargetsB_.reserve(vulkan_.swapchainImageViews.size());
         for (std::vector<Texture>& targets : bloomTargets_)
@@ -494,6 +500,13 @@ namespace dolbuto
                 VK_IMAGE_ASPECT_COLOR_BIT,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 vulkan_.linearSampler));
+            scenePostColorTargets_.push_back(gpuResources_.createRenderTargetTexture(
+                vulkan_.swapchainExtent,
+                vulkan_.sceneColorFormat,
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                vulkan_.linearSampler));
             bloomSourceTargets_.push_back(gpuResources_.createRenderTargetTexture(
                 vulkan_.swapchainExtent,
                 vulkan_.sceneColorFormat,
@@ -507,6 +520,20 @@ namespace dolbuto
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_IMAGE_ASPECT_DEPTH_BIT,
                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL));
+            ssaoRawTargets_.push_back(gpuResources_.createRenderTargetTexture(
+                vulkan_.swapchainExtent,
+                vulkan_.sceneColorFormat,
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                vulkan_.sampler));
+            ssaoBlurTargets_.push_back(gpuResources_.createRenderTargetTexture(
+                vulkan_.swapchainExtent,
+                vulkan_.sceneColorFormat,
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                vulkan_.sampler));
             waterBlurTargetsA_.push_back(gpuResources_.createRenderTargetTexture(
                 waterBlurExtent,
                 vulkan_.sceneColorFormat,
@@ -598,6 +625,55 @@ namespace dolbuto
             }
         }
 
+        vulkan_.scenePostFramebuffers.resize(scenePostColorTargets_.size());
+        vulkan_.scenePostColorFramebuffers.resize(scenePostColorTargets_.size());
+        vulkan_.ssaoRawFramebuffers.resize(ssaoRawTargets_.size());
+        vulkan_.ssaoBlurFramebuffers.resize(ssaoBlurTargets_.size());
+        for (size_t i = 0; i < vulkan_.scenePostFramebuffers.size(); ++i)
+        {
+            std::array<VkImageView, 3> sceneAttachments = {scenePostColorTargets_[i].view, bloomSourceTargets_[i].view, sceneDepthTargets_[i].view};
+
+            VkFramebufferCreateInfo createInfo{};
+            createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            createInfo.renderPass = vulkan_.sceneLoadRenderPass;
+            createInfo.attachmentCount = static_cast<uint32_t>(sceneAttachments.size());
+            createInfo.pAttachments = sceneAttachments.data();
+            createInfo.width = vulkan_.swapchainExtent.width;
+            createInfo.height = vulkan_.swapchainExtent.height;
+            createInfo.layers = 1;
+
+            if (vkCreateFramebuffer(vulkan_.device, &createInfo, nullptr, &vulkan_.scenePostFramebuffers[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create scene post framebuffer.");
+            }
+
+            VkFramebufferCreateInfo postColorInfo{};
+            postColorInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            postColorInfo.renderPass = vulkan_.waterBlurRenderPass;
+            postColorInfo.attachmentCount = 1;
+            postColorInfo.pAttachments = &scenePostColorTargets_[i].view;
+            postColorInfo.width = vulkan_.swapchainExtent.width;
+            postColorInfo.height = vulkan_.swapchainExtent.height;
+            postColorInfo.layers = 1;
+
+            if (vkCreateFramebuffer(vulkan_.device, &postColorInfo, nullptr, &vulkan_.scenePostColorFramebuffers[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create scene post color framebuffer.");
+            }
+
+            postColorInfo.pAttachments = &ssaoRawTargets_[i].view;
+            if (vkCreateFramebuffer(vulkan_.device, &postColorInfo, nullptr, &vulkan_.ssaoRawFramebuffers[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create SSAO raw framebuffer.");
+            }
+
+            postColorInfo.pAttachments = &ssaoBlurTargets_[i].view;
+            if (vkCreateFramebuffer(vulkan_.device, &postColorInfo, nullptr, &vulkan_.ssaoBlurFramebuffers[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create SSAO blur framebuffer.");
+            }
+        }
+
         vulkan_.framebuffers.resize(vulkan_.swapchainImageViews.size());
         for (size_t i = 0; i < vulkan_.swapchainImageViews.size(); ++i)
         {
@@ -621,13 +697,187 @@ namespace dolbuto
 
 
 
+    void Renderer::createScenePostDescriptorSets()
+    {
+        destroyScenePostDescriptorSets();
+        if (vulkan_.scenePostDescriptorSetLayout == VK_NULL_HANDLE ||
+            vulkan_.descriptorPool == VK_NULL_HANDLE ||
+            sceneColorTargets_.empty() ||
+            sceneDepthTargets_.size() != sceneColorTargets_.size() ||
+            ssaoRawTargets_.size() != sceneColorTargets_.size() ||
+            ssaoBlurTargets_.size() != sceneColorTargets_.size())
+        {
+            return;
+        }
+
+        const size_t targetCount = sceneColorTargets_.size();
+        auto allocateSets = [this, targetCount](std::vector<VkDescriptorSet>& sets, const char* errorMessage)
+        {
+            sets.resize(targetCount, VK_NULL_HANDLE);
+            std::vector<VkDescriptorSetLayout> layouts(targetCount, vulkan_.scenePostDescriptorSetLayout);
+
+            VkDescriptorSetAllocateInfo setInfo{};
+            setInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+            setInfo.descriptorPool = vulkan_.descriptorPool;
+            setInfo.descriptorSetCount = static_cast<uint32_t>(layouts.size());
+            setInfo.pSetLayouts = layouts.data();
+
+            if (vkAllocateDescriptorSets(vulkan_.device, &setInfo, sets.data()) != VK_SUCCESS)
+            {
+                throw std::runtime_error(errorMessage);
+            }
+        };
+
+        allocateSets(vulkan_.scenePostDescriptorSets, "Failed to allocate SSAO factor descriptor sets.");
+        allocateSets(vulkan_.ssaoBlurDescriptorSets, "Failed to allocate SSAO blur descriptor sets.");
+        allocateSets(vulkan_.ssaoApplyDescriptorSets, "Failed to allocate SSAO apply descriptor sets.");
+
+        std::vector<std::array<VkDescriptorImageInfo, 3>> imageInfos;
+        std::vector<std::array<VkWriteDescriptorSet, 3>> descriptorWrites;
+        std::vector<VkWriteDescriptorSet> flatWrites;
+        imageInfos.reserve(targetCount * 3);
+        descriptorWrites.reserve(targetCount * 3);
+        flatWrites.reserve(targetCount * 9);
+
+        auto addImageTriple = [&imageInfos, &descriptorWrites, &flatWrites](
+            VkDescriptorSet descriptorSet,
+            VkImageView firstView,
+            VkImageLayout firstLayout,
+            VkSampler firstSampler,
+            VkImageView secondView,
+            VkImageLayout secondLayout,
+            VkSampler secondSampler,
+            VkImageView thirdView,
+            VkImageLayout thirdLayout,
+            VkSampler thirdSampler)
+        {
+            const size_t index = imageInfos.size();
+            imageInfos.emplace_back();
+            descriptorWrites.emplace_back();
+
+            imageInfos[index][0].imageLayout = firstLayout;
+            imageInfos[index][0].imageView = firstView;
+            imageInfos[index][0].sampler = firstSampler;
+
+            imageInfos[index][1].imageLayout = secondLayout;
+            imageInfos[index][1].imageView = secondView;
+            imageInfos[index][1].sampler = secondSampler;
+
+            imageInfos[index][2].imageLayout = thirdLayout;
+            imageInfos[index][2].imageView = thirdView;
+            imageInfos[index][2].sampler = thirdSampler;
+
+            for (uint32_t binding = 0; binding < 3; ++binding)
+            {
+                VkWriteDescriptorSet& write = descriptorWrites[index][binding];
+                write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                write.dstSet = descriptorSet;
+                write.dstBinding = binding;
+                write.descriptorCount = 1;
+                write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                write.pImageInfo = &imageInfos[index][binding];
+                flatWrites.push_back(write);
+            }
+        };
+
+        for (size_t i = 0; i < targetCount; ++i)
+        {
+            addImageTriple(
+                vulkan_.scenePostDescriptorSets[i],
+                sceneColorTargets_[i].view,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                vulkan_.linearSampler,
+                sceneDepthTargets_[i].view,
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                vulkan_.sampler,
+                sceneDepthTargets_[i].view,
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                vulkan_.sampler);
+
+            addImageTriple(
+                vulkan_.ssaoBlurDescriptorSets[i],
+                ssaoRawTargets_[i].view,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                vulkan_.sampler,
+                sceneDepthTargets_[i].view,
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                vulkan_.sampler,
+                sceneDepthTargets_[i].view,
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                vulkan_.sampler);
+
+            addImageTriple(
+                vulkan_.ssaoApplyDescriptorSets[i],
+                sceneColorTargets_[i].view,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                vulkan_.linearSampler,
+                ssaoBlurTargets_[i].view,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                vulkan_.sampler,
+                sceneDepthTargets_[i].view,
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                vulkan_.sampler);
+        }
+
+        vkUpdateDescriptorSets(vulkan_.device, static_cast<uint32_t>(flatWrites.size()), flatWrites.data(), 0, nullptr);
+    }
+
+
+
+    void Renderer::destroyScenePostDescriptorSets()
+    {
+        auto freeSets = [this](std::vector<VkDescriptorSet>& sets)
+        {
+            if (!sets.empty() && vulkan_.descriptorPool != VK_NULL_HANDLE)
+            {
+                vkFreeDescriptorSets(
+                    vulkan_.device,
+                    vulkan_.descriptorPool,
+                    static_cast<uint32_t>(sets.size()),
+                    sets.data());
+            }
+            sets.clear();
+        };
+
+        freeSets(vulkan_.scenePostDescriptorSets);
+        freeSets(vulkan_.ssaoBlurDescriptorSets);
+        freeSets(vulkan_.ssaoApplyDescriptorSets);
+    }
+
+
+
     void Renderer::cleanupSwapchain()
     {
+        destroyScenePostDescriptorSets();
+
         for (VkFramebuffer framebuffer : vulkan_.sceneFramebuffers)
         {
             vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
         }
         vulkan_.sceneFramebuffers.clear();
+
+        for (VkFramebuffer framebuffer : vulkan_.scenePostFramebuffers)
+        {
+            vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
+        }
+        vulkan_.scenePostFramebuffers.clear();
+
+        for (VkFramebuffer framebuffer : vulkan_.scenePostColorFramebuffers)
+        {
+            vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
+        }
+        vulkan_.scenePostColorFramebuffers.clear();
+
+        for (VkFramebuffer framebuffer : vulkan_.ssaoRawFramebuffers)
+        {
+            vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
+        }
+        vulkan_.ssaoRawFramebuffers.clear();
+        for (VkFramebuffer framebuffer : vulkan_.ssaoBlurFramebuffers)
+        {
+            vkDestroyFramebuffer(vulkan_.device, framebuffer, nullptr);
+        }
+        vulkan_.ssaoBlurFramebuffers.clear();
 
         for (VkFramebuffer framebuffer : vulkan_.waterBlurFramebuffersA)
         {
@@ -659,6 +909,11 @@ namespace dolbuto
             gpuResources_.destroyTexture(texture);
         }
         sceneColorTargets_.clear();
+        for (Texture& texture : scenePostColorTargets_)
+        {
+            gpuResources_.destroyTexture(texture);
+        }
+        scenePostColorTargets_.clear();
         for (Texture& texture : bloomSourceTargets_)
         {
             gpuResources_.destroyTexture(texture);
@@ -669,6 +924,16 @@ namespace dolbuto
             gpuResources_.destroyTexture(texture);
         }
         sceneDepthTargets_.clear();
+        for (Texture& texture : ssaoRawTargets_)
+        {
+            gpuResources_.destroyTexture(texture);
+        }
+        ssaoRawTargets_.clear();
+        for (Texture& texture : ssaoBlurTargets_)
+        {
+            gpuResources_.destroyTexture(texture);
+        }
+        ssaoBlurTargets_.clear();
         for (Texture& texture : waterBlurTargetsA_)
         {
             gpuResources_.destroyTexture(texture);
@@ -736,6 +1001,7 @@ namespace dolbuto
         createImageViews();
         createDepthResources();
         createSceneTargets();
+        createScenePostDescriptorSets();
         createFramebuffers();
     }
 

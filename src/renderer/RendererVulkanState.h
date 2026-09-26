@@ -45,6 +45,7 @@ namespace dolbuto
         VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorSetLayout terrainVertexDescriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorSetLayout shadowDescriptorSetLayout = VK_NULL_HANDLE;
+        VkDescriptorSetLayout scenePostDescriptorSetLayout = VK_NULL_HANDLE;
         VkPipelineLayout skyPipelineLayout = VK_NULL_HANDLE;
         VkPipeline skyPipeline = VK_NULL_HANDLE;
         VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
@@ -55,6 +56,10 @@ namespace dolbuto
         VkPipeline waterBlurPipeline = VK_NULL_HANDLE;
         VkPipeline bloomDownsamplePipeline = VK_NULL_HANDLE;
         VkPipeline bloomUpsamplePipeline = VK_NULL_HANDLE;
+        VkPipelineLayout scenePostPipelineLayout = VK_NULL_HANDLE;
+        VkPipeline ssaoPipeline = VK_NULL_HANDLE;
+        VkPipeline ssaoBlurPipeline = VK_NULL_HANDLE;
+        VkPipeline ssaoApplyPipeline = VK_NULL_HANDLE;
         VkPipelineLayout uiPipelineLayout = VK_NULL_HANDLE;
         VkPipeline uiPipeline = VK_NULL_HANDLE;
         VkPipelineLayout terrainPipelineLayout = VK_NULL_HANDLE;
@@ -108,9 +113,16 @@ namespace dolbuto
         size_t rmlUiVertexOffset = 0;
         size_t rmlUiIndexOffset = 0;
         std::vector<VkFramebuffer> sceneFramebuffers;
+        std::vector<VkFramebuffer> scenePostFramebuffers;
+        std::vector<VkFramebuffer> scenePostColorFramebuffers;
+        std::vector<VkFramebuffer> ssaoRawFramebuffers;
+        std::vector<VkFramebuffer> ssaoBlurFramebuffers;
         std::vector<VkFramebuffer> waterBlurFramebuffersA;
         std::vector<VkFramebuffer> waterBlurFramebuffersB;
         std::array<std::vector<VkFramebuffer>, BloomMipCount> bloomFramebuffers;
+        std::vector<VkDescriptorSet> scenePostDescriptorSets;
+        std::vector<VkDescriptorSet> ssaoBlurDescriptorSets;
+        std::vector<VkDescriptorSet> ssaoApplyDescriptorSets;
 
         std::vector<VkSemaphore> imageAvailableSemaphores;
         std::vector<VkSemaphore> renderFinishedSemaphores;

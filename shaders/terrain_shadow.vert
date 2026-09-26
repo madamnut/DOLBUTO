@@ -42,32 +42,44 @@ int highI16(uint packedValue)
     return int(packedValue) >> 16;
 }
 
-vec2 windWave(vec3 position)
+vec3 windWave(vec3 position)
 {
     float time = pushData.cameraPosition.w;
-    float phaseA = position.x * 0.17 + position.y * 0.11 + position.z * 0.23;
-    float phaseB = position.x * 0.07 - position.z * 0.19 + position.y * 0.13;
-    return vec2(
-        sin(phaseA + time * 1.65) * 0.65 + sin(phaseB + time * 0.95) * 0.35,
-        sin(phaseA * 0.73 + time * 1.25) * 0.55 + sin(phaseB * 1.31 + time * 1.85) * 0.45);
+    vec2 windDirection = vec2(0.8219, 0.5696);
+    vec2 crossWind = vec2(-windDirection.y, windDirection.x);
+    float along = dot(position.xz, windDirection);
+    float across = dot(position.xz, crossWind);
+    float gust = sin(along * 0.105 + position.y * 0.18 + time * 1.05) * 0.55
+        + sin(along * 0.038 - across * 0.071 + time * 0.43) * 0.45;
+    float flutter = sin(position.x * 0.73 - position.z * 0.61 + position.y * 0.29 + time * 2.35) * 0.20;
+    float vertical = sin(along * 0.19 + position.y * 0.37 + time * 1.35) * 0.35;
+    vec2 horizontal = windDirection * (gust + flutter) + crossWind * sin(across * 0.16 + time * 0.72) * 0.20;
+    return vec3(horizontal.x, vertical, horizontal.y);
+}
+
+float wavingDistanceFade(vec3 position)
+{
+    float distanceFromCamera = length(position - pushData.cameraPosition.xyz);
+    return 1.0 - smoothstep(128.0, 224.0, distanceFromCamera);
 }
 
 void applyWaving(inout vec3 position, vec2 uv, uint wavingType)
 {
     if (wavingType == 1u)
     {
-        vec2 wind = windWave(position);
-        float weight = clamp(1.0 - uv.y, 0.0, 1.0);
-        weight = weight * weight;
-        position.x += wind.x * 0.060 * weight;
-        position.z += wind.y * 0.060 * weight;
+        vec3 wind = windWave(vec3(position.x, position.y * 0.55, position.z));
+        float weight = smoothstep(0.05, 1.0, clamp(1.0 - uv.y, 0.0, 1.0));
+        weight = weight * weight * wavingDistanceFade(position);
+        position.x += wind.x * 0.075 * weight;
+        position.z += wind.z * 0.075 * weight;
     }
     else if (wavingType == 2u)
     {
-        vec2 wind = windWave(position);
-        position.x += wind.x * 0.028;
-        position.y += (wind.x + wind.y) * 0.004;
-        position.z += wind.y * 0.028;
+        vec3 wind = windWave(vec3(position.x * 0.75, position.y * 0.38, position.z * 0.75));
+        float weight = wavingDistanceFade(position);
+        position.x += wind.x * 0.035 * weight;
+        position.y += wind.y * 0.009 * weight;
+        position.z += wind.z * 0.035 * weight;
     }
 }
 
