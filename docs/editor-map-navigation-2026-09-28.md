@@ -1,0 +1,21 @@
+# Continuous editor map navigation — 2026-09-28
+
+User approved immediate dragging, cursor-centered smooth wheel zoom and reusing the old map while computing a new one with `실시`. Applied to the standalone Voronoi and climate maps; no terrain/noise/world/schema changes.
+
+`assets/editor/map-navigation.js` owns view/target bounds, pointer capture and a bounded raster cache. It loads after master-seed.js and before each page script, and is explicitly allowed by the native static route. A generated raster has immutable world bounds and sample payload. Paint draws cached rasters into the current view, rather than moving the DOM element or recalculating every pixel. Up to four frames are retained (broad coverage plus recent frames); content-key changes invalidate the cache so different seeds, parameters, map types or overlays are not mixed. Unknown coverage stays dark. Browser memory includes raster and native sample payload for those frames; this is not a persistent tile pyramid.
+
+Drag uses pointer movement divided by canvas CSS size times world span. The map follows during pointermove, including outside the canvas under pointer capture. A4px threshold distinguishes clicks from drags. Pointerup/cancel/lost capture/blur/hidden-page paths settle safely. There is no inertial motion after releasing a drag.
+
+Wheel deltaMode is normalized for pixels/lines/pages, then exponential scale exp(delta*.0018), with delta clamped±600. Pending target zoom accumulates, preserving the point currently under the cursor; requestAnimationFrame approaches the target with a55ms exponential time constant, stopping at relative error<.0002. Both dimensions remain1..131072. Voronoi wraps with neighboring world-image copies, while form coordinates are canonicalized around a center0..131072. Climate preserves the existing non-crossing0..131072 API bounds, so its navigation clamps at edges. At a clamped edge the cursor anchor necessarily yields to the limit.
+
+Range form values update during navigation. Voronoi's existing dirty/save tracking sees range changes, but no file is auto-written. Auto-preview OFF still allows image movement and requires manual regenerate. Climate retains manual setting changes, while completed map gestures request the new viewport automatically. Both paths keep one in-flight native preview and at most one latest pending request, discard stale revisions, and do not submit a new calculation per animation frame. An already-running native call is not cancelled. Existing native raster coloring happens on completion; it can still cost a main-thread frame at high resolutions. Voronoi removed per-pixel temporary RGBA-array allocation while coloring.
+
+Hover and selection invert the displayed view and read the actual cached frame under the cursor, including periodic copies. They do not index the latest data array using a stale screen-to-map transform. The label identifies displayed-map samples; no sample is fabricated for unknown coverage. PNG exports the currently displayed canvas, so a pending coarse/partial view is exported as shown.
+
+## Verification and limits
+
+JS syntax checks passed for navigation and both page scripts; Release build succeeded. Static event/async-state review covered load/import/preset synchronization, capture cleanup, cache-key changes, latest-request coalescing, auto OFF, image replacement without view reset, and source-space hit testing.
+
+Manual isolated native server (--no-browser) in build/release/map-navigation-review served both pages with correct script order and byte-identical script bodies. Workspace GET remained readable and did not create a save file. Authenticated shutdown exited0. Direct arithmetic inspection (no UI/DOM/input simulation) preserved anchor12048 when zooming span8192 by.8 at fraction.25, mapped100px rightward drag over512px to−1600 world units, and canonicalized a negative world center across the seam.
+
+No browser gesture/visual verification, computer use, synthetic input, automated test suite or CTest was performed. Actual interaction feel remains for user assessment. Final Release build and packaging completed; executables and editor assets match build outputs, packaged README matches source. Settings/worldgen/legacy draft/editor workspace hashes or absence remained unchanged across packaging. No commit/push performed.

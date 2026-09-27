@@ -67,72 +67,7 @@ std::string fingerprint(std::string_view text) {
 std::string revision(const std::filesystem::path& path) {
     return std::filesystem::exists(path) ? fingerprint(read_file(path)) : "missing";
 }
-Json experiment_settings(const Json& input) {
-    if (input.at("format") != "dolbuto-voronoi-experiment" || input.at("version") != 3)
-        throw std::runtime_error("보로노이 저장 형식이 올바르지 않습니다.");
-    const auto checked = [](const Json& j, const char* key, double lo, double hi, bool whole = false) {
-        const auto& v = j.at(key);
-        if (!v.is_number())
-            throw std::runtime_error(std::string("숫자가 필요합니다: ") + key);
-        const double n = v.get<double>();
-        if (!std::isfinite(n) || n < lo || n > hi || (whole && n != std::floor(n)))
-            throw std::runtime_error(std::string("저장 값 범위 확인: ") + key);
-        return v;
-    };
-    const auto& p = input.at("parameters");
-    Json params;
-    struct Limit {
-        const char* name;
-        double lo, hi;
-        bool whole{};
-    };
-    for (const auto& l :
-         std::array{Limit{"seed", 0, UINT32_MAX, true}, Limit{"spacing", 512, 32768}, Limit{"jitter", 0, 1},
-                    Limit{"warp_strength", 0, 8192}, Limit{"warp_spacing_log2", 2, 17, true},
-                    Limit{"warp_octaves", 1, 8, true}, Limit{"warp_gain", 0, 1},
-                    Limit{"land_spacing", 512, world_size}, Limit{"land_threshold", -1, 1},
-                    Limit{"arch_spacing", 512, world_size}, Limit{"arch_threshold", -1, 1},
-                    Limit{"subdivisions", 2, 8, true}, Limit{"island_spacing", 64, world_size},
-                    Limit{"island_threshold", -1, 1}, Limit{"arch_edge_fade", 0, .5}})
-        params[l.name] = checked(p, l.name, l.lo, l.hi, l.whole);
-    for (const auto key : {"warp_enabled", "arch_enabled"}) {
-        if (!p.at(key).is_boolean())
-            throw std::runtime_error("켜기/끄기 값이 필요합니다.");
-        params[key] = p.at(key);
-    }
-    Json range;
-    for (const auto key : {"x0", "z0", "x1", "z1"})
-        range[key] = checked(input.at("range"), key, -world_size, 2 * world_size);
-    for (const auto axis : {"x", "z"}) {
-        const double span =
-            range[std::string(axis) + "1"].get<double>() - range[std::string(axis) + "0"].get<double>();
-        if (span < 1 || span > world_size)
-            throw std::runtime_error("표시 범위 길이는 1~131072입니다.");
-    }
-    const auto resolution = checked(input, "resolution", 256, 1024, true);
-    if (resolution != 256 && resolution != 512 && resolution != 1024)
-        throw std::runtime_error("해상도는 256/512/1024 중 하나입니다.");
-    Json display =
-        input.value("display", Json{{"view", "land"}, {"edges", true}, {"sites", true}, {"auto", true}});
-    const std::array views{"land",       "regions", "arch-noise", "island-noise",
-                           "land-noise", "cells",   "edges",      "distance"};
-    if (!display.at("view").is_string() ||
-        std::none_of(views.begin(), views.end(), [&](const char* v) { return display["view"] == v; }))
-        throw std::runtime_error("지원하지 않는 지도 표시입니다.");
-    for (const auto key : {"edges", "sites", "auto"})
-        if (!display.at(key).is_boolean())
-            throw std::runtime_error("지도 표시 값은 켜기/끄기여야 합니다.");
-    return {{"format", "dolbuto-voronoi-experiment"},
-            {"version", 3},
-            {"parameters", params},
-            {"range", range},
-            {"resolution", resolution},
-            {"display",
-             {{"view", display["view"]},
-              {"edges", display["edges"]},
-              {"sites", display["sites"]},
-              {"auto", display["auto"]}}}};
-}
+Json experiment_settings(const Json& input) { return sandbox::editor::voronoi_settings(input); }
 struct Response {
     std::string body, type{"application/json; charset=utf-8"};
     int status{200};
@@ -293,7 +228,8 @@ struct Editor {
         if (req.method == "GET" && !req.path.starts_with("/api/")) {
             std::string file = req.path == "/" ? "index.html" : req.path.substr(1);
             if (file != "index.html" && file != "app.js" && file != "style.css" && file != "master-seed.js" &&
-                file != "voronoi.html" && file != "voronoi.js" && file != "voronoi.css")
+                file != "map-navigation.js" && file != "voronoi.html" && file != "voronoi.js" &&
+                file != "voronoi.css")
                 return {"Not found", "text/plain", 404};
             return {read_file(root / "assets/editor" / file),
                     file.ends_with(".js")    ? "text/javascript; charset=utf-8"

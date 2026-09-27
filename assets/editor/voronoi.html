@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>DOLBUTO · 보로노이 실험</title>
   <link rel="stylesheet" href="style.css"><link rel="stylesheet" href="voronoi.css">
-  <script src="master-seed.js" defer></script><script src="voronoi.js" defer></script>
+  <script src="master-seed.js" defer></script><script src="map-navigation.js" defer></script><script src="voronoi.js" defer></script>
 </head>
 <body>
   <header><div><strong>DOLBUTO</strong><span>보로노이 실험</span></div>
@@ -13,7 +13,7 @@
       <button id="png">지도 PNG 저장</button></nav>
   </header>
   <section class="notice"><strong>편집기 전용 실험 · 게임에 적용되지 않습니다</strong>
-    <p>131,072 × 131,072블록의 순환 월드입니다. 큰 셀은 대륙·군도·외해로 나누고, 군도 안에서만 작은 셀로 섬을 만듭니다. 마스터 시드는 기후 편집기와 공유하지만, 실험 지형은 게임에 적용되지 않습니다.</p>
+    <p>131,072 × 131,072블록의 순환 월드입니다. 육지 씨앗에서 주변 바다 셀로 성장합니다. 접촉한 대륙은 씨앗 수 제한 없이 합쳐집니다. 마스터 시드는 기후 편집기와 공유하지만, 실험 지형은 게임에 적용되지 않습니다.</p>
   </section>
   <div id="status" role="status" aria-live="polite">설정을 조절하고 셀의 모양을 확인하세요.</div>
   <div id="save-state" role="status" aria-live="polite">저장된 작업을 불러오는 중…</div>
@@ -27,26 +27,40 @@
         <small id="spacing-info"></small>
         <label>점 배치 불규칙성<input id="jitter" type="number" value="1" min="0" max="1" step="any" required></label>
         <small>0은 격자 중앙, 1은 각 격자 안에서 무작위 위치입니다. 셀마다 면적과 모양이 달라집니다.</small>
-        <details open><summary>육지 · 바다 분포</summary>
-          <label>대륙 크기 (블록)<input id="land_spacing" type="number" value="32768" min="512" max="131072" step="any" required></label>
-          <small>육지 분포의 기준 간격입니다. 크게 하면 이웃 셀들이 넓은 무리로 묶입니다. 셀 자체의 크기는 바꾸지 않습니다.</small>
-          <small id="land-spacing-info"></small>
-          <label>육지 판정 기준<input id="land_threshold" type="number" value="0" min="-1" max="1" step="any" required></label>
-          <small>생성점의 분포 값이 기준보다 높으면 육지입니다. 기준을 낮추면 육지가 늘고 높이면 줄어듭니다. 육지 면적 비율을 직접 지정하는 값은 아닙니다.</small>
-          <small>대륙·군도·섬·워핑·기후는 마스터 시드에서 각자의 패턴을 만듭니다.</small>
+        <details open><summary>씨앗 기반 대륙 성장</summary>
+          <label>육지 씨앗 개수<input id="growth_seed_count" type="number" value="32" min="1" max="4096" step="1" required></label>
+          <small>서로 이웃하지 않는 셀에 씨앗을 배치합니다. 공간이 부족하면 요청보다 적게 배치되며 실제 개수를 지도 위에 표시합니다.</small>
+          <label>기본 성장 확률 (%)<input id="growth_percent" type="number" value="50" min="0" max="100" step="any" required></label>
+          <small>단계 시작 시 육지와 맞닿은 바다 셀만 성장합니다. 기존 육지는 계속 유지됩니다.</small>
+          <details open><summary>고정 성장 확률 지도</summary>
+            <label>성장 지도 사용<input id="growth_noise_enabled" type="checkbox" checked></label>
+            <label>지역 차이 강도<input id="growth_noise_strength" type="number" value="8" min="0" max="24" step="any" required></label>
+            <small>0은 모든 곳에서 기본 확률, 높일수록 잘 자라는 곳과 느린 곳의 차이가 커집니다. 지도는 매 단계 바뀌지 않습니다.</small>
+            <label>큰 굴곡 간격 지수<input id="growth_large_log2" type="number" value="14" min="9" max="17" step="1" required></label>
+            <small>2의 지수승 블록. 기본 14 = 16,384블록입니다.</small>
+            <label>작은 굴곡 간격 지수<input id="growth_small_log2" type="number" value="12" min="9" max="17" step="1" required></label>
+            <small>기본 12 = 4,096블록입니다. 두 굴곡은 각각 주기적 노이즈 2옥타브를 사용합니다.</small>
+            <label>작은 굴곡 혼합 비율<input id="growth_detail_mix" type="number" value="0.25" min="0" max="1" step="any" required></label>
+            <small>기본 큰 굴곡 75% + 작은 굴곡 25%. 기본 성장 확률을 중심으로 지역별 차이를 줍니다. 기본 0%는 전부 정지, 100%는 전부 성장합니다.</small>
+          </details>
+          <label>실행 단계<input id="growth_steps" type="number" value="12" min="0" max="100" step="1" required></label>
+          <div class="toolbar"><button id="initial-state" type="button">초기 씨앗 (0단계)</button><button id="step" type="button">한 단계 진행</button></div>
+          <small>접촉한 대륙은 씨앗 수 제한 없이 병합합니다. 육지를 삭제하지 않으며 원래 씨앗 수를 합산합니다. 동서·남북 끝도 연결됩니다.</small>
         </details>
-        <details open><summary>군도 · 작은 셀</summary>
-          <label>군도 사용<input id="arch_enabled" type="checkbox" checked></label>
-          <label>군도 구역 크기 (블록)<input id="arch_spacing" type="number" value="16384" min="512" max="131072" step="any" required></label>
-          <label>군도 판정 기준<input id="arch_threshold" type="number" value="0.15" min="-1" max="1" step="any" required></label>
-          <small>대륙이 아닌 큰 셀 중 군도 분포 값이 기준을 넘는 곳을 고릅니다. 낮추면 군도가 늘어납니다.</small>
-          <label>작은 셀 분할 배수<input id="subdivisions" type="number" value="4" min="2" max="8" step="1" required></label>
-          <small id="fine-spacing-info"></small>
-          <label>섬 무리 크기 (블록)<input id="island_spacing" type="number" value="2048" min="64" max="131072" step="any" required></label>
-          <label>섬 판정 기준<input id="island_threshold" type="number" value="0" min="-1" max="1" step="any" required></label>
-          <small>작은 셀의 섬 분포 값을 기준으로 육지 여부를 정합니다. 낮추면 섬이 늘고 서로 붙기 쉬워집니다.</small>
-          <label>가장자리 감쇄 폭<input id="arch_edge_fade" type="number" value="0.18" min="0" max="0.5" step="any" required></label>
-          <small>큰 셀 간격에 대한 비율입니다. 군도와 외해·대륙 사이에서는 섬을 줄이고, 인접 군도끼리는 감쇄하지 않습니다. 높이·해변·절벽은 아직 생성하지 않습니다.</small>
+        <details open><summary>전역 셀 경향</summary>
+          <label>거리 경향 범위 (블록)<input id="trend_distance" type="number" value="8192" min="1" max="131072" step="any" required></label>
+          <label>내륙 고도 · 외해 깊이 경향<input id="trend_distance_strength" type="number" value="0.45" min="0" max="1" step="any" required></label>
+          <label>넓은 지역 변동 강도<input id="trend_shared_strength" type="number" value="0.65" min="0" max="2" step="any" required></label>
+          <label>셀별 변동 강도<input id="trend_local_strength" type="number" value="0.15" min="0" max="1" step="any" required></label>
+          <label>지역 변동 간격 지수<input id="trend_spacing_log2" type="number" value="14" min="9" max="17" step="1" required></label>
+          <label>같은 육해 이웃과의 혼합<input id="trend_neighbor_mix" type="number" value="0.55" min="0" max="1" step="any" required></label>
+          <label>이웃 혼합 횟수<input id="trend_neighbor_passes" type="number" value="3" min="0" max="12" step="1" required></label>
+          <label>기본 압축 경향<input id="trend_compression" type="number" value="0.45" min="0" max="1" step="any" required></label>
+          <label>압축 지역 변동<input id="trend_compression_variation" type="number" value="0.35" min="0" max="1" step="any" required></label>
+          <label>셀 안쪽 전이 폭 비율<input id="trend_transition" type="number" value="0.65" min="0.05" max="1" step="any" required></label>
+          <small>고도 경향은 바다 −1(깊음)~0, 육지 0~+1(높음)입니다. 압축은 0(약함)~1(강함)이며 실제 블록 높이·밀도 수식은 아직 적용하지 않습니다.</small>
+          <small>육지 고도와 바다 수심은 같은 마스터 시드에서 서로 다른 지역 무늬를 만듭니다. 해안 거리는 경향만 주며, 지역 변동이 이를 뒤집어 해안 옆 심해나 낮은 내륙이 생길 수 있습니다. 이웃 혼합은 같은 육해 종류끼리만 적용합니다. 간격 14는 16,384블록입니다.</small>
+          <small>전이 폭은 중심값에서 같은 종류의 경계값으로 변하는 셀 내부 비율입니다. 작을수록 경계 가까이에서 급하게 변합니다. 해안 양쪽 경향값은 별도로 유지합니다. 셀은 바이옴 경계가 아닙니다.</small>
         </details>
         <details open><summary>경계 워핑</summary>
           <label>워핑 사용<input id="warp_enabled" type="checkbox"></label>
@@ -55,19 +69,21 @@
           <small>간격 = 2의 지수승 블록. 11이면 2,048블록입니다.</small>
           <label>워핑 옥타브<input id="warp_octaves" type="number" value="3" min="1" max="8" step="1" required></label>
           <label>워핑 게인<input id="warp_gain" type="number" value="0.5" min="0" max="1" step="any" required></label>
-          <small>주기적 노이즈로 표본 좌표를 이동해 경계를 구부립니다. 강도가 크면 같은 셀이 여러 조각으로 보일 수 있습니다.</small>
+          <small>주기적 노이즈로 표본 좌표를 이동해 경계를 구부립니다. 성장의 이웃 관계는 바꾸지 않습니다. 강도가 크면 같은 셀이 여러 조각으로 보일 수 있습니다.</small>
         </details>
       </form>
       <details open><summary>표시</summary>
-        <label>보기<select id="view"><option value="land">대륙 · 섬 · 바다</option><option value="regions">큰 셀: 대륙 · 군도 · 외해</option><option value="arch-noise">군도 구역 분포 값</option><option value="island-noise">작은 셀 섬 분포 값</option><option value="land-noise">큰 셀 육지 분포 값</option><option value="cells">셀 색상</option><option value="edges">경계만</option><option value="distance">생성점까지 거리</option></select></label>
+        <label>보기<select id="view"><option value="trend-altitude" selected>셀 고도 · 수심 경향</option><option value="trend-compression">셀 압축 경향</option><option value="trend-altitude-smooth">보간된 고도 · 수심 경향</option><option value="trend-compression-smooth">보간된 압축 경향</option><option value="land">육지 · 바다</option><option value="continents">대륙별 색상</option><option value="seed-count">대륙별 씨앗 수</option><option value="growth-rate">성장 확률 지도</option><option value="growth-large">큰 성장 굴곡</option><option value="growth-small">작은 성장 굴곡</option><option value="coast-land">육지 안쪽 거리</option><option value="coast-sea">바다 쪽 거리</option><option value="coast-both">육지·바다 경계 거리</option><option value="initial">초기 씨앗</option><option value="random">씨앗 배치 우선순위</option><option value="neighbors">이웃 개수</option><option value="cells">셀 색상</option><option value="edges">경계만</option><option value="distance">생성점까지 거리</option></select></label>
+        <label>거리 지도 흰색 기준 (블록)<input id="distance-scale" type="number" value="8192" min="1" max="131072" step="any" required></label>
+        <small>경계 0블록은 검정, 지정 거리 이상은 흰색입니다. 워핑 전 실제 경계 선분까지의 최단거리이며 높이 값이 아닙니다. 육지·바다 중 한 종류만 있으면 경계 없음으로 표시합니다.</small>
         <label>경계선 표시<input id="edges" type="checkbox" checked></label>
         <label>생성점 표시<input id="sites" type="checkbox" checked></label>
         <small id="site-note">생성점은 흰 점으로 표시합니다.</small>
         <label>해상도<select id="resolution"><option>256</option><option selected>512</option><option>1024</option></select></label>
         <label>자동 미리보기<input id="auto" type="checkbox" checked></label>
-        <button id="generate" class="primary">미리보기 생성</button>
+        <button id="generate" class="primary">지정 단계 실행 · 미리보기</button>
       </details>
-      <p>휠로 확대 · 드래그로 이동 · 클릭으로 셀 선택. 넓은 범위에서는 작은 굴곡이나 셀이 생략될 수 있습니다.</p>
+      <p>마우스 위치를 중심으로 휠 확대 · 드래그하는 동안 즉시 이동 · 클릭으로 셀 선택. 자동 미리보기를 켜면 조작이 끝난 뒤 새 범위를 계산합니다. 계산되지 않은 부분은 어둡게 표시합니다.</p>
       <p>설정 저장을 누르면 배치·표시 범위·해상도를 저장하고 다음 실행 때 복원합니다. 마스터 시드는 기후 작업과 함께 보관합니다. 게임 기본값은 기후 편집기에서 직접 확정 저장해야 합니다.</p>
     </aside>
     <section class="preview">
@@ -81,6 +97,7 @@
       <p id="land-stats"></p>
       <p id="map-status" role="status">미리보기를 준비하는 중…</p>
       <div class="canvas-wrap"><canvas id="map" width="512" height="512" aria-label="순환 보로노이 지도"></canvas></div>
+      <section id="cell-panel"><h3>선택한 셀의 전처리 정보</h3><p id="cell-info">지도의 셀을 클릭하면 대표값과 공유 경계·꼭짓점 값을 봅니다.</p><div id="cell-boundaries"></div></section>
       <p id="sample">가로 X · 세로 Z</p><p id="legend">경계선은 표시 해상도에서 인접 표본의 셀 ID가 달라지는 곳입니다.</p>
     </section>
   </main>

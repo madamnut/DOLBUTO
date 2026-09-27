@@ -11,3 +11,8 @@ aside { max-height: calc(100vh - 220px); }
 #legend { font-size: 13px; }
 #save-state { padding: 6px 16px; color: #b7cbe2; font-size: 13px; overflow-wrap: anywhere; }
 @media(max-width:850px) { main { grid-template-columns: 1fr; } aside { max-height: none; } }
+
+#cell-panel { margin-top:16px; border-top:1px solid #4b5969; padding-top:8px; }
+#cell-boundaries { overflow:auto; max-height:300px; font-size:13px; }
+#cell-boundaries table { width:100%; border-collapse:collapse; }
+#cell-boundaries th, #cell-boundaries td { padding:6px; border-bottom:1px solid #4b5969; text-align:right; }
