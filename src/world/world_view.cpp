@@ -9,6 +9,7 @@
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <stb_image.h>
 #include <stdexcept>
@@ -1354,6 +1355,70 @@ void WorldView::render() {
     const float sun = daylight();
     const std::array<float, 4> sky{0.012f + sun * 0.468f, 0.018f + sun * 0.672f, 0.045f + sun * 0.815f, 1.0f};
     const auto cmd = renderer_.command;
+    // All queues use the current camera XZ, including third-person displacement.
+    struct ChunkDraw {
+        const GpuChunk* mesh;
+        glm::vec3 offset;
+        double distance;
+        glm::vec4 selected{};
+        bool sampled{};
+    };
+    const auto distance_to = [&](ColumnKey key) {
+        const glm::dvec2 centre{world_delta(key.x * 16.0 + 8, camera.position.x),
+                                world_delta(key.z * 16.0 + 8, camera.position.z)};
+        return glm::dot(centre, centre);
+    };
+    const auto sort_chunks = [](auto& draws) {
+        std::sort(draws.begin(), draws.end(), [](const auto& a, const auto& b) {
+            if (a.distance != b.distance)
+                return a.distance < b.distance;
+            if (a.offset.x != b.offset.x)
+                return a.offset.x < b.offset.x;
+            if (a.offset.y != b.offset.y)
+                return a.offset.y < b.offset.y;
+            return a.offset.z < b.offset.z;
+        });
+    };
+    // Drain each consecutive run with one pipeline bind. LOD invokes this at its
+    // next tile distance, so near and LOD are one ordered stream within the pass.
+    const auto merge_chunks = [&](const auto& draws, bool reverse, auto bind, auto record) {
+        std::function<void(double)> check;
+        if (profile_near_detail_) {
+            auto previous = std::make_shared<double>(reverse ? std::numeric_limits<double>::infinity()
+                                                             : -std::numeric_limits<double>::infinity());
+            check = [&, previous, reverse](double distance) {
+                if (reverse ? distance > *previous : distance < *previous)
+                    throw std::logic_error("Terrain draw order is not camera-XZ distance sorted.");
+                *previous = distance;
+                ++distance_order_checks_;
+            };
+        }
+        return TerrainDrawMerge{
+            [&draws, reverse, bind, record, check, cursor = size_t{0}](double limit) mutable {
+                if (cursor == draws.size())
+                    return false;
+                const auto index = [&](size_t i) { return reverse ? draws.size() - 1 - i : i; };
+                const auto eligible = [&](const auto& draw) {
+                    return reverse ? draw.distance >= limit : draw.distance <= limit;
+                };
+                if (!eligible(draws[index(cursor)]))
+                    return false;
+                bind();
+                do {
+                    const auto& draw = draws[index(cursor++)];
+                    if (check)
+                        check(draw.distance);
+                    record(draw);
+                } while (cursor < draws.size() && eligible(draws[index(cursor)]));
+                return true;
+            },
+            {},
+            reverse,
+            check};
+    };
+    const double drain = std::numeric_limits<double>::infinity();
+    if (graphics_settings_.lod)
+        lod_renderer_->sort_draws(camera.position);
     const auto matrix = scene_effects_->jittered(
         camera.view_projection(float(renderer_.extent.width) / renderer_.extent.height, 8192.0f),
         graphics_settings_.taa && !lod_debug_);
@@ -1434,6 +1499,7 @@ void WorldView::render() {
             const auto& light_matrix = scene_effects_->shadow_matrix(layer);
             const auto light_planes = frustum(light_matrix);
             scene_effects_->begin_shadow(layer);
+            std::vector<ChunkDraw> shadow_draws;
             for (const auto& [key, column] : columns_) {
                 if (!column.published)
                     continue;
@@ -1448,17 +1514,31 @@ void WorldView::render() {
                     const uint32_t count = layer == 1 ? mesh.solid_count : mesh.count - mesh.solid_count;
                     if (!count || !visible(light_planes, offset))
                         continue;
+                    shadow_draws.push_back({&mesh, offset, distance_to(key)});
+                }
+            }
+            sort_chunks(shadow_draws);
+            const auto shadow_merge = merge_chunks(
+                shadow_draws, false, [&] { scene_effects_->bind_shadow(); },
+                [&](const ChunkDraw& draw) {
+                    const auto& mesh = *draw.mesh;
                     const Push push{light_matrix,
-                                    glm::vec4(offset, 1.0f - 25.6f / graphics_settings_.shadow_distance),
+                                    glm::vec4(draw.offset, 1.0f - 25.6f / graphics_settings_.shadow_distance),
                                     glm::vec4(0)};
                     vkCmdPushConstants(cmd, shadow_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push),
                                        &push);
                     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow_layout, 1, 1,
                                             &mesh.descriptor, 0, nullptr);
-                    vkCmdDraw(cmd, 6, count, 0, layer == 1 ? 0 : mesh.solid_count);
-                }
-            }
+                    vkCmdDraw(cmd, 6, layer == 1 ? mesh.solid_count : mesh.count - mesh.solid_count, 0,
+                              layer == 1 ? 0 : mesh.solid_count);
+                });
+            if (graphics_settings_.lod)
+                lod_renderer_->draw(light_matrix, camera.position, graphics_settings_.lod_distance, false,
+                                    int(layer), graphics_settings_.shadow_distance, shadow_merge);
+            else
+                shadow_merge.before(drain);
             if (layer == 1) {
+                scene_effects_->bind_environment(shadow_layout, 2);
                 scene_effects_->shadow_player();
                 const Push push{light_matrix,
                                 glm::vec4(player_offset, 1.0f - 25.6f / graphics_settings_.shadow_distance),
@@ -1466,9 +1546,6 @@ void WorldView::render() {
                 vkCmdPushConstants(cmd, shadow_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
                 vkCmdDraw(cmd, 6, 6, 0, 0);
             }
-            if (graphics_settings_.lod)
-                lod_renderer_->draw(light_matrix, camera.position, graphics_settings_.lod_distance, false,
-                                    int(layer), graphics_settings_.shadow_distance);
             scene_effects_->end_shadow();
             renderer_.gpu_mark(layer == 0 ? "shadow_water" : "shadow_solid");
         }
@@ -1487,18 +1564,8 @@ void WorldView::render() {
         near_draw_stats_ = {};
         lod_renderer_->draw_stats = {};
     }
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, lod_debug_ ? lod_debug_pipeline_ : pipeline_);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 0, 1, &atlas_.descriptor, 0,
-                            nullptr);
-    if (profile_draws_)
-        ++near_draw_stats_.descriptor_binds;
     const auto planes = frustum(matrix);
-    struct WaterDraw {
-        const GpuChunk* mesh;
-        glm::vec3 offset;
-        float distance;
-    };
-    std::vector<WaterDraw> water_draws, ice_draws;
+    std::vector<ChunkDraw> solid_draws, water_draws, ice_draws;
     drawn_chunks = triangles = 0;
     // Compile the ordinary loop without per-chunk diagnostic branches or counters.
     const auto record_near = [&]<bool detail>() {
@@ -1573,25 +1640,12 @@ void WorldView::render() {
                     selected = glm::vec4(local_coordinate(target_->block.x), target_->block.y % 16,
                                          local_coordinate(target_->block.z), 1);
                 if (lod_debug_ || mesh.solid_count) {
-                    const Push push{matrix, glm::vec4(offset, sun), selected};
-                    vkCmdPushConstants(cmd, layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
-                    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 1, 1,
-                                            &mesh.descriptor, 0, nullptr);
-                    vkCmdDraw(cmd, 6, lod_debug_ ? mesh.count : mesh.solid_count, 0, 0);
-                    if (profile_draws_) {
-                        ++near_draw_stats_.pushes;
-                        ++near_draw_stats_.descriptor_binds;
-                        ++near_draw_stats_.draws;
-                    }
+                    solid_draws.push_back({&mesh, offset, distance_to(key), selected, detail && sample});
                 }
-                if (!lod_debug_ && mesh.ice_count) {
-                    const auto centre = offset + glm::vec3(8);
-                    ice_draws.push_back({&mesh, offset, glm::dot(centre, centre)});
-                }
-                if (!lod_debug_ && mesh.count > mesh.solid_count + mesh.ice_count) {
-                    const auto centre = offset + glm::vec3(8);
-                    water_draws.push_back({&mesh, offset, glm::dot(centre, centre)});
-                }
+                if (!lod_debug_ && mesh.ice_count)
+                    ice_draws.push_back({&mesh, offset, distance_to(key), selected});
+                if (!lod_debug_ && mesh.count > mesh.solid_count + mesh.ice_count)
+                    water_draws.push_back({&mesh, offset, distance_to(key), selected});
                 ++drawn_chunks;
                 triangles += mesh.count * 2;
                 if constexpr (detail)
@@ -1616,18 +1670,60 @@ void WorldView::render() {
         record_near.template operator()<true>();
     else
         record_near.template operator()<false>();
+    sort_chunks(solid_draws);
+    sort_chunks(water_draws);
+    sort_chunks(ice_draws);
     if (profile_draws_)
         near_draw_stats_.cpu_ms =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - near_start).count();
+    auto solid_merge = merge_chunks(
+        solid_draws, false,
+        [&] {
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              lod_debug_ ? lod_debug_pipeline_ : pipeline_);
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 0, 1, &atlas_.descriptor,
+                                    0, nullptr);
+            scene_effects_->bind_environment(layout_, 2);
+            if (profile_draws_)
+                near_draw_stats_.descriptor_binds += 2;
+        },
+        [&](const ChunkDraw& draw) {
+            const auto start =
+                draw.sampled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+            const Push push{matrix, glm::vec4(draw.offset, sun), draw.selected};
+            vkCmdPushConstants(cmd, layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 1, 1,
+                                    &draw.mesh->descriptor, 0, nullptr);
+            vkCmdDraw(cmd, 6, lod_debug_ ? draw.mesh->count : draw.mesh->solid_count, 0, 0);
+            if (profile_draws_) {
+                ++near_draw_stats_.pushes;
+                ++near_draw_stats_.descriptor_binds;
+                ++near_draw_stats_.draws;
+            }
+            if (draw.sampled)
+                near_draw_detail_.record_ms +=
+                    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
+                        .count();
+        });
+    if (profile_draws_) {
+        const auto emit = solid_merge.before;
+        solid_merge.before = [&, emit](double limit) {
+            const auto start = std::chrono::steady_clock::now();
+            const bool changed = emit(limit);
+            near_draw_stats_.cpu_ms +=
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+            return changed;
+        };
+    }
     if (graphics_settings_.lod) {
         lod_renderer_->draw(matrix, camera.position, std::max(radius_, graphics_settings_.lod_distance),
-                            lod_debug_);
+                            lod_debug_, -1, 192, solid_merge);
         triangles += uint32_t(lod_renderer_->triangles);
-        // LOD에서 별도 레이아웃을 사용했으므로 일반 플레이어 디스크립터를 복구한다.
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 0, 1, &atlas_.descriptor, 0,
-                                nullptr);
-        scene_effects_->bind_environment(layout_, 2);
-    }
+    } else
+        solid_merge.before(drain);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 0, 1, &atlas_.descriptor, 0,
+                            nullptr);
+    scene_effects_->bind_environment(layout_, 2);
     // The six procedural faces use the same dimensions as the collision box, without a mesh upload.
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, player_pipeline_);
     const int px = static_cast<int>(std::floor(rendered_player_position_.x));
@@ -1660,8 +1756,6 @@ void WorldView::render() {
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ice_layout, 0, 1, &atlas_.descriptor, 0,
                                 nullptr);
         scene_effects_->bind_environment(ice_layout, 3);
-        std::sort(ice_draws.begin(), ice_draws.end(),
-                  [](const auto& a, const auto& b) { return a.distance < b.distance; });
         const auto draw_ice = [&] {
             for (const auto& draw : ice_draws) {
                 glm::vec4 selected(0);
@@ -1701,12 +1795,29 @@ void WorldView::render() {
                             nullptr);
     scene_effects_->bind_environment(layout_, 2);
     // Both water paths blend against the same preserved opaque background.
-    std::sort(water_draws.begin(), water_draws.end(),
-              [](const auto& a, const auto& b) { return a.distance > b.distance; });
     const int water_radius =
         graphics_settings_.lod ? std::max(radius_, graphics_settings_.lod_distance) : radius_;
     const bool lod_water = graphics_settings_.lod && !lod_debug_ && lod_renderer_->water_visible();
     const bool has_water = !water_draws.empty() || lod_water;
+    const auto water_merge_for = [&](VkPipelineLayout pass_layout, bool reverse, auto bind,
+                                     bool count_triangles) {
+        return merge_chunks(
+            water_draws, reverse, bind, [&, pass_layout, count_triangles](const ChunkDraw& draw) {
+                const Push push{matrix, glm::vec4(draw.offset, sun), glm::vec4(0)};
+                vkCmdPushConstants(cmd, pass_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass_layout, 1, 1,
+                                        &draw.mesh->descriptor, 0, nullptr);
+                const auto count = draw.mesh->count - draw.mesh->solid_count - draw.mesh->ice_count;
+                vkCmdDraw(cmd, 6, count, 0, draw.mesh->solid_count + draw.mesh->ice_count);
+                if (count_triangles)
+                    triangles += count * 2;
+            });
+    };
+    const auto bind_water_inputs = [&](VkPipelineLayout pass_layout, uint32_t environment_set) {
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass_layout, 0, 1, &atlas_.descriptor,
+                                0, nullptr);
+        scene_effects_->bind_environment(pass_layout, environment_set);
+    };
     VkPipelineLayout water_layout = layout_;
     if (has_water && (water_settings_.active() || underwater)) {
         vkCmdEndRendering(cmd);
@@ -1725,53 +1836,54 @@ void WorldView::render() {
         scene_effects_->bind_environment(water_layout, 3);
         if (water_effects_->needs_surface_mask()) {
             water_effects_->begin_reflections();
-            for (auto draw = water_draws.rbegin(); draw != water_draws.rend(); ++draw) {
-                const Push push{matrix, glm::vec4(draw->offset, sun), glm::vec4(0)};
-                vkCmdPushConstants(cmd, water_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, water_layout, 1, 1,
-                                        &draw->mesh->descriptor, 0, nullptr);
-                vkCmdDraw(cmd, 6, draw->mesh->count - draw->mesh->solid_count - draw->mesh->ice_count, 0,
-                          draw->mesh->solid_count + draw->mesh->ice_count);
-                triangles += (draw->mesh->count - draw->mesh->solid_count - draw->mesh->ice_count) * 2;
-            }
-            if (lod_water) {
+            auto reflections = water_merge_for(
+                water_layout, false,
+                [&] {
+                    water_effects_->bind_reflections();
+                    bind_water_inputs(water_layout, 3);
+                },
+                true);
+            const auto lod_layout = water_effects_->layout(true);
+            reflections.bind_lod = [&] {
                 water_effects_->bind_lod_reflections();
-                const auto lod_layout = water_effects_->layout(true);
-                scene_effects_->bind_environment(lod_layout, 3);
-                lod_renderer_->draw_water(matrix, camera.position, water_radius, lod_layout);
-            }
+                bind_water_inputs(lod_layout, 3);
+            };
+            if (lod_water)
+                lod_renderer_->draw_water(matrix, camera.position, water_radius, lod_layout, reflections);
+            else
+                reflections.before(drain);
             water_effects_->end_reflections();
             renderer_.gpu_mark("water_ssr");
         }
         renderer_.resume_world(depth_view_);
-        if (lod_water) {
+        auto surface = water_merge_for(
+            water_layout, true,
+            [&] {
+                water_effects_->bind_surface();
+                bind_water_inputs(water_layout, 3);
+            },
+            false);
+        const auto lod_layout = water_effects_->layout(true);
+        surface.bind_lod = [&] {
             water_effects_->bind_surface(true);
-            const auto lod_layout = water_effects_->layout(true);
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, lod_layout, 0, 1,
-                                    &atlas_.descriptor, 0, nullptr);
-            scene_effects_->bind_environment(lod_layout, 3);
-            lod_renderer_->draw_water(matrix, camera.position, water_radius, lod_layout);
-        }
-        // LOD uses coverage instead of block-face descriptors, so restore the near-water layout.
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, water_layout, 0, 1, &atlas_.descriptor,
-                                0, nullptr);
-        scene_effects_->bind_environment(water_layout, 3);
-        water_effects_->bind_surface();
-    } else {
+            bind_water_inputs(lod_layout, 3);
+        };
         if (lod_water)
-            lod_renderer_->draw_water(matrix, camera.position, water_radius);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 0, 1, &atlas_.descriptor, 0,
-                                nullptr);
-        scene_effects_->bind_environment(layout_, 2);
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, water_pipeline_);
-    }
-    for (const auto& draw : water_draws) {
-        const Push push{matrix, glm::vec4(draw.offset, sun), glm::vec4(0)};
-        vkCmdPushConstants(cmd, water_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, water_layout, 1, 1,
-                                &draw.mesh->descriptor, 0, nullptr);
-        vkCmdDraw(cmd, 6, draw.mesh->count - draw.mesh->solid_count - draw.mesh->ice_count, 0,
-                  draw.mesh->solid_count + draw.mesh->ice_count);
+            lod_renderer_->draw_water(matrix, camera.position, water_radius, lod_layout, surface);
+        else
+            surface.before(-drain);
+    } else {
+        auto surface = water_merge_for(
+            layout_, true,
+            [&] {
+                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, water_pipeline_);
+                bind_water_inputs(layout_, 2);
+            },
+            false);
+        if (lod_water)
+            lod_renderer_->draw_water(matrix, camera.position, water_radius, VK_NULL_HANDLE, surface);
+        else
+            surface.before(-drain);
     }
     renderer_.gpu_mark("water_surface");
     // LOD water already retained its nearest surface. Add normal water depth now
@@ -1779,17 +1891,12 @@ void WorldView::render() {
     if (scene_effects_->surface_depth_needed() && has_water) {
         scene_effects_->begin_water_depth(depth_, depth_view_);
         const auto depth_layout = scene_effects_->shadow_layout();
-        for (const auto& draw : water_draws) {
-            const Push push{matrix, glm::vec4(draw.offset, sun), glm::vec4(0)};
-            vkCmdPushConstants(cmd, depth_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, depth_layout, 1, 1,
-                                    &draw.mesh->descriptor, 0, nullptr);
-            vkCmdDraw(cmd, 6, draw.mesh->count - draw.mesh->solid_count - draw.mesh->ice_count, 0,
-                      draw.mesh->solid_count + draw.mesh->ice_count);
-            triangles += (draw.mesh->count - draw.mesh->solid_count - draw.mesh->ice_count) * 2;
-        }
+        const auto water_depth =
+            water_merge_for(depth_layout, false, [&] { scene_effects_->bind_water_depth(); }, true);
         if (lod_water)
-            lod_renderer_->draw_water_depth(matrix, camera.position, water_radius);
+            lod_renderer_->draw_water_depth(matrix, camera.position, water_radius, water_depth);
+        else
+            water_depth.before(drain);
     }
     vkCmdEndRendering(cmd);
     renderer_.gpu_mark("water_depth");

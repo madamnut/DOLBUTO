@@ -2,10 +2,19 @@
 #include "render/draw_stats.hpp"
 #include "render/scene_effects.hpp"
 #include "world/lod.hpp"
+#include <functional>
 #include <map>
 #include <span>
 
 namespace sandbox {
+// Emit near chunks up to the next tile's squared camera distance. Return true when
+// pipeline/descriptors changed. The final +/-infinity cutoff drains the near list.
+struct TerrainDrawMerge {
+    std::function<bool(double)> before;
+    std::function<void()> bind_lod;
+    bool far_to_near{};
+    std::function<void(double)> check_distance; // Explicit --profile-near-detail only.
+};
 class LodRenderer {
   public:
     LodRenderer(Renderer& renderer, SceneEffects& effects, const std::array<glm::vec4, 11>& palette);
@@ -13,12 +22,14 @@ class LodRenderer {
     // published_changed covers membership changes; centre/debug changes are handled independently.
     void prepare(std::shared_ptr<const LodScene> scene, ColumnKey centre,
                  std::span<const ColumnKey> published, bool published_changed, bool lod_debug);
+    void sort_draws(glm::dvec3 camera);
     void draw(const glm::mat4& matrix, glm::dvec3 camera, int radius, bool lod_debug, int shadow_layer = -1,
-              int shadow_distance = 192);
+              int shadow_distance = 192, const TerrainDrawMerge& merge = {});
     // Uses the current WaterEffects pass; colour/depth snapshots are shared with near water.
     void draw_water(const glm::mat4& matrix, glm::dvec3 camera, int radius,
-                    VkPipelineLayout water_layout = VK_NULL_HANDLE);
-    void draw_water_depth(const glm::mat4& matrix, glm::dvec3 camera, int radius);
+                    VkPipelineLayout water_layout = VK_NULL_HANDLE, const TerrainDrawMerge& merge = {});
+    void draw_water_depth(const glm::mat4& matrix, glm::dvec3 camera, int radius,
+                          const TerrainDrawMerge& merge = {});
     VkDescriptorSetLayout coverage_layout() const { return coverage_layout_; }
     bool water_visible() const { return water_visible_; }
     void clear();
@@ -54,6 +65,7 @@ class LodRenderer {
     struct DrawMesh {
         LodKey key;
         const Mesh* mesh;
+        double distance{};
     };
     Renderer& renderer_;
     SceneEffects& effects_;
@@ -71,13 +83,15 @@ class LodRenderer {
     std::map<Key, Mesh> meshes_;
     // Stable map nodes, retained by active_; rebuilt before collect can erase old nodes.
     std::vector<DrawMesh> draw_meshes_;
+    double sort_cpu_ms_{};
     std::shared_ptr<const LodScene> active_, pending_;
     uint64_t accepted_{};
     size_t cursor_{};
     std::shared_ptr<size_t> allocated_{std::make_shared<size_t>(0)};
     VkPipeline pipeline(bool debug, bool shadow, bool water = false, bool depth_only = false);
-    void record(const glm::mat4& matrix, glm::dvec3 camera, int radius, bool lod_debug, int shadow_layer,
-                int shadow_distance, VkPipelineLayout layout, bool water_only);
+    double record(const glm::mat4& matrix, glm::dvec3 camera, int radius, bool lod_debug, int shadow_layer,
+                  int shadow_distance, VkPipelineLayout layout, bool water_only,
+                  const TerrainDrawMerge& merge);
     void collect();
     void rebuild_draw_meshes();
     void shutdown();

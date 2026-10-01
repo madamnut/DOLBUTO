@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <limits>
 #include <set>
 
 namespace sandbox {
@@ -292,8 +293,25 @@ void LodRenderer::prepare(std::shared_ptr<const LodScene> scene, ColumnKey centr
     } else if (coverage_changed)
         rebuild_draw_meshes();
 }
+void LodRenderer::sort_draws(glm::dvec3 camera) {
+    const auto start =
+        profile_draws ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+    for (auto& entry : draw_meshes_) {
+        const double half = double(1 << entry.key.level) * 8;
+        const glm::dvec2 centre{world_delta(entry.key.x * 16.0 + half, camera.x),
+                                world_delta(entry.key.z * 16.0 + half, camera.z)};
+        entry.distance = glm::dot(centre, centre);
+    }
+    std::sort(draw_meshes_.begin(), draw_meshes_.end(), [](const auto& a, const auto& b) {
+        return a.distance != b.distance ? a.distance < b.distance : a.key < b.key;
+    });
+    sort_cpu_ms_ =
+        profile_draws
+            ? std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count()
+            : 0;
+}
 void LodRenderer::draw(const glm::mat4& matrix, glm::dvec3 camera, int radius, bool lod_debug,
-                       int shadow_layer, int shadow_distance) {
+                       int shadow_layer, int shadow_distance, const TerrainDrawMerge& merge) {
     const bool measure = profile_draws && shadow_layer < 0;
     const auto start = measure ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
     if (measure)
@@ -302,45 +320,67 @@ void LodRenderer::draw(const glm::mat4& matrix, glm::dvec3 camera, int radius, b
         tiles = triangles = 0;
         water_visible_ = false;
     }
-    vkCmdBindPipeline(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      shadow_layer >= 0 ? shadow_
-                      : lod_debug       ? debug_
-                                        : solid_);
-    effects_.bind_environment(layout_, 2);
-    if (measure)
-        ++draw_stats.descriptor_binds;
-    record(matrix, camera, radius, lod_debug, shadow_layer, shadow_distance, layout_, shadow_layer == 0);
+    auto interleave = merge;
+    interleave.bind_lod = [&] {
+        vkCmdBindPipeline(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          shadow_layer >= 0 ? shadow_
+                          : lod_debug       ? debug_
+                                            : solid_);
+        effects_.bind_environment(layout_, 2);
+        if (measure)
+            ++draw_stats.descriptor_binds;
+    };
+    const double near_ms = record(matrix, camera, radius, lod_debug, shadow_layer, shadow_distance, layout_,
+                                  shadow_layer == 0, interleave);
     if (measure)
         draw_stats.cpu_ms =
-            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+            sort_cpu_ms_ +
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count() -
+            near_ms;
 }
 void LodRenderer::draw_water(const glm::mat4& matrix, glm::dvec3 camera, int radius,
-                             VkPipelineLayout water_layout) {
+                             VkPipelineLayout water_layout, const TerrainDrawMerge& merge) {
+    auto interleave = merge;
     if (!water_layout) {
         water_layout = layout_;
-        vkCmdBindPipeline(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, water_);
-        effects_.bind_environment(layout_, 2);
+        interleave.bind_lod = [&] {
+            vkCmdBindPipeline(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, water_);
+            effects_.bind_environment(layout_, 2);
+        };
     }
-    record(matrix, camera, radius, false, -1, 0, water_layout, true);
+    record(matrix, camera, radius, false, -1, 0, water_layout, true, interleave);
 }
-void LodRenderer::draw_water_depth(const glm::mat4& matrix, glm::dvec3 camera, int radius) {
-    vkCmdBindPipeline(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, water_depth_);
-    record(matrix, camera, radius, false, -1, 0, layout_, true);
+void LodRenderer::draw_water_depth(const glm::mat4& matrix, glm::dvec3 camera, int radius,
+                                   const TerrainDrawMerge& merge) {
+    auto interleave = merge;
+    interleave.bind_lod = [&] {
+        vkCmdBindPipeline(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, water_depth_);
+    };
+    record(matrix, camera, radius, false, -1, 0, layout_, true, interleave);
 }
-void LodRenderer::record(const glm::mat4& matrix, glm::dvec3 camera, int radius, bool lod_debug,
-                         int shadow_layer, int shadow_distance, VkPipelineLayout layout, bool water_only) {
-    if (!active_)
-        return;
+double LodRenderer::record(const glm::mat4& matrix, glm::dvec3 camera, int radius, bool lod_debug,
+                           int shadow_layer, int shadow_distance, VkPipelineLayout layout, bool water_only,
+                           const TerrainDrawMerge& merge) {
     const auto cmd = renderer_.command;
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 1, 1,
-                            &sets_[renderer_.frame_slot()], 0, nullptr);
     const bool measure = profile_draws && shadow_layer < 0 && !water_only;
-    if (measure)
-        ++draw_stats.descriptor_binds;
+    double near_ms = 0;
+    const auto emit_near = [&](double distance) {
+        if (!merge.before)
+            return false;
+        const auto start =
+            measure ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+        const bool changed = merge.before(distance);
+        if (measure)
+            near_ms +=
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+        return changed;
+    };
+    bool bound = false;
     const auto rows = glm::transpose(matrix);
     const std::array<glm::vec4, 6> planes{rows[3] + rows[0], rows[3] - rows[0], rows[3] + rows[1],
                                           rows[3] - rows[1], rows[2],           rows[3] - rows[2]};
-    for (const auto& entry : draw_meshes_) {
+    for (size_t i = 0; i < draw_meshes_.size(); ++i) {
+        const auto& entry = draw_meshes_[merge.far_to_near ? draw_meshes_.size() - 1 - i : i];
         const auto& mesh = *entry.mesh;
         if (water_only && std::none_of(mesh.parts.begin(), mesh.parts.end(),
                                        [](const Part& part) { return part.faces > part.solid_faces; }))
@@ -361,6 +401,18 @@ void LodRenderer::record(const glm::mat4& matrix, glm::dvec3 camera, int radius,
                 continue;
         } else if (glm::length(glm::vec2(centre.x, centre.z)) > shadow_distance * 1.5f + width)
             continue;
+        const bool changed = emit_near(entry.distance);
+        if (!bound || changed) {
+            if (merge.bind_lod)
+                merge.bind_lod();
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 1, 1,
+                                    &sets_[renderer_.frame_slot()], 0, nullptr);
+            if (measure)
+                ++draw_stats.descriptor_binds;
+            bound = true;
+        }
+        if (merge.check_distance)
+            merge.check_distance(entry.distance);
         const Push push{matrix, glm::vec4(offset, step),
                         glm::vec4(float(key.x), float(key.z),
                                   shadow_layer < 0 ? float(radius * 16) : 1.0f - 25.6f / shadow_distance,
@@ -391,5 +443,8 @@ void LodRenderer::record(const glm::mat4& matrix, glm::dvec3 camera, int radius,
             triangles += mesh.faces * 2;
         }
     }
+    emit_near(merge.far_to_near ? -std::numeric_limits<double>::infinity()
+                                : std::numeric_limits<double>::infinity());
+    return near_ms;
 }
 } // namespace sandbox

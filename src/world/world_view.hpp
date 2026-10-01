@@ -50,9 +50,14 @@ class WorldView {
     void render();  // Begin world rendering, then switch to the depth-free UI pass.
     void enable_draw_profile(bool near_detail = false) {
         profile_draws_ = lod_renderer_->profile_draws = true;
+        scene_effects_->profile_descriptors = true;
         profile_near_detail_ = near_detail;
     }
+    uint64_t distance_order_checks() const { return distance_order_checks_; }
     const DrawStats& near_draw_stats() const { return near_draw_stats_; }
+    const SceneEffects::DescriptorStats& scene_descriptor_stats() const {
+        return scene_effects_->descriptor_stats;
+    }
     const NearDrawDetail& near_draw_detail() const { return near_draw_detail_; }
     const DrawStats& lod_draw_stats() const { return lod_renderer_->draw_stats; }
     bool draw_profile_ready() const {
@@ -111,6 +116,7 @@ class WorldView {
     bool profile_draws_{};
     bool profile_near_detail_{};
     uint32_t near_detail_frame_{};
+    uint64_t distance_order_checks_{};
     DrawStats near_draw_stats_;
     NearDrawDetail near_draw_detail_;
     struct FacePool {

@@ -280,6 +280,13 @@ VkDescriptorSet SceneEffects::allocate(VkDescriptorSetLayout layout) {
     vk_check(vkAllocateDescriptorSets(renderer_.device, &info, &result), "scene descriptor");
     return result;
 }
+void SceneEffects::update_descriptors(uint32_t count, const VkWriteDescriptorSet* writes) {
+    vkUpdateDescriptorSets(renderer_.device, count, writes, 0, nullptr);
+    if (profile_descriptors) {
+        ++descriptor_stats.calls;
+        descriptor_stats.writes += count;
+    }
+}
 void SceneEffects::write_images(VkDescriptorSet set, const std::array<VkImageView, 4>& images, bool depth) {
     std::array<VkDescriptorImageInfo, 4> infos{};
     std::array<VkWriteDescriptorSet, 4> writes{};
@@ -293,7 +300,7 @@ void SceneEffects::write_images(VkDescriptorSet set, const std::array<VkImageVie
         writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writes[i].pImageInfo = &infos[i];
     }
-    vkUpdateDescriptorSets(renderer_.device, 4, writes.data(), 0, nullptr);
+    update_descriptors(4, writes.data());
 }
 void SceneEffects::ensure_images(std::array<uint32_t, 2> sizes) {
     if (sizes[0] != sizes[1])
@@ -357,7 +364,7 @@ void SceneEffects::ensure_images(std::array<uint32_t, 2> sizes) {
             writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             writes[i].pImageInfo = &shadows[i - 1];
         }
-        vkUpdateDescriptorSets(renderer_.device, 4, writes, 0, nullptr);
+        update_descriptors(4, writes);
         const VkDescriptorImageInfo extras[]{
             {linear_, shadow_colour_[1].view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
             {nearest_, shadows_[0].view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
@@ -372,7 +379,7 @@ void SceneEffects::ensure_images(std::array<uint32_t, 2> sizes) {
             extra_writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             extra_writes[i].pImageInfo = &extras[i];
         }
-        vkUpdateDescriptorSets(renderer_.device, 4, extra_writes, 0, nullptr);
+        update_descriptors(4, extra_writes);
         f.atmosphere = allocate(image_layout_);
         f.volume_composite = allocate(image_layout_);
         f.tone = allocate(image_layout_);
@@ -412,6 +419,7 @@ void SceneEffects::prepare(const GraphicsSettings& settings, const WaterSettings
                            float render_distance) {
     const int quality = std::clamp(settings.shadow_quality, 1, 3);
     ensure_images({512u << quality, 512u << quality});
+    descriptor_stats = {};
     uniform_ = {};
     underwater_ = underwater;
     uniform_.inverse = glm::inverse(matrix);
@@ -516,32 +524,44 @@ void SceneEffects::prepare(const GraphicsSettings& settings, const WaterSettings
             slot.history_initialized = slot.factor_initialized = true;
         }
     }
+    const auto descriptor_start =
+        profile_descriptors ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
     // The previous frame's one-pixel factor reproduces the reference's persistent scene-aware value.
-    VkDescriptorImageInfo factor{nearest_, frames_[previous_slot_].scene_factor.view,
-                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    VkWriteDescriptorSet factor_write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-    factor_write.dstSet = f.environment;
-    factor_write.dstBinding = 4;
-    factor_write.descriptorCount = 1;
-    factor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    factor_write.pImageInfo = &factor;
-    vkUpdateDescriptorSets(renderer_.device, 1, &factor_write, 0, nullptr);
-    const auto final_view = surface_depth_needed() ? f.scene.view : f.composite.view;
-    write_images(f.bloom_mip_sets[0], {final_view, f.opaque_depth.view, final_view, f.opaque_depth.view},
-                 true);
-    std::array<VkDescriptorImageInfo, 8> tone_images{};
-    std::array<VkWriteDescriptorSet, 8> tone_writes{};
-    for (uint32_t i = 0; i < 8; ++i) {
-        tone_images[i] = {linear_, i ? f.bloom[i].view : final_view,
-                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-        tone_writes[i] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-        tone_writes[i].dstSet = f.tone;
-        tone_writes[i].dstBinding = i;
-        tone_writes[i].descriptorCount = 1;
-        tone_writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        tone_writes[i].pImageInfo = &tone_images[i];
+    if (f.bound_factor != frames_[previous_slot_].scene_factor.view) {
+        VkDescriptorImageInfo factor{nearest_, frames_[previous_slot_].scene_factor.view,
+                                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        VkWriteDescriptorSet factor_write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        factor_write.dstSet = f.environment;
+        factor_write.dstBinding = 4;
+        factor_write.descriptorCount = 1;
+        factor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        factor_write.pImageInfo = &factor;
+        update_descriptors(1, &factor_write);
+        f.bound_factor = frames_[previous_slot_].scene_factor.view;
     }
-    vkUpdateDescriptorSets(renderer_.device, 8, tone_writes.data(), 0, nullptr);
+    const auto final_view = surface_depth_needed() ? f.scene.view : f.composite.view;
+    if (f.bound_final != final_view) {
+        write_images(f.bloom_mip_sets[0], {final_view, f.opaque_depth.view, final_view, f.opaque_depth.view},
+                     true);
+        std::array<VkDescriptorImageInfo, 8> tone_images{};
+        std::array<VkWriteDescriptorSet, 8> tone_writes{};
+        for (uint32_t i = 0; i < 8; ++i) {
+            tone_images[i] = {linear_, i ? f.bloom[i].view : final_view,
+                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+            tone_writes[i] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            tone_writes[i].dstSet = f.tone;
+            tone_writes[i].dstBinding = i;
+            tone_writes[i].descriptorCount = 1;
+            tone_writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            tone_writes[i].pImageInfo = &tone_images[i];
+        }
+        update_descriptors(8, tone_writes.data());
+        f.bound_final = final_view;
+    }
+    if (profile_descriptors)
+        descriptor_stats.cpu_ms +=
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - descriptor_start)
+                .count();
     std::memcpy(f.uniform.mapped, &uniform_, sizeof(uniform_));
     vk_check(vmaFlushAllocation(renderer_.allocator, f.uniform.allocation, 0, sizeof(uniform_)),
              "environment uniform flush");
@@ -586,6 +606,13 @@ void SceneEffects::begin_shadow(unsigned layer) {
     vkCmdBeginRendering(renderer_.command, &info);
     viewport(renderer_.command, shadows_[layer].extent);
     vkCmdBindPipeline(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow_pipeline_);
+}
+void SceneEffects::bind_shadow() {
+    vkCmdBindPipeline(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow_pipeline_);
+    bind_environment(shadow_layout_, 2);
+}
+void SceneEffects::bind_water_depth() {
+    vkCmdBindPipeline(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, water_depth_pipeline_);
 }
 void SceneEffects::shadow_player() {
     vkCmdBindPipeline(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, player_shadow_pipeline_);
@@ -726,31 +753,51 @@ void SceneEffects::atmosphere(VkImage depth, VkImageView view) {
     barrier(cmd, depth, true, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     renderer_.gpu_mark("opaque_depth_copy");
     scene_depth_ = depth;
-    write_images(f.taa, {f.toned.view, view, frames_[previous_slot_].history.view, view}, true);
-    write_images(f.factor,
-                 {frames_[previous_slot_].scene_factor.view, view, shadow_colour_[1].view, shadows_[0].view},
-                 true);
+    const auto descriptor_start =
+        profile_descriptors ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+    if (f.bound_history != frames_[previous_slot_].history.view || f.bound_history_depth != view) {
+        write_images(f.taa, {f.toned.view, view, frames_[previous_slot_].history.view, view}, true);
+        write_images(
+            f.factor,
+            {frames_[previous_slot_].scene_factor.view, view, shadow_colour_[1].view, shadows_[0].view},
+            true);
+        f.bound_history = frames_[previous_slot_].history.view;
+        f.bound_history_depth = view;
+    }
+    if (profile_descriptors)
+        descriptor_stats.cpu_ms +=
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - descriptor_start)
+                .count();
     begin_target(f.scene_factor);
     draw_post(factor_pipeline_, f.factor);
     vkCmdEndRendering(cmd);
     barrier(cmd, f.scene_factor.handle, false, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     renderer_.gpu_mark("scene_factor");
-    VkDescriptorImageInfo opaque{nearest_, f.opaque_depth.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    VkWriteDescriptorSet opaque_writes[2]{};
-    for (uint32_t i = 0; i < 2; ++i) {
-        opaque_writes[i] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-        opaque_writes[i].dstSet = i ? f.volume_composite : f.atmosphere;
-        opaque_writes[i].dstBinding = 4;
-        opaque_writes[i].descriptorCount = 1;
-        opaque_writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        opaque_writes[i].pImageInfo = &opaque;
+    const auto composite_descriptor_start =
+        profile_descriptors ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+    if (f.bound_composite_depth != view) {
+        VkDescriptorImageInfo opaque{nearest_, f.opaque_depth.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        VkWriteDescriptorSet opaque_writes[2]{};
+        for (uint32_t i = 0; i < 2; ++i) {
+            opaque_writes[i] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            opaque_writes[i].dstSet = i ? f.volume_composite : f.atmosphere;
+            opaque_writes[i].dstBinding = 4;
+            opaque_writes[i].descriptorCount = 1;
+            opaque_writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            opaque_writes[i].pImageInfo = &opaque;
+        }
+        update_descriptors(2, opaque_writes);
+        write_images(f.atmosphere, {f.scene.view, view, f.volume.view, f.metadata.view}, true);
+        // Distinct sets: updating a set referenced earlier in this command buffer would
+        // also change that earlier draw when the command buffer is submitted.
+        write_images(f.volume_composite, {f.composite.view, view, f.volume.view, f.metadata.view}, true);
+        f.bound_composite_depth = view;
     }
-    vkUpdateDescriptorSets(renderer_.device, 2, opaque_writes, 0, nullptr);
-    write_images(f.atmosphere, {f.scene.view, view, f.volume.view, f.metadata.view}, true);
-    // Distinct sets: updating a set referenced earlier in this command buffer would
-    // also change that earlier draw when the command buffer is submitted.
-    write_images(f.volume_composite, {f.composite.view, view, f.volume.view, f.metadata.view}, true);
+    if (profile_descriptors)
+        descriptor_stats.cpu_ms += std::chrono::duration<double, std::milli>(
+                                       std::chrono::steady_clock::now() - composite_descriptor_start)
+                                       .count();
     // Underwater, the transmitted scene must already contain sky/clouds. Above
     // water, clouds remain a foreground pass clipped at the nearest water surface.
     const bool pre_volume = underwater_ && volume_enabled();

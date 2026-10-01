@@ -24,6 +24,7 @@ class WaterEffects {
     void end_reflections();
     void bind_surface(bool lod = false);
     void bind_lod_reflections();
+    void bind_reflections();
     VkPipelineLayout layout(bool lod = false) const { return lod ? lod_layout_ : layout_; }
 
   private:

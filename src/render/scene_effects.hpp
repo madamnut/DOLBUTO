@@ -33,6 +33,8 @@ class SceneEffects {
     void begin_shadow(unsigned layer);
     void copy_solid_shadow();
     void shadow_player();
+    void bind_shadow();
+    void bind_water_depth();
     void end_shadow();
     // Explicit diagnostic readback after submission; never used in normal rendering.
     void capture_shadow_maps(const std::filesystem::path& directory);
@@ -49,6 +51,12 @@ class SceneEffects {
     // Called outside rendering, after nearest water depth has been written.
     void composite_volume(VkImage depth);
     void finish();
+    struct DescriptorStats {
+        double cpu_ms{}; // Descriptor preparation only, not the complete post-processing pass.
+        uint32_t calls{}, writes{};
+    };
+    bool profile_descriptors{};
+    DescriptorStats descriptor_stats;
 
   private:
     struct Image {
@@ -66,6 +74,9 @@ class SceneEffects {
         std::array<VkDescriptorSet, 8> bloom_sets{};
         std::array<VkDescriptorSet, 8> bloom_mip_sets{};
         bool history_initialized{}, factor_initialized{};
+        // Per descriptor-owning frame slot; release_images resets these with the sets.
+        VkImageView bound_factor{}, bound_final{}, bound_history{}, bound_history_depth{},
+            bound_composite_depth{};
     };
     struct Uniform {
         glm::mat4 inverse, shadow[2];
@@ -111,6 +122,7 @@ class SceneEffects {
     Image create_image(VkFormat format, VkExtent2D size, VkImageUsageFlags usage, uint32_t layers = 1);
     VkDescriptorSet allocate(VkDescriptorSetLayout layout);
     void write_images(VkDescriptorSet set, const std::array<VkImageView, 4>& images, bool depth = false);
+    void update_descriptors(uint32_t count, const VkWriteDescriptorSet* writes);
     VkPipeline create_pipeline(const char* vertex, const char* fragment, VkPipelineLayout layout,
                                const VkFormat* formats, uint32_t colours, bool depth = false,
                                bool bias = true);

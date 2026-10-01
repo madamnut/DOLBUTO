@@ -47,6 +47,7 @@ struct DrawSample {
     sandbox::DrawStats near_stats, lod_stats;
     double world_prepare_cpu_ms{};
     sandbox::NearDrawDetail near_detail;
+    sandbox::SceneEffects::DescriptorStats scene_descriptors;
 };
 void save_draw_profile(const std::filesystem::path& path, const std::vector<DrawSample>& samples) {
     if (!path.parent_path().empty())
@@ -58,7 +59,8 @@ void save_draw_profile(const std::filesystem::path& path, const std::vector<Draw
            "near_detail_stride,near_detail_phase,near_columns,near_chunk_slots,near_nonempty,near_culled,"
            "near_visible,near_sampled_columns,near_sampled_nonempty,near_sampled_visible,"
            "near_rejected_columns,near_rejected_column_nonempty,near_rejection_conflicts,"
-           "near_sample_scan_ms,near_sample_cull_ms,near_sample_record_ms\n"
+           "near_sample_scan_ms,near_sample_cull_ms,near_sample_record_ms,"
+           "scene_descriptor_cpu_ms,scene_descriptor_calls,scene_descriptor_writes\n"
         << std::fixed << std::setprecision(6);
     for (const auto& s : samples) {
         out << s.frame << ',' << s.steady << ',' << s.extent.width << ',' << s.extent.height << ','
@@ -72,7 +74,8 @@ void save_draw_profile(const std::filesystem::path& path, const std::vector<Draw
             << d.chunk_slots << ',' << d.nonempty << ',' << d.culled << ',' << d.visible << ','
             << d.sampled_columns << ',' << d.sampled_nonempty << ',' << d.sampled_visible << ','
             << d.rejected_columns << ',' << d.rejected_column_nonempty << ',' << d.rejection_conflicts << ','
-            << d.scan_ms << ',' << d.cull_ms << ',' << d.record_ms << '\n';
+            << d.scan_ms << ',' << d.cull_ms << ',' << d.record_ms << ',' << s.scene_descriptors.cpu_ms << ','
+            << s.scene_descriptors.calls << ',' << s.scene_descriptors.writes << '\n';
     }
     out.flush();
     if (!out)
@@ -1286,7 +1289,8 @@ int main(int argc, char** argv) {
                                                     world->visible_columns(), world->lod_tiles(),
                                                     world->lod_stats().pending, world->lod_upload_queue(),
                                                     world->near_draw_stats(), world->lod_draw_stats(),
-                                                    world->upload_cpu_ms, world->near_draw_detail()});
+                                                    world->upload_cpu_ms, world->near_draw_detail(),
+                                                    world->scene_descriptor_stats()});
                     }
                     for (int slot = 1; slot <= static_cast<int>(sandbox::hotbar_blocks.size()); ++slot)
                         hud->GetElementById("block-" + std::to_string(slot))
@@ -1400,6 +1404,9 @@ int main(int argc, char** argv) {
                 if (profile_measured_frames < profile_samples)
                     throw std::runtime_error("GPU profile ended before enough steady frames were collected.");
             }
+            if (world && profile_near_detail)
+                std::cout << "DRAW ORDER: " << world->distance_order_checks()
+                          << " camera-XZ distance checks passed\n";
             if (world)
                 std::cout << "WORLD: columns=" << world->visible_columns()
                           << ", drawn chunks=" << world->drawn_chunks

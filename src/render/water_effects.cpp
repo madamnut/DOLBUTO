@@ -437,6 +437,11 @@ void WaterEffects::bind_surface(bool lod) {
     vkCmdBindDescriptorSets(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, layout(lod), 2, 1,
                             &frames_[renderer_.frame_slot()].descriptor, 0, nullptr);
 }
+void WaterEffects::bind_reflections() {
+    vkCmdBindPipeline(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, reflection_);
+    vkCmdBindDescriptorSets(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 2, 1,
+                            &frames_[renderer_.frame_slot()].descriptor, 0, nullptr);
+}
 void WaterEffects::bind_lod_reflections() {
     vkCmdBindPipeline(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, lod_reflection_);
     vkCmdBindDescriptorSets(renderer_.command, VK_PIPELINE_BIND_POINT_GRAPHICS, lod_layout_, 2, 1,

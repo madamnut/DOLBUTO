@@ -1,0 +1,1432 @@
+{
+  "validation": [
+    {
+      "scene": "validation",
+      "runs": [
+        {
+          "name": "validation-before",
+          "samples": 64,
+          "columns": 441,
+          "near_draws": [
+            209
+          ],
+          "lod_tiles": [
+            402
+          ],
+          "triangles": [
+            570112
+          ],
+          "descriptor_calls": 8,
+          "descriptor_writes": 31,
+          "scene_descriptor_cpu_ms": {
+            "mean": 0.0667828125,
+            "p95": 0.0739,
+            "minimum": 0.0601,
+            "maximum": 0.1126
+          },
+          "near_cpu_ms": {
+            "mean": 1.286690625,
+            "p95": 1.4138,
+            "minimum": 1.2201,
+            "maximum": 1.5848
+          },
+          "lod_cpu_ms": {
+            "mean": 2.236528125,
+            "p95": 2.4435,
+            "minimum": 2.1195,
+            "maximum": 3.1884
+          },
+          "world_prepare_cpu_ms": {
+            "mean": 0.0138640625,
+            "p95": 0.0158,
+            "minimum": 0.0122,
+            "maximum": 0.023
+          },
+          "gpu_total_ms": {
+            "mean": 1.6308,
+            "p95": 1.64624,
+            "minimum": 1.601024,
+            "maximum": 1.793824
+          }
+        },
+        {
+          "name": "validation-after",
+          "samples": 64,
+          "columns": 441,
+          "near_draws": [
+            209
+          ],
+          "lod_tiles": [
+            402
+          ],
+          "triangles": [
+            570112
+          ],
+          "descriptor_calls": 0,
+          "descriptor_writes": 0,
+          "scene_descriptor_cpu_ms": {
+            "mean": 0.0002765625,
+            "p95": 0.0005,
+            "minimum": 0.0,
+            "maximum": 0.0005
+          },
+          "near_cpu_ms": {
+            "mean": 1.322853125,
+            "p95": 1.451,
+            "minimum": 1.2348,
+            "maximum": 1.543
+          },
+          "lod_cpu_ms": {
+            "mean": 2.2542140625,
+            "p95": 2.4622,
+            "minimum": 2.1292,
+            "maximum": 2.5994
+          },
+          "world_prepare_cpu_ms": {
+            "mean": 0.01400625,
+            "p95": 0.0159,
+            "minimum": 0.0121,
+            "maximum": 0.0244
+          },
+          "gpu_total_ms": {
+            "mean": 1.642527,
+            "p95": 1.648608,
+            "minimum": 1.598336,
+            "maximum": 2.375488
+          }
+        }
+      ],
+      "image": {
+        "mean": 0.0,
+        "maximum": 0,
+        "changed_fraction": 0.0
+      }
+    },
+    {
+      "scene": "seam",
+      "runs": [
+        {
+          "name": "seam-before",
+          "samples": 64,
+          "columns": 441,
+          "near_draws": [
+            125
+          ],
+          "lod_tiles": [
+            351
+          ],
+          "triangles": [
+            468352
+          ],
+          "descriptor_calls": 8,
+          "descriptor_writes": 31,
+          "scene_descriptor_cpu_ms": {
+            "mean": 0.068140625,
+            "p95": 0.0768,
+            "minimum": 0.06,
+            "maximum": 0.082
+          },
+          "near_cpu_ms": {
+            "mean": 0.8244421875,
+            "p95": 0.9557,
+            "minimum": 0.7668,
+            "maximum": 1.0353
+          },
+          "lod_cpu_ms": {
+            "mean": 1.926115625,
+            "p95": 2.0737,
+            "minimum": 1.8463,
+            "maximum": 2.1783
+          },
+          "world_prepare_cpu_ms": {
+            "mean": 0.0135609375,
+            "p95": 0.0147,
+            "minimum": 0.0122,
+            "maximum": 0.0178
+          },
+          "gpu_total_ms": {
+            "mean": 1.6739955,
+            "p95": 1.678272,
+            "minimum": 1.628224,
+            "maximum": 2.090016
+          }
+        },
+        {
+          "name": "seam-after",
+          "samples": 64,
+          "columns": 441,
+          "near_draws": [
+            125
+          ],
+          "lod_tiles": [
+            351
+          ],
+          "triangles": [
+            468352
+          ],
+          "descriptor_calls": 0,
+          "descriptor_writes": 0,
+          "scene_descriptor_cpu_ms": {
+            "mean": 0.000234375,
+            "p95": 0.0004,
+            "minimum": 0.0,
+            "maximum": 0.0005
+          },
+          "near_cpu_ms": {
+            "mean": 0.813771875,
+            "p95": 0.9693,
+            "minimum": 0.7623,
+            "maximum": 1.1225
+          },
+          "lod_cpu_ms": {
+            "mean": 1.9368859375,
+            "p95": 2.0431,
+            "minimum": 1.8465,
+            "maximum": 2.1241
+          },
+          "world_prepare_cpu_ms": {
+            "mean": 0.0137921875,
+            "p95": 0.0155,
+            "minimum": 0.0118,
+            "maximum": 0.0228
+          },
+          "gpu_total_ms": {
+            "mean": 1.6653785,
+            "p95": 1.677472,
+            "minimum": 1.633568,
+            "maximum": 1.928832
+          }
+        }
+      ],
+      "image": {
+        "mean": 0.0,
+        "maximum": 0,
+        "changed_fraction": 0.0
+      }
+    },
+    {
+      "scene": "up",
+      "runs": [
+        {
+          "name": "up-before",
+          "samples": 64,
+          "columns": 441,
+          "near_draws": [
+            1
+          ],
+          "lod_tiles": [
+            399
+          ],
+          "triangles": [
+            460160
+          ],
+          "descriptor_calls": 8,
+          "descriptor_writes": 31,
+          "scene_descriptor_cpu_ms": {
+            "mean": 0.0672296875,
+            "p95": 0.0801,
+            "minimum": 0.0593,
+            "maximum": 0.0918
+          },
+          "near_cpu_ms": {
+            "mean": 0.06668125,
+            "p95": 0.0745,
+            "minimum": 0.061,
+            "maximum": 0.0952
+          },
+          "lod_cpu_ms": {
+            "mean": 2.182403125,
+            "p95": 2.3738,
+            "minimum": 2.0865,
+            "maximum": 2.4544
+          },
+          "world_prepare_cpu_ms": {
+            "mean": 0.013474999999999999,
+            "p95": 0.0152,
+            "minimum": 0.0121,
+            "maximum": 0.0164
+          },
+          "gpu_total_ms": {
+            "mean": 1.723909,
+            "p95": 1.740704,
+            "minimum": 1.692992,
+            "maximum": 1.891008
+          }
+        },
+        {
+          "name": "up-after",
+          "samples": 64,
+          "columns": 441,
+          "near_draws": [
+            1
+          ],
+          "lod_tiles": [
+            399
+          ],
+          "triangles": [
+            460160
+          ],
+          "descriptor_calls": 0,
+          "descriptor_writes": 0,
+          "scene_descriptor_cpu_ms": {
+            "mean": 0.0002375,
+            "p95": 0.0004,
+            "minimum": 0.0,
+            "maximum": 0.0006
+          },
+          "near_cpu_ms": {
+            "mean": 0.0729203125,
+            "p95": 0.1137,
+            "minimum": 0.0612,
+            "maximum": 0.2905
+          },
+          "lod_cpu_ms": {
+            "mean": 2.2262265625,
+            "p95": 2.3585,
+            "minimum": 2.091,
+            "maximum": 3.8649
+          },
+          "world_prepare_cpu_ms": {
+            "mean": 0.014228125,
+            "p95": 0.0155,
+            "minimum": 0.012,
+            "maximum": 0.067
+          },
+          "gpu_total_ms": {
+            "mean": 1.7379165,
+            "p95": 1.745312,
+            "minimum": 1.69568,
+            "maximum": 2.15904
+          }
+        }
+      ],
+      "image": {
+        "mean": 0.0,
+        "maximum": 0,
+        "changed_fraction": 0.0
+      }
+    },
+    {
+      "scene": "minimal",
+      "runs": [
+        {
+          "name": "minimal-before",
+          "samples": 64,
+          "columns": 441,
+          "near_draws": [
+            209
+          ],
+          "lod_tiles": [
+            402
+          ],
+          "triangles": [
+            570112
+          ],
+          "descriptor_calls": 8,
+          "descriptor_writes": 31,
+          "scene_descriptor_cpu_ms": {
+            "mean": 0.06436093749999999,
+            "p95": 0.0726,
+            "minimum": 0.0596,
+            "maximum": 0.0757
+          },
+          "near_cpu_ms": {
+            "mean": 1.2803375,
+            "p95": 1.3934,
+            "minimum": 1.2254,
+            "maximum": 1.4442
+          },
+          "lod_cpu_ms": {
+            "mean": 2.2072890625,
+            "p95": 2.3267,
+            "minimum": 2.1155,
+            "maximum": 2.381
+          },
+          "world_prepare_cpu_ms": {
+            "mean": 0.022315625,
+            "p95": 0.0339,
+            "minimum": 0.012,
+            "maximum": 0.043
+          },
+          "gpu_total_ms": {
+            "mean": 1.721311,
+            "p95": 2.08416,
+            "minimum": 0.88336,
+            "maximum": 3.44304
+          }
+        },
+        {
+          "name": "minimal-after",
+          "samples": 64,
+          "columns": 441,
+          "near_draws": [
+            209
+          ],
+          "lod_tiles": [
+            402
+          ],
+          "triangles": [
+            570112
+          ],
+          "descriptor_calls": 0,
+          "descriptor_writes": 0,
+          "scene_descriptor_cpu_ms": {
+            "mean": 0.0002203125,
+            "p95": 0.0004,
+            "minimum": 0.0,
+            "maximum": 0.0004
+          },
+          "near_cpu_ms": {
+            "mean": 1.3045078125,
+            "p95": 1.4401,
+            "minimum": 1.2258,
+            "maximum": 1.6526
+          },
+          "lod_cpu_ms": {
+            "mean": 2.222415625,
+            "p95": 2.3314,
+            "minimum": 2.1327,
+            "maximum": 2.4655
+          },
+          "world_prepare_cpu_ms": {
+            "mean": 0.0181203125,
+            "p95": 0.028,
+            "minimum": 0.0119,
+            "maximum": 0.0472
+          },
+          "gpu_total_ms": {
+            "mean": 1.3265815,
+            "p95": 2.00016,
+            "minimum": 0.88528,
+            "maximum": 2.92512
+          }
+        }
+      ],
+      "image": {
+        "mean": 0.0,
+        "maximum": 0,
+        "changed_fraction": 0.0
+      }
+    }
+  ],
+  "shadow_maps_equal": {
+    "all-depth.f32": true,
+    "colour.rgba8": true,
+    "extent.txt": true,
+    "shaft.rgba8": true,
+    "solid-depth.f32": true
+  },
+  "runs": [
+    {
+      "name": "r12-before-1",
+      "samples": 640,
+      "columns": 441,
+      "near_draws": [
+        209
+      ],
+      "lod_tiles": [
+        402
+      ],
+      "triangles": [
+        570112
+      ],
+      "descriptor_calls": 8,
+      "descriptor_writes": 31,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.00151125,
+        "p95": 0.0028,
+        "minimum": 0.0007,
+        "maximum": 0.0276
+      },
+      "near_cpu_ms": {
+        "mean": 0.03818984375,
+        "p95": 0.0634,
+        "minimum": 0.0229,
+        "maximum": 0.1351
+      },
+      "lod_cpu_ms": {
+        "mean": 0.055685937500000005,
+        "p95": 0.0916,
+        "minimum": 0.0324,
+        "maximum": 0.268
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.01335296875,
+        "p95": 0.016,
+        "minimum": 0.0108,
+        "maximum": 0.1857
+      },
+      "gpu_total_ms": {
+        "mean": 1.6451516000000002,
+        "p95": 1.78848,
+        "minimum": 1.625184,
+        "maximum": 2.017152
+      }
+    },
+    {
+      "name": "r12-before-2",
+      "samples": 640,
+      "columns": 441,
+      "near_draws": [
+        209
+      ],
+      "lod_tiles": [
+        402
+      ],
+      "triangles": [
+        570112
+      ],
+      "descriptor_calls": 8,
+      "descriptor_writes": 31,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.0011965625000000001,
+        "p95": 0.0017,
+        "minimum": 0.0006,
+        "maximum": 0.004
+      },
+      "near_cpu_ms": {
+        "mean": 0.03241828125,
+        "p95": 0.0441,
+        "minimum": 0.0227,
+        "maximum": 0.2597
+      },
+      "lod_cpu_ms": {
+        "mean": 0.046621249999999996,
+        "p95": 0.0678,
+        "minimum": 0.0323,
+        "maximum": 0.2427
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.012416406250000001,
+        "p95": 0.0139,
+        "minimum": 0.0107,
+        "maximum": 0.0426
+      },
+      "gpu_total_ms": {
+        "mean": 1.6423315500000002,
+        "p95": 1.650304,
+        "minimum": 1.622592,
+        "maximum": 2.014592
+      }
+    },
+    {
+      "name": "r12-before-3",
+      "samples": 640,
+      "columns": 441,
+      "near_draws": [
+        209
+      ],
+      "lod_tiles": [
+        402
+      ],
+      "triangles": [
+        570112
+      ],
+      "descriptor_calls": 8,
+      "descriptor_writes": 31,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.00124796875,
+        "p95": 0.0018,
+        "minimum": 0.0007,
+        "maximum": 0.0207
+      },
+      "near_cpu_ms": {
+        "mean": 0.03144765625,
+        "p95": 0.0469,
+        "minimum": 0.0225,
+        "maximum": 0.1838
+      },
+      "lod_cpu_ms": {
+        "mean": 0.0457396875,
+        "p95": 0.0702,
+        "minimum": 0.032,
+        "maximum": 0.359
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.01267125,
+        "p95": 0.0144,
+        "minimum": 0.011,
+        "maximum": 0.1796
+      },
+      "gpu_total_ms": {
+        "mean": 1.6432586,
+        "p95": 1.806976,
+        "minimum": 1.62256,
+        "maximum": 2.0408
+      }
+    },
+    {
+      "name": "r12-after-1",
+      "samples": 640,
+      "columns": 441,
+      "near_draws": [
+        209
+      ],
+      "lod_tiles": [
+        402
+      ],
+      "triangles": [
+        570112
+      ],
+      "descriptor_calls": 0,
+      "descriptor_writes": 0,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.00018171875,
+        "p95": 0.0003,
+        "minimum": 0.0,
+        "maximum": 0.0055
+      },
+      "near_cpu_ms": {
+        "mean": 0.036616875,
+        "p95": 0.0555,
+        "minimum": 0.0222,
+        "maximum": 0.2333
+      },
+      "lod_cpu_ms": {
+        "mean": 0.054926718750000006,
+        "p95": 0.0832,
+        "minimum": 0.0321,
+        "maximum": 0.5003
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.01358671875,
+        "p95": 0.0166,
+        "minimum": 0.011,
+        "maximum": 0.1526
+      },
+      "gpu_total_ms": {
+        "mean": 1.6460345,
+        "p95": 1.780096,
+        "minimum": 1.626304,
+        "maximum": 2.019872
+      }
+    },
+    {
+      "name": "r12-after-2",
+      "samples": 640,
+      "columns": 441,
+      "near_draws": [
+        209
+      ],
+      "lod_tiles": [
+        402
+      ],
+      "triangles": [
+        570112
+      ],
+      "descriptor_calls": 0,
+      "descriptor_writes": 0,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.0001403125,
+        "p95": 0.0003,
+        "minimum": 0.0,
+        "maximum": 0.0005
+      },
+      "near_cpu_ms": {
+        "mean": 0.02951265625,
+        "p95": 0.0417,
+        "minimum": 0.022,
+        "maximum": 0.1953
+      },
+      "lod_cpu_ms": {
+        "mean": 0.04420375,
+        "p95": 0.0672,
+        "minimum": 0.0318,
+        "maximum": 0.3655
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.012541093750000001,
+        "p95": 0.0145,
+        "minimum": 0.0108,
+        "maximum": 0.1205
+      },
+      "gpu_total_ms": {
+        "mean": 1.64079995,
+        "p95": 1.663456,
+        "minimum": 1.621248,
+        "maximum": 2.010944
+      }
+    },
+    {
+      "name": "r12-after-3",
+      "samples": 640,
+      "columns": 441,
+      "near_draws": [
+        209
+      ],
+      "lod_tiles": [
+        402
+      ],
+      "triangles": [
+        570112
+      ],
+      "descriptor_calls": 0,
+      "descriptor_writes": 0,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.00015187500000000002,
+        "p95": 0.0003,
+        "minimum": 0.0,
+        "maximum": 0.0035
+      },
+      "near_cpu_ms": {
+        "mean": 0.03156234375,
+        "p95": 0.0455,
+        "minimum": 0.0229,
+        "maximum": 0.1599
+      },
+      "lod_cpu_ms": {
+        "mean": 0.04659671875,
+        "p95": 0.0704,
+        "minimum": 0.0321,
+        "maximum": 0.2147
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.012531562500000001,
+        "p95": 0.0145,
+        "minimum": 0.011,
+        "maximum": 0.041
+      },
+      "gpu_total_ms": {
+        "mean": 1.67095855,
+        "p95": 1.91104,
+        "minimum": 1.624224,
+        "maximum": 2.179904
+      }
+    },
+    {
+      "name": "r24-before-1",
+      "samples": 640,
+      "columns": 1793,
+      "near_draws": [
+        1017
+      ],
+      "lod_tiles": [
+        447
+      ],
+      "triangles": [
+        1035648
+      ],
+      "descriptor_calls": 8,
+      "descriptor_writes": 31,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.00271796875,
+        "p95": 0.0015,
+        "minimum": 0.0006,
+        "maximum": 1.0832
+      },
+      "near_cpu_ms": {
+        "mean": 0.12397078125000001,
+        "p95": 0.1904,
+        "minimum": 0.1096,
+        "maximum": 0.3753
+      },
+      "lod_cpu_ms": {
+        "mean": 0.0494540625,
+        "p95": 0.0833,
+        "minimum": 0.0404,
+        "maximum": 0.2099
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.01170515625,
+        "p95": 0.0138,
+        "minimum": 0.0107,
+        "maximum": 0.0281
+      },
+      "gpu_total_ms": {
+        "mean": 1.34985485,
+        "p95": 1.366112,
+        "minimum": 1.331808,
+        "maximum": 1.734976
+      }
+    },
+    {
+      "name": "r24-before-2",
+      "samples": 640,
+      "columns": 1793,
+      "near_draws": [
+        1017
+      ],
+      "lod_tiles": [
+        447
+      ],
+      "triangles": [
+        1035648
+      ],
+      "descriptor_calls": 8,
+      "descriptor_writes": 31,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.00098546875,
+        "p95": 0.0014,
+        "minimum": 0.0006,
+        "maximum": 0.0027
+      },
+      "near_cpu_ms": {
+        "mean": 0.126555625,
+        "p95": 0.1948,
+        "minimum": 0.1097,
+        "maximum": 0.3004
+      },
+      "lod_cpu_ms": {
+        "mean": 0.04917765625,
+        "p95": 0.0821,
+        "minimum": 0.0405,
+        "maximum": 0.253
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.01198125,
+        "p95": 0.0138,
+        "minimum": 0.0109,
+        "maximum": 0.0655
+      },
+      "gpu_total_ms": {
+        "mean": 1.351554,
+        "p95": 1.369504,
+        "minimum": 1.33264,
+        "maximum": 1.730336
+      }
+    },
+    {
+      "name": "r24-before-3",
+      "samples": 640,
+      "columns": 1793,
+      "near_draws": [
+        1017
+      ],
+      "lod_tiles": [
+        447
+      ],
+      "triangles": [
+        1035648
+      ],
+      "descriptor_calls": 8,
+      "descriptor_writes": 31,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.00133609375,
+        "p95": 0.0022,
+        "minimum": 0.0006,
+        "maximum": 0.0146
+      },
+      "near_cpu_ms": {
+        "mean": 0.16931968749999998,
+        "p95": 0.2301,
+        "minimum": 0.1101,
+        "maximum": 2.2359
+      },
+      "lod_cpu_ms": {
+        "mean": 0.08501984375,
+        "p95": 0.107,
+        "minimum": 0.0411,
+        "maximum": 2.113
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.0137734375,
+        "p95": 0.0223,
+        "minimum": 0.0108,
+        "maximum": 0.1041
+      },
+      "gpu_total_ms": {
+        "mean": 1.35249435,
+        "p95": 1.367168,
+        "minimum": 1.333216,
+        "maximum": 1.927296
+      }
+    },
+    {
+      "name": "r24-after-1",
+      "samples": 640,
+      "columns": 1793,
+      "near_draws": [
+        1017
+      ],
+      "lod_tiles": [
+        447
+      ],
+      "triangles": [
+        1035648
+      ],
+      "descriptor_calls": 0,
+      "descriptor_writes": 0,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.0001165625,
+        "p95": 0.0002,
+        "minimum": 0.0,
+        "maximum": 0.0003
+      },
+      "near_cpu_ms": {
+        "mean": 0.12334,
+        "p95": 0.1913,
+        "minimum": 0.1084,
+        "maximum": 0.3635
+      },
+      "lod_cpu_ms": {
+        "mean": 0.04885640625,
+        "p95": 0.0816,
+        "minimum": 0.0396,
+        "maximum": 0.4833
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.01192546875,
+        "p95": 0.0133,
+        "minimum": 0.0108,
+        "maximum": 0.0908
+      },
+      "gpu_total_ms": {
+        "mean": 1.3481219,
+        "p95": 1.363232,
+        "minimum": 1.331744,
+        "maximum": 1.739488
+      }
+    },
+    {
+      "name": "r24-after-2",
+      "samples": 640,
+      "columns": 1793,
+      "near_draws": [
+        1017
+      ],
+      "lod_tiles": [
+        447
+      ],
+      "triangles": [
+        1035648
+      ],
+      "descriptor_calls": 0,
+      "descriptor_writes": 0,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.0003275,
+        "p95": 0.0003,
+        "minimum": 0.0,
+        "maximum": 0.1341
+      },
+      "near_cpu_ms": {
+        "mean": 0.12531671875,
+        "p95": 0.1949,
+        "minimum": 0.1088,
+        "maximum": 0.3863
+      },
+      "lod_cpu_ms": {
+        "mean": 0.0498421875,
+        "p95": 0.0824,
+        "minimum": 0.04,
+        "maximum": 0.4974
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.01204375,
+        "p95": 0.0136,
+        "minimum": 0.0107,
+        "maximum": 0.0936
+      },
+      "gpu_total_ms": {
+        "mean": 1.34942725,
+        "p95": 1.364544,
+        "minimum": 1.332576,
+        "maximum": 1.737984
+      }
+    },
+    {
+      "name": "r24-after-3",
+      "samples": 640,
+      "columns": 1793,
+      "near_draws": [
+        1017
+      ],
+      "lod_tiles": [
+        447
+      ],
+      "triangles": [
+        1035648
+      ],
+      "descriptor_calls": 0,
+      "descriptor_writes": 0,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.000138125,
+        "p95": 0.0003,
+        "minimum": 0.0,
+        "maximum": 0.0043
+      },
+      "near_cpu_ms": {
+        "mean": 0.13208453125,
+        "p95": 0.2044,
+        "minimum": 0.1086,
+        "maximum": 0.5197
+      },
+      "lod_cpu_ms": {
+        "mean": 0.05308453125,
+        "p95": 0.0902,
+        "minimum": 0.0405,
+        "maximum": 0.2139
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.01243734375,
+        "p95": 0.0167,
+        "minimum": 0.0106,
+        "maximum": 0.0875
+      },
+      "gpu_total_ms": {
+        "mean": 1.3588552,
+        "p95": 1.543744,
+        "minimum": 1.332736,
+        "maximum": 1.898464
+      }
+    },
+    {
+      "name": "r32-before-1",
+      "samples": 640,
+      "columns": 3209,
+      "near_draws": [
+        1819
+      ],
+      "lod_tiles": [
+        489
+      ],
+      "triangles": [
+        1494656
+      ],
+      "descriptor_calls": 8,
+      "descriptor_writes": 31,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.0012153125,
+        "p95": 0.0019,
+        "minimum": 0.0007,
+        "maximum": 0.0057
+      },
+      "near_cpu_ms": {
+        "mean": 0.2485940625,
+        "p95": 0.3814,
+        "minimum": 0.2001,
+        "maximum": 2.2865
+      },
+      "lod_cpu_ms": {
+        "mean": 0.060829375,
+        "p95": 0.0963,
+        "minimum": 0.0454,
+        "maximum": 0.3125
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.01291828125,
+        "p95": 0.0214,
+        "minimum": 0.0105,
+        "maximum": 0.1313
+      },
+      "gpu_total_ms": {
+        "mean": 1.48109665,
+        "p95": 1.498048,
+        "minimum": 1.463776,
+        "maximum": 1.870272
+      }
+    },
+    {
+      "name": "r32-before-2",
+      "samples": 640,
+      "columns": 3209,
+      "near_draws": [
+        1819
+      ],
+      "lod_tiles": [
+        489
+      ],
+      "triangles": [
+        1494656
+      ],
+      "descriptor_calls": 8,
+      "descriptor_writes": 31,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.001194375,
+        "p95": 0.0017,
+        "minimum": 0.0007,
+        "maximum": 0.0055
+      },
+      "near_cpu_ms": {
+        "mean": 0.234905,
+        "p95": 0.3627,
+        "minimum": 0.2007,
+        "maximum": 0.5163
+      },
+      "lod_cpu_ms": {
+        "mean": 0.057790468750000004,
+        "p95": 0.0936,
+        "minimum": 0.0468,
+        "maximum": 0.2489
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.0123003125,
+        "p95": 0.0156,
+        "minimum": 0.0107,
+        "maximum": 0.0303
+      },
+      "gpu_total_ms": {
+        "mean": 1.4806819,
+        "p95": 1.498368,
+        "minimum": 1.463264,
+        "maximum": 1.8696
+      }
+    },
+    {
+      "name": "r32-before-3",
+      "samples": 640,
+      "columns": 3209,
+      "near_draws": [
+        1819
+      ],
+      "lod_tiles": [
+        489
+      ],
+      "triangles": [
+        1494656
+      ],
+      "descriptor_calls": 8,
+      "descriptor_writes": 31,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.001164375,
+        "p95": 0.0018,
+        "minimum": 0.0006,
+        "maximum": 0.0142
+      },
+      "near_cpu_ms": {
+        "mean": 0.228989375,
+        "p95": 0.373,
+        "minimum": 0.2013,
+        "maximum": 0.6609
+      },
+      "lod_cpu_ms": {
+        "mean": 0.0560303125,
+        "p95": 0.0959,
+        "minimum": 0.0463,
+        "maximum": 0.1631
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.0122965625,
+        "p95": 0.0194,
+        "minimum": 0.0105,
+        "maximum": 0.1241
+      },
+      "gpu_total_ms": {
+        "mean": 1.4790185,
+        "p95": 1.495328,
+        "minimum": 1.4632,
+        "maximum": 1.872416
+      }
+    },
+    {
+      "name": "r32-after-1",
+      "samples": 640,
+      "columns": 3209,
+      "near_draws": [
+        1819
+      ],
+      "lod_tiles": [
+        489
+      ],
+      "triangles": [
+        1494656
+      ],
+      "descriptor_calls": 0,
+      "descriptor_writes": 0,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.00012921875,
+        "p95": 0.0003,
+        "minimum": 0.0,
+        "maximum": 0.0005
+      },
+      "near_cpu_ms": {
+        "mean": 0.2395665625,
+        "p95": 0.3677,
+        "minimum": 0.2064,
+        "maximum": 0.6001
+      },
+      "lod_cpu_ms": {
+        "mean": 0.058749062500000004,
+        "p95": 0.0937,
+        "minimum": 0.0474,
+        "maximum": 0.2881
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.01228875,
+        "p95": 0.019,
+        "minimum": 0.0107,
+        "maximum": 0.0394
+      },
+      "gpu_total_ms": {
+        "mean": 1.48110275,
+        "p95": 1.603648,
+        "minimum": 1.463136,
+        "maximum": 1.864864
+      }
+    },
+    {
+      "name": "r32-after-2",
+      "samples": 640,
+      "columns": 3209,
+      "near_draws": [
+        1819
+      ],
+      "lod_tiles": [
+        489
+      ],
+      "triangles": [
+        1494656
+      ],
+      "descriptor_calls": 0,
+      "descriptor_writes": 0,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.0001509375,
+        "p95": 0.0003,
+        "minimum": 0.0,
+        "maximum": 0.0046
+      },
+      "near_cpu_ms": {
+        "mean": 0.2388278125,
+        "p95": 0.3684,
+        "minimum": 0.2032,
+        "maximum": 0.6624
+      },
+      "lod_cpu_ms": {
+        "mean": 0.06069140625,
+        "p95": 0.0955,
+        "minimum": 0.0466,
+        "maximum": 0.3115
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.012658593749999999,
+        "p95": 0.0192,
+        "minimum": 0.0105,
+        "maximum": 0.057
+      },
+      "gpu_total_ms": {
+        "mean": 1.48072335,
+        "p95": 1.496992,
+        "minimum": 1.463168,
+        "maximum": 1.85872
+      }
+    },
+    {
+      "name": "r32-after-3",
+      "samples": 640,
+      "columns": 3209,
+      "near_draws": [
+        1819
+      ],
+      "lod_tiles": [
+        489
+      ],
+      "triangles": [
+        1494656
+      ],
+      "descriptor_calls": 0,
+      "descriptor_writes": 0,
+      "scene_descriptor_cpu_ms": {
+        "mean": 0.00013125000000000002,
+        "p95": 0.0003,
+        "minimum": 0.0,
+        "maximum": 0.0004
+      },
+      "near_cpu_ms": {
+        "mean": 0.24241453124999998,
+        "p95": 0.3742,
+        "minimum": 0.2063,
+        "maximum": 1.3658
+      },
+      "lod_cpu_ms": {
+        "mean": 0.059162812499999995,
+        "p95": 0.0949,
+        "minimum": 0.0467,
+        "maximum": 0.2801
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.012301875,
+        "p95": 0.0197,
+        "minimum": 0.0107,
+        "maximum": 0.0445
+      },
+      "gpu_total_ms": {
+        "mean": 1.4798662500000002,
+        "p95": 1.492384,
+        "minimum": 1.461984,
+        "maximum": 1.872832
+      }
+    }
+  ],
+  "groups": [
+    {
+      "radius": 12,
+      "variant": "before",
+      "samples": 1920,
+      "descriptor_cpu_ms": {
+        "mean": 0.0013185937499999999,
+        "p95": 0.0021,
+        "minimum": 0.0006,
+        "maximum": 0.0276
+      },
+      "gpu_total_ms": {
+        "mean": 1.6435805833333332,
+        "p95": 1.78784,
+        "minimum": 1.62256,
+        "maximum": 2.0408
+      }
+    },
+    {
+      "radius": 12,
+      "variant": "after",
+      "samples": 1920,
+      "descriptor_cpu_ms": {
+        "mean": 0.00015796875000000001,
+        "p95": 0.0003,
+        "minimum": 0.0,
+        "maximum": 0.0055
+      },
+      "gpu_total_ms": {
+        "mean": 1.6525976666666666,
+        "p95": 1.882496,
+        "minimum": 1.621248,
+        "maximum": 2.179904
+      }
+    },
+    {
+      "radius": 24,
+      "variant": "before",
+      "samples": 1920,
+      "descriptor_cpu_ms": {
+        "mean": 0.00167984375,
+        "p95": 0.0019,
+        "minimum": 0.0006,
+        "maximum": 1.0832
+      },
+      "gpu_total_ms": {
+        "mean": 1.3513010666666667,
+        "p95": 1.368384,
+        "minimum": 1.331808,
+        "maximum": 1.927296
+      }
+    },
+    {
+      "radius": 24,
+      "variant": "after",
+      "samples": 1920,
+      "descriptor_cpu_ms": {
+        "mean": 0.00019406249999999998,
+        "p95": 0.0003,
+        "minimum": 0.0,
+        "maximum": 0.1341
+      },
+      "gpu_total_ms": {
+        "mean": 1.3521347833333333,
+        "p95": 1.380544,
+        "minimum": 1.331744,
+        "maximum": 1.898464
+      }
+    },
+    {
+      "radius": 32,
+      "variant": "before",
+      "samples": 1920,
+      "descriptor_cpu_ms": {
+        "mean": 0.0011913541666666665,
+        "p95": 0.0018,
+        "minimum": 0.0006,
+        "maximum": 0.0142
+      },
+      "gpu_total_ms": {
+        "mean": 1.4802656833333332,
+        "p95": 1.497536,
+        "minimum": 1.4632,
+        "maximum": 1.872416
+      }
+    },
+    {
+      "radius": 32,
+      "variant": "after",
+      "samples": 1920,
+      "descriptor_cpu_ms": {
+        "mean": 0.00013713541666666664,
+        "p95": 0.0003,
+        "minimum": 0.0,
+        "maximum": 0.0046
+      },
+      "gpu_total_ms": {
+        "mean": 1.4805641166666668,
+        "p95": 1.497344,
+        "minimum": 1.461984,
+        "maximum": 1.872832
+      }
+    }
+  ],
+  "performance_images": [
+    {
+      "radius": 12,
+      "repeat": 1,
+      "mean": 0.03692621527777778,
+      "maximum": 6,
+      "changed_fraction": 0.0765920138888889
+    },
+    {
+      "radius": 12,
+      "repeat": 2,
+      "mean": 0.0461953125,
+      "maximum": 6,
+      "changed_fraction": 0.09320138888888889
+    },
+    {
+      "radius": 12,
+      "repeat": 3,
+      "mean": 0.041373842592592594,
+      "maximum": 6,
+      "changed_fraction": 0.08322309027777777
+    },
+    {
+      "radius": 24,
+      "repeat": 1,
+      "mean": 0.2098472222222222,
+      "maximum": 14,
+      "changed_fraction": 0.2955625
+    },
+    {
+      "radius": 24,
+      "repeat": 2,
+      "mean": 0.2091490162037037,
+      "maximum": 14,
+      "changed_fraction": 0.29481163194444443
+    },
+    {
+      "radius": 24,
+      "repeat": 3,
+      "mean": 0.16676678240740742,
+      "maximum": 20,
+      "changed_fraction": 0.28010243055555556
+    },
+    {
+      "radius": 32,
+      "repeat": 1,
+      "mean": 0.24304947916666667,
+      "maximum": 28,
+      "changed_fraction": 0.3425295138888889
+    },
+    {
+      "radius": 32,
+      "repeat": 2,
+      "mean": 0.1639320023148148,
+      "maximum": 20,
+      "changed_fraction": 0.27794444444444444
+    },
+    {
+      "radius": 32,
+      "repeat": 3,
+      "mean": 0.04894415509259259,
+      "maximum": 5,
+      "changed_fraction": 0.11473003472222222
+    }
+  ],
+  "decision": "accepted: all nine pairs reduced descriptor preparation CPU time; no measured GPU/FPS improvement",
+  "final": {
+    "exe_sha256": "D7AA96421842643C3BFDC8AA5752C5C4304A5C17C21C73AE0DE798203B41DB95",
+    "package_settings_preserved": true,
+    "unchanged_spirv_files": 24,
+    "before_exe_sha256": "9CC53BADB8C7054D66225043872E52A5923F3BD8D74B546FA8588F5DAE4E9060",
+    "settings_sha256": "285B798EADAB3BBBB17C90CE7910A6431CBFACF1314814659A3BEAFC38A61CF4",
+    "source_sha256": {
+      "src\\render\\scene_effects.cpp": "A25B537CFA0C0FDB00069576172227AE29706711249E5A6B4AB2E27B91300105",
+      "src\\render\\scene_effects.hpp": "521EFA8DD908C7A54EFD00B3D5860D1CFD0D5410A60F61CF3B590A227FE696D8",
+      "src\\world\\world_view.hpp": "8BA02BA6BB0DB503C438417E12FA60F06A71585CD27EE145AD3FA475EC374DC6",
+      "src\\main.cpp": "460FA1F3BAABF0545DBDB753DD462D2E6EA14CCAD5EB8C5C2DE2DA1153DA8213"
+    }
+  }
+}
