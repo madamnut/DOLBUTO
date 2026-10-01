@@ -146,7 +146,20 @@ F3 우상단의 **RAM**은 게임 프로세스가 실제 RAM에 올려 둔 메�
 
 ## 소스에서 실행
 
-Windows SDK 및 C++ 빌드 도구(Visual Studio의 **C++를 사용한 데스크톱 개발** 구성), Vulkan SDK, PowerShell 7을 준비하세요. 프로젝트 루트에서 다음을 실행합니다.
+Windows x64 PC에서 저장소를 내려받은 뒤 루트의 **`build.bat`를 더블클릭**하세요. Windows 기본 PowerShell로 시작하므로 PowerShell 7을 미리 설치할 필요는 없습니다.
+
+1. 필요한 빌드 도구와 라이브러리의 설치 여부·버전을 표시합니다.
+2. 빠진 항목이 있으면 다운로드 대상, 설치 위치, 관리자 권한 필요 여부를 안내합니다.
+3. `다운로드 및 설치할까요? [y/N]`에서 **`y`를 입력한 경우에만** 다운로드·설치합니다. Enter 또는 `n`은 취소이며 다운로드하지 않습니다.
+4. 준비가 끝나면 환경을 다시 확인하고 Release 빌드와 패키징을 진행합니다. 이미 준비된 도구는 재사용합니다.
+
+필요한 항목은 PowerShell 7, LLVM 23.1.0, Visual Studio 2022 이상의 C++ 도구와 Windows SDK, CMake 3.26 이상, Ninja 1.10 이상, Vulkan SDK 1.4.341 이상의 셰이더 컴파일러·검증 레이어입니다. 프로젝트 라이브러리는 지정된 버전으로 준비합니다.
+
+PowerShell과 LLVM은 필요할 때 프로젝트의 `.tools`에, 라이브러리와 다운로드 캐시는 `.cache`에 보관합니다. 이 폴더들은 Git 업로드에서 제외됩니다. Visual Studio Build Tools 2022와 Vulkan SDK는 시스템에 설치하며 관리자 권한 확인이 나타날 수 있습니다. Build Tools는 2022 채널의 최신 서비스 버전을 사용합니다. 준비에는 인터넷과 수 GB 이상의 여유 공간이 필요할 수 있습니다. 설치에 동의하면 해당 도구의 라이선스 동의 옵션을 사용합니다. 재부팅이 필요하다는 안내가 나오면 재부팅 후 다시 실행하세요.
+
+직접 도구를 설치해도 됩니다. **다운로드 없이 검사만** 하려면 `build.bat --check`, **다운로드 없이 빌드**하려면 `build.bat --no-download`를 실행하세요. 후자는 필요한 항목이 없으면 즉시 중단합니다.
+
+PowerShell에서 준비만 하거나 빌드 구성을 선택할 수도 있습니다.
 
 ```powershell
 ./tools/setup.ps1
@@ -154,6 +167,29 @@ Windows SDK 및 C++ 빌드 도구(Visual Studio의 **C++를 사용한 데스크�
 ./tools/run.ps1 -Preset release
 ```
 
-첫 준비 과정에는 인터넷 연결이 필요합니다. 결과는 `build/release/bin`에 생성됩니다.
+`setup.ps1`과 `build.ps1`도 같은 설치 선택을 제공합니다. 결과는 `build/release/bin`에 생성됩니다. `setup.ps1 -Check`는 검사만, `setup.ps1 -NoDownload`는 다운로드 없이 준비 여부만 확인합니다.
 
-준비가 끝난 뒤에는 루트의 **`build.bat`를 더블클릭**해도 됩니다. 배포용 빌드를 실행하고 성공하면 `out/DOLBUTO`를 갱신합니다. 실패하면 해당 단계에서 멈추며, 결과 창은 키를 누를 때까지 유지됩니다. 완성된 게임은 `out/DOLBUTO/DOLBUTO.exe`로 실행하세요.
+**`build.bat`는 빌드 성공 후 `out/DOLBUTO`를 갱신합니다.** 실패하면 해당 단계에서 멈추며, 더블클릭으로 연 결과 창은 키를 누를 때까지 유지됩니다. 완성된 게임은 `out/DOLBUTO/DOLBUTO.exe`로 실행하세요.
+
+## 창 없이 렌더링·계측하기
+
+`--headless`를 붙이면 창을 만들지 않고 바로 월드에 진입해 **1280×900 GPU 이미지**에 렌더링합니다. 일반 실행과 같은 월드·그래픽 효과·HUD를 사용하며 Vulkan 지원 GPU와 드라이버, 실행 파일 옆의 `assets`·`shaders`가 필요합니다.
+
+저장소 루트의 PowerShell에서 다음처럼 실행하세요. PNG와 CSV의 상대 경로는 명령을 실행한 폴더 기준입니다.
+
+```powershell
+./out/DOLBUTO/DOLBUTO.exe --headless --frames 600 --capture ./out/headless.png
+./out/DOLBUTO/DOLBUTO.exe --headless --seconds 10 --capture ./out/timed.png
+./out/DOLBUTO/DOLBUTO.exe --headless --render-distance 2 --profile-gpu ./out/gpu.csv --profile-samples 600 --profile-view 193.6 -90 -22 12 --capture ./out/profile.png
+```
+
+- `--frames N`은 렌더링할 최대 프레임 수, `--seconds N`은 렌더 루프의 시간 상한입니다. 함께 지정하면 먼저 도달한 쪽에서 종료합니다. 일반 캡처는 종료 직전 프레임을 저장하며, 시간 제한에 도달하면 캡처용 마지막 프레임을 한 번 더 렌더링할 수 있습니다.
+- `--headless`만 실행하면 300프레임 후 종료합니다. 제한 없이 `--capture`만 추가하면 기존 캡처 기본값인 100프레임을 사용합니다.
+- `--profile-gpu`는 월드 로딩 후 준비 프레임을 거쳐 GPU 단계별 시간을 CSV에 기록합니다. 기본 측정량은 600프레임, 기본 시간 상한은 120초입니다. `--profile-view` 값은 카메라 높이·방향각·상하각·게임 시각입니다. 측정량을 채우기 전에 종료하면 실패로 처리합니다. 워밍업 기록도 포함하므로 비교할 때 `steady=1` 행을 사용하세요.
+- `--profile-gpu`에 `--profile-draws ./out/draws.csv`를 함께 추가하면 일반 지형·LOD의 CPU 순회/컬링/명령 기록 시간과 실제 그리기·데이터 연결 호출 수를 별도 CSV에 기록합니다. GPU 실행 시간과는 다른 값이며 그림자·물·플레이어 그리기는 이 CPU 측정에서 제외합니다. 이 옵션은 LOD 생성·GPU 업로드까지 완료된 뒤 240프레임 워밍업을 거칩니다. 큰 거리에서 시간이 부족하면 `--seconds 300`처럼 상한을 늘리세요. CPU/GPU CSV는 서로 다른 파일명을 사용하고, 양쪽의 `frame`과 `steady`로 대조할 수 있습니다. `--lod-debug`와는 함께 사용할 수 없습니다.
+- 실행 파일 옆의 설정을 읽되 헤드리스 실행 중에는 VSync와 FPS 제한을 끕니다. 설정 파일은 변경하지 않습니다. 키보드·마우스 입력도 받지 않습니다.
+- `--validation`을 추가하면 설치된 Vulkan 검증 레이어로 오류를 확인합니다. 정상 완료는 종료 코드 0, 실행 오류·요청한 캡처 실패·GPU 측정 미완료는 1입니다.
+
+헤드리스 계측은 화면 표시와 창 관리 비용을 포함하지 않습니다. 최적화 전후 비교에는 같은 설정·시점·해상도를 사용하고, 실제 플레이 FPS와 화면 표시는 일반 창 모드에서도 확인하세요. 지형과 LOD는 비동기로 준비되므로 짧은 고정 프레임 실행이 전체 로딩 완료를 보장하지는 않습니다.
+
+CPU CSV의 `world_prepare_cpu_ms`는 월드 준비·업로드 명령 기록 시간을 나타냅니다. 그리기 시간을 줄인 변경이 준비 비용을 늘렸는지 확인할 때 함께 비교하세요.

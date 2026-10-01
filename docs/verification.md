@@ -1,5 +1,38 @@
 # 검증 기록
 
+## LOD 그리기 목록 재사용 전후 비교 (2026-10-01)
+
+- active scene/coverage 변경 시 그릴 LOD 목록과 map 노드 참조를 재구축하도록 변경. Release before/after 동일 계측으로 거리12/24/32 각각3회씩 총18회/10,800steady 프레임 비교. 전 실행exit0, CPU/GPU frame 및 카운터 일치, Vulkan/UI/texture 오류0.
+- LOD CPU 평균(ms) 전→후: 거리12 0.153637→0.053059(65.5% 감소), 거리24 0.412085→0.053375(87.0%), 거리32 0.636444→0.092912(85.4%). 월드 준비+일반+LOD CPU 합도41.4/62.6/48.4% 감소. GPU 시간은 사실상 동일하며 FPS 개선율을 의미하지 않는다.
+- 별도 validation ON 전후60steady: exit0/Vulkan errors0, 기존 셰이더 미사용 출력 warnings10, UI/texture0. 그림자 원본4종 및 extent SHA256 일치. 삼각형/타일 카운터 일치, 거리32 PNG 시각 확인. PNG는 픽셀 완전 동일하지 않으며 평균 절대 채널 차이 최대0.4005/255.
+- 빌드 로그 build/lod-compare-before-build.log 및 build/lod-compare-after-build.log. 최종 SHA256 B571557C96AB860B7376021DD79DE80DD2335F448B91D686090BAD8567A411CF. clang-format/git diff --check 및 패키징, 격리 설정 해시 보존 확인.
+- [상세 조건·결과·한계](lod-draw-cache-2026-10-01.md), 통계 docs/benchmarks/lod-draw-cache-2026-10-01-summary.json. 고정 평지 기준이며 이동·편집·재생성·물 장면 실환경 검증 없음. 자동 테스트/CTest/CU/합성 입력 없음.
+
+## 일반 지형·LOD CPU 그리기 계측 (2026-10-01)
+
+- `--profile-draws` 구현·Release 빌드. 초기 Windows near 매크로와 멤버 이름 충돌을 수정한 뒤 성공했다. 로그 build/draw-profile-build-final.log, build/draw-profile-build-final-metadata.log. 최종 바이너리 SHA256 0E45168E4C1C8DDD2AC48388BAFF29F01D4C42BA9C139A46F6206E36A94D972B.
+- 고정1280×900/평지/LOD64/validation OFF에서 근거리12/24/32 각각3회, 총5400steady 표본을 비교했다. near CPU 평균0.036619/0.286185/0.543226ms, LOD0.152868/0.407559/0.625994ms. draw 수는 near209/1017/1819, LOD403~405/449~450/490~491. 전 실행exit0, 근거리와LOD 로딩 완료, CPU/GPU frame 대조 및 카운터 산술 확인. 최적화 전후 비교가 아닌 현재 비용 측정이다.
+- 최종 빌드 validation ON/LOD ON 계측, LOD OFF 계측, 옵션 없는 일반 메뉴가 모두 exit0/Vulkan errors0/UI0/texture0. 월드의 기존 셰이더 출력 경고10개는 유지된다. 옵션 누락/동일 출력/불충분 프레임/CPU 저장 실패는 모두 exit1. 거리32 자체 PNG 시각 확인. 사용자 배포 설정 변경 없이 격리 런타임 사용, 자동 테스트/CTest/CU/합성 입력 없음.
+- 조건·원본 위치·한계·후속 제안은 [상세 기록](draw-profile-2026-10-01.md), 통계는 docs/benchmarks/draw-profile-2026-10-01-summary.json. 배포 로그 build/draw-profile-package.log.
+
+## Vulkan 헤드리스 실행 (2026-10-01)
+
+- 현재 PC의 로컬 도구로 Release 증분 빌드·패키징 성공: build/headless-build.log, build/headless-build-final.log, build/headless-package.log. 프로젝트 소스 컴파일 경고/오류 없음. build/release/bin과 out/DOLBUTO 실행 파일 SHA256은 D16DC42893E495334AC902180F26D796328A5798D6C2AD40E36BD41835DE2336로 동일하다. clang-format --dry-run --Werror와 git diff --check 통과. 아래 실행은 build/release/headless-inspection 격리 복사본에서 명시적 CLI로 수행했으며 자동 테스트/CTest/CU/합성 입력은 추가하거나 사용하지 않았다.
+- NVIDIA GeForce RTX 5060/Vulkan1.4. `SDL_VIDEODRIVER=unavailable-headless-check`를 현재 자식 프로세스에만 지정해도 `--headless --frames 120 --validation --debug-ui --capture` exit0. 1280×900 PNG에서 지형·그림자·HUD·F3와 HEADLESS 표시 시각 확인. Vulkan errors0/warnings10, UI issues0, texture failures0. 경고는 기존 셰이더 미사용 출력이며 아래 창 모드에서도10개로 동일하다.
+- 최종 실행 파일로 headless/창 모드 각각 `--profile-gpu ... --profile-samples 60 --profile-view 193.6 -90 -22 12 --seconds 30 --validation --capture ...` 실행 exit0. 격리 설정은 렌더 거리2/LOD ON·거리16/VSync ON/FPS30이며 헤드리스만 제한을 무시했다. 각327프레임/steady60/19개 CSV 단계, 13컬럼·그린 청크7, 종료 시 LOD pending0. terrain-headless.png와 terrain-window.png에서 지형·그림자·HUD 정상 표시를 직접 확인했다. 픽셀 완전 동일이나 최적화 개선을 주장하지 않는다. 일반 창은 FIFO 표시 경로를 사용했다.
+- 헤드리스 `--seconds 0.2 --capture` exit0 및 마지막 PNG 저장; `--profile-world --seconds 5 --capture`는 27프레임에 컬럼 공개 완료 후 PNG/CSV 저장, exit0; `--headless --validation` 단독 실행은 정확히300프레임 후 exit0. 이들 모두 Vulkan errors0/UI issues0/texture failures0.
+- 실패 경로: GPU profile을 --frames1로 중단하면 불충분한 샘플 오류 및 exit1(부분 CSV 보존). 기존 파일 아래에 PNG를 저장하려 하면 저장 실패 및 exit1. --seconds NaN은 초기화 전 명확한 오류 및 exit1.
+- 격리 settings.json SHA256은 실행 전후 C21F200BC7CEDF1FD8CF9EE31AE61E226D1B15673945D8B883494F48FE33A287로 동일했다. 배포 폴더에는 기존 settings/worldgen JSON이 없었으며 진단용 설정은 격리 폴더에만 썼다. 물 없는 현재 돌 평지에서 검증했으므로 물 표현/입력 조작·resize/모니터가 물리적으로 연결되지 않은 PC/다른 GPU 검증은 수행하지 않았다.
+
+## 새 PC 빌드 도구 준비 (2026-10-01)
+
+- Windows 기본 PowerShell 5.1로 모든 tools/*.ps1 구문 분석 성공. 수정된 준비/환경/빌드 스크립트는 PowerShell 7에서도 구문 분석 성공.
+- 실제 현재 PC에서 build.bat --check 실행: PowerShell 7.6.5 재사용, MSVC/Windows SDK/CMake/Ninja/LLVM/Vulkan 및 13개 라이브러리 각각 준비 필요 표시. PowerShell 5.1의 ConvertFrom-Json 배열 출력 차이로 라이브러리가 한 행에 합쳐지던 문제를 수정하고 재확인했다.
+- build.bat --no-download 실행은 누락 목록을 출력하고 exit2. .tools와 .cache가 생성되지 않았음을 확인했다. 이 경로는 컴파일/설치로 넘어가지 않았다.
+- setup.ps1을 Windows PowerShell -NonInteractive로 실행하여 실제 준비 계획·설치 위치·관리자 권한·라이선스 안내 출력을 확인했다. 입력 불가 시 exit1로 중단하고 다운로드하지 않았다. 대화형 y/N 입력 및 설치 성공/실패/UAC/재부팅 분기는 아직 실환경 검증 전이다.
+- 공식 PowerShell 7.6.5 ZIP과 LLVM 23.1.0 release asset의 SHA-256 메타데이터 확인, Vulkan SDK 1.4.341.1 공식 다운로드 URL의 HEAD 응답 200 확인. 도구 본체 다운로드 및 설치는 수행하지 않았다.
+- Release 빌드·패키징은 이 PC의 도구 다운로드/설치 선택이 필요하여 아직 미검증. 게임 소스/사용자 설정 변경, 자동 테스트 추가, 컴퓨터 유즈, 합성 UI 입력, commit/push 없음.
+
 ## 메인 메뉴 위치 하향 (2026-09-27)
 
 - main.rcss만 레이아웃 조정: 타이틀 top18%, 메뉴 상대 top15%; 작은 화면 타이틀 top12%. 옵션은 기존 중앙 배치를 유지한다.

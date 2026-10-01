@@ -1,4 +1,5 @@
 #pragma once
+#include "render/draw_stats.hpp"
 #include "render/scene_effects.hpp"
 #include "world/lod.hpp"
 #include <map>
@@ -23,6 +24,11 @@ class LodRenderer {
     size_t gpu_bytes() const { return *allocated_; }
     size_t queued() const { return pending_ ? pending_->meshes.size() - cursor_ : 0; }
     size_t tiles{}, triangles{};
+    bool profile_draws{};
+    DrawStats draw_stats;
+    bool caught_up(const std::shared_ptr<const LodScene>& scene) const {
+        return scene && active_ && !pending_ && accepted_ == scene->revision;
+    }
 
   private:
     struct Key {
@@ -38,6 +44,10 @@ class LodRenderer {
         std::vector<Part> parts;
         uint32_t faces{};
     };
+    struct DrawMesh {
+        LodKey key;
+        const Mesh* mesh;
+    };
     Renderer& renderer_;
     SceneEffects& effects_;
     std::array<glm::vec4, 11> palette_;
@@ -51,6 +61,8 @@ class LodRenderer {
     VkPipeline solid_{}, debug_{}, shadow_{}, water_{}, water_depth_{};
     bool water_visible_{};
     std::map<Key, Mesh> meshes_;
+    // Stable map nodes, retained by active_; rebuilt before collect can erase old nodes.
+    std::vector<DrawMesh> draw_meshes_;
     std::shared_ptr<const LodScene> active_, pending_;
     uint64_t accepted_{};
     size_t cursor_{};
@@ -59,6 +71,7 @@ class LodRenderer {
     void record(const glm::mat4& matrix, glm::dvec3 camera, int radius, bool lod_debug, int shadow_layer,
                 int shadow_distance, VkPipelineLayout layout, bool water_only);
     void collect();
+    void rebuild_draw_meshes();
     void shutdown();
 };
 } // namespace sandbox

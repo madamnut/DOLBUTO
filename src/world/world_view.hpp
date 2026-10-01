@@ -48,6 +48,16 @@ class WorldView {
     void cycle_camera();
     void prepare(); // Record uploads outside rendering, after Renderer::begin_frame.
     void render();  // Begin world rendering, then switch to the depth-free UI pass.
+    void enable_draw_profile() { profile_draws_ = lod_renderer_->profile_draws = true; }
+    const DrawStats& near_draw_stats() const { return near_draw_stats_; }
+    const DrawStats& lod_draw_stats() const { return lod_renderer_->draw_stats; }
+    bool draw_profile_ready() const {
+        if (!graphics_settings_.lod)
+            return true;
+        const auto stats = lod_cache_->stats();
+        return !stats.pending && !stats.paused && !stats.memory_limited &&
+               lod_renderer_->caught_up(lod_cache_->scene());
+    }
     size_t visible_columns() const { return visible_columns_; }
     size_t pending_columns() const { return stream_->pending(); }
     LodStats lod_stats() const { return lod_cache_->stats(); }
@@ -94,6 +104,8 @@ class WorldView {
     double generation_ms{}, lighting_ms{}, meshing_ms{}, upload_cpu_ms{};
 
   private:
+    bool profile_draws_{};
+    DrawStats near_draw_stats_;
     struct FacePool {
         VkDescriptorPool handle{};
         uint32_t available{1024};

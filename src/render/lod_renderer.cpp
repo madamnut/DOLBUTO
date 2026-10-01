@@ -74,6 +74,7 @@ LodRenderer::LodRenderer(Renderer& renderer, SceneEffects& effects, const std::a
 LodRenderer::~LodRenderer() { shutdown(); }
 void LodRenderer::shutdown() {
     // 호출자는 GPU idle 후 또는 이전 사용이 끝난 프레임에서만 소멸한다.
+    draw_meshes_.clear();
     for (auto& [key, mesh] : meshes_) {
         for (const auto& part : mesh.parts)
             renderer_.destroy_buffer(part.buffer);
@@ -183,6 +184,7 @@ VkPipeline LodRenderer::pipeline(bool debug, bool shadow, bool water, bool depth
     return result;
 }
 void LodRenderer::clear() {
+    draw_meshes_.clear();
     active_.reset();
     pending_.reset();
     accepted_ = cursor_ = 0;
@@ -211,6 +213,25 @@ void LodRenderer::collect() {
         it = meshes_.erase(it);
     }
 }
+void LodRenderer::rebuild_draw_meshes() {
+    draw_meshes_.clear();
+    if (!active_)
+        return;
+    draw_meshes_.reserve(active_->meshes.size());
+    for (const auto& source : active_->meshes) {
+        const auto key = source->key;
+        // Same coverage rule as record; the mask/centre is shared by all passes.
+        if (key.level == 0) {
+            const int x = column_delta(key.x, coverage_centre_.x) + 64,
+                      z = column_delta(key.z, coverage_centre_.z) + 64;
+            if (x >= 0 && x < 129 && z >= 0 && z < 129 && published_[x + z * 129])
+                continue;
+        }
+        const auto it = meshes_.find({key, source->revision});
+        if (it != meshes_.end())
+            draw_meshes_.push_back({key, &it->second});
+    }
+}
 void LodRenderer::prepare(std::shared_ptr<const LodScene> scene, ColumnKey centre,
                           std::span<const ColumnKey> published, bool lod_debug) {
     Coverage data;
@@ -221,6 +242,7 @@ void LodRenderer::prepare(std::shared_ptr<const LodScene> scene, ColumnKey centr
         if (x >= 0 && x < 129 && z >= 0 && z < 129)
             data.mask[x + z * 129] = 1;
     }
+    const bool coverage_changed = centre != coverage_centre_ || data.mask != published_;
     coverage_centre_ = centre;
     published_ = data.mask;
     auto& coverage = coverage_[renderer_.frame_slot()];
@@ -267,11 +289,17 @@ void LodRenderer::prepare(std::shared_ptr<const LodScene> scene, ColumnKey centr
     if (pending_ && cursor_ == pending_->meshes.size()) {
         active_ = std::move(pending_);
         accepted_ = active_->revision;
+        rebuild_draw_meshes();
         collect();
-    }
+    } else if (coverage_changed)
+        rebuild_draw_meshes();
 }
 void LodRenderer::draw(const glm::mat4& matrix, glm::dvec3 camera, int radius, bool lod_debug,
                        int shadow_layer, int shadow_distance) {
+    const bool measure = profile_draws && shadow_layer < 0;
+    const auto start = measure ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+    if (measure)
+        draw_stats = {};
     if (shadow_layer < 0) {
         tiles = triangles = 0;
         water_visible_ = false;
@@ -281,7 +309,12 @@ void LodRenderer::draw(const glm::mat4& matrix, glm::dvec3 camera, int radius, b
                       : lod_debug       ? debug_
                                         : solid_);
     effects_.bind_environment(layout_, 2);
+    if (measure)
+        ++draw_stats.descriptor_binds;
     record(matrix, camera, radius, lod_debug, shadow_layer, shadow_distance, layout_, shadow_layer == 0);
+    if (measure)
+        draw_stats.cpu_ms =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 }
 void LodRenderer::draw_water(const glm::mat4& matrix, glm::dvec3 camera, int radius,
                              VkPipelineLayout water_layout) {
@@ -303,23 +336,18 @@ void LodRenderer::record(const glm::mat4& matrix, glm::dvec3 camera, int radius,
     const auto cmd = renderer_.command;
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 1, 1,
                             &sets_[renderer_.frame_slot()], 0, nullptr);
+    const bool measure = profile_draws && shadow_layer < 0 && !water_only;
+    if (measure)
+        ++draw_stats.descriptor_binds;
     const auto rows = glm::transpose(matrix);
     const std::array<glm::vec4, 6> planes{rows[3] + rows[0], rows[3] - rows[0], rows[3] + rows[1],
                                           rows[3] - rows[1], rows[2],           rows[3] - rows[2]};
-    for (const auto& source : active_->meshes) {
-        const auto it = meshes_.find({source->key, source->revision});
-        if (it == meshes_.end())
-            continue;
-        if (water_only && std::none_of(it->second.parts.begin(), it->second.parts.end(),
+    for (const auto& entry : draw_meshes_) {
+        const auto& mesh = *entry.mesh;
+        if (water_only && std::none_of(mesh.parts.begin(), mesh.parts.end(),
                                        [](const Part& part) { return part.faces > part.solid_faces; }))
             continue;
-        const auto key = source->key;
-        if (key.level == 0) {
-            const int x = column_delta(key.x, coverage_centre_.x) + 64,
-                      z = column_delta(key.z, coverage_centre_.z) + 64;
-            if (x >= 0 && x < 129 && z >= 0 && z < 129 && published_[x + z * 129])
-                continue;
-        }
+        const auto key = entry.key;
         const float step = float(1 << key.level), width = step * 16;
         const glm::vec3 offset{world_delta(key.x * 16.0, camera.x), -camera.y,
                                world_delta(key.z * 16.0, camera.z)};
@@ -341,8 +369,10 @@ void LodRenderer::record(const glm::mat4& matrix, glm::dvec3 camera, int radius,
                                   float(shadow_layer))};
         vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                            sizeof(push), &push);
+        if (measure)
+            ++draw_stats.pushes;
         const VkDeviceSize zero = 0;
-        for (const auto& part : it->second.parts) {
+        for (const auto& part : mesh.parts) {
             const uint32_t first = water_only ? part.solid_faces : 0;
             const uint32_t count = water_only  ? part.faces - part.solid_faces
                                    : lod_debug ? part.faces
@@ -353,10 +383,14 @@ void LodRenderer::record(const glm::mat4& matrix, glm::dvec3 camera, int radius,
                 continue;
             vkCmdBindVertexBuffers(cmd, 0, 1, &part.buffer.handle, &zero);
             vkCmdDraw(cmd, 6, count, 0, first);
+            if (measure) {
+                ++draw_stats.vertex_binds;
+                ++draw_stats.draws;
+            }
         }
         if (shadow_layer < 0 && !water_only) {
             ++tiles;
-            triangles += it->second.faces * 2;
+            triangles += mesh.faces * 2;
         }
     }
 }

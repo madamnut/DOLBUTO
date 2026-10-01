@@ -1461,9 +1461,17 @@ void WorldView::render() {
     VkRect2D scissor{{0, 0}, renderer_.extent};
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor);
+    const auto near_start =
+        profile_draws_ ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+    if (profile_draws_) {
+        near_draw_stats_ = {};
+        lod_renderer_->draw_stats = {};
+    }
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, lod_debug_ ? lod_debug_pipeline_ : pipeline_);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 0, 1, &atlas_.descriptor, 0,
                             nullptr);
+    if (profile_draws_)
+        ++near_draw_stats_.descriptor_binds;
     const auto planes = frustum(matrix);
     struct WaterDraw {
         const GpuChunk* mesh;
@@ -1496,6 +1504,11 @@ void WorldView::render() {
                 vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 1, 1, &mesh.descriptor,
                                         0, nullptr);
                 vkCmdDraw(cmd, 6, lod_debug_ ? mesh.count : mesh.solid_count, 0, 0);
+                if (profile_draws_) {
+                    ++near_draw_stats_.pushes;
+                    ++near_draw_stats_.descriptor_binds;
+                    ++near_draw_stats_.draws;
+                }
             }
             if (!lod_debug_ && mesh.ice_count) {
                 const auto centre = offset + glm::vec3(8);
@@ -1509,6 +1522,9 @@ void WorldView::render() {
             triangles += mesh.count * 2;
         }
     }
+    if (profile_draws_)
+        near_draw_stats_.cpu_ms =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - near_start).count();
     if (graphics_settings_.lod) {
         lod_renderer_->draw(matrix, camera.position, std::max(radius_, graphics_settings_.lod_distance),
                             lod_debug_);

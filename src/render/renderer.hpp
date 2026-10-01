@@ -32,7 +32,8 @@ class Renderer {
     ~Renderer();
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
-    void initialize(SDL_Window* window, bool validation);
+    // A null window selects real offscreen rendering, without a surface or swapchain.
+    void initialize(SDL_Window* window, bool validation, VkExtent2D offscreen_extent = {1280, 900});
     bool begin_frame();
     void begin_rendering(VkImageView depth = VK_NULL_HANDLE,
                          std::array<float, 4> sky = {0.48f, 0.69f, 0.86f, 1.0f}, bool preserve_depth = false);
@@ -43,7 +44,7 @@ class Renderer {
     void gpu_profile_frame(bool steady, uint32_t columns, uint32_t chunks, uint32_t triangles);
     void save_gpu_profile(const std::filesystem::path& path);
     void begin_ui();
-    // World-only HDR target; UI/screenshot/presentation always use the swapchain.
+    // World-only HDR target; UI/capture use either swapchain or owned offscreen images.
     void set_world_target(VkImage image, VkImageView view) {
         world_image_ = image;
         world_view_ = view;
@@ -134,6 +135,7 @@ class Renderer {
     std::array<Frame, frames_in_flight> frames_{};
     std::vector<VkImage> images_;
     std::vector<VkImageView> views_;
+    std::vector<VmaAllocation> offscreen_allocations_;
     // Presentation completion is tied to reacquiring each image, not a frame fence.
     std::vector<VkSemaphore> presented_;
     std::vector<Deferred> deferred_;
@@ -150,6 +152,7 @@ class Renderer {
     uint64_t submitted_serial_{}, completed_serial_{};
     VkDeviceSize upload_alignment_{};
     bool recording_{}, resize_requested_{}, vsync_requested_{};
+    bool headless_{};
     float timestamp_period_{};
     double gpu_ms_{};
     double upload_gpu_ms_{};
@@ -158,6 +161,7 @@ class Renderer {
     std::vector<GpuProfile> gpu_profiles_;
     void collect_gpu_profile(Frame& frame);
     void create_swapchain();
+    void create_offscreen_images(VkExtent2D size);
     void destroy_swapchain();
     void collect();
     UploadSlice stage_buffer(const void* data, VkDeviceSize size);

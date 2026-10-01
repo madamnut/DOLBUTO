@@ -1,5 +1,41 @@
 # 개발 환경 컨텍스트
 
+## LOD 그리기 목록 캐시 (2026-10-01)
+
+- LodRenderer::prepare에서 새 coverage 마스크와 중심을 기존 값과 비교한다. active scene 교체 또는 coverage 변화가 있을 때만 rebuild_draw_meshes를 호출한다. 불변 프레임에서는 그리기 패스마다 map 조회와 level0 근거리 중복 판정을 반복하지 않는다.
+- 목록은 active scene 순서를 유지하는 `{LodKey, const Mesh*}` 벡터다. 포인터는 meshes_의 std::map 노드로 삽입에 의해 무효화되지 않는다. collect는 active/pending scene의 키를 보존하며 새 active 목록 재구축 뒤에만 실행한다. clear/shutdown에서는 캐시를 먼저 비운다. 미완성 pending scene을 그리기 목록에 섞지 않는다.
+- 시야/그림자 거리 컬링은 여전히 record에서 현재 카메라/행렬로 매번 계산한다. water_only의 재질 검사도 같은 메시에서 수행한다. coverage 판정식, 컬링 판정식, 그리기 순서, shaders, part 분할, GPU 버퍼의 deferred 파괴는 바꾸지 않는다.
+- CPU CSV 끝에 world_prepare_cpu_ms를 추가했다. WorldView::prepare가 이미 기록하던 값을 복사하며 새로운 타이머는 없다. 목록 재구축 비용을 그리기 구간에서 준비 구간으로 옮겨 숨기지 않도록 전후 모두 이 항목을 기록한다. 세 CPU 구간의 합은 전체 프레임 시간이 아니다.
+
+## 주 화면 지형 그리기 계측 (2026-10-01)
+
+- `--profile-gpu gpu.csv --profile-draws draws.csv`로 CPU/호출 계측을 함께 켠다. GPU CSV 스키마는 유지한다. draw CSV는 frame/steady/해상도/렌더거리/컬럼/LOD타일/LOD대기 및 near/lod 각각 cpu_ms/draws/descriptor_binds/vertex_binds/pushes를 저장한다. 명시적 옵션 없이는 새 clock 호출/카운터 증가/CSV 누적을 하지 않는다.
+- DrawStats는 주 화면 고체 지형만 계측한다. near_cpu_ms는 world_view.cpp의 파이프라인·atlas 연결부터 컬럼/청크 순회·컬링·push/descriptor/draw·투명체 목록 구성까지 포함한다. lod_cpu_ms는 LodRenderer::draw의 파이프라인/환경 연결부터 record의 타일 순회·컬링·메시 조회·분할 버퍼별 draw까지 포함한다. per-draw 타이머 대신 구간당 시작/종료만 재며 두 시간은 겹치지 않는다. CPU 소요시간에는 OS 스케줄링 지연도 들어간다.
+- GPU 큐 제출/대기, 업로드, 그림자/물/얼음 별도 패스, 플레이어와 UI는 위 CPU 구간 밖이다. CPU와 GPU 시간은 실행이 겹치므로 더해서 FPS로 해석하지 않는다. GPU opaque_terrain_player에는 플레이어도 포함되므로 CPU 합과 범위도 다르다.
+- 그리기 수는 vkCmdDraw 실제 호출 위치에서 센다. near descriptor는 atlas1+그리는 청크당1, push는 청크당1; LOD descriptor는 환경1+coverage1, push는 컬링 통과 타일당1, vertex bind/draw는 그릴 면이 있는 part당1이다. LOD 타일 수와 호출 수를 혼동하지 않는다. 물/그림자 호출은 같은 record를 재사용하지만 진단 카운터에 합산하지 않는다.
+- draw 옵션의 steady 조건은 기존 near ready 조건에 LOD pending0/paused false/memory_limited false/최신 scene revision 업로드 완료를 추가한다. 그 상태240프레임 후 측정한다. 메모리 예산 때문에 완료할 수 없는 경우 성공으로 오인하지 않고 시간 상한에서 샘플 부족으로 exit1, 부분 CPU/GPU CSV를 보존한다. 기존 GPU 단독 실행의 ready 조건은 바꾸지 않는다.
+- CPU CSV는 GPU/월드/PNG와 같은 정규화 경로를 거부하며 GPU 옵션 누락·초기 LOD 디버그와의 조합도 거부한다. 시간 제한 및 미완료 오류는 기존 GPU 프로필 정책을 공유한다. CPU 저장 실패는 exit1이다. 창 모드도 사용 가능하지만 비교는 고정 시점 headless/validation OFF로 수행한다.
+
+## Vulkan 헤드리스 실행 (2026-10-01)
+
+- `DOLBUTO.exe --headless`는 SDL EVENTS만 초기화하고 Renderer::initialize(nullptr, ...)로 직접 Vulkan 인스턴스/그래픽 큐를 만든다. surface 확장·present 지원·VK_KHR_swapchain은 요구/활성화하지 않는다. Vulkan 1.4와 기존 렌더 기능 요구는 유지한다.
+- BGRA8 UNORM COLOR_ATTACHMENT|TRANSFER_SRC VMA 이미지 2장을 사용한다. 각 frame fence를 기다린 뒤 동일 슬롯의 이미지를 재사용하며 acquire/present semaphore와 PRESENT 레이아웃 전환은 생략한다. 이미지 뷰 파괴 후 VMA 이미지를 해제한다. 일반 창의 swapchain/resize/present 경로는 그대로 유지한다.
+- RmlUi는 타이머·로그용 headless SystemInterface, ImGui는 DisplaySize/DeltaTime을 직접 제공한다. SDL 입력/플랫폼 백엔드는 창 모드에서만 사용하며 실제 UI 렌더러·WorldView·HDR/후처리·캡처·GPU query 경로는 공유한다.
+- 해상도 1280×900, DPI1, 월드 자동 진입. 저장 설정을 읽지만 VSync/FPS 제한은 메모리에서만 끄며 사용자 파일을 저장하지 않는다. headless만 지정 시 300프레임, 제한 없는 PNG 캡처는 기존100프레임, GPU 계측은 기존600 steady samples/120초를 사용한다. 시간 제한 캡처는 한 마지막 프레임, world profile 완료 캡처는 완료 프레임에 저장한다.
+- 사용자용 실행 예시는 루트 README의 헤드리스 절. `--profile-gpu`와 `--profile-view 193.6 -90 -22 12`를 조합하면 현재 돌 평지에서 지형이 보이는 고정 시점을 얻는다. 시드/설정/해상도/위치를 맞춰 비교하되 headless 시간에 presentation은 포함되지 않는다. steady 판정은 기존 근거리 컬럼/조명/업로드와 240프레임 워밍업 기준이며 LOD 전체 완료를 별도로 보장하지 않는다. 현재 자연 물이 없는 평지는 물 효과의 시각 검증용 fixture가 아니다.
+
+## 새 PC 준비 진입점 (2026-10-01)
+
+- build.bat → Windows PowerShell 5.1 호환 setup.ps1 → 사용자 동의 → 도구 준비 → PowerShell 7의 build.ps1 -NoDownload → package.ps1. 직접 build.ps1 호출도 setup의 동일한 선택으로 연결된다.
+- toolchain.ps1은 네트워크/파일 쓰기 없이 버전 및 실제 도구·SDK 파일을 검사한다. setup -Check / build.bat --check는 준비됨 0, 부족함 1. 거절 또는 -NoDownload로 준비 불가 시 2. 기타 실패 1. --check/--no-download는 pause하지 않는다.
+- PowerShell 부족 시 7.6.5 ZIP을 프로젝트에 설치한다. SHA-256은 공식 GitHub release asset digest. LLVM 23.1.0과 의존성 lock/hash는 기존 값을 유지한다. PowerShell >=7, CMake >=3.26, Ninja >=1.10, VS >=2022, Windows SDK >=19041, Vulkan header >=1.4.341을 재사용한다. LLVM은 정확한 버전과 lld-link를 요구한다.
+- Build Tools 2022의 VC workload, x64/x86 C++ 도구, CMake 프로젝트 도구 및 Windows SDK 22621을 공식 bootstrapper로 추가한다. 기존 Build Tools 2022가 있으면 modify, 없으면 해당 제품을 추가 설치한다. 타 VS 제품은 변경하지 않는다. 2022 서비스 버전은 고정되지 않는다. SDK/설치 캐시는 Microsoft 공용 위치에도 생긴다.
+- Vulkan SDK 자동 설치 버전은 1.4.341.1. Microsoft/LunarG 설치 EXE는 유효한 Authenticode 및 게시자 이름 확인 후 관리자 권한으로 실행한다. 라이선스 자동 동의와 시스템 변경을 확인 문구에 명시한다. 재부팅 반환 시 자동 재부팅/후속 빌드 없이 중단한다.
+- 다운로드 helper는 동의 후에만 로드한다. 임시 파일을 검증 후 캐시에 반영한다. 불일치/불완전 의존성 소스는 캐시 안에서 backup-GUID로 보존하고 새로 준비한다. marker는 압축 해제 성공 후 작성한다.
+- environment.ps1은 같은 감지 결과를 재사용하고 개발 환경 및 PATH/VULKAN_SDK를 현재 프로세스에만 적용한다. 설치 직후 새 SDK 환경 변수도 레지스트리 기반 환경값에서 재탐색한다.
+- Windows x64 지원이며 macOS/Linux/ARM64 자동 준비는 미지원. Windows 기본 tar.exe 필요. 진단 도구 setup-diagnostics.ps1은 별도의 명시적 실행용으로 유지한다.
+- 공식 설치 명령 근거: https://learn.microsoft.com/en-us/visualstudio/install/use-command-line-parameters-to-install-visual-studio?view=vs-2022 및 https://vulkan.lunarg.com/doc/view/1.4.341.1/windows/getting_started.html . PowerShell ZIP: https://learn.microsoft.com/en-us/powershell/scripting/install/install-powershell-on-windows .
+
 ## 2026-09-25: 토러스 전환 명시적 진단
 
 EXCLUDE_FROM_ALL인 torus_benchmark는 이번 승인에 한해 실행한 진단/성능비교도구다. 일반빌드·게임시작·CTest에연결하지않는다. `torus_benchmark worldgen.json results.csv`로3D보존/주기/독립생성/설정과2D성능을확인한다. 동일지형을생성하는구현비교가아니므로게임로딩전후차이에지형/메시변화가포함된다. 자세한조건은simplex-transition-2026-09-25.md를따른다.

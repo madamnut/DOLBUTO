@@ -1,5 +1,21 @@
 # AI 작업 규칙
 
+## LOD 그리기 목록 재사용 및 헤드리스 전후 비교 (2026-10-01)
+
+사용자 헤드리스 전후 비교 요청 및 후속 `실시` 승인. 일반 지형으로 가려지는 level0 LOD 제외와 메시 map 조회를 active scene 교체 또는 coverage 중심/마스크 변경 시에만 수행하는 draw_meshes_ 목록을 추가했다. 기존 순서/시야 판정/면·재질/업로드 예산/GPU 수명 관리는 유지한다. 간접 그리기·GPU 컬링·그림자 수식 변경은 포함하지 않는다. CPU CSV에 기존 월드 준비 타이머를 world_prepare_cpu_ms로 추가하고 동일 계측을 넣은 before/after를 비교한다. 캐시 포인터는 active_가 보유한 std::map 노드이며 collect 전 재구축, clear/shutdown 시 먼저 비운다. 결과/한계는 docs/lod-draw-cache-2026-10-01.md 참조. 자동 테스트 프레임워크/합성 입력/CU 추가 없이 명시적 CLI 계측·캡처를 사용한다.
+
+## 지형 그리기 CPU 계측 (2026-10-01)
+
+사용자 `ㅇㅋ 실시`로 렌더 거리12/24/32에서 일반 지형·LOD의 그리기 호출 수와 CPU 명령 기록 비용 측정, 빌드·패키징을 승인했다. `--profile-draws CSV`는 `--profile-gpu`와 함께 명시적으로 사용하며 그림자/투명체/플레이어 제외 주 화면 고체 지형 두 구간의 순회·컬링·바인딩·명령 기록 CPU 시간과 API 호출 수를 저장한다. 계측 시 LOD 생성/업로드까지 완료된 뒤240프레임 예열, 기본600steady. 일반 실행에서는 새 타이머/카운터를 사용하지 않는다. 이번 범위는 측정까지이며 버퍼 통합/간접 그리기/컬링 알고리즘 변경은 아직 승인되지 않았다. 자동 테스트/합성 입력/CU 금지 유지. 결과는 docs/draw-profile-2026-10-01.md 참조.
+
+## Vulkan 헤드리스 실행 (2026-10-01)
+
+사용자 `헤드리스만 넣을까그럼` 및 `실시` 승인으로 `--headless`를 추가했다. SDL VIDEO/창/surface/swapchain/present 없이 VMA 출력 이미지 2장을 frame fence와 함께 재사용한다. 기존 WorldView·후처리·RmlUi/ImGui 렌더링·PNG·GPU CSV 경로를 공유하며 MCP나 합성 입력/자동 테스트는 추가하지 않는다. 1280×900 고정, 월드 자동 진입, 입력 없음, VSync/FPS 제한은 메모리에서만 해제. 기본 300프레임(캡처 기본100, GPU 계측 기본600 steady/120초)으로 종료한다. 기존 `--frames`/`--seconds`/`--profile-gpu`/`--capture`와 연결하며 GPU 샘플 부족·캡처 실패는 exit1. 일반 창 경로 유지. 상세 구현과 검증은 docs/development.md와 docs/verification.md 최신절 참조. 이 변경 자체는 Vulkan 최적화 성능 개선이 아니라 후속 계측 기반이다.
+
+## 새 PC 빌드 도구 준비 (2026-10-01)
+
+사용자 누락 도구 표시·선택적 다운로드/설치 제안 및 `ㅅㅅ` 승인. Windows x64에서 build.bat는 기본 Windows PowerShell로 setup.ps1을 실행한다. toolchain.ps1의 로컬 검사 결과와 준비 계획을 표시하고 명시적 y/yes/예 입력 후에만 다운로드·설치한다. Enter/거절/비대화형 입력 실패 시 중단, --check와 --no-download는 다운로드하지 않는다. MSVC/Windows SDK/CMake/Ninja는 Microsoft Build Tools 2022 시스템 설치, Vulkan SDK도 시스템 설치; PowerShell ZIP/LLVM/라이브러리는 Git 제외 .tools/.cache. SHA-256 또는 공식 게시자 Authenticode를 확인한다. 시스템 설치 UAC 취소·오류·재부팅 요청 시 빌드하지 않는다. 실제 PC 설치 동의와 검증 상태는 docs/verification.md 최신절 참조. 자동 테스트/CU/합성 UI 입력은 추가하지 않는다.
+
 ## 육지·바다 경향 독립화 (2026-09-28)
 
 사용자 육해공유경향 부자연스러움 피드백/분리제안 후 `실시` 승인. 기존육지노이즈·셀변동과압축대표값보존, 바다고도노이즈·독립셀변동은마스터에서sea_tendency/sea_local별도파생. 같은조절값사용·무늬독립, 동종이웃혼합유지. 경계/꼭짓점sea/land2값보관·동종끼리보간, 해안중점각측중심값유지/꼭짓점동종지지점만사용, 육해강제평균제거. 셀표해안양측2행, binary10 boundary20(기존14는cell측+마지막6은neighbor측), 설정schema6보존/자동파일변경없음. 게임평지·기후·성장불변, 최종해안연결은후속생성기범위. Release빌드·패키징/격리HTTP수동비교·순환·경계양측확인, 자동테스트/CU/합성입력금지유지. docs/cell-tendencies-2026-09-28.md 최신절참조.

@@ -49,8 +49,9 @@ void barrier(VkCommandBuffer cmd, VkImage image, VkImageLayout old_layout, VkIma
 }
 } // namespace
 Renderer::~Renderer() { shutdown(); }
-void Renderer::initialize(SDL_Window* window, bool validation) {
+void Renderer::initialize(SDL_Window* window, bool validation, VkExtent2D offscreen_extent) {
     window_ = window;
+    headless_ = window == nullptr;
     vk_check(volkInitialize(), "volkInitialize");
     uint32_t version = VK_API_VERSION_1_0;
     if (vkEnumerateInstanceVersion)
@@ -58,10 +59,13 @@ void Renderer::initialize(SDL_Window* window, bool validation) {
     if (version < VK_API_VERSION_1_4)
         throw std::runtime_error("Vulkan 1.4 is required.");
     uint32_t count{};
-    const auto sdl_extensions = SDL_Vulkan_GetInstanceExtensions(&count);
-    if (!sdl_extensions)
-        throw std::runtime_error(SDL_GetError());
-    std::vector<const char*> extensions(sdl_extensions, sdl_extensions + count);
+    std::vector<const char*> extensions;
+    if (!headless_) {
+        const auto sdl_extensions = SDL_Vulkan_GetInstanceExtensions(&count);
+        if (!sdl_extensions)
+            throw std::runtime_error(SDL_GetError());
+        extensions.assign(sdl_extensions, sdl_extensions + count);
+    }
     const char* validation_layer = "VK_LAYER_KHRONOS_validation";
     if (validation) {
         vk_check(vkEnumerateInstanceLayerProperties(&count, nullptr), "enumerate layers");
@@ -99,7 +103,7 @@ void Renderer::initialize(SDL_Window* window, bool validation) {
     volkLoadInstance(instance);
     if (validation_enabled)
         vk_check(vkCreateDebugUtilsMessengerEXT(instance, &debug, nullptr, &messenger_), "debug messenger");
-    if (!SDL_Vulkan_CreateSurface(window_, instance, nullptr, &surface_))
+    if (!headless_ && !SDL_Vulkan_CreateSurface(window_, instance, nullptr, &surface_))
         throw std::runtime_error(SDL_GetError());
     vk_check(vkEnumeratePhysicalDevices(instance, &count, nullptr), "enumerate devices");
     std::vector<VkPhysicalDevice> devices(count);
@@ -123,7 +127,7 @@ void Renderer::initialize(SDL_Window* window, bool validation) {
         vk_check(vkEnumerateDeviceExtensionProperties(candidate, nullptr, &extension_count,
                                                       device_extensions.data()),
                  "device extensions");
-        if (std::none_of(device_extensions.begin(), device_extensions.end(), [](const auto& e) {
+        if (!headless_ && std::none_of(device_extensions.begin(), device_extensions.end(), [](const auto& e) {
                 return std::strcmp(e.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0;
             }))
             continue;
@@ -132,9 +136,10 @@ void Renderer::initialize(SDL_Window* window, bool validation) {
         std::vector<VkQueueFamilyProperties> families(family_count);
         vkGetPhysicalDeviceQueueFamilyProperties(candidate, &family_count, families.data());
         for (uint32_t i = 0; i < family_count; ++i) {
-            VkBool32 present{};
-            vk_check(vkGetPhysicalDeviceSurfaceSupportKHR(candidate, i, surface_, &present),
-                     "present support");
+            VkBool32 present = VK_TRUE;
+            if (!headless_)
+                vk_check(vkGetPhysicalDeviceSurfaceSupportKHR(candidate, i, surface_, &present),
+                         "present support");
             if (!(families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) || !present)
                 continue;
             const int score = properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? 100 : 10;
@@ -167,8 +172,8 @@ void Renderer::initialize(SDL_Window* window, bool validation) {
     di.pNext = &f13;
     di.queueCreateInfoCount = 1;
     di.pQueueCreateInfos = &qi;
-    di.enabledExtensionCount = 1;
-    di.ppEnabledExtensionNames = &swapchain_extension;
+    di.enabledExtensionCount = headless_ ? 0 : 1;
+    di.ppEnabledExtensionNames = headless_ ? nullptr : &swapchain_extension;
     vk_check(vkCreateDevice(physical_device, &di, nullptr, &device), "create device");
     volkLoadDevice(device);
     vkGetDeviceQueue(device, queue_family, 0, &queue);
@@ -211,7 +216,8 @@ void Renderer::initialize(SDL_Window* window, bool validation) {
         fi.flags = VK_FENCE_CREATE_SIGNALED_BIT;
         vk_check(vkCreateFence(device, &fi, nullptr, &frame.fence), "frame fence");
         VkSemaphoreCreateInfo si{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-        vk_check(vkCreateSemaphore(device, &si, nullptr, &frame.acquired), "acquire semaphore");
+        if (!headless_)
+            vk_check(vkCreateSemaphore(device, &si, nullptr, &frame.acquired), "acquire semaphore");
         if (timestamp_bits_) {
             VkQueryPoolCreateInfo query{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
             query.queryType = VK_QUERY_TYPE_TIMESTAMP;
@@ -224,16 +230,59 @@ void Renderer::initialize(SDL_Window* window, bool validation) {
             }
         }
     }
-    create_swapchain();
+    if (headless_)
+        create_offscreen_images(offscreen_extent);
+    else
+        create_swapchain();
     resize_requested_ = false;
     std::cout << "GPU: " << gpu_name_ << " | Vulkan 1.4 | validation=" << validation_enabled << '\n';
 }
 const char* Renderer::present_mode_description() const {
+    if (headless_)
+        return "HEADLESS (offscreen, no presentation)";
     if (present_mode_ == VK_PRESENT_MODE_IMMEDIATE_KHR)
         return "IMMEDIATE (VSync off)";
     if (present_mode_ == VK_PRESENT_MODE_MAILBOX_KHR)
         return "MAILBOX (synchronized fallback)";
     return vsync_requested_ ? "FIFO (VSync on)" : "FIFO (synchronized fallback)";
+}
+void Renderer::create_offscreen_images(VkExtent2D size) {
+    constexpr auto usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    VkImageFormatProperties properties{};
+    colour_format = VK_FORMAT_B8G8R8A8_UNORM;
+    vk_check(vkGetPhysicalDeviceImageFormatProperties(physical_device, colour_format, VK_IMAGE_TYPE_2D,
+                                                      VK_IMAGE_TILING_OPTIMAL, usage, 0, &properties),
+             "offscreen image format");
+    if (!size.width || !size.height || size.width > properties.maxExtent.width ||
+        size.height > properties.maxExtent.height)
+        throw std::runtime_error("Headless dimensions exceed this GPU's image limits.");
+    extent = size;
+    images_.resize(frames_in_flight);
+    views_.resize(frames_in_flight);
+    offscreen_allocations_.resize(frames_in_flight);
+    for (uint32_t i = 0; i < frames_in_flight; ++i) {
+        VkImageCreateInfo ci{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+        ci.imageType = VK_IMAGE_TYPE_2D;
+        ci.format = colour_format;
+        ci.extent = {size.width, size.height, 1};
+        ci.mipLevels = ci.arrayLayers = 1;
+        ci.samples = VK_SAMPLE_COUNT_1_BIT;
+        ci.tiling = VK_IMAGE_TILING_OPTIMAL;
+        ci.usage = usage;
+        ci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        VmaAllocationCreateInfo ai{};
+        ai.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+        vk_check(vmaCreateImage(allocator, &ci, &ai, &images_[i], &offscreen_allocations_[i], nullptr),
+                 "offscreen image allocation");
+        VkImageViewCreateInfo vi{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+        vi.image = images_[i];
+        vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        vi.format = colour_format;
+        vi.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        vk_check(vkCreateImageView(device, &vi, nullptr, &views_[i]), "offscreen image view");
+    }
+    std::cout << "Presentation: " << present_mode_description() << " | " << size.width << 'x' << size.height
+              << '\n';
 }
 void Renderer::create_swapchain() {
     VkSurfaceCapabilitiesKHR caps{};
@@ -333,6 +382,10 @@ void Renderer::destroy_swapchain() {
         vkDestroySemaphore(device, semaphore, nullptr);
     views_.clear();
     presented_.clear();
+    for (size_t i = 0; i < offscreen_allocations_.size(); ++i)
+        if (images_[i])
+            vmaDestroyImage(allocator, images_[i], offscreen_allocations_[i]);
+    offscreen_allocations_.clear();
     images_.clear();
     if (swapchain_)
         vkDestroySwapchainKHR(device, swapchain_, nullptr);
@@ -341,10 +394,12 @@ void Renderer::destroy_swapchain() {
 bool Renderer::begin_frame() {
     ZoneScoped;
     int w{}, h{};
-    SDL_GetWindowSizeInPixels(window_, &w, &h);
-    if (w <= 0 || h <= 0 || (SDL_GetWindowFlags(window_) & SDL_WINDOW_MINIMIZED))
-        return false;
-    if (resize_requested_) {
+    if (!headless_) {
+        SDL_GetWindowSizeInPixels(window_, &w, &h);
+        if (w <= 0 || h <= 0 || (SDL_GetWindowFlags(window_) & SDL_WINDOW_MINIMIZED))
+            return false;
+    }
+    if (!headless_ && resize_requested_) {
         wait_idle();
         destroy_swapchain();
         create_swapchain();
@@ -372,16 +427,21 @@ bool Renderer::begin_frame() {
         profiling::event(profiling::Stage::gpu_upload, 0, 0, -1, upload_gpu_ms_);
         profiling::event(profiling::Stage::gpu_frame, 0, 0, -1, gpu_ms_);
     }
-    const auto acquired =
-        vkAcquireNextImageKHR(device, swapchain_, UINT64_MAX, frame.acquired, VK_NULL_HANDLE, &image_index_);
-    if (acquired == VK_ERROR_OUT_OF_DATE_KHR) {
-        resize_requested_ = true;
-        return false;
+    if (headless_) {
+        // This slot's fence also owns the offscreen image; no acquire/present semaphores exist.
+        image_index_ = frame_index_;
+    } else {
+        const auto acquired = vkAcquireNextImageKHR(device, swapchain_, UINT64_MAX, frame.acquired,
+                                                    VK_NULL_HANDLE, &image_index_);
+        if (acquired == VK_ERROR_OUT_OF_DATE_KHR) {
+            resize_requested_ = true;
+            return false;
+        }
+        if (acquired != VK_SUBOPTIMAL_KHR)
+            vk_check(acquired, "acquire image");
+        else
+            resize_requested_ = true;
     }
-    if (acquired != VK_SUBOPTIMAL_KHR)
-        vk_check(acquired, "acquire image");
-    else
-        resize_requested_ = true;
     vk_check(vkResetCommandPool(device, frame.pool, 0), "reset commands");
     command = frame.command;
     VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
@@ -589,10 +649,11 @@ bool Renderer::end_frame(const std::filesystem::path& capture) {
         copy.imageExtent = {extent.width, extent.height, 1};
         vkCmdCopyImageToBuffer(command, images_[image_index_], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                readback.handle, 1, &copy);
-        barrier(command, images_[image_index_], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_READ_BIT,
-                VK_PIPELINE_STAGE_2_NONE, 0);
-    } else {
+        if (!headless_)
+            barrier(command, images_[image_index_], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_PIPELINE_STAGE_2_COPY_BIT,
+                    VK_ACCESS_2_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_2_NONE, 0);
+    } else if (!headless_) {
         barrier(command, images_[image_index_], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                 VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_NONE, 0);
@@ -602,34 +663,36 @@ bool Renderer::end_frame(const std::filesystem::path& capture) {
     wait.semaphore = frame.acquired;
     wait.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSemaphoreSubmitInfo signal{VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO};
-    signal.semaphore = presented_[image_index_];
+    signal.semaphore = headless_ ? VK_NULL_HANDLE : presented_[image_index_];
     signal.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
     VkCommandBufferSubmitInfo buffer{VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO};
     buffer.commandBuffer = command;
     VkSubmitInfo2 submit{VK_STRUCTURE_TYPE_SUBMIT_INFO_2};
-    submit.waitSemaphoreInfoCount = 1;
-    submit.pWaitSemaphoreInfos = &wait;
+    submit.waitSemaphoreInfoCount = headless_ ? 0 : 1;
+    submit.pWaitSemaphoreInfos = headless_ ? nullptr : &wait;
     submit.commandBufferInfoCount = 1;
     submit.pCommandBufferInfos = &buffer;
-    submit.signalSemaphoreInfoCount = 1;
-    submit.pSignalSemaphoreInfos = &signal;
+    submit.signalSemaphoreInfoCount = headless_ ? 0 : 1;
+    submit.pSignalSemaphoreInfos = headless_ ? nullptr : &signal;
     vk_check(vkResetFences(device, 1, &frame.fence), "reset frame fence");
     vk_check(vkQueueSubmit2(queue, 1, &submit, frame.fence), "submit frame");
     frame.serial = ++submitted_serial_;
     frame.profile_pending = frame.profile_queries != VK_NULL_HANDLE;
     frame.has_timestamps = frame.queries != VK_NULL_HANDLE;
     recording_ = false;
-    VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
-    present.waitSemaphoreCount = 1;
-    present.pWaitSemaphores = &presented_[image_index_];
-    present.swapchainCount = 1;
-    present.pSwapchains = &swapchain_;
-    present.pImageIndices = &image_index_;
-    const auto result = vkQueuePresentKHR(queue, &present);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
-        resize_requested_ = true;
-    else
-        vk_check(result, "present");
+    if (!headless_) {
+        VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
+        present.waitSemaphoreCount = 1;
+        present.pWaitSemaphores = &presented_[image_index_];
+        present.swapchainCount = 1;
+        present.pSwapchains = &swapchain_;
+        present.pImageIndices = &image_index_;
+        const auto result = vkQueuePresentKHR(queue, &present);
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+            resize_requested_ = true;
+        else
+            vk_check(result, "present");
+    }
     bool captured = false;
     if (readback.handle) {
         wait_idle();

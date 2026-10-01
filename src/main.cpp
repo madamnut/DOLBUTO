@@ -17,9 +17,11 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_vulkan.h>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -36,6 +38,37 @@
 // clang-format on
 
 namespace {
+struct DrawSample {
+    unsigned frame{};
+    bool steady{};
+    VkExtent2D extent{};
+    int radius{};
+    size_t columns{}, lod_tiles{}, lod_pending{}, lod_queued{};
+    sandbox::DrawStats near_stats, lod_stats;
+    double world_prepare_cpu_ms{};
+};
+void save_draw_profile(const std::filesystem::path& path, const std::vector<DrawSample>& samples) {
+    if (!path.parent_path().empty())
+        std::filesystem::create_directories(path.parent_path());
+    std::ofstream out(path);
+    out << "frame,steady,width,height,render_distance,columns,lod_tiles,lod_pending,lod_queued,"
+           "near_cpu_ms,near_draws,near_descriptor_binds,near_vertex_binds,near_pushes,"
+           "lod_cpu_ms,lod_draws,lod_descriptor_binds,lod_vertex_binds,lod_pushes,world_prepare_cpu_ms\n"
+        << std::fixed << std::setprecision(6);
+    for (const auto& s : samples) {
+        out << s.frame << ',' << s.steady << ',' << s.extent.width << ',' << s.extent.height << ','
+            << s.radius << ',' << s.columns << ',' << s.lod_tiles << ',' << s.lod_pending << ','
+            << s.lod_queued;
+        for (const auto& d : {s.near_stats, s.lod_stats})
+            out << ',' << d.cpu_ms << ',' << d.draws << ',' << d.descriptor_binds << ',' << d.vertex_binds
+                << ',' << d.pushes;
+        out << ',' << s.world_prepare_cpu_ms << '\n';
+    }
+    out.flush();
+    if (!out)
+        throw std::runtime_error("Cannot save CPU draw profile.");
+    std::cout << "DRAW PROFILE: " << samples.size() << " frames, " << path << '\n';
+}
 const char* facing_direction(double yaw) {
     if (!std::isfinite(yaw))
         return "판정 불가";
@@ -84,10 +117,10 @@ std::filesystem::path screenshot_path(const std::filesystem::path& directory) {
     return result;
 }
 struct SdlLifetime {
-    SdlLifetime() {
+    explicit SdlLifetime(bool headless) {
         SDL_SetHint(SDL_HINT_WINDOWS_INTRESOURCE_ICON, "101");
         SDL_SetHint(SDL_HINT_WINDOWS_INTRESOURCE_ICON_SMALL, "101");
-        if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
+        if (!SDL_Init(headless ? SDL_INIT_EVENTS : SDL_INIT_VIDEO | SDL_INIT_EVENTS))
             throw std::runtime_error(SDL_GetError());
     }
     ~SdlLifetime() { SDL_Quit(); }
@@ -117,9 +150,13 @@ struct RenderDocCapture {
             SDL_UnloadObject(library);
     }
 };
-class System final : public SystemInterface_SDL {
+class HeadlessPlatform : public Rml::SystemInterface {
   public:
-    using SystemInterface_SDL::SystemInterface_SDL;
+    double GetElapsedTime() override { return static_cast<double>(SDL_GetTicksNS()) / 1.0e9; }
+};
+template <typename Platform> class LoggedSystem final : public Platform {
+  public:
+    using Platform::Platform;
     unsigned errors{}, warnings{};
     bool LogMessage(Rml::Log::Type type, const Rml::String& message) override {
         if (type == Rml::Log::LT_ERROR || type == Rml::Log::LT_ASSERT)
@@ -131,7 +168,7 @@ class System final : public SystemInterface_SDL {
     }
 };
 struct RmlLifetime {
-    RmlLifetime(System& system, sandbox::RmlRenderer& renderer) {
+    RmlLifetime(Rml::SystemInterface& system, sandbox::RmlRenderer& renderer) {
         Rml::SetSystemInterface(&system);
         Rml::SetRenderInterface(&renderer);
         if (!Rml::Initialise())
@@ -158,9 +195,11 @@ struct ImGuiLifetime {
         debug_font = io.Fonts->AddFontFromFileTTF("assets/fonts/NotoSansKR-SemiBold.ttf", 25.5f);
         if (!debug_font)
             throw std::runtime_error("Cannot load semibold Korean font for the debug overlay.");
-        platform_ready = ImGui_ImplSDL3_InitForVulkan(window);
-        if (!platform_ready)
-            throw std::runtime_error("ImGui SDL3 initialization failed.");
+        if (window) {
+            platform_ready = ImGui_ImplSDL3_InitForVulkan(window);
+            if (!platform_ready)
+                throw std::runtime_error("ImGui SDL3 initialization failed.");
+        }
         initialize_renderer();
     }
     void initialize_renderer() {
@@ -680,7 +719,7 @@ void debug_overlay(sandbox::Renderer& renderer, const sandbox::RmlRenderer& ui, 
 } // namespace
 int main(int argc, char** argv) {
     try {
-        bool debug_initial = false, start_world = false, lod_debug_initial = false;
+        bool debug_initial = false, start_world = false, lod_debug_initial = false, headless = false;
         bool validation_requested = DOLBUTO_VALIDATION != 0;
         uint32_t seed = 1337;
         bool seed_override = false;
@@ -688,14 +727,18 @@ int main(int argc, char** argv) {
         bool distance_override = false;
         unsigned frame_limit = 0;
         double seconds_limit = 0;
-        std::filesystem::path capture, rdc_path, world_profile, gpu_profile, shadow_capture;
+        std::filesystem::path capture, rdc_path, world_profile, gpu_profile, shadow_capture, draw_profile;
         std::optional<std::array<double, 4>> profile_view;
         unsigned profile_samples = 600;
         sandbox::ColumnKey profile_origin{};
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
-            if (arg == "--profile-gpu" && i + 1 < argc)
+            if (arg == "--headless")
+                headless = true;
+            else if (arg == "--profile-gpu" && i + 1 < argc)
                 gpu_profile = std::filesystem::absolute(argv[++i]);
+            else if (arg == "--profile-draws" && i + 1 < argc)
+                draw_profile = std::filesystem::absolute(argv[++i]);
             else if (arg == "--capture-shadow-maps" && i + 1 < argc)
                 shadow_capture = std::filesystem::absolute(argv[++i]);
             else if (arg == "--profile-samples" && i + 1 < argc)
@@ -733,18 +776,28 @@ int main(int argc, char** argv) {
             else if (arg == "--capture" && i + 1 < argc)
                 capture = std::filesystem::absolute(argv[++i]);
             else
-                throw std::runtime_error(
-                    "Usage: DOLBUTO [--debug-ui] [--lod-debug] [--validation] [--frames N] [--seconds N] "
-                    "[--capture file.png] [--rdc path] [--world] "
-                    "[--seed N] [--render-distance 1..64] [--profile-world file.csv] "
-                    "[--profile-origin columnX columnZ] [--profile-gpu file.csv] "
-                    "[--profile-view height yaw pitch hour] [--profile-samples N] "
-                    "[--capture-shadow-maps directory]");
+                throw std::runtime_error("Usage: DOLBUTO [--headless] [--debug-ui] [--lod-debug] "
+                                         "[--validation] [--frames N] [--seconds N] "
+                                         "[--capture file.png] [--rdc path] [--world] "
+                                         "[--seed N] [--render-distance 1..64] [--profile-world file.csv] "
+                                         "[--profile-origin columnX columnZ] [--profile-gpu file.csv] "
+                                         "[--profile-view height yaw pitch hour] [--profile-samples N] "
+                                         "[--capture-shadow-maps directory] [--profile-draws file.csv]");
         }
         if (render_distance < 1 || render_distance > 64)
             throw std::runtime_error("Render distance must be 1..64 columns.");
+        if (!std::isfinite(seconds_limit) || seconds_limit < 0)
+            throw std::runtime_error("Seconds must be finite and non-negative.");
         if (!shadow_capture.empty() && gpu_profile.empty())
             throw std::runtime_error("--capture-shadow-maps requires --profile-gpu.");
+        if (!draw_profile.empty()) {
+            if (gpu_profile.empty() || lod_debug_initial)
+                throw std::runtime_error(
+                    "--profile-draws requires --profile-gpu and normal terrain rendering.");
+            for (const auto& output : {gpu_profile, world_profile, capture})
+                if (!output.empty() && draw_profile.lexically_normal() == output.lexically_normal())
+                    throw std::runtime_error("CPU draw profile needs a separate output path.");
+        }
         if (!gpu_profile.empty()) {
             start_world = true;
             if (seconds_limit <= 0)
@@ -760,7 +813,7 @@ int main(int argc, char** argv) {
                 throw std::runtime_error(
                     "Profile view requires --profile-gpu and valid height/yaw/pitch/hour.");
         }
-        if (!capture.empty() && !frame_limit && gpu_profile.empty())
+        if (!capture.empty() && !frame_limit && gpu_profile.empty() && !(headless && seconds_limit > 0))
             frame_limit = 100;
         if (!rdc_path.empty() && !frame_limit)
             frame_limit = 100;
@@ -768,7 +821,12 @@ int main(int argc, char** argv) {
             sandbox::profiling::start();
         else if (gpu_profile.empty() && profile_origin != sandbox::ColumnKey{})
             throw std::runtime_error("--profile-origin requires --profile-world or --profile-gpu");
-        SdlLifetime sdl;
+        if (headless) {
+            start_world = true;
+            if (!frame_limit && seconds_limit <= 0)
+                frame_limit = 300;
+        }
+        SdlLifetime sdl(headless);
         RenderDocCapture renderdoc(rdc_path);
         const char* base = SDL_GetBasePath();
         if (!base)
@@ -807,13 +865,19 @@ int main(int argc, char** argv) {
         if (seed_override)
             generation.seed = seed;
 
-        std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> window(
-            SDL_CreateWindow("DOLBUTO", 1280, 900,
-                             SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY),
-            SDL_DestroyWindow);
-        if (!window)
-            throw std::runtime_error(SDL_GetError());
-        SDL_SetWindowMinimumSize(window.get(), 960, 760);
+        std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> window(nullptr, SDL_DestroyWindow);
+        if (!headless) {
+            window.reset(
+                SDL_CreateWindow("DOLBUTO", 1280, 900,
+                                 SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY));
+            if (!window)
+                throw std::runtime_error(SDL_GetError());
+            SDL_SetWindowMinimumSize(window.get(), 960, 760);
+        } else {
+            saved_settings.vsync = false;
+            saved_settings.fps_limit = 0;
+            std::cout << "Headless: world rendering at 1280x900, no window, VSync or FPS limit.\n";
+        }
         sandbox::Renderer renderer;
         if (!gpu_profile.empty())
             renderer.enable_gpu_profile();
@@ -824,15 +888,21 @@ int main(int argc, char** argv) {
         unsigned ui_errors{}, texture_errors{};
         {
             sandbox::RmlRenderer ui(renderer);
-            System system(window.get());
-            RmlLifetime rml(system, ui);
+            LoggedSystem<HeadlessPlatform> headless_system;
+            std::unique_ptr<LoggedSystem<SystemInterface_SDL>> window_system;
+            if (!headless)
+                window_system = std::make_unique<LoggedSystem<SystemInterface_SDL>>(window.get());
+            RmlLifetime rml(headless ? static_cast<Rml::SystemInterface&>(headless_system)
+                                     : static_cast<Rml::SystemInterface&>(*window_system),
+                            ui);
             if (!Rml::LoadFontFace("assets/fonts/NotoSansKR.ttf"))
                 throw std::runtime_error("Cannot load Korean font.");
             auto* context = Rml::CreateContext(
                 "main", {static_cast<int>(renderer.extent.width), static_cast<int>(renderer.extent.height)});
             if (!context)
                 throw std::runtime_error("Cannot create UI context.");
-            context->SetDensityIndependentPixelRatio(SDL_GetWindowDisplayScale(window.get()));
+            context->SetDensityIndependentPixelRatio(headless ? 1.0f
+                                                              : SDL_GetWindowDisplayScale(window.get()));
             MenuActions actions;
             actions.debug = debug_initial;
             actions.play = start_world;
@@ -873,6 +943,8 @@ int main(int argc, char** argv) {
             std::unique_ptr<sandbox::WorldView> world;
             bool in_world = false, mouse_captured = false;
             const auto capture_mouse = [&](bool capture_input) {
+                if (headless)
+                    return;
                 if (!SDL_SetWindowRelativeMouseMode(window.get(), capture_input))
                     throw std::runtime_error(SDL_GetError());
                 mouse_captured = capture_input;
@@ -892,6 +964,7 @@ int main(int argc, char** argv) {
             ProcessMemory process_memory;
             unsigned rendered = 0;
             unsigned profile_ready_frames = 0, profile_measured_frames = 0;
+            std::vector<DrawSample> draw_samples;
             bool capture_done = false;
             bool screenshot_requested = false;
             auto notice_until = start;
@@ -912,14 +985,18 @@ int main(int argc, char** argv) {
                 sandbox::profiling::Scope frame_measure(sandbox::profiling::Stage::frame);
                 ZoneScopedN("Application frame");
                 const auto now = std::chrono::steady_clock::now();
-                if (seconds_limit > 0 && std::chrono::duration<double>(now - start).count() >= seconds_limit)
+                const bool time_limit_reached =
+                    seconds_limit > 0 && std::chrono::duration<double>(now - start).count() >= seconds_limit;
+                // A timed headless capture renders one final frame before exiting.
+                if (time_limit_reached &&
+                    !(headless && !capture.empty() && !capture_done && gpu_profile.empty()))
                     break;
                 const double frame_ms = std::chrono::duration<double, std::milli>(now - previous).count();
                 previous = now;
                 bool gameplay_input_blocked =
                     actions.paused || actions.generation_open || game_console.is_open() || !in_world;
                 SDL_Event event;
-                while (SDL_PollEvent(&event)) {
+                while (!headless && SDL_PollEvent(&event)) {
                     const bool mouse =
                         event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
                         event.type == SDL_EVENT_MOUSE_BUTTON_UP || event.type == SDL_EVENT_MOUSE_WHEEL;
@@ -1058,6 +1135,8 @@ int main(int argc, char** argv) {
                                       << world->camera.position.y << ',' << world->camera.position.z
                                       << " yaw=" << world->camera.yaw << " pitch=" << world->camera.pitch
                                       << " tick=" << world->day_tick() << '\n';
+                        if (!draw_profile.empty())
+                            world->enable_draw_profile();
                         settings.world = world.get();
                         world->camera.field_of_view = float(settings.values.field_of_view);
                         world->set_view_bobbing(settings.values.view_bobbing);
@@ -1106,9 +1185,9 @@ int main(int argc, char** argv) {
                     }
                 }
                 hud->SetClass("paused", in_world && actions.paused);
-                const bool want_capture = in_world && !actions.paused && !actions.generation_open &&
-                                          !game_console.is_open() && !frame_limit && seconds_limit <= 0 &&
-                                          gpu_profile.empty() &&
+                const bool want_capture = !headless && in_world && !actions.paused &&
+                                          !actions.generation_open && !game_console.is_open() &&
+                                          !frame_limit && seconds_limit <= 0 && gpu_profile.empty() &&
                                           (SDL_GetWindowFlags(window.get()) & SDL_WINDOW_INPUT_FOCUS);
                 const bool capture_changed = want_capture != mouse_captured;
                 if (capture_changed)
@@ -1126,7 +1205,8 @@ int main(int argc, char** argv) {
                 // World simulation advances independently of keyboard events and mouse capture.
                 if (in_world && !actions.paused)
                     world->advance_fluids(frame_ms / 1000.0);
-                const auto* keys = SDL_GetKeyboardState(nullptr);
+                const std::array<bool, SDL_SCANCODE_COUNT> no_keys{};
+                const auto* keys = headless ? no_keys.data() : SDL_GetKeyboardState(nullptr);
                 const bool cloud_held = keys[SDL_SCANCODE_MINUS] || keys[SDL_SCANCODE_EQUALS];
                 const bool cloud_allowed = in_world && !actions.paused && !actions.generation_open &&
                                            !gameplay_input_blocked && !capture_changed && mouse_captured &&
@@ -1177,13 +1257,20 @@ int main(int argc, char** argv) {
                     world->render();
                     if (!gpu_profile.empty()) {
                         const bool ready = world->visible_columns() > 0 && world->pending_columns() == 0 &&
-                                           world->pending_lighting() == 0 && world->uploaded_bytes == 0;
+                                           world->pending_lighting() == 0 && world->uploaded_bytes == 0 &&
+                                           (draw_profile.empty() || world->draw_profile_ready());
                         profile_ready_frames = ready ? profile_ready_frames + 1 : 0;
                         const bool steady = profile_ready_frames > 240;
                         if (steady)
                             ++profile_measured_frames;
                         renderer.gpu_profile_frame(steady, static_cast<uint32_t>(world->visible_columns()),
                                                    world->drawn_chunks, world->triangles);
+                        if (!draw_profile.empty())
+                            draw_samples.push_back({rendered + 1, steady, renderer.extent, world->radius(),
+                                                    world->visible_columns(), world->lod_tiles(),
+                                                    world->lod_stats().pending, world->lod_upload_queue(),
+                                                    world->near_draw_stats(), world->lod_draw_stats(),
+                                                    world->upload_cpu_ms});
                     }
                     for (int slot = 1; slot <= static_cast<int>(sandbox::hotbar_blocks.size()); ++slot)
                         hud->GetElementById("block-" + std::to_string(slot))
@@ -1191,7 +1278,14 @@ int main(int argc, char** argv) {
                 } else
                     renderer.begin_rendering();
                 ImGui_ImplVulkan_NewFrame();
-                ImGui_ImplSDL3_NewFrame();
+                if (headless) {
+                    auto& io = ImGui::GetIO();
+                    io.DisplaySize = {static_cast<float>(renderer.extent.width),
+                                      static_cast<float>(renderer.extent.height)};
+                    io.DisplayFramebufferScale = {1.0f, 1.0f};
+                    io.DeltaTime = static_cast<float>(std::max(frame_ms / 1000.0, 1.0e-6));
+                } else
+                    ImGui_ImplSDL3_NewFrame();
                 ImGui::NewFrame();
                 if (rendered > 0 && now >= next_stats_update) {
                     // Hold the latest single-frame sample for readability; do not average it.
@@ -1232,9 +1326,13 @@ int main(int argc, char** argv) {
                     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), renderer.command);
                 }
                 const bool profile_done = !gpu_profile.empty() && profile_measured_frames >= profile_samples;
+                const bool world_profile_done = gpu_profile.empty() && !world_profile.empty() && world &&
+                                                world->visible_columns() > 0 && world->pending_columns() == 0;
                 const bool capture_now =
                     !capture_done && !capture.empty() &&
-                    (profile_done || (gpu_profile.empty() && rendered + 1 == frame_limit));
+                    (profile_done ||
+                     (gpu_profile.empty() && (rendered + 1 == frame_limit ||
+                                              (headless && (time_limit_reached || world_profile_done)))));
                 std::filesystem::path frame_capture = capture_now ? capture : std::filesystem::path{};
                 const bool interactive_capture = screenshot_requested && !capture_now;
                 if (interactive_capture) {
@@ -1261,10 +1359,9 @@ int main(int argc, char** argv) {
                                      RENDERDOC_DEVICEPOINTER_FROM_VKINSTANCE(renderer.instance), nullptr))
                     throw std::runtime_error("RenderDoc frame capture failed.");
                 capture_done |= capture_now;
-                if (profile_done)
+                if (profile_done || (headless && time_limit_reached))
                     actions.running = false;
-                if (gpu_profile.empty() && !world_profile.empty() && world && world->visible_columns() > 0 &&
-                    world->pending_columns() == 0)
+                if (world_profile_done)
                     actions.running = false;
                 ++rendered;
                 if (!settings.values.vsync && settings.values.fps_limit > 0) {
@@ -1282,6 +1379,8 @@ int main(int argc, char** argv) {
             renderer.wait_idle();
             if (!gpu_profile.empty()) {
                 renderer.save_gpu_profile(gpu_profile);
+                if (!draw_profile.empty())
+                    save_draw_profile(draw_profile, draw_samples);
                 if (profile_measured_frames < profile_samples)
                     throw std::runtime_error("GPU profile ended before enough steady frames were collected.");
             }
@@ -1297,7 +1396,8 @@ int main(int argc, char** argv) {
             if (!capture.empty() && !capture_done)
                 throw std::runtime_error("Capture did not complete.");
             std::cout << "UI: " << rendered << " frames, GPU=" << renderer.gpu_ms() << "ms\n";
-            ui_errors = system.errors + system.warnings;
+            ui_errors = headless ? headless_system.errors + headless_system.warnings
+                                 : window_system->errors + window_system->warnings;
             texture_errors = ui.failed_textures;
             for (const char* id : {"play", "options", "options-back", "quit"})
                 actions.document->GetElementById(id)->RemoveEventListener("click", &actions);
