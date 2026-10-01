@@ -1,8 +1,17 @@
 #version 460
+#ifdef TERRAIN_BATCH
+#extension GL_EXT_buffer_reference : require
+layout(buffer_reference, std430, buffer_reference_align=4) readonly buffer FaceData { uint values[]; };
+struct ChunkData { vec4 offset; vec4 target; FaceData faces; FaceData lights; };
+layout(buffer_reference, std430, buffer_reference_align=16) readonly buffer DrawTable { ChunkData chunks[]; };
+layout(push_constant) uniform BatchPush { mat4 view_projection; DrawTable table; uint first_draw; } batch;
+struct LocalPush { mat4 view_projection; vec4 offset; vec4 target; };
+#else
 layout(constant_id = 1) const bool shadow_pass = false;
 layout(set = 1, binding = 0, std430) readonly buffer Faces { uint faces[]; };
 layout(set = 1, binding = 1, std430) readonly buffer Lights { uint lights[]; };
 layout(push_constant) uniform Push { mat4 view_projection; vec4 offset; vec4 target; } pc;
+#endif
 layout(location = 0) out vec2 uv;
 layout(location = 1) flat out uint material;
 layout(location = 2) out float shade;
@@ -39,7 +48,13 @@ vec3 water_top_corner(uint face,uint corner) {
     return vec3(face_corners[corner].y,water_corner_y(face,1u,corner),face_corners[corner].x);
 }
 void main() {
+#ifdef TERRAIN_BATCH
+    ChunkData chunk = batch.table.chunks[batch.first_draw + gl_DrawID];
+    LocalPush pc = LocalPush(batch.view_projection, chunk.offset, chunk.target);
+    uint face = chunk.faces.values[gl_InstanceIndex];
+#else
     uint face = faces[gl_InstanceIndex];
+#endif
     material = (face >> 15u) & 7u;
     if (material <= 2u && (face & (1u << 27u)) != 0u) material += 8u;
     bool fluid_face = material == 5u || material == 7u;
@@ -70,7 +85,11 @@ void main() {
     uv = vec2(axis == 0u ? position.z : position.x, axis == 1u ? position.z : -position.y);
     float ao = fluid_face ? 3.0 : float((face >> (18u + 2u * corner)) & 3u);
     float directional = axis == 1u ? (positive != 0u ? 1.0 : 0.48) : (axis == 0u ? 0.78 : 0.65);
+#ifdef TERRAIN_BATCH
+    uint light = (chunk.lights.values[gl_InstanceIndex] >> (corner * 8u)) & 255u;
+#else
     uint light = (lights[gl_InstanceIndex] >> (corner * 8u)) & 255u;
+#endif
     float sky = float(light & 15u) / 15.0;
     sky_visibility = sky;
     relative_position = position + pc.offset.xyz;
@@ -89,9 +108,11 @@ void main() {
     illumination = 0.035 + 0.965 * illumination * illumination;
     shade = material == 8u ? 1.0 : directional * (0.45 + 0.55 * ao / 3.0) * illumination;
     gl_Position = pc.view_projection * vec4(position + pc.offset.xyz, 1.0);
+#ifndef TERRAIN_BATCH
     if (shadow_pass) {
         float distortion=length(gl_Position.xy)*pc.offset.w+1.0-pc.offset.w;
         gl_Position.xy/=distortion;
         gl_Position.z=0.5+(gl_Position.z-0.5)*0.2;
     }
+#endif
 }

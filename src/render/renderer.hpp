@@ -16,6 +16,7 @@ struct Buffer {
     VkBuffer handle{};
     VmaAllocation allocation{};
     void* mapped{};
+    VkDeviceAddress address{};
 };
 struct Texture {
     VkImage image{};
@@ -103,6 +104,12 @@ class Renderer {
     double gpu_ms() const { return gpu_ms_; }
     double upload_gpu_ms() const { return upload_gpu_ms_; }
     bool gpu_timing_supported() const { return timestamp_bits_ != 0; }
+    bool terrain_batch_supported() const { return terrain_batch_supported_; }
+    uint32_t max_indirect_draws() const { return max_indirect_draws_; }
+    VkBufferUsageFlags terrain_buffer_usage() const {
+        return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+               (terrain_batch_supported_ ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT : 0);
+    }
     std::atomic_uint validation_errors{0};
     std::atomic_uint validation_warnings{0};
     bool validation_enabled{};
@@ -168,6 +175,8 @@ class Renderer {
     double upload_gpu_ms_{};
     std::string gpu_name_;
     bool gpu_profile_enabled_{};
+    bool terrain_batch_supported_{};
+    uint32_t max_indirect_draws_{1};
     bool frame_profile_enabled_{};
     CpuFrameTiming cpu_frame_timing_;
     std::vector<GpuProfile> gpu_profiles_;

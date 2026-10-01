@@ -24,6 +24,17 @@ struct Push {
     glm::vec4 target;
 };
 static_assert(sizeof(Push) == 96 && offsetof(Push, target) == 80);
+struct BatchChunk {
+    glm::vec4 offset, target;
+    VkDeviceAddress faces, lights;
+};
+struct BatchPush {
+    glm::mat4 view_projection;
+    VkDeviceAddress table;
+    uint32_t first_draw{}, padding{};
+};
+static_assert(sizeof(BatchChunk) == 48 && offsetof(BatchChunk, faces) == 32);
+static_assert(sizeof(BatchPush) == 80 && offsetof(BatchPush, first_draw) == 72);
 std::array<glm::vec4, 6> frustum(const glm::mat4& matrix) {
     const auto rows = glm::transpose(matrix);
     return {rows[3] + rows[0], rows[3] - rows[0], rows[3] + rows[1],
@@ -135,6 +146,12 @@ void WorldView::shutdown() noexcept {
         vmaDestroyImage(renderer_.allocator, depth_, depth_allocation_);
     if (pipeline_)
         vkDestroyPipeline(renderer_.device, pipeline_, nullptr);
+    if (batch_pipeline_)
+        vkDestroyPipeline(renderer_.device, batch_pipeline_, nullptr);
+    for (auto& frame : terrain_batches_) {
+        renderer_.destroy_buffer(frame.data);
+        renderer_.destroy_buffer(frame.commands);
+    }
     if (water_pipeline_)
         vkDestroyPipeline(renderer_.device, water_pipeline_, nullptr);
     if (lod_debug_pipeline_)
@@ -235,6 +252,22 @@ void WorldView::create_pipeline() {
     pipeline.layout = layout_;
     const auto result =
         vkCreateGraphicsPipelines(renderer_.device, VK_NULL_HANDLE, 1, &pipeline, nullptr, &pipeline_);
+    VkResult batch_result = result;
+    if (result == VK_SUCCESS && renderer_.terrain_batch_supported()) {
+        VkShaderModule batch_vert{};
+        try {
+            batch_vert = renderer_.shader("shaders/world_batch.vert.spv");
+        } catch (...) {
+            vkDestroyShaderModule(renderer_.device, vert, nullptr);
+            vkDestroyShaderModule(renderer_.device, frag, nullptr);
+            throw;
+        }
+        stages[0].module = batch_vert;
+        batch_result = vkCreateGraphicsPipelines(renderer_.device, VK_NULL_HANDLE, 1, &pipeline, nullptr,
+                                                 &batch_pipeline_);
+        stages[0].module = vert;
+        vkDestroyShaderModule(renderer_.device, batch_vert, nullptr);
+    }
     VkResult water_result = result;
     if (result == VK_SUCCESS) {
         depth.depthWriteEnable = VK_FALSE;
@@ -264,6 +297,7 @@ void WorldView::create_pipeline() {
     vkDestroyShaderModule(renderer_.device, vert, nullptr);
     vkDestroyShaderModule(renderer_.device, frag, nullptr);
     vk_check(result, "world graphics pipeline");
+    vk_check(batch_result, "batched terrain graphics pipeline");
     vk_check(water_result, "water graphics pipeline");
     vk_check(debug_result, "LOD debug graphics pipeline");
     const auto player_vert = renderer_.shader("shaders/player.vert.spv");
@@ -813,13 +847,13 @@ void WorldView::upload(const PackedMesh& source, GpuChunk& destination) {
     destination.light_values = source.values;
     const auto bytes = source.geometry->size() * sizeof(PackedFace);
     destination.faces =
-        renderer_.upload_buffer(source.geometry->data(), bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        renderer_.upload_buffer(source.geometry->data(), bytes, renderer_.terrain_buffer_usage());
     destination.count = static_cast<uint32_t>(source.geometry->size());
     destination.solid_count = source.solid_count;
     destination.ice_count = source.ice_count;
     try {
         destination.lights =
-            renderer_.upload_buffer(source.values->data(), bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+            renderer_.upload_buffer(source.values->data(), bytes, renderer_.terrain_buffer_usage());
         describe(destination);
     } catch (...) {
         retire(destination);
@@ -1134,7 +1168,7 @@ void WorldView::relight(GpuChunk& mesh, const PackedMesh& prepared) {
     replacement.pool = {};
     try {
         replacement.lights = renderer_.upload_buffer(values.data(), values.size() * sizeof(uint32_t),
-                                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+                                                     renderer_.terrain_buffer_usage());
         replacement.light_values = prepared.values;
         describe(replacement);
     } catch (...) {
@@ -1670,9 +1704,16 @@ void WorldView::render() {
         record_near.template operator()<true>();
     else
         record_near.template operator()<false>();
+    const auto sort_start =
+        profile_draws_ ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+    if (profile_draws_)
+        near_draw_stats_.list_ms = std::chrono::duration<double, std::milli>(sort_start - near_start).count();
     sort_chunks(solid_draws);
     sort_chunks(water_draws);
     sort_chunks(ice_draws);
+    if (profile_draws_)
+        near_draw_stats_.sort_ms =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sort_start).count();
     if (profile_draws_)
         near_draw_stats_.cpu_ms =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - near_start).count();
@@ -1705,13 +1746,96 @@ void WorldView::render() {
                     std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
                         .count();
         });
+    if (batch_pipeline_ && !direct_terrain_ && !lod_debug_ && !solid_draws.empty()) {
+        const auto batch_start =
+            profile_draws_ ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+        auto& frame = terrain_batches_[renderer_.frame_slot()];
+        const auto count = solid_draws.size();
+        if (count > std::numeric_limits<uint32_t>::max())
+            throw std::runtime_error("Too many terrain indirect draws.");
+        if (frame.capacity < count) {
+            // begin_frame has waited for this slot. Other slots own separate tables.
+            const size_t capacity = std::bit_ceil(std::max(size_t{256}, count));
+            Buffer data{}, commands{};
+            try {
+                data =
+                    renderer_.create_buffer(capacity * sizeof(BatchChunk), renderer_.terrain_buffer_usage());
+                commands = renderer_.create_buffer(capacity * sizeof(VkDrawIndirectCommand),
+                                                   VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+            } catch (...) {
+                renderer_.destroy_buffer(data);
+                renderer_.destroy_buffer(commands);
+                throw;
+            }
+            renderer_.destroy_buffer(frame.data);
+            renderer_.destroy_buffer(frame.commands);
+            frame = {data, commands, capacity};
+        }
+        auto* chunks = static_cast<BatchChunk*>(frame.data.mapped);
+        auto* commands = static_cast<VkDrawIndirectCommand*>(frame.commands.mapped);
+        for (size_t i = 0; i < count; ++i) {
+            const auto& draw = solid_draws[i];
+            chunks[i] = {glm::vec4(draw.offset, sun), draw.selected, draw.mesh->faces.address,
+                         draw.mesh->lights.address};
+            // gl_InstanceIndex remains the local face index. gl_DrawID selects the chunk.
+            commands[i] = {6, draw.mesh->solid_count, 0, 0};
+        }
+        vk_check(
+            vmaFlushAllocation(renderer_.allocator, frame.data.allocation, 0, count * sizeof(BatchChunk)),
+            "terrain table flush");
+        vk_check(vmaFlushAllocation(renderer_.allocator, frame.commands.allocation, 0,
+                                    count * sizeof(VkDrawIndirectCommand)),
+                 "terrain indirect flush");
+        // Host writes complete before queue submission. Mesh upload barriers and
+        // deferred retirement also cover accesses through buffer device addresses.
+        solid_merge.before = [&, count, cursor = uint32_t{0}](double limit) mutable {
+            const auto first = cursor;
+            while (cursor < count && solid_draws[cursor].distance <= limit) {
+                if (solid_merge.check_distance)
+                    solid_merge.check_distance(solid_draws[cursor].distance);
+                ++cursor;
+            }
+            if (cursor == first)
+                return false;
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, batch_pipeline_);
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 0, 1, &atlas_.descriptor,
+                                    0, nullptr);
+            scene_effects_->bind_environment(layout_, 2);
+            if (profile_draws_)
+                near_draw_stats_.descriptor_binds += 2;
+            for (auto base = first; base < cursor;) {
+                const auto batch_count = std::min(cursor - base, renderer_.max_indirect_draws());
+                const BatchPush push{matrix, frame.data.address, base};
+                vkCmdPushConstants(cmd, layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
+                vkCmdDrawIndirect(cmd, frame.commands.handle,
+                                  VkDeviceSize(base) * sizeof(VkDrawIndirectCommand), batch_count,
+                                  sizeof(VkDrawIndirectCommand));
+                if (profile_draws_) {
+                    ++near_draw_stats_.pushes;
+                    ++near_draw_stats_.indirect_calls;
+                    near_draw_stats_.indirect_draws += batch_count;
+                    near_draw_stats_.draws += batch_count;
+                }
+                base += batch_count;
+            }
+            return true;
+        };
+        if (profile_draws_) {
+            near_draw_stats_.batch_prepare_ms =
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - batch_start)
+                    .count();
+            near_draw_stats_.cpu_ms += near_draw_stats_.batch_prepare_ms;
+        }
+    }
     if (profile_draws_) {
         const auto emit = solid_merge.before;
         solid_merge.before = [&, emit](double limit) {
             const auto start = std::chrono::steady_clock::now();
             const bool changed = emit(limit);
-            near_draw_stats_.cpu_ms +=
+            const double elapsed =
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+            near_draw_stats_.record_ms += elapsed;
+            near_draw_stats_.cpu_ms += elapsed;
             return changed;
         };
     }

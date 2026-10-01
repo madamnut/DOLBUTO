@@ -6,6 +6,8 @@ namespace sandbox {
 struct DrawStats {
     double cpu_ms{}; // Traversal, culling, bindings and command recording; no queue submit/wait.
     uint32_t draws{}, descriptor_binds{}, vertex_binds{}, pushes{};
+    double list_ms{}, sort_ms{}, record_ms{}, batch_prepare_ms{};
+    uint32_t indirect_calls{}, indirect_draws{};
 };
 // Opt-in sparse timings: raw sums for 1/32 of published columns, rotated every frame.
 // These include timer overhead; they are not a precise decomposition of normal frame time.

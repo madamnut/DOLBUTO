@@ -106,7 +106,9 @@ void save_draw_profile(const std::filesystem::path& path, const std::vector<Draw
            "near_visible,near_sampled_columns,near_sampled_nonempty,near_sampled_visible,"
            "near_rejected_columns,near_rejected_column_nonempty,near_rejection_conflicts,"
            "near_sample_scan_ms,near_sample_cull_ms,near_sample_record_ms,"
-           "scene_descriptor_cpu_ms,scene_descriptor_calls,scene_descriptor_writes\n"
+           "scene_descriptor_cpu_ms,scene_descriptor_calls,scene_descriptor_writes,"
+           "near_list_ms,near_sort_ms,near_record_ms,near_batch_prepare_ms,near_indirect_calls,"
+           "near_indirect_draws\n"
         << std::fixed << std::setprecision(6);
     for (const auto& s : samples) {
         out << s.frame << ',' << s.steady << ',' << s.extent.width << ',' << s.extent.height << ','
@@ -121,7 +123,10 @@ void save_draw_profile(const std::filesystem::path& path, const std::vector<Draw
             << d.sampled_columns << ',' << d.sampled_nonempty << ',' << d.sampled_visible << ','
             << d.rejected_columns << ',' << d.rejected_column_nonempty << ',' << d.rejection_conflicts << ','
             << d.scan_ms << ',' << d.cull_ms << ',' << d.record_ms << ',' << s.scene_descriptors.cpu_ms << ','
-            << s.scene_descriptors.calls << ',' << s.scene_descriptors.writes << '\n';
+            << s.scene_descriptors.calls << ',' << s.scene_descriptors.writes << ',' << s.near_stats.list_ms
+            << ',' << s.near_stats.sort_ms << ',' << s.near_stats.record_ms << ','
+            << s.near_stats.batch_prepare_ms << ',' << s.near_stats.indirect_calls << ','
+            << s.near_stats.indirect_draws << '\n';
     }
     out.flush();
     if (!out)
@@ -791,6 +796,7 @@ int main(int argc, char** argv) {
         std::optional<std::array<double, 4>> profile_view;
         unsigned profile_samples = 600;
         bool profile_near_detail = false;
+        bool profile_direct_terrain = false;
         sandbox::ColumnKey profile_origin{};
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
@@ -804,6 +810,8 @@ int main(int argc, char** argv) {
                 frame_profile = std::filesystem::absolute(argv[++i]);
             else if (arg == "--profile-near-detail")
                 profile_near_detail = true;
+            else if (arg == "--profile-direct-terrain")
+                profile_direct_terrain = true;
             else if (arg == "--capture-shadow-maps" && i + 1 < argc)
                 shadow_capture = std::filesystem::absolute(argv[++i]);
             else if (arg == "--profile-samples" && i + 1 < argc)
@@ -848,7 +856,8 @@ int main(int argc, char** argv) {
                                          "[--profile-origin columnX columnZ] [--profile-gpu file.csv] "
                                          "[--profile-view height yaw pitch hour] [--profile-samples N] "
                                          "[--capture-shadow-maps directory] [--profile-draws file.csv] "
-                                         "[--profile-near-detail] [--profile-frame file.csv]");
+                                         "[--profile-near-detail] [--profile-frame file.csv] "
+                                         "[--profile-direct-terrain]");
         }
         if (render_distance < 1 || render_distance > 64)
             throw std::runtime_error("Render distance must be 1..64 columns.");
@@ -858,6 +867,8 @@ int main(int argc, char** argv) {
             throw std::runtime_error("--capture-shadow-maps requires --profile-gpu.");
         if (profile_near_detail && draw_profile.empty())
             throw std::runtime_error("--profile-near-detail requires --profile-draws.");
+        if (profile_direct_terrain && gpu_profile.empty())
+            throw std::runtime_error("--profile-direct-terrain requires --profile-gpu.");
         if (!frame_profile.empty()) {
             if (gpu_profile.empty())
                 throw std::runtime_error("--profile-frame requires --profile-gpu.");
@@ -1232,6 +1243,8 @@ int main(int argc, char** argv) {
                                       << " tick=" << world->day_tick() << '\n';
                         if (!draw_profile.empty())
                             world->enable_draw_profile(profile_near_detail);
+                        if (profile_direct_terrain)
+                            world->force_direct_terrain();
                         settings.world = world.get();
                         world->camera.field_of_view = float(settings.values.field_of_view);
                         world->set_view_bobbing(settings.values.view_bobbing);

@@ -178,15 +178,35 @@ void Renderer::initialize(SDL_Window* window, bool validation, VkExtent2D offscr
     qi.queueFamilyIndex = queue_family;
     qi.queueCount = 1;
     qi.pQueuePriorities = &priority;
+    VkPhysicalDeviceVulkan11Features available11{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES};
+    VkPhysicalDeviceVulkan12Features available12{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+    VkPhysicalDeviceFeatures2 available{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+    available.pNext = &available11;
+    available11.pNext = &available12;
+    vkGetPhysicalDeviceFeatures2(physical_device, &available);
+    terrain_batch_supported_ = available.features.multiDrawIndirect && available11.shaderDrawParameters &&
+                               available12.bufferDeviceAddress;
+    VkPhysicalDeviceProperties limits{};
+    vkGetPhysicalDeviceProperties(physical_device, &limits);
+    max_indirect_draws_ = std::max(1u, limits.limits.maxDrawIndirectCount);
+    VkPhysicalDeviceVulkan11Features enabled11{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES};
+    VkPhysicalDeviceVulkan12Features enabled12{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+    VkPhysicalDeviceFeatures enabled{};
+    enabled.multiDrawIndirect = terrain_batch_supported_;
+    enabled11.shaderDrawParameters = terrain_batch_supported_;
+    enabled12.bufferDeviceAddress = terrain_batch_supported_;
+    enabled11.pNext = &enabled12;
     VkPhysicalDeviceVulkan13Features f13{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
     f13.dynamicRendering = VK_TRUE;
     f13.synchronization2 = VK_TRUE;
     // glslc's Vulkan 1.4 discard uses helper invocations so derivatives remain
     // valid at the water exit mask. Core availability still requires enablement.
     f13.shaderDemoteToHelperInvocation = VK_TRUE;
+    f13.pNext = &enabled11;
     const char* swapchain_extension = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
     VkDeviceCreateInfo di{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     di.pNext = &f13;
+    di.pEnabledFeatures = &enabled;
     di.queueCreateInfoCount = 1;
     di.pQueueCreateInfos = &qi;
     di.enabledExtensionCount = headless_ ? 0 : 1;
@@ -202,6 +222,8 @@ void Renderer::initialize(SDL_Window* window, bool validation, VkExtent2D offscr
     ai.device = device;
     ai.instance = instance;
     ai.vulkanApiVersion = VK_API_VERSION_1_4;
+    if (terrain_batch_supported_)
+        ai.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
     ai.pVulkanFunctions = &functions;
     vk_check(vmaCreateAllocator(&ai, &allocator), "VMA allocator");
     VkDescriptorPoolSize pool_size{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1024};
@@ -253,6 +275,8 @@ void Renderer::initialize(SDL_Window* window, bool validation, VkExtent2D offscr
         create_swapchain();
     resize_requested_ = false;
     std::cout << "GPU: " << gpu_name_ << " | Vulkan 1.4 | validation=" << validation_enabled << '\n';
+    std::cout << "Terrain batching: " << (terrain_batch_supported_ ? "supported" : "direct fallback")
+              << " | max indirect draws=" << max_indirect_draws_ << '\n';
 }
 const char* Renderer::present_mode_description() const {
     if (headless_)
@@ -793,6 +817,11 @@ Buffer Renderer::create_buffer(VkDeviceSize size, VkBufferUsageFlags usage, bool
     vk_check(vmaCreateBuffer(allocator, &ci, &ai, &buffer.handle, &buffer.allocation, &allocation),
              "buffer allocation");
     buffer.mapped = allocation.pMappedData;
+    if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+        VkBufferDeviceAddressInfo address{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
+        address.buffer = buffer.handle;
+        buffer.address = vkGetBufferDeviceAddress(device, &address);
+    }
     if (!buffer.mapped) {
         destroy_buffer(buffer);
         throw std::runtime_error("VMA did not provide a mapped CPU-visible buffer.");
@@ -844,6 +873,11 @@ Buffer Renderer::upload_buffer(const void* data, VkDeviceSize size, VkBufferUsag
         ai.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         vk_check(vmaCreateBuffer(allocator, &ci, &ai, &destination.handle, &destination.allocation, nullptr),
                  "world buffer");
+        if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+            VkBufferDeviceAddressInfo address{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
+            address.buffer = destination.handle;
+            destination.address = vkGetBufferDeviceAddress(device, &address);
+        }
         staging = stage_buffer(data, size);
     } catch (...) {
         destroy_buffer(destination);

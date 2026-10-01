@@ -54,6 +54,7 @@ class WorldView {
         profile_near_detail_ = near_detail;
     }
     uint64_t distance_order_checks() const { return distance_order_checks_; }
+    void force_direct_terrain() { direct_terrain_ = true; }
     const DrawStats& near_draw_stats() const { return near_draw_stats_; }
     const SceneEffects::DescriptorStats& scene_descriptor_stats() const {
         return scene_effects_->descriptor_stats;
@@ -115,6 +116,7 @@ class WorldView {
   private:
     bool profile_draws_{};
     bool profile_near_detail_{};
+    bool direct_terrain_{};
     uint32_t near_detail_frame_{};
     uint64_t distance_order_checks_{};
     DrawStats near_draw_stats_;
@@ -186,6 +188,12 @@ class WorldView {
     Texture atlas_{};
     VkPipelineLayout layout_{};
     VkPipeline pipeline_{};
+    VkPipeline batch_pipeline_{};
+    struct TerrainBatchFrame {
+        Buffer data, commands;
+        size_t capacity{};
+    };
+    std::array<TerrainBatchFrame, Renderer::frames_in_flight> terrain_batches_{};
     VkPipeline water_pipeline_{};
     WaterSettings water_settings_;
     std::unique_ptr<WaterEffects> water_effects_;
