@@ -40,6 +40,15 @@ class Renderer {
     void finish_uploads(); // Timestamp boundary before any world/shadow render pass.
     // Explicit diagnostic mode only. Labels must be string literals; no GPU waits per marker.
     void enable_gpu_profile() { gpu_profile_enabled_ = true; }
+    struct CpuFrameTiming {
+        double fence_wait_ms{}, acquire_ms{}, submit_ms{}, present_ms{}, idle_wait_ms{};
+        uint64_t waited_serial{};
+        bool fence_pending{};
+    };
+    void enable_frame_profile() { frame_profile_enabled_ = true; }
+    void reset_cpu_frame_timing() { cpu_frame_timing_ = {}; }
+    const CpuFrameTiming& cpu_frame_timing() const { return cpu_frame_timing_; }
+    uint64_t submitted_serial() const { return submitted_serial_; }
     void gpu_mark(const char* completed_stage);
     void gpu_profile_frame(bool steady, uint32_t columns, uint32_t chunks, uint32_t triangles);
     void save_gpu_profile(const std::filesystem::path& path);
@@ -102,6 +111,7 @@ class Renderer {
     static constexpr uint32_t profile_capacity = 64;
     struct GpuProfile {
         uint64_t serial{};
+        uint64_t start_tick{}, end_tick{};
         uint32_t count{}, width{}, height{}, columns{}, chunks{}, triangles{};
         bool steady{};
         std::array<const char*, profile_capacity> labels{};
@@ -158,6 +168,8 @@ class Renderer {
     double upload_gpu_ms_{};
     std::string gpu_name_;
     bool gpu_profile_enabled_{};
+    bool frame_profile_enabled_{};
+    CpuFrameTiming cpu_frame_timing_;
     std::vector<GpuProfile> gpu_profiles_;
     void collect_gpu_profile(Frame& frame);
     void create_swapchain();

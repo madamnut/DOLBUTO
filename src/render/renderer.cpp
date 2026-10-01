@@ -2,6 +2,7 @@
 #include "world/profiling.hpp"
 #include <SDL3/SDL_vulkan.h>
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <fstream>
 #include <iomanip>
@@ -17,6 +18,22 @@ void vk_check(VkResult result, const char* operation) {
         throw std::runtime_error(std::string(operation) + ": VkResult=" + std::to_string(result));
 }
 namespace {
+// Opt-in wall-clock timing around API calls; no timers in ordinary rendering.
+class CpuCallTimer {
+    double* target_;
+    std::chrono::steady_clock::time_point start_;
+
+  public:
+    CpuCallTimer(bool enabled, double& target) : target_(enabled ? &target : nullptr) {
+        if (target_)
+            start_ = std::chrono::steady_clock::now();
+    }
+    ~CpuCallTimer() {
+        if (target_)
+            *target_ +=
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start_).count();
+    }
+};
 VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
                                               VkDebugUtilsMessageTypeFlagsEXT,
                                               const VkDebugUtilsMessengerCallbackDataEXT* data, void* user) {
@@ -406,7 +423,17 @@ bool Renderer::begin_frame() {
         resize_requested_ = false;
     }
     auto& frame = frames_[frame_index_];
-    vk_check(vkWaitForFences(device, 1, &frame.fence, VK_TRUE, UINT64_MAX), "frame wait");
+    if (frame_profile_enabled_) {
+        cpu_frame_timing_.waited_serial = frame.serial;
+        const auto status = vkGetFenceStatus(device, frame.fence);
+        if (status != VK_SUCCESS && status != VK_NOT_READY)
+            vk_check(status, "frame fence status");
+        cpu_frame_timing_.fence_pending = status == VK_NOT_READY;
+    }
+    {
+        CpuCallTimer measure(frame_profile_enabled_, cpu_frame_timing_.fence_wait_ms);
+        vk_check(vkWaitForFences(device, 1, &frame.fence, VK_TRUE, UINT64_MAX), "frame wait");
+    }
     collect_gpu_profile(frame);
     completed_serial_ = std::max(completed_serial_, frame.serial);
     collect();
@@ -431,8 +458,12 @@ bool Renderer::begin_frame() {
         // This slot's fence also owns the offscreen image; no acquire/present semaphores exist.
         image_index_ = frame_index_;
     } else {
-        const auto acquired = vkAcquireNextImageKHR(device, swapchain_, UINT64_MAX, frame.acquired,
-                                                    VK_NULL_HANDLE, &image_index_);
+        VkResult acquired;
+        {
+            CpuCallTimer measure(frame_profile_enabled_, cpu_frame_timing_.acquire_ms);
+            acquired = vkAcquireNextImageKHR(device, swapchain_, UINT64_MAX, frame.acquired, VK_NULL_HANDLE,
+                                             &image_index_);
+        }
         if (acquired == VK_ERROR_OUT_OF_DATE_KHR) {
             resize_requested_ = true;
             return false;
@@ -505,6 +536,8 @@ void Renderer::collect_gpu_profile(Frame& frame) {
         p.milliseconds[i] = double((values[i] - values[i - 1]) & mask) * timestamp_period_ / 1e6;
     p.milliseconds[0] = double((values[p.count - 1] - values[0]) & mask) * timestamp_period_ / 1e6;
     p.serial = frame.serial;
+    p.start_tick = values[0] & mask;
+    p.end_tick = values[p.count - 1] & mask;
     gpu_profiles_.push_back(p);
     frame.profile_pending = false;
 }
@@ -519,13 +552,20 @@ void Renderer::save_gpu_profile(const std::filesystem::path& path) {
     if (!path.parent_path().empty())
         std::filesystem::create_directories(path.parent_path());
     std::ofstream out(path);
-    out << "frame,steady,width,height,columns,chunks,triangles,stage,ms\n"
-        << std::fixed << std::setprecision(6);
+    out << "frame,steady,width,height,columns,chunks,triangles,stage,ms";
+    if (frame_profile_enabled_)
+        out << ",start_tick,end_tick,timestamp_period_ns,timestamp_bits";
+    out << '\n' << std::fixed << std::setprecision(6);
     for (const auto& p : gpu_profiles_) {
-        for (uint32_t i = 0; i < p.count; ++i)
+        for (uint32_t i = 0; i < p.count; ++i) {
             out << p.serial << ',' << p.steady << ',' << p.width << ',' << p.height << ',' << p.columns << ','
                 << p.chunks << ',' << p.triangles << ',' << (i == 0 ? "total" : p.labels[i]) << ','
-                << p.milliseconds[i] << '\n';
+                << p.milliseconds[i];
+            if (frame_profile_enabled_)
+                out << ',' << p.start_tick << ',' << p.end_tick << ',' << timestamp_period_ << ','
+                    << timestamp_bits_;
+            out << '\n';
+        }
     }
     out.flush();
     if (!out)
@@ -675,7 +715,10 @@ bool Renderer::end_frame(const std::filesystem::path& capture) {
     submit.signalSemaphoreInfoCount = headless_ ? 0 : 1;
     submit.pSignalSemaphoreInfos = headless_ ? nullptr : &signal;
     vk_check(vkResetFences(device, 1, &frame.fence), "reset frame fence");
-    vk_check(vkQueueSubmit2(queue, 1, &submit, frame.fence), "submit frame");
+    {
+        CpuCallTimer measure(frame_profile_enabled_, cpu_frame_timing_.submit_ms);
+        vk_check(vkQueueSubmit2(queue, 1, &submit, frame.fence), "submit frame");
+    }
     frame.serial = ++submitted_serial_;
     frame.profile_pending = frame.profile_queries != VK_NULL_HANDLE;
     frame.has_timestamps = frame.queries != VK_NULL_HANDLE;
@@ -687,7 +730,11 @@ bool Renderer::end_frame(const std::filesystem::path& capture) {
         present.swapchainCount = 1;
         present.pSwapchains = &swapchain_;
         present.pImageIndices = &image_index_;
-        const auto result = vkQueuePresentKHR(queue, &present);
+        VkResult result;
+        {
+            CpuCallTimer measure(frame_profile_enabled_, cpu_frame_timing_.present_ms);
+            result = vkQueuePresentKHR(queue, &present);
+        }
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
             resize_requested_ = true;
         else
@@ -841,8 +888,14 @@ void Renderer::immediate(const std::function<void(VkCommandBuffer)>& record) {
     VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
     submit.commandBufferCount = 1;
     submit.pCommandBuffers = &cmd;
-    vk_check(vkQueueSubmit(queue, 1, &submit, VK_NULL_HANDLE), "submit upload");
-    vk_check(vkQueueWaitIdle(queue), "upload completion");
+    {
+        CpuCallTimer measure(frame_profile_enabled_, cpu_frame_timing_.submit_ms);
+        vk_check(vkQueueSubmit(queue, 1, &submit, VK_NULL_HANDLE), "submit upload");
+    }
+    {
+        CpuCallTimer measure(frame_profile_enabled_, cpu_frame_timing_.idle_wait_ms);
+        vk_check(vkQueueWaitIdle(queue), "upload completion");
+    }
     vkFreeCommandBuffers(device, upload_pool_, 1, &cmd);
 }
 Texture Renderer::create_texture(const unsigned char* pixels, int width, int height, bool nearest,
@@ -949,7 +1002,10 @@ void Renderer::collect() {
 }
 void Renderer::wait_idle() {
     if (device) {
-        vk_check(vkDeviceWaitIdle(device), "device idle");
+        {
+            CpuCallTimer measure(frame_profile_enabled_, cpu_frame_timing_.idle_wait_ms);
+            vk_check(vkDeviceWaitIdle(device), "device idle");
+        }
         completed_serial_ = submitted_serial_;
         collect();
     }

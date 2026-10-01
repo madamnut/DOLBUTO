@@ -1,0 +1,3436 @@
+{
+  "runs": [
+    {
+      "name": "r12-1",
+      "metadata": {
+        "name": "r12-1",
+        "binary_sha256": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54",
+        "arguments": [
+          "--headless",
+          "--render-distance",
+          12,
+          "--profile-gpu",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r12-1-gpu.csv",
+          "--profile-samples",
+          1200,
+          "--profile-view",
+          193.6,
+          -90,
+          -22,
+          12,
+          "--profile-origin",
+          0,
+          0,
+          "--seconds",
+          300,
+          "--profile-frame",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r12-1-frame.csv"
+        ],
+        "settings_sha256": "285B798EADAB3BBBB17C90CE7910A6431CBFACF1314814659A3BEAFC38A61CF4",
+        "elapsed_seconds": 11.9810344,
+        "exit_code": 0
+      },
+      "samples": 1200,
+      "warnings": 0,
+      "cpu": {
+        "frame_wall_ms": {
+          "mean": 1.6511553333333333,
+          "median": 1.6357,
+          "p95": 1.9507,
+          "minimum": 0.437,
+          "maximum": 3.4905
+        },
+        "cpu_work_ms": {
+          "mean": 0.49256275,
+          "median": 0.4484,
+          "p95": 0.7589,
+          "minimum": 0.3733,
+          "maximum": 2.0683
+        },
+        "pre_ms": {
+          "mean": 0.0006721666666666666,
+          "median": 0.0006,
+          "p95": 0.0011,
+          "minimum": 0.0002,
+          "maximum": 0.0266
+        },
+        "begin_ms": {
+          "mean": 1.1667456666666667,
+          "median": 1.1986,
+          "p95": 1.3205,
+          "minimum": 0.0079,
+          "maximum": 2.77
+        },
+        "world_ms": {
+          "mean": 0.42700841666666667,
+          "median": 0.3916,
+          "p95": 0.6535,
+          "minimum": 0.3274,
+          "maximum": 1.3609
+        },
+        "ui_ms": {
+          "mean": 0.03330366666666667,
+          "median": 0.0285,
+          "p95": 0.0566,
+          "minimum": 0.0198,
+          "maximum": 0.2467
+        },
+        "end_ms": {
+          "mean": 0.022869583333333332,
+          "median": 0.019,
+          "p95": 0.0344,
+          "minimum": 0.0112,
+          "maximum": 1.6286
+        },
+        "post_ms": {
+          "mean": 0.0005558333333333333,
+          "median": 0.0005,
+          "p95": 0.0009,
+          "minimum": 0.0003,
+          "maximum": 0.0029
+        },
+        "fence_wait_ms": {
+          "mean": 1.1585925833333333,
+          "median": 1.1922,
+          "p95": 1.3063,
+          "minimum": 0.0006,
+          "maximum": 2.7587
+        },
+        "submit_ms": {
+          "mean": 0.019668583333333333,
+          "median": 0.0161,
+          "p95": 0.0291,
+          "minimum": 0.0089,
+          "maximum": 1.6256
+        }
+      },
+      "frame_period_ms": {
+        "mean": 1.6515302752293577,
+        "median": 1.6359,
+        "p95": 1.9527,
+        "minimum": 0.4372,
+        "maximum": 3.4909
+      },
+      "main_thread_cpu_mean_ms": 0.4557291666666667,
+      "fence_pending_fraction": 0.9941666666666666,
+      "gpu": {
+        "total": {
+          "mean": 1.64228176,
+          "median": 1.629952,
+          "p95": 1.659328,
+          "minimum": 1.624352,
+          "maximum": 2.029568
+        },
+        "uploads": {
+          "mean": 0.002603226666666667,
+          "median": 0.00256,
+          "p95": 0.002848,
+          "minimum": 0.002464,
+          "maximum": 0.006208
+        },
+        "scene_setup": {
+          "mean": 0.009810853333333333,
+          "median": 0.009696,
+          "p95": 0.010912,
+          "minimum": 0.00944,
+          "maximum": 0.0168
+        },
+        "shadow_solid": {
+          "mean": 0.7487537066666666,
+          "median": 0.7416,
+          "p95": 0.74304,
+          "minimum": 0.73952,
+          "maximum": 1.135936
+        },
+        "shadow_depth_copy": {
+          "mean": 0.04912304,
+          "median": 0.04832,
+          "p95": 0.048864,
+          "minimum": 0.047712,
+          "maximum": 0.417408
+        },
+        "shadow_water": {
+          "mean": 0.0058141600000000005,
+          "median": 0.005824,
+          "p95": 0.005888,
+          "minimum": 0.005632,
+          "maximum": 0.006016
+        },
+        "opaque_terrain_player": {
+          "mean": 0.24451805333333335,
+          "median": 0.243296,
+          "p95": 0.244864,
+          "minimum": 0.240448,
+          "maximum": 0.4464
+        },
+        "opaque_depth_copy": {
+          "mean": 0.024873893333333334,
+          "median": 0.024736,
+          "p95": 0.02512,
+          "minimum": 0.02432,
+          "maximum": 0.052608
+        },
+        "scene_factor": {
+          "mean": 0.00769384,
+          "median": 0.007456,
+          "p95": 0.00768,
+          "minimum": 0.007232,
+          "maximum": 0.18448
+        },
+        "atmosphere": {
+          "mean": 0.08674562666666667,
+          "median": 0.086496,
+          "p95": 0.086976,
+          "minimum": 0.0856,
+          "maximum": 0.240768
+        },
+        "water_surface": {
+          "mean": 2.9066666666666666e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "water_depth": {
+          "mean": 2.96e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "cloud_raymarch": {
+          "mean": 0.055756506666666664,
+          "median": 0.055232,
+          "p95": 0.055968,
+          "minimum": 0.054208,
+          "maximum": 0.400576
+        },
+        "volume_composite": {
+          "mean": 0.12868866666666667,
+          "median": 0.128288,
+          "p95": 0.128832,
+          "minimum": 0.126912,
+          "maximum": 0.506368
+        },
+        "bloom": {
+          "mean": 0.11189136,
+          "median": 0.110816,
+          "p95": 0.115104,
+          "minimum": 0.109728,
+          "maximum": 0.455104
+        },
+        "tone_map": {
+          "mean": 0.04476338666666667,
+          "median": 0.044512,
+          "p95": 0.0448,
+          "minimum": 0.04416,
+          "maximum": 0.2456
+        },
+        "taa": {
+          "mean": 0.10484194666666667,
+          "median": 0.104192,
+          "p95": 0.104704,
+          "minimum": 0.102496,
+          "maximum": 0.474784
+        },
+        "present_composite": {
+          "mean": 0.012161973333333333,
+          "median": 0.012128,
+          "p95": 0.012544,
+          "minimum": 0.01168,
+          "maximum": 0.015904
+        },
+        "ui": {
+          "mean": 0.004235653333333333,
+          "median": 0.004224,
+          "p95": 0.004416,
+          "minimum": 0.004,
+          "maximum": 0.004672
+        }
+      },
+      "gpu_frame_envelope_coverage": 0.9943762432918971,
+      "gpu_frame_gap_ms": {
+        "mean": 0.009295773144286906,
+        "median": 0.006848,
+        "p95": 0.007392,
+        "minimum": 0.006496,
+        "maximum": 1.111648
+      },
+      "gpu_overlap_ms": 0.0,
+      "counts": {
+        "columns": [
+          441
+        ],
+        "lod_tiles": [
+          402
+        ],
+        "render_distance": [
+          12
+        ]
+      }
+    },
+    {
+      "name": "r24-1",
+      "metadata": {
+        "name": "r24-1",
+        "binary_sha256": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54",
+        "arguments": [
+          "--headless",
+          "--render-distance",
+          24,
+          "--profile-gpu",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r24-1-gpu.csv",
+          "--profile-samples",
+          1200,
+          "--profile-view",
+          193.6,
+          -90,
+          -22,
+          12,
+          "--profile-origin",
+          0,
+          0,
+          "--seconds",
+          300,
+          "--profile-frame",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r24-1-frame.csv"
+        ],
+        "settings_sha256": "285B798EADAB3BBBB17C90CE7910A6431CBFACF1314814659A3BEAFC38A61CF4",
+        "elapsed_seconds": 18.3782655,
+        "exit_code": 0
+      },
+      "samples": 1200,
+      "warnings": 0,
+      "cpu": {
+        "frame_wall_ms": {
+          "mean": 1.4727610833333333,
+          "median": 1.3615,
+          "p95": 2.0352,
+          "minimum": 0.8444,
+          "maximum": 10.9256
+        },
+        "cpu_work_ms": {
+          "mean": 1.0728425833333333,
+          "median": 0.8828,
+          "p95": 1.6844,
+          "minimum": 0.7841,
+          "maximum": 3.6049
+        },
+        "pre_ms": {
+          "mean": 0.0007535833333333333,
+          "median": 0.0007,
+          "p95": 0.0014,
+          "minimum": 0.0004,
+          "maximum": 0.0065
+        },
+        "begin_ms": {
+          "mean": 0.4072735,
+          "median": 0.4896,
+          "p95": 0.5825,
+          "minimum": 0.0048,
+          "maximum": 9.1544
+        },
+        "world_ms": {
+          "mean": 0.9951605,
+          "median": 0.821,
+          "p95": 1.5123,
+          "minimum": 0.7379,
+          "maximum": 3.4748
+        },
+        "ui_ms": {
+          "mean": 0.040675083333333334,
+          "median": 0.0311,
+          "p95": 0.0733,
+          "minimum": 0.024,
+          "maximum": 0.6781
+        },
+        "end_ms": {
+          "mean": 0.028232333333333335,
+          "median": 0.021,
+          "p95": 0.0451,
+          "minimum": 0.0144,
+          "maximum": 1.4999
+        },
+        "post_ms": {
+          "mean": 0.0006660833333333333,
+          "median": 0.0005,
+          "p95": 0.001,
+          "minimum": 0.0003,
+          "maximum": 0.0554
+        },
+        "fence_wait_ms": {
+          "mean": 0.3999185,
+          "median": 0.4833,
+          "p95": 0.575,
+          "minimum": 0.0004,
+          "maximum": 9.1393
+        },
+        "submit_ms": {
+          "mean": 0.024215583333333332,
+          "median": 0.0177,
+          "p95": 0.0384,
+          "minimum": 0.0124,
+          "maximum": 1.4947
+        }
+      },
+      "frame_period_ms": {
+        "mean": 1.472969224353628,
+        "median": 1.3619,
+        "p95": 2.0358,
+        "minimum": 0.8446,
+        "maximum": 10.9389
+      },
+      "main_thread_cpu_mean_ms": 0.9765625,
+      "fence_pending_fraction": 0.7825,
+      "gpu": {
+        "total": {
+          "mean": 1.3557288,
+          "median": 1.34784,
+          "p95": 1.367552,
+          "minimum": 1.343296,
+          "maximum": 1.946304
+        },
+        "uploads": {
+          "mean": 0.002605946666666667,
+          "median": 0.00256,
+          "p95": 0.002784,
+          "minimum": 0.002432,
+          "maximum": 0.01552
+        },
+        "scene_setup": {
+          "mean": 0.010104506666666667,
+          "median": 0.009728,
+          "p95": 0.01152,
+          "minimum": 0.009408,
+          "maximum": 0.034688
+        },
+        "shadow_solid": {
+          "mean": 0.3468780266666667,
+          "median": 0.34512,
+          "p95": 0.346528,
+          "minimum": 0.342848,
+          "maximum": 0.733696
+        },
+        "shadow_depth_copy": {
+          "mean": 0.04749344,
+          "median": 0.047296,
+          "p95": 0.047648,
+          "minimum": 0.046816,
+          "maximum": 0.07696
+        },
+        "shadow_water": {
+          "mean": 0.005810533333333334,
+          "median": 0.005824,
+          "p95": 0.00592,
+          "minimum": 0.005728,
+          "maximum": 0.00608
+        },
+        "opaque_terrain_player": {
+          "mean": 0.35909832,
+          "median": 0.356544,
+          "p95": 0.357792,
+          "minimum": 0.3544,
+          "maximum": 0.7408
+        },
+        "opaque_depth_copy": {
+          "mean": 0.024998826666666668,
+          "median": 0.024832,
+          "p95": 0.025216,
+          "minimum": 0.024256,
+          "maximum": 0.056448
+        },
+        "scene_factor": {
+          "mean": 0.007545146666666666,
+          "median": 0.007424,
+          "p95": 0.00768,
+          "minimum": 0.007232,
+          "maximum": 0.032064
+        },
+        "atmosphere": {
+          "mean": 0.08726357333333333,
+          "median": 0.086848,
+          "p95": 0.087488,
+          "minimum": 0.085984,
+          "maximum": 0.458208
+        },
+        "water_surface": {
+          "mean": 3.3066666666666666e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 6.4e-05
+        },
+        "water_depth": {
+          "mean": 3.2266666666666665e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 9.6e-05
+        },
+        "cloud_raymarch": {
+          "mean": 0.05558152,
+          "median": 0.055456,
+          "p95": 0.056192,
+          "minimum": 0.054368,
+          "maximum": 0.07776
+        },
+        "volume_composite": {
+          "mean": 0.13036256,
+          "median": 0.129504,
+          "p95": 0.130464,
+          "minimum": 0.127648,
+          "maximum": 0.494176
+        },
+        "bloom": {
+          "mean": 0.11172709333333333,
+          "median": 0.110784,
+          "p95": 0.112864,
+          "minimum": 0.109408,
+          "maximum": 0.47696
+        },
+        "tone_map": {
+          "mean": 0.04475933333333333,
+          "median": 0.044512,
+          "p95": 0.0448,
+          "minimum": 0.043872,
+          "maximum": 0.202592
+        },
+        "taa": {
+          "mean": 0.10507128,
+          "median": 0.104384,
+          "p95": 0.104928,
+          "minimum": 0.102624,
+          "maximum": 0.473792
+        },
+        "present_composite": {
+          "mean": 0.01219456,
+          "median": 0.01216,
+          "p95": 0.012512,
+          "minimum": 0.011296,
+          "maximum": 0.016224
+        },
+        "ui": {
+          "mean": 0.0042276,
+          "median": 0.004224,
+          "p95": 0.004416,
+          "minimum": 0.003968,
+          "maximum": 0.004608
+        }
+      },
+      "gpu_frame_envelope_coverage": 0.9204749362382489,
+      "gpu_frame_gap_ms": {
+        "mean": 0.11722680900750626,
+        "median": 0.00688,
+        "p95": 0.492288,
+        "minimum": 0.006464,
+        "maximum": 9.550624
+      },
+      "gpu_overlap_ms": 0.0,
+      "counts": {
+        "columns": [
+          1793
+        ],
+        "lod_tiles": [
+          447
+        ],
+        "render_distance": [
+          24
+        ]
+      }
+    },
+    {
+      "name": "r32-1",
+      "metadata": {
+        "name": "r32-1",
+        "binary_sha256": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54",
+        "arguments": [
+          "--headless",
+          "--render-distance",
+          32,
+          "--profile-gpu",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r32-1-gpu.csv",
+          "--profile-samples",
+          1200,
+          "--profile-view",
+          193.6,
+          -90,
+          -22,
+          12,
+          "--profile-origin",
+          0,
+          0,
+          "--seconds",
+          300,
+          "--profile-frame",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r32-1-frame.csv"
+        ],
+        "settings_sha256": "285B798EADAB3BBBB17C90CE7910A6431CBFACF1314814659A3BEAFC38A61CF4",
+        "elapsed_seconds": 28.9194695,
+        "exit_code": 0
+      },
+      "samples": 1200,
+      "warnings": 0,
+      "cpu": {
+        "frame_wall_ms": {
+          "mean": 1.858544,
+          "median": 1.8287,
+          "p95": 2.0567,
+          "minimum": 1.356,
+          "maximum": 3.3342
+        },
+        "cpu_work_ms": {
+          "mean": 1.8515824166666666,
+          "median": 1.828,
+          "p95": 2.0557,
+          "minimum": 1.1086,
+          "maximum": 3.3335
+        },
+        "pre_ms": {
+          "mean": 0.0008985,
+          "median": 0.0008,
+          "p95": 0.0012,
+          "minimum": 0.0005,
+          "maximum": 0.0035
+        },
+        "begin_ms": {
+          "mean": 0.015320166666666666,
+          "median": 0.0086,
+          "p95": 0.0146,
+          "minimum": 0.0078,
+          "maximum": 0.3769
+        },
+        "world_ms": {
+          "mean": 1.7467808333333332,
+          "median": 1.7258,
+          "p95": 1.9369,
+          "minimum": 1.0569,
+          "maximum": 2.9078
+        },
+        "ui_ms": {
+          "mean": 0.056101083333333336,
+          "median": 0.0534,
+          "p95": 0.0644,
+          "minimum": 0.0277,
+          "maximum": 1.3371
+        },
+        "end_ms": {
+          "mean": 0.0385675,
+          "median": 0.0368,
+          "p95": 0.0422,
+          "minimum": 0.0176,
+          "maximum": 1.3122
+        },
+        "post_ms": {
+          "mean": 0.0008759166666666667,
+          "median": 0.0009,
+          "p95": 0.001,
+          "minimum": 0.0004,
+          "maximum": 0.0088
+        },
+        "fence_wait_ms": {
+          "mean": 0.0069615833333333335,
+          "median": 0.0008,
+          "p95": 0.0009,
+          "minimum": 0.0006,
+          "maximum": 0.3719
+        },
+        "submit_ms": {
+          "mean": 0.033519,
+          "median": 0.0319,
+          "p95": 0.0363,
+          "minimum": 0.0148,
+          "maximum": 1.3066
+        }
+      },
+      "frame_period_ms": {
+        "mean": 1.8590376980817347,
+        "median": 1.8291,
+        "p95": 2.0601,
+        "minimum": 1.3563,
+        "maximum": 3.3348
+      },
+      "main_thread_cpu_mean_ms": 1.8229166666666667,
+      "fence_pending_fraction": 0.023333333333333334,
+      "gpu": {
+        "total": {
+          "mean": 1.48154512,
+          "median": 1.476,
+          "p95": 1.479552,
+          "minimum": 1.471392,
+          "maximum": 1.859808
+        },
+        "uploads": {
+          "mean": 0.0026589866666666667,
+          "median": 0.002624,
+          "p95": 0.002912,
+          "minimum": 0.002432,
+          "maximum": 0.0032
+        },
+        "scene_setup": {
+          "mean": 0.01145784,
+          "median": 0.011456,
+          "p95": 0.012736,
+          "minimum": 0.009472,
+          "maximum": 0.016864
+        },
+        "shadow_solid": {
+          "mean": 0.35763493333333335,
+          "median": 0.356224,
+          "p95": 0.357504,
+          "minimum": 0.354048,
+          "maximum": 0.72432
+        },
+        "shadow_depth_copy": {
+          "mean": 0.04783192,
+          "median": 0.047328,
+          "p95": 0.047584,
+          "minimum": 0.046912,
+          "maximum": 0.414144
+        },
+        "shadow_water": {
+          "mean": 0.005809706666666667,
+          "median": 0.005824,
+          "p95": 0.005856,
+          "minimum": 0.005696,
+          "maximum": 0.005984
+        },
+        "opaque_terrain_player": {
+          "mean": 0.47336594666666665,
+          "median": 0.471648,
+          "p95": 0.472864,
+          "minimum": 0.469824,
+          "maximum": 0.841888
+        },
+        "opaque_depth_copy": {
+          "mean": 0.024952693333333335,
+          "median": 0.0248,
+          "p95": 0.025152,
+          "minimum": 0.024288,
+          "maximum": 0.157312
+        },
+        "scene_factor": {
+          "mean": 0.007540506666666667,
+          "median": 0.007456,
+          "p95": 0.007712,
+          "minimum": 0.007264,
+          "maximum": 0.012352
+        },
+        "atmosphere": {
+          "mean": 0.08673133333333333,
+          "median": 0.08672,
+          "p95": 0.087136,
+          "minimum": 0.086048,
+          "maximum": 0.100608
+        },
+        "water_surface": {
+          "mean": 2.9333333333333333e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "water_depth": {
+          "mean": 3.36e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "cloud_raymarch": {
+          "mean": 0.055766906666666664,
+          "median": 0.055424,
+          "p95": 0.056192,
+          "minimum": 0.054304,
+          "maximum": 0.400608
+        },
+        "volume_composite": {
+          "mean": 0.13084714666666666,
+          "median": 0.130048,
+          "p95": 0.130656,
+          "minimum": 0.128672,
+          "maximum": 0.511072
+        },
+        "bloom": {
+          "mean": 0.11143309333333333,
+          "median": 0.111136,
+          "p95": 0.11184,
+          "minimum": 0.110048,
+          "maximum": 0.251616
+        },
+        "tone_map": {
+          "mean": 0.04451141333333333,
+          "median": 0.04448,
+          "p95": 0.044704,
+          "minimum": 0.044192,
+          "maximum": 0.06352
+        },
+        "taa": {
+          "mean": 0.10472642666666666,
+          "median": 0.104256,
+          "p95": 0.104768,
+          "minimum": 0.102624,
+          "maximum": 0.47312
+        },
+        "present_composite": {
+          "mean": 0.01211312,
+          "median": 0.012096,
+          "p95": 0.012384,
+          "minimum": 0.011744,
+          "maximum": 0.015776
+        },
+        "ui": {
+          "mean": 0.0041568533333333334,
+          "median": 0.00416,
+          "p95": 0.004352,
+          "minimum": 0.003936,
+          "maximum": 0.004672
+        }
+      },
+      "gpu_frame_envelope_coverage": 0.7970881903868321,
+      "gpu_frame_gap_ms": {
+        "mean": 0.3774660483736447,
+        "median": 0.351008,
+        "p95": 0.57984,
+        "minimum": 0.00672,
+        "maximum": 1.708224
+      },
+      "gpu_overlap_ms": 0.0,
+      "counts": {
+        "columns": [
+          3209
+        ],
+        "lod_tiles": [
+          489
+        ],
+        "render_distance": [
+          32
+        ]
+      }
+    },
+    {
+      "name": "r12-2",
+      "metadata": {
+        "name": "r12-2",
+        "binary_sha256": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54",
+        "arguments": [
+          "--headless",
+          "--render-distance",
+          12,
+          "--profile-gpu",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r12-2-gpu.csv",
+          "--profile-samples",
+          1200,
+          "--profile-view",
+          193.6,
+          -90,
+          -22,
+          12,
+          "--profile-origin",
+          0,
+          0,
+          "--seconds",
+          300,
+          "--profile-frame",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r12-2-frame.csv"
+        ],
+        "settings_sha256": "285B798EADAB3BBBB17C90CE7910A6431CBFACF1314814659A3BEAFC38A61CF4",
+        "elapsed_seconds": 11.3527568,
+        "exit_code": 0
+      },
+      "samples": 1200,
+      "warnings": 0,
+      "cpu": {
+        "frame_wall_ms": {
+          "mean": 1.657465,
+          "median": 1.6351,
+          "p95": 1.9971,
+          "minimum": 0.4222,
+          "maximum": 5.4197
+        },
+        "cpu_work_ms": {
+          "mean": 0.507114,
+          "median": 0.4493,
+          "p95": 0.8085,
+          "minimum": 0.3807,
+          "maximum": 1.7808
+        },
+        "pre_ms": {
+          "mean": 0.0006987499999999999,
+          "median": 0.0006,
+          "p95": 0.0011,
+          "minimum": 0.0003,
+          "maximum": 0.0188
+        },
+        "begin_ms": {
+          "mean": 1.158732,
+          "median": 1.2005,
+          "p95": 1.3239,
+          "minimum": 0.0057,
+          "maximum": 4.3726
+        },
+        "world_ms": {
+          "mean": 0.4385293333333333,
+          "median": 0.3893,
+          "p95": 0.6906,
+          "minimum": 0.3323,
+          "maximum": 1.6125
+        },
+        "ui_ms": {
+          "mean": 0.03512575,
+          "median": 0.0296,
+          "p95": 0.0591,
+          "minimum": 0.0213,
+          "maximum": 0.2548
+        },
+        "end_ms": {
+          "mean": 0.023686,
+          "median": 0.0194,
+          "p95": 0.0365,
+          "minimum": 0.0108,
+          "maximum": 1.3976
+        },
+        "post_ms": {
+          "mean": 0.0006931666666666667,
+          "median": 0.0005,
+          "p95": 0.001,
+          "minimum": 0.0003,
+          "maximum": 0.1134
+        },
+        "fence_wait_ms": {
+          "mean": 1.150351,
+          "median": 1.1948,
+          "p95": 1.3102,
+          "minimum": 0.0007,
+          "maximum": 4.3339
+        },
+        "submit_ms": {
+          "mean": 0.020195166666666667,
+          "median": 0.0164,
+          "p95": 0.0305,
+          "minimum": 0.0087,
+          "maximum": 1.3945
+        }
+      },
+      "frame_period_ms": {
+        "mean": 1.657814845704754,
+        "median": 1.6354,
+        "p95": 2.0046,
+        "minimum": 0.4224,
+        "maximum": 5.4201
+      },
+      "main_thread_cpu_mean_ms": 0.5338541666666666,
+      "fence_pending_fraction": 0.99,
+      "gpu": {
+        "total": {
+          "mean": 1.6411152266666666,
+          "median": 1.631264,
+          "p95": 1.654592,
+          "minimum": 1.626592,
+          "maximum": 2.02688
+        },
+        "uploads": {
+          "mean": 0.0028724,
+          "median": 0.002592,
+          "p95": 0.002752,
+          "minimum": 0.002464,
+          "maximum": 0.313888
+        },
+        "scene_setup": {
+          "mean": 0.009883066666666667,
+          "median": 0.009696,
+          "p95": 0.010816,
+          "minimum": 0.00944,
+          "maximum": 0.0432
+        },
+        "shadow_solid": {
+          "mean": 0.7459363733333333,
+          "median": 0.741728,
+          "p95": 0.743008,
+          "minimum": 0.73968,
+          "maximum": 1.128896
+        },
+        "shadow_depth_copy": {
+          "mean": 0.048857493333333335,
+          "median": 0.048288,
+          "p95": 0.048832,
+          "minimum": 0.047456,
+          "maximum": 0.252704
+        },
+        "shadow_water": {
+          "mean": 0.00581552,
+          "median": 0.005824,
+          "p95": 0.005888,
+          "minimum": 0.005632,
+          "maximum": 0.006016
+        },
+        "opaque_terrain_player": {
+          "mean": 0.24451237333333334,
+          "median": 0.243584,
+          "p95": 0.245024,
+          "minimum": 0.240768,
+          "maximum": 0.615904
+        },
+        "opaque_depth_copy": {
+          "mean": 0.02512664,
+          "median": 0.024768,
+          "p95": 0.025152,
+          "minimum": 0.024128,
+          "maximum": 0.364256
+        },
+        "scene_factor": {
+          "mean": 0.007600186666666666,
+          "median": 0.007488,
+          "p95": 0.007712,
+          "minimum": 0.007264,
+          "maximum": 0.037824
+        },
+        "atmosphere": {
+          "mean": 0.08657234666666666,
+          "median": 0.086432,
+          "p95": 0.086912,
+          "minimum": 0.085536,
+          "maximum": 0.112992
+        },
+        "water_surface": {
+          "mean": 3.0399999999999997e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "water_depth": {
+          "mean": 3.7066666666666666e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "cloud_raymarch": {
+          "mean": 0.05597368,
+          "median": 0.055328,
+          "p95": 0.056128,
+          "minimum": 0.054304,
+          "maximum": 0.428064
+        },
+        "volume_composite": {
+          "mean": 0.1289588,
+          "median": 0.128544,
+          "p95": 0.129152,
+          "minimum": 0.127456,
+          "maximum": 0.5032
+        },
+        "bloom": {
+          "mean": 0.11224970666666667,
+          "median": 0.1112,
+          "p95": 0.115296,
+          "minimum": 0.110176,
+          "maximum": 0.47056
+        },
+        "tone_map": {
+          "mean": 0.0449448,
+          "median": 0.044512,
+          "p95": 0.0448,
+          "minimum": 0.044224,
+          "maximum": 0.413632
+        },
+        "taa": {
+          "mean": 0.10511741333333334,
+          "median": 0.104384,
+          "p95": 0.10512,
+          "minimum": 0.102816,
+          "maximum": 0.472448
+        },
+        "present_composite": {
+          "mean": 0.01215088,
+          "median": 0.012128,
+          "p95": 0.012416,
+          "minimum": 0.011232,
+          "maximum": 0.021632
+        },
+        "ui": {
+          "mean": 0.0045368,
+          "median": 0.004224,
+          "p95": 0.004416,
+          "minimum": 0.004,
+          "maximum": 0.372416
+        }
+      },
+      "gpu_frame_envelope_coverage": 0.9899071703977294,
+      "gpu_frame_gap_ms": {
+        "mean": 0.016746328607172643,
+        "median": 0.00688,
+        "p95": 0.007392,
+        "minimum": 0.006432,
+        "maximum": 3.354624
+      },
+      "gpu_overlap_ms": 0.0,
+      "counts": {
+        "columns": [
+          441
+        ],
+        "lod_tiles": [
+          402
+        ],
+        "render_distance": [
+          12
+        ]
+      }
+    },
+    {
+      "name": "r24-2",
+      "metadata": {
+        "name": "r24-2",
+        "binary_sha256": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54",
+        "arguments": [
+          "--headless",
+          "--render-distance",
+          24,
+          "--profile-gpu",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r24-2-gpu.csv",
+          "--profile-samples",
+          1200,
+          "--profile-view",
+          193.6,
+          -90,
+          -22,
+          12,
+          "--profile-origin",
+          0,
+          0,
+          "--seconds",
+          300,
+          "--profile-frame",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r24-2-frame.csv"
+        ],
+        "settings_sha256": "285B798EADAB3BBBB17C90CE7910A6431CBFACF1314814659A3BEAFC38A61CF4",
+        "elapsed_seconds": 20.3688265,
+        "exit_code": 0
+      },
+      "samples": 1200,
+      "warnings": 0,
+      "cpu": {
+        "frame_wall_ms": {
+          "mean": 1.3908829166666667,
+          "median": 1.3545,
+          "p95": 1.6469,
+          "minimum": 0.8528,
+          "maximum": 4.5503
+        },
+        "cpu_work_ms": {
+          "mean": 0.9377100833333334,
+          "median": 0.8466,
+          "p95": 1.4755,
+          "minimum": 0.7832,
+          "maximum": 3.0876
+        },
+        "pre_ms": {
+          "mean": 0.0007170833333333334,
+          "median": 0.0006,
+          "p95": 0.0011,
+          "minimum": 0.0004,
+          "maximum": 0.0282
+        },
+        "begin_ms": {
+          "mean": 0.4595228333333333,
+          "median": 0.5141,
+          "p95": 0.5677,
+          "minimum": 0.0077,
+          "maximum": 2.8305
+        },
+        "world_ms": {
+          "mean": 0.87329875,
+          "median": 0.7935,
+          "p95": 1.3553,
+          "minimum": 0.7363,
+          "maximum": 2.4413
+        },
+        "ui_ms": {
+          "mean": 0.0331365,
+          "median": 0.0277,
+          "p95": 0.0589,
+          "minimum": 0.024,
+          "maximum": 0.2647
+        },
+        "end_ms": {
+          "mean": 0.02367975,
+          "median": 0.0182,
+          "p95": 0.04,
+          "minimum": 0.0149,
+          "maximum": 1.4907
+        },
+        "post_ms": {
+          "mean": 0.000528,
+          "median": 0.0005,
+          "p95": 0.0009,
+          "minimum": 0.0003,
+          "maximum": 0.0014
+        },
+        "fence_wait_ms": {
+          "mean": 0.45317283333333336,
+          "median": 0.5082,
+          "p95": 0.5626,
+          "minimum": 0.0007,
+          "maximum": 2.8198
+        },
+        "submit_ms": {
+          "mean": 0.0202715,
+          "median": 0.0152,
+          "p95": 0.0344,
+          "minimum": 0.0121,
+          "maximum": 1.4853
+        }
+      },
+      "frame_period_ms": {
+        "mean": 1.391545621351126,
+        "median": 1.355,
+        "p95": 1.653,
+        "minimum": 0.8531,
+        "maximum": 4.5509
+      },
+      "main_thread_cpu_mean_ms": 1.0026041666666667,
+      "fence_pending_fraction": 0.9141666666666667,
+      "gpu": {
+        "total": {
+          "mean": 1.3546770666666668,
+          "median": 1.347584,
+          "p95": 1.364928,
+          "minimum": 1.3432,
+          "maximum": 1.832896
+        },
+        "uploads": {
+          "mean": 0.0028810666666666666,
+          "median": 0.002528,
+          "p95": 0.00272,
+          "minimum": 0.002432,
+          "maximum": 0.324224
+        },
+        "scene_setup": {
+          "mean": 0.009919253333333333,
+          "median": 0.009664,
+          "p95": 0.01056,
+          "minimum": 0.009472,
+          "maximum": 0.168416
+        },
+        "shadow_solid": {
+          "mean": 0.34647610666666667,
+          "median": 0.344928,
+          "p95": 0.34624,
+          "minimum": 0.342592,
+          "maximum": 0.730816
+        },
+        "shadow_depth_copy": {
+          "mean": 0.04762394666666667,
+          "median": 0.047328,
+          "p95": 0.04768,
+          "minimum": 0.04688,
+          "maximum": 0.0776
+        },
+        "shadow_water": {
+          "mean": 0.0058148,
+          "median": 0.005824,
+          "p95": 0.00592,
+          "minimum": 0.005728,
+          "maximum": 0.00608
+        },
+        "opaque_terrain_player": {
+          "mean": 0.3585466666666667,
+          "median": 0.356512,
+          "p95": 0.357792,
+          "minimum": 0.35408,
+          "maximum": 0.736096
+        },
+        "opaque_depth_copy": {
+          "mean": 0.02503256,
+          "median": 0.024832,
+          "p95": 0.025216,
+          "minimum": 0.02432,
+          "maximum": 0.053376
+        },
+        "scene_factor": {
+          "mean": 0.007570373333333333,
+          "median": 0.007456,
+          "p95": 0.007744,
+          "minimum": 0.007232,
+          "maximum": 0.03888
+        },
+        "atmosphere": {
+          "mean": 0.08732594666666667,
+          "median": 0.086752,
+          "p95": 0.087296,
+          "minimum": 0.085792,
+          "maximum": 0.4504
+        },
+        "water_surface": {
+          "mean": 3.6533333333333332e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 6.4e-05
+        },
+        "water_depth": {
+          "mean": 3.2e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "cloud_raymarch": {
+          "mean": 0.05573733333333333,
+          "median": 0.055456,
+          "p95": 0.056192,
+          "minimum": 0.054208,
+          "maximum": 0.207744
+        },
+        "volume_composite": {
+          "mean": 0.12958712,
+          "median": 0.129376,
+          "p95": 0.130272,
+          "minimum": 0.12816,
+          "maximum": 0.15504
+        },
+        "bloom": {
+          "mean": 0.11194181333333333,
+          "median": 0.111168,
+          "p95": 0.113216,
+          "minimum": 0.109632,
+          "maximum": 0.4632
+        },
+        "tone_map": {
+          "mean": 0.0445776,
+          "median": 0.044512,
+          "p95": 0.044768,
+          "minimum": 0.044128,
+          "maximum": 0.064672
+        },
+        "taa": {
+          "mean": 0.10527453333333334,
+          "median": 0.104288,
+          "p95": 0.104864,
+          "minimum": 0.102496,
+          "maximum": 0.470144
+        },
+        "present_composite": {
+          "mean": 0.012136053333333334,
+          "median": 0.012096,
+          "p95": 0.012416,
+          "minimum": 0.011296,
+          "maximum": 0.015712
+        },
+        "ui": {
+          "mean": 0.00422504,
+          "median": 0.004224,
+          "p95": 0.004416,
+          "minimum": 0.003968,
+          "maximum": 0.004736
+        }
+      },
+      "gpu_frame_envelope_coverage": 0.9734886206952587,
+      "gpu_frame_gap_ms": {
+        "mean": 0.03692319599666389,
+        "median": 0.006848,
+        "p95": 0.150208,
+        "minimum": 0.006304,
+        "maximum": 2.733984
+      },
+      "gpu_overlap_ms": 0.0,
+      "counts": {
+        "columns": [
+          1793
+        ],
+        "lod_tiles": [
+          447
+        ],
+        "render_distance": [
+          24
+        ]
+      }
+    },
+    {
+      "name": "r32-2",
+      "metadata": {
+        "name": "r32-2",
+        "binary_sha256": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54",
+        "arguments": [
+          "--headless",
+          "--render-distance",
+          32,
+          "--profile-gpu",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r32-2-gpu.csv",
+          "--profile-samples",
+          1200,
+          "--profile-view",
+          193.6,
+          -90,
+          -22,
+          12,
+          "--profile-origin",
+          0,
+          0,
+          "--seconds",
+          300,
+          "--profile-frame",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r32-2-frame.csv"
+        ],
+        "settings_sha256": "285B798EADAB3BBBB17C90CE7910A6431CBFACF1314814659A3BEAFC38A61CF4",
+        "elapsed_seconds": 29.164408,
+        "exit_code": 0
+      },
+      "samples": 1200,
+      "warnings": 0,
+      "cpu": {
+        "frame_wall_ms": {
+          "mean": 1.87327275,
+          "median": 1.8419,
+          "p95": 2.0759,
+          "minimum": 1.2456,
+          "maximum": 3.0891
+        },
+        "cpu_work_ms": {
+          "mean": 1.8680923333333332,
+          "median": 1.8411,
+          "p95": 2.075,
+          "minimum": 1.1525,
+          "maximum": 3.0884
+        },
+        "pre_ms": {
+          "mean": 0.0009050833333333334,
+          "median": 0.0008,
+          "p95": 0.0014,
+          "minimum": 0.0005,
+          "maximum": 0.0034
+        },
+        "begin_ms": {
+          "mean": 0.013458916666666666,
+          "median": 0.0086,
+          "p95": 0.0123,
+          "minimum": 0.0074,
+          "maximum": 0.3263
+        },
+        "world_ms": {
+          "mean": 1.7630976666666667,
+          "median": 1.7376,
+          "p95": 1.9544,
+          "minimum": 1.0957,
+          "maximum": 2.5748
+        },
+        "ui_ms": {
+          "mean": 0.05614241666666667,
+          "median": 0.0541,
+          "p95": 0.0655,
+          "minimum": 0.028,
+          "maximum": 0.2339
+        },
+        "end_ms": {
+          "mean": 0.03878733333333333,
+          "median": 0.0368,
+          "p95": 0.0424,
+          "minimum": 0.0177,
+          "maximum": 1.3553
+        },
+        "post_ms": {
+          "mean": 0.0008813333333333334,
+          "median": 0.0009,
+          "p95": 0.001,
+          "minimum": 0.0004,
+          "maximum": 0.0047
+        },
+        "fence_wait_ms": {
+          "mean": 0.0051804166666666665,
+          "median": 0.0008,
+          "p95": 0.0009,
+          "minimum": 0.0005,
+          "maximum": 0.321
+        },
+        "submit_ms": {
+          "mean": 0.033694,
+          "median": 0.0317,
+          "p95": 0.0363,
+          "minimum": 0.0147,
+          "maximum": 1.3502
+        }
+      },
+      "frame_period_ms": {
+        "mean": 1.8739845704753961,
+        "median": 1.8423,
+        "p95": 2.0848,
+        "minimum": 1.2458,
+        "maximum": 3.0896
+      },
+      "main_thread_cpu_mean_ms": 1.8489583333333333,
+      "fence_pending_fraction": 0.0175,
+      "gpu": {
+        "total": {
+          "mean": 1.4823126666666666,
+          "median": 1.476256,
+          "p95": 1.482368,
+          "minimum": 1.47216,
+          "maximum": 1.856224
+        },
+        "uploads": {
+          "mean": 0.0026401333333333334,
+          "median": 0.002624,
+          "p95": 0.002784,
+          "minimum": 0.002464,
+          "maximum": 0.003264
+        },
+        "scene_setup": {
+          "mean": 0.011418533333333333,
+          "median": 0.011456,
+          "p95": 0.012704,
+          "minimum": 0.009536,
+          "maximum": 0.013728
+        },
+        "shadow_solid": {
+          "mean": 0.358414,
+          "median": 0.35632,
+          "p95": 0.357632,
+          "minimum": 0.354336,
+          "maximum": 0.725056
+        },
+        "shadow_depth_copy": {
+          "mean": 0.04738608,
+          "median": 0.047328,
+          "p95": 0.047584,
+          "minimum": 0.047008,
+          "maximum": 0.06
+        },
+        "shadow_water": {
+          "mean": 0.005809226666666667,
+          "median": 0.005824,
+          "p95": 0.005856,
+          "minimum": 0.005728,
+          "maximum": 0.006016
+        },
+        "opaque_terrain_player": {
+          "mean": 0.47375498666666666,
+          "median": 0.471712,
+          "p95": 0.472832,
+          "minimum": 0.469984,
+          "maximum": 0.844768
+        },
+        "opaque_depth_copy": {
+          "mean": 0.02501304,
+          "median": 0.0248,
+          "p95": 0.025152,
+          "minimum": 0.024416,
+          "maximum": 0.177856
+        },
+        "scene_factor": {
+          "mean": 0.0075421333333333335,
+          "median": 0.007424,
+          "p95": 0.007712,
+          "minimum": 0.007232,
+          "maximum": 0.020672
+        },
+        "atmosphere": {
+          "mean": 0.08707634666666667,
+          "median": 0.08672,
+          "p95": 0.087168,
+          "minimum": 0.085984,
+          "maximum": 0.453824
+        },
+        "water_surface": {
+          "mean": 3.4666666666666664e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "water_depth": {
+          "mean": 3.173333333333333e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "cloud_raymarch": {
+          "mean": 0.055542,
+          "median": 0.055456,
+          "p95": 0.05616,
+          "minimum": 0.054464,
+          "maximum": 0.08128
+        },
+        "volume_composite": {
+          "mean": 0.13037818666666667,
+          "median": 0.130048,
+          "p95": 0.130624,
+          "minimum": 0.128896,
+          "maximum": 0.49424
+        },
+        "bloom": {
+          "mean": 0.11191504,
+          "median": 0.111136,
+          "p95": 0.1136,
+          "minimum": 0.10992,
+          "maximum": 0.455936
+        },
+        "tone_map": {
+          "mean": 0.04486352,
+          "median": 0.044544,
+          "p95": 0.044768,
+          "minimum": 0.044192,
+          "maximum": 0.400512
+        },
+        "taa": {
+          "mean": 0.10432429333333333,
+          "median": 0.104256,
+          "p95": 0.104896,
+          "minimum": 0.103232,
+          "maximum": 0.1096
+        },
+        "present_composite": {
+          "mean": 0.012067946666666666,
+          "median": 0.012032,
+          "p95": 0.01232,
+          "minimum": 0.011744,
+          "maximum": 0.015008
+        },
+        "ui": {
+          "mean": 0.00416056,
+          "median": 0.00416,
+          "p95": 0.004352,
+          "minimum": 0.003936,
+          "maximum": 0.004704
+        }
+      },
+      "gpu_frame_envelope_coverage": 0.7911541421465953,
+      "gpu_frame_gap_ms": {
+        "mean": 0.3916216046705588,
+        "median": 0.363104,
+        "p95": 0.58112,
+        "minimum": 0.006688,
+        "maximum": 1.63152
+      },
+      "gpu_overlap_ms": 0.0,
+      "counts": {
+        "columns": [
+          3209
+        ],
+        "lod_tiles": [
+          489
+        ],
+        "render_distance": [
+          32
+        ]
+      }
+    },
+    {
+      "name": "r12-3",
+      "metadata": {
+        "name": "r12-3",
+        "binary_sha256": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54",
+        "arguments": [
+          "--headless",
+          "--render-distance",
+          12,
+          "--profile-gpu",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r12-3-gpu.csv",
+          "--profile-samples",
+          1200,
+          "--profile-view",
+          193.6,
+          -90,
+          -22,
+          12,
+          "--profile-origin",
+          0,
+          0,
+          "--seconds",
+          300,
+          "--profile-frame",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r12-3-frame.csv"
+        ],
+        "settings_sha256": "285B798EADAB3BBBB17C90CE7910A6431CBFACF1314814659A3BEAFC38A61CF4",
+        "elapsed_seconds": 12.4157387,
+        "exit_code": 0
+      },
+      "samples": 1200,
+      "warnings": 0,
+      "cpu": {
+        "frame_wall_ms": {
+          "mean": 1.6500576666666666,
+          "median": 1.6368,
+          "p95": 1.9454,
+          "minimum": 0.5237,
+          "maximum": 3.5726
+        },
+        "cpu_work_ms": {
+          "mean": 0.49372925,
+          "median": 0.4508,
+          "p95": 0.7648,
+          "minimum": 0.3804,
+          "maximum": 1.9037
+        },
+        "pre_ms": {
+          "mean": 0.00066075,
+          "median": 0.0006,
+          "p95": 0.0011,
+          "minimum": 0.0003,
+          "maximum": 0.0025
+        },
+        "begin_ms": {
+          "mean": 1.1636229166666667,
+          "median": 1.1969,
+          "p95": 1.3102,
+          "minimum": 0.008,
+          "maximum": 2.8432
+        },
+        "world_ms": {
+          "mean": 0.4287126666666667,
+          "median": 0.3926,
+          "p95": 0.6577,
+          "minimum": 0.3338,
+          "maximum": 1.1738
+        },
+        "ui_ms": {
+          "mean": 0.033474583333333335,
+          "median": 0.0284,
+          "p95": 0.0567,
+          "minimum": 0.0231,
+          "maximum": 0.3261
+        },
+        "end_ms": {
+          "mean": 0.022955,
+          "median": 0.0189,
+          "p95": 0.0358,
+          "minimum": 0.0108,
+          "maximum": 1.4599
+        },
+        "post_ms": {
+          "mean": 0.00063175,
+          "median": 0.0005,
+          "p95": 0.001,
+          "minimum": 0.0003,
+          "maximum": 0.0653
+        },
+        "fence_wait_ms": {
+          "mean": 1.1563284166666667,
+          "median": 1.1914,
+          "p95": 1.2937,
+          "minimum": 0.0006,
+          "maximum": 2.8325
+        },
+        "submit_ms": {
+          "mean": 0.019773666666666665,
+          "median": 0.0161,
+          "p95": 0.0302,
+          "minimum": 0.0088,
+          "maximum": 1.4569
+        }
+      },
+      "frame_period_ms": {
+        "mean": 1.6500802335279399,
+        "median": 1.637,
+        "p95": 1.9457,
+        "minimum": 0.5242,
+        "maximum": 3.573
+      },
+      "main_thread_cpu_mean_ms": 0.5729166666666666,
+      "fence_pending_fraction": 0.9966666666666667,
+      "gpu": {
+        "total": {
+          "mean": 1.6429223733333334,
+          "median": 1.631776,
+          "p95": 1.656,
+          "minimum": 1.627296,
+          "maximum": 2.028352
+        },
+        "uploads": {
+          "mean": 0.00263344,
+          "median": 0.00256,
+          "p95": 0.002848,
+          "minimum": 0.002464,
+          "maximum": 0.02928
+        },
+        "scene_setup": {
+          "mean": 0.0098312,
+          "median": 0.009728,
+          "p95": 0.010848,
+          "minimum": 0.009408,
+          "maximum": 0.039136
+        },
+        "shadow_solid": {
+          "mean": 0.7466629066666667,
+          "median": 0.74176,
+          "p95": 0.7432,
+          "minimum": 0.73968,
+          "maximum": 1.131936
+        },
+        "shadow_depth_copy": {
+          "mean": 0.048703493333333334,
+          "median": 0.048352,
+          "p95": 0.048864,
+          "minimum": 0.047648,
+          "maximum": 0.247136
+        },
+        "shadow_water": {
+          "mean": 0.0058104,
+          "median": 0.005824,
+          "p95": 0.005888,
+          "minimum": 0.005696,
+          "maximum": 0.006016
+        },
+        "opaque_terrain_player": {
+          "mean": 0.24500301333333332,
+          "median": 0.243584,
+          "p95": 0.24512,
+          "minimum": 0.240544,
+          "maximum": 0.613088
+        },
+        "opaque_depth_copy": {
+          "mean": 0.024894346666666668,
+          "median": 0.024704,
+          "p95": 0.025056,
+          "minimum": 0.024288,
+          "maximum": 0.053856
+        },
+        "scene_factor": {
+          "mean": 0.00787488,
+          "median": 0.007488,
+          "p95": 0.007712,
+          "minimum": 0.007264,
+          "maximum": 0.367008
+        },
+        "atmosphere": {
+          "mean": 0.08710941333333333,
+          "median": 0.086528,
+          "p95": 0.086976,
+          "minimum": 0.085536,
+          "maximum": 0.45472
+        },
+        "water_surface": {
+          "mean": 3.013333333333333e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "water_depth": {
+          "mean": 2.8e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "cloud_raymarch": {
+          "mean": 0.05559682666666667,
+          "median": 0.055392,
+          "p95": 0.056128,
+          "minimum": 0.054336,
+          "maximum": 0.19056
+        },
+        "volume_composite": {
+          "mean": 0.12933466666666665,
+          "median": 0.128512,
+          "p95": 0.129088,
+          "minimum": 0.127296,
+          "maximum": 0.491584
+        },
+        "bloom": {
+          "mean": 0.11296938666666667,
+          "median": 0.111296,
+          "p95": 0.115488,
+          "minimum": 0.109824,
+          "maximum": 0.457984
+        },
+        "tone_map": {
+          "mean": 0.04465464,
+          "median": 0.044512,
+          "p95": 0.0448,
+          "minimum": 0.044224,
+          "maximum": 0.072512
+        },
+        "taa": {
+          "mean": 0.10547229333333333,
+          "median": 0.104448,
+          "p95": 0.105184,
+          "minimum": 0.102656,
+          "maximum": 0.4736
+        },
+        "present_composite": {
+          "mean": 0.012131226666666666,
+          "median": 0.012096,
+          "p95": 0.012448,
+          "minimum": 0.011168,
+          "maximum": 0.015648
+        },
+        "ui": {
+          "mean": 0.004234426666666667,
+          "median": 0.004224,
+          "p95": 0.004416,
+          "minimum": 0.004,
+          "maximum": 0.004608
+        }
+      },
+      "gpu_frame_envelope_coverage": 0.9951710380262059,
+      "gpu_frame_gap_ms": {
+        "mean": 0.007978755629691409,
+        "median": 0.006848,
+        "p95": 0.007424,
+        "minimum": 0.006368,
+        "maximum": 0.79024
+      },
+      "gpu_overlap_ms": 0.0,
+      "counts": {
+        "columns": [
+          441
+        ],
+        "lod_tiles": [
+          402
+        ],
+        "render_distance": [
+          12
+        ]
+      }
+    },
+    {
+      "name": "r24-3",
+      "metadata": {
+        "name": "r24-3",
+        "binary_sha256": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54",
+        "arguments": [
+          "--headless",
+          "--render-distance",
+          24,
+          "--profile-gpu",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r24-3-gpu.csv",
+          "--profile-samples",
+          1200,
+          "--profile-view",
+          193.6,
+          -90,
+          -22,
+          12,
+          "--profile-origin",
+          0,
+          0,
+          "--seconds",
+          300,
+          "--profile-frame",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r24-3-frame.csv"
+        ],
+        "settings_sha256": "285B798EADAB3BBBB17C90CE7910A6431CBFACF1314814659A3BEAFC38A61CF4",
+        "elapsed_seconds": 20.3646098,
+        "exit_code": 0
+      },
+      "samples": 1200,
+      "warnings": 0,
+      "cpu": {
+        "frame_wall_ms": {
+          "mean": 1.44601625,
+          "median": 1.3748,
+          "p95": 1.8602,
+          "minimum": 0.8735,
+          "maximum": 3.3021
+        },
+        "cpu_work_ms": {
+          "mean": 1.2376846666666668,
+          "median": 1.3394,
+          "p95": 1.78,
+          "minimum": 0.8049,
+          "maximum": 3.0754
+        },
+        "pre_ms": {
+          "mean": 0.00088225,
+          "median": 0.0008,
+          "p95": 0.0014,
+          "minimum": 0.0004,
+          "maximum": 0.0099
+        },
+        "begin_ms": {
+          "mean": 0.21653175,
+          "median": 0.0444,
+          "p95": 0.5383,
+          "minimum": 0.007,
+          "maximum": 1.3775
+        },
+        "world_ms": {
+          "mean": 1.1448390833333333,
+          "median": 1.2405,
+          "p95": 1.6254,
+          "minimum": 0.7565,
+          "maximum": 2.6737
+        },
+        "ui_ms": {
+          "mean": 0.04908175,
+          "median": 0.0536,
+          "p95": 0.0851,
+          "minimum": 0.0248,
+          "maximum": 0.1674
+        },
+        "end_ms": {
+          "mean": 0.03391425,
+          "median": 0.0319,
+          "p95": 0.05,
+          "minimum": 0.0158,
+          "maximum": 1.6247
+        },
+        "post_ms": {
+          "mean": 0.0007671666666666666,
+          "median": 0.0008,
+          "p95": 0.0011,
+          "minimum": 0.0003,
+          "maximum": 0.0066
+        },
+        "fence_wait_ms": {
+          "mean": 0.20833158333333332,
+          "median": 0.0348,
+          "p95": 0.533,
+          "minimum": 0.0006,
+          "maximum": 1.3663
+        },
+        "submit_ms": {
+          "mean": 0.0292475,
+          "median": 0.0268,
+          "p95": 0.0425,
+          "minimum": 0.0132,
+          "maximum": 1.6192
+        }
+      },
+      "frame_period_ms": {
+        "mean": 1.4468031693077565,
+        "median": 1.3753,
+        "p95": 1.8653,
+        "minimum": 0.8737,
+        "maximum": 3.3026
+      },
+      "main_thread_cpu_mean_ms": 1.1979166666666667,
+      "fence_pending_fraction": 0.605,
+      "gpu": {
+        "total": {
+          "mean": 1.35729696,
+          "median": 1.348256,
+          "p95": 1.370368,
+          "minimum": 1.343648,
+          "maximum": 1.927168
+        },
+        "uploads": {
+          "mean": 0.0026429866666666667,
+          "median": 0.002592,
+          "p95": 0.002848,
+          "minimum": 0.002464,
+          "maximum": 0.008768
+        },
+        "scene_setup": {
+          "mean": 0.010239386666666666,
+          "median": 0.009792,
+          "p95": 0.011712,
+          "minimum": 0.009472,
+          "maximum": 0.023712
+        },
+        "shadow_solid": {
+          "mean": 0.3467584533333333,
+          "median": 0.344992,
+          "p95": 0.346304,
+          "minimum": 0.342816,
+          "maximum": 0.715008
+        },
+        "shadow_depth_copy": {
+          "mean": 0.047744879999999996,
+          "median": 0.04736,
+          "p95": 0.04768,
+          "minimum": 0.047008,
+          "maximum": 0.245152
+        },
+        "shadow_water": {
+          "mean": 0.0058116800000000005,
+          "median": 0.005824,
+          "p95": 0.005888,
+          "minimum": 0.0056,
+          "maximum": 0.00608
+        },
+        "opaque_terrain_player": {
+          "mean": 0.35971888,
+          "median": 0.356608,
+          "p95": 0.358016,
+          "minimum": 0.35392,
+          "maximum": 0.72816
+        },
+        "opaque_depth_copy": {
+          "mean": 0.02500888,
+          "median": 0.024832,
+          "p95": 0.025216,
+          "minimum": 0.024352,
+          "maximum": 0.04944
+        },
+        "scene_factor": {
+          "mean": 0.00756296,
+          "median": 0.007488,
+          "p95": 0.007712,
+          "minimum": 0.007232,
+          "maximum": 0.037056
+        },
+        "atmosphere": {
+          "mean": 0.08738666666666667,
+          "median": 0.086624,
+          "p95": 0.087168,
+          "minimum": 0.085536,
+          "maximum": 0.456896
+        },
+        "water_surface": {
+          "mean": 3.3333333333333333e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 0.00016
+        },
+        "water_depth": {
+          "mean": 3.4399999999999997e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 6.4e-05
+        },
+        "cloud_raymarch": {
+          "mean": 0.055865413333333336,
+          "median": 0.055424,
+          "p95": 0.056256,
+          "minimum": 0.054432,
+          "maximum": 0.40144
+        },
+        "volume_composite": {
+          "mean": 0.12984928,
+          "median": 0.129376,
+          "p95": 0.130304,
+          "minimum": 0.128,
+          "maximum": 0.502752
+        },
+        "bloom": {
+          "mean": 0.11300557333333333,
+          "median": 0.1112,
+          "p95": 0.115392,
+          "minimum": 0.109952,
+          "maximum": 0.477664
+        },
+        "tone_map": {
+          "mean": 0.04475154666666667,
+          "median": 0.044512,
+          "p95": 0.044768,
+          "minimum": 0.04384,
+          "maximum": 0.215968
+        },
+        "taa": {
+          "mean": 0.10457357333333334,
+          "median": 0.104448,
+          "p95": 0.105056,
+          "minimum": 0.10272,
+          "maximum": 0.128288
+        },
+        "present_composite": {
+          "mean": 0.012170666666666666,
+          "median": 0.012128,
+          "p95": 0.012448,
+          "minimum": 0.01152,
+          "maximum": 0.031744
+        },
+        "ui": {
+          "mean": 0.00419936,
+          "median": 0.004192,
+          "p95": 0.004416,
+          "minimum": 0.003904,
+          "maximum": 0.004704
+        }
+      },
+      "gpu_frame_envelope_coverage": 0.9381377768366249,
+      "gpu_frame_gap_ms": {
+        "mean": 0.08957686071726438,
+        "median": 0.007104,
+        "p95": 0.44208,
+        "minimum": 0.006464,
+        "maximum": 1.811424
+      },
+      "gpu_overlap_ms": 0.0,
+      "counts": {
+        "columns": [
+          1793
+        ],
+        "lod_tiles": [
+          447
+        ],
+        "render_distance": [
+          24
+        ]
+      }
+    },
+    {
+      "name": "r32-3",
+      "metadata": {
+        "name": "r32-3",
+        "binary_sha256": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54",
+        "arguments": [
+          "--headless",
+          "--render-distance",
+          32,
+          "--profile-gpu",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r32-3-gpu.csv",
+          "--profile-samples",
+          1200,
+          "--profile-view",
+          193.6,
+          -90,
+          -22,
+          12,
+          "--profile-origin",
+          0,
+          0,
+          "--seconds",
+          300,
+          "--profile-frame",
+          "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/r32-3-frame.csv"
+        ],
+        "settings_sha256": "285B798EADAB3BBBB17C90CE7910A6431CBFACF1314814659A3BEAFC38A61CF4",
+        "elapsed_seconds": 29.0728954,
+        "exit_code": 0
+      },
+      "samples": 1200,
+      "warnings": 0,
+      "cpu": {
+        "frame_wall_ms": {
+          "mean": 1.9446100833333333,
+          "median": 1.8307,
+          "p95": 2.521,
+          "minimum": 1.25,
+          "maximum": 8.2888
+        },
+        "cpu_work_ms": {
+          "mean": 1.9368665833333334,
+          "median": 1.8289,
+          "p95": 2.4983,
+          "minimum": 1.1653,
+          "maximum": 8.2876
+        },
+        "pre_ms": {
+          "mean": 0.0010380833333333333,
+          "median": 0.0008,
+          "p95": 0.0022,
+          "minimum": 0.0005,
+          "maximum": 0.0297
+        },
+        "begin_ms": {
+          "mean": 0.01651425,
+          "median": 0.0086,
+          "p95": 0.0198,
+          "minimum": 0.0072,
+          "maximum": 0.459
+        },
+        "world_ms": {
+          "mean": 1.82210975,
+          "median": 1.725,
+          "p95": 2.3135,
+          "minimum": 1.0996,
+          "maximum": 7.0199
+        },
+        "ui_ms": {
+          "mean": 0.06229066666666667,
+          "median": 0.0541,
+          "p95": 0.1107,
+          "minimum": 0.0295,
+          "maximum": 0.5805
+        },
+        "end_ms": {
+          "mean": 0.04164925,
+          "median": 0.0368,
+          "p95": 0.0568,
+          "minimum": 0.0183,
+          "maximum": 1.4489
+        },
+        "post_ms": {
+          "mean": 0.0010080833333333333,
+          "median": 0.0009,
+          "p95": 0.0013,
+          "minimum": 0.0003,
+          "maximum": 0.0714
+        },
+        "fence_wait_ms": {
+          "mean": 0.0077434999999999995,
+          "median": 0.0008,
+          "p95": 0.0014,
+          "minimum": 0.0006,
+          "maximum": 0.3837
+        },
+        "submit_ms": {
+          "mean": 0.036257083333333336,
+          "median": 0.0318,
+          "p95": 0.0486,
+          "minimum": 0.0152,
+          "maximum": 1.4321
+        }
+      },
+      "frame_period_ms": {
+        "mean": 1.9452047539616346,
+        "median": 1.831,
+        "p95": 2.5322,
+        "minimum": 1.2503,
+        "maximum": 8.3038
+      },
+      "main_thread_cpu_mean_ms": 1.8880208333333333,
+      "fence_pending_fraction": 0.035,
+      "gpu": {
+        "total": {
+          "mean": 1.4863868533333333,
+          "median": 1.476096,
+          "p95": 1.495808,
+          "minimum": 1.469088,
+          "maximum": 1.856832
+        },
+        "uploads": {
+          "mean": 0.0026580533333333332,
+          "median": 0.002624,
+          "p95": 0.002848,
+          "minimum": 0.002432,
+          "maximum": 0.006912
+        },
+        "scene_setup": {
+          "mean": 0.011283573333333333,
+          "median": 0.011328,
+          "p95": 0.01264,
+          "minimum": 0.009376,
+          "maximum": 0.024096
+        },
+        "shadow_solid": {
+          "mean": 0.3591781333333333,
+          "median": 0.35616,
+          "p95": 0.3576,
+          "minimum": 0.353504,
+          "maximum": 0.723072
+        },
+        "shadow_depth_copy": {
+          "mean": 0.047897013333333335,
+          "median": 0.047328,
+          "p95": 0.047648,
+          "minimum": 0.046976,
+          "maximum": 0.233472
+        },
+        "shadow_water": {
+          "mean": 0.0057993866666666664,
+          "median": 0.005792,
+          "p95": 0.005856,
+          "minimum": 0.005696,
+          "maximum": 0.006048
+        },
+        "opaque_terrain_player": {
+          "mean": 0.4744598133333333,
+          "median": 0.471744,
+          "p95": 0.473088,
+          "minimum": 0.469632,
+          "maximum": 0.842432
+        },
+        "opaque_depth_copy": {
+          "mean": 0.024972746666666667,
+          "median": 0.024832,
+          "p95": 0.025184,
+          "minimum": 0.024384,
+          "maximum": 0.049024
+        },
+        "scene_factor": {
+          "mean": 0.00754744,
+          "median": 0.007456,
+          "p95": 0.007744,
+          "minimum": 0.0072,
+          "maximum": 0.021024
+        },
+        "atmosphere": {
+          "mean": 0.08813885333333334,
+          "median": 0.086624,
+          "p95": 0.087072,
+          "minimum": 0.085376,
+          "maximum": 0.455008
+        },
+        "water_surface": {
+          "mean": 3.2266666666666665e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "water_depth": {
+          "mean": 2.8533333333333333e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "cloud_raymarch": {
+          "mean": 0.055650373333333336,
+          "median": 0.055456,
+          "p95": 0.05616,
+          "minimum": 0.054368,
+          "maximum": 0.195936
+        },
+        "volume_composite": {
+          "mean": 0.13079906666666666,
+          "median": 0.13008,
+          "p95": 0.130752,
+          "minimum": 0.128576,
+          "maximum": 0.508832
+        },
+        "bloom": {
+          "mean": 0.11226618666666667,
+          "median": 0.111136,
+          "p95": 0.112512,
+          "minimum": 0.110112,
+          "maximum": 0.460448
+        },
+        "tone_map": {
+          "mean": 0.0450536,
+          "median": 0.044512,
+          "p95": 0.0448,
+          "minimum": 0.04416,
+          "maximum": 0.40896
+        },
+        "taa": {
+          "mean": 0.10436648,
+          "median": 0.10432,
+          "p95": 0.104928,
+          "minimum": 0.101664,
+          "maximum": 0.115616
+        },
+        "present_composite": {
+          "mean": 0.01215096,
+          "median": 0.012096,
+          "p95": 0.012416,
+          "minimum": 0.011456,
+          "maximum": 0.03184
+        },
+        "ui": {
+          "mean": 0.004159093333333333,
+          "median": 0.004128,
+          "p95": 0.004352,
+          "minimum": 0.003776,
+          "maximum": 0.004544
+        }
+      },
+      "gpu_frame_envelope_coverage": 0.7642713057696234,
+      "gpu_frame_gap_ms": {
+        "mean": 0.4588374045037531,
+        "median": 0.34976,
+        "p95": 1.057184,
+        "minimum": 0.006784,
+        "maximum": 6.863808
+      },
+      "gpu_overlap_ms": 0.0,
+      "counts": {
+        "columns": [
+          3209
+        ],
+        "lod_tiles": [
+          489
+        ],
+        "render_distance": [
+          32
+        ]
+      }
+    }
+  ],
+  "groups": [
+    {
+      "radius": 12,
+      "samples": 3600,
+      "cpu": {
+        "frame_wall_ms": {
+          "mean": 1.6528926666666666,
+          "median": 1.636,
+          "p95": 1.9546,
+          "minimum": 0.4222,
+          "maximum": 5.4197
+        },
+        "cpu_work_ms": {
+          "mean": 0.497802,
+          "median": 0.4493,
+          "p95": 0.786,
+          "minimum": 0.3733,
+          "maximum": 2.0683
+        },
+        "pre_ms": {
+          "mean": 0.0006772222222222222,
+          "median": 0.0006,
+          "p95": 0.0011,
+          "minimum": 0.0002,
+          "maximum": 0.0266
+        },
+        "begin_ms": {
+          "mean": 1.1630335277777777,
+          "median": 1.1987,
+          "p95": 1.3194,
+          "minimum": 0.0057,
+          "maximum": 4.3726
+        },
+        "world_ms": {
+          "mean": 0.43141680555555556,
+          "median": 0.3911,
+          "p95": 0.6678,
+          "minimum": 0.3274,
+          "maximum": 1.6125
+        },
+        "ui_ms": {
+          "mean": 0.033968,
+          "median": 0.0289,
+          "p95": 0.0572,
+          "minimum": 0.0198,
+          "maximum": 0.3261
+        },
+        "end_ms": {
+          "mean": 0.023170194444444445,
+          "median": 0.0191,
+          "p95": 0.0353,
+          "minimum": 0.0108,
+          "maximum": 1.6286
+        },
+        "post_ms": {
+          "mean": 0.0006269166666666667,
+          "median": 0.0005,
+          "p95": 0.001,
+          "minimum": 0.0003,
+          "maximum": 0.1134
+        },
+        "fence_wait_ms": {
+          "mean": 1.1550906666666667,
+          "median": 1.1927,
+          "p95": 1.3036,
+          "minimum": 0.0006,
+          "maximum": 4.3339
+        },
+        "submit_ms": {
+          "mean": 0.019879138888888887,
+          "median": 0.0162,
+          "p95": 0.03,
+          "minimum": 0.0087,
+          "maximum": 1.6256
+        }
+      },
+      "main_thread_cpu_mean_ms": 0.5208333333333333,
+      "fence_pending_fraction": 0.9936111111111111,
+      "gpu": {
+        "total": {
+          "mean": 1.6421064533333334,
+          "median": 1.631072,
+          "p95": 1.655616,
+          "minimum": 1.624352,
+          "maximum": 2.029568
+        },
+        "uploads": {
+          "mean": 0.002703022222222222,
+          "median": 0.00256,
+          "p95": 0.002816,
+          "minimum": 0.002464,
+          "maximum": 0.313888
+        },
+        "scene_setup": {
+          "mean": 0.009841706666666667,
+          "median": 0.009696,
+          "p95": 0.010848,
+          "minimum": 0.009408,
+          "maximum": 0.0432
+        },
+        "shadow_solid": {
+          "mean": 0.7471176622222222,
+          "median": 0.741728,
+          "p95": 0.743072,
+          "minimum": 0.73952,
+          "maximum": 1.135936
+        },
+        "shadow_depth_copy": {
+          "mean": 0.04889467555555556,
+          "median": 0.04832,
+          "p95": 0.048864,
+          "minimum": 0.047456,
+          "maximum": 0.417408
+        },
+        "shadow_water": {
+          "mean": 0.00581336,
+          "median": 0.005824,
+          "p95": 0.005888,
+          "minimum": 0.005632,
+          "maximum": 0.006016
+        },
+        "opaque_terrain_player": {
+          "mean": 0.24467781333333333,
+          "median": 0.243456,
+          "p95": 0.245024,
+          "minimum": 0.240448,
+          "maximum": 0.615904
+        },
+        "opaque_depth_copy": {
+          "mean": 0.02496496,
+          "median": 0.024736,
+          "p95": 0.02512,
+          "minimum": 0.024128,
+          "maximum": 0.364256
+        },
+        "scene_factor": {
+          "mean": 0.007722968888888889,
+          "median": 0.007456,
+          "p95": 0.007712,
+          "minimum": 0.007232,
+          "maximum": 0.367008
+        },
+        "atmosphere": {
+          "mean": 0.08680912888888889,
+          "median": 0.086496,
+          "p95": 0.086944,
+          "minimum": 0.085536,
+          "maximum": 0.45472
+        },
+        "water_surface": {
+          "mean": 2.9866666666666667e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "water_depth": {
+          "mean": 3.1555555555555555e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "cloud_raymarch": {
+          "mean": 0.05577567111111111,
+          "median": 0.055328,
+          "p95": 0.056096,
+          "minimum": 0.054208,
+          "maximum": 0.428064
+        },
+        "volume_composite": {
+          "mean": 0.12899404444444446,
+          "median": 0.128448,
+          "p95": 0.129056,
+          "minimum": 0.126912,
+          "maximum": 0.506368
+        },
+        "bloom": {
+          "mean": 0.11237015111111111,
+          "median": 0.111104,
+          "p95": 0.115328,
+          "minimum": 0.109728,
+          "maximum": 0.47056
+        },
+        "tone_map": {
+          "mean": 0.044787608888888886,
+          "median": 0.044512,
+          "p95": 0.0448,
+          "minimum": 0.04416,
+          "maximum": 0.413632
+        },
+        "taa": {
+          "mean": 0.10514388444444445,
+          "median": 0.104352,
+          "p95": 0.105024,
+          "minimum": 0.102496,
+          "maximum": 0.474784
+        },
+        "present_composite": {
+          "mean": 0.012148026666666667,
+          "median": 0.012096,
+          "p95": 0.01248,
+          "minimum": 0.011168,
+          "maximum": 0.021632
+        },
+        "ui": {
+          "mean": 0.004335626666666667,
+          "median": 0.004224,
+          "p95": 0.004416,
+          "minimum": 0.004,
+          "maximum": 0.372416
+        }
+      },
+      "gpu_frame_envelope_coverage_mean": 0.9931514839052774,
+      "frame_period_mean_ms": 1.6531417848206837
+    },
+    {
+      "radius": 24,
+      "samples": 3600,
+      "cpu": {
+        "frame_wall_ms": {
+          "mean": 1.4365534166666667,
+          "median": 1.3623,
+          "p95": 1.8854,
+          "minimum": 0.8444,
+          "maximum": 10.9256
+        },
+        "cpu_work_ms": {
+          "mean": 1.0827457777777778,
+          "median": 0.8894,
+          "p95": 1.672,
+          "minimum": 0.7832,
+          "maximum": 3.6049
+        },
+        "pre_ms": {
+          "mean": 0.0007843055555555556,
+          "median": 0.0007,
+          "p95": 0.0013,
+          "minimum": 0.0004,
+          "maximum": 0.0282
+        },
+        "begin_ms": {
+          "mean": 0.36110936111111114,
+          "median": 0.4789,
+          "p95": 0.5649,
+          "minimum": 0.0048,
+          "maximum": 9.1544
+        },
+        "world_ms": {
+          "mean": 1.0044327777777777,
+          "median": 0.8285,
+          "p95": 1.522,
+          "minimum": 0.7363,
+          "maximum": 3.4748
+        },
+        "ui_ms": {
+          "mean": 0.04096444444444444,
+          "median": 0.031,
+          "p95": 0.0733,
+          "minimum": 0.024,
+          "maximum": 0.6781
+        },
+        "end_ms": {
+          "mean": 0.028608777777777778,
+          "median": 0.0211,
+          "p95": 0.0448,
+          "minimum": 0.0144,
+          "maximum": 1.6247
+        },
+        "post_ms": {
+          "mean": 0.00065375,
+          "median": 0.0005,
+          "p95": 0.001,
+          "minimum": 0.0003,
+          "maximum": 0.0554
+        },
+        "fence_wait_ms": {
+          "mean": 0.3538076388888889,
+          "median": 0.4723,
+          "p95": 0.5593,
+          "minimum": 0.0004,
+          "maximum": 9.1393
+        },
+        "submit_ms": {
+          "mean": 0.024578194444444444,
+          "median": 0.0178,
+          "p95": 0.0384,
+          "minimum": 0.0121,
+          "maximum": 1.6192
+        }
+      },
+      "main_thread_cpu_mean_ms": 1.059027777777778,
+      "fence_pending_fraction": 0.7672222222222222,
+      "gpu": {
+        "total": {
+          "mean": 1.3559009422222221,
+          "median": 1.347872,
+          "p95": 1.367552,
+          "minimum": 1.3432,
+          "maximum": 1.946304
+        },
+        "uploads": {
+          "mean": 0.00271,
+          "median": 0.00256,
+          "p95": 0.002816,
+          "minimum": 0.002432,
+          "maximum": 0.324224
+        },
+        "scene_setup": {
+          "mean": 0.010087715555555555,
+          "median": 0.009728,
+          "p95": 0.011488,
+          "minimum": 0.009408,
+          "maximum": 0.168416
+        },
+        "shadow_solid": {
+          "mean": 0.34670419555555554,
+          "median": 0.345024,
+          "p95": 0.346368,
+          "minimum": 0.342592,
+          "maximum": 0.733696
+        },
+        "shadow_depth_copy": {
+          "mean": 0.047620755555555554,
+          "median": 0.047328,
+          "p95": 0.04768,
+          "minimum": 0.046816,
+          "maximum": 0.245152
+        },
+        "shadow_water": {
+          "mean": 0.005812337777777778,
+          "median": 0.005824,
+          "p95": 0.00592,
+          "minimum": 0.0056,
+          "maximum": 0.00608
+        },
+        "opaque_terrain_player": {
+          "mean": 0.3591212888888889,
+          "median": 0.356544,
+          "p95": 0.357856,
+          "minimum": 0.35392,
+          "maximum": 0.7408
+        },
+        "opaque_depth_copy": {
+          "mean": 0.025013422222222224,
+          "median": 0.024832,
+          "p95": 0.025216,
+          "minimum": 0.024256,
+          "maximum": 0.056448
+        },
+        "scene_factor": {
+          "mean": 0.007559493333333334,
+          "median": 0.007456,
+          "p95": 0.007712,
+          "minimum": 0.007232,
+          "maximum": 0.03888
+        },
+        "atmosphere": {
+          "mean": 0.08732539555555556,
+          "median": 0.08672,
+          "p95": 0.08736,
+          "minimum": 0.085536,
+          "maximum": 0.458208
+        },
+        "water_surface": {
+          "mean": 3.431111111111111e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 0.00016
+        },
+        "water_depth": {
+          "mean": 3.2888888888888886e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 9.6e-05
+        },
+        "cloud_raymarch": {
+          "mean": 0.05572808888888889,
+          "median": 0.055424,
+          "p95": 0.056224,
+          "minimum": 0.054208,
+          "maximum": 0.40144
+        },
+        "volume_composite": {
+          "mean": 0.12993298666666667,
+          "median": 0.129408,
+          "p95": 0.130368,
+          "minimum": 0.127648,
+          "maximum": 0.502752
+        },
+        "bloom": {
+          "mean": 0.11222482666666667,
+          "median": 0.111072,
+          "p95": 0.114144,
+          "minimum": 0.109408,
+          "maximum": 0.477664
+        },
+        "tone_map": {
+          "mean": 0.04469616,
+          "median": 0.044512,
+          "p95": 0.044768,
+          "minimum": 0.04384,
+          "maximum": 0.215968
+        },
+        "taa": {
+          "mean": 0.10497312888888889,
+          "median": 0.104384,
+          "p95": 0.104992,
+          "minimum": 0.102496,
+          "maximum": 0.473792
+        },
+        "present_composite": {
+          "mean": 0.012167093333333334,
+          "median": 0.012128,
+          "p95": 0.01248,
+          "minimum": 0.011296,
+          "maximum": 0.031744
+        },
+        "ui": {
+          "mean": 0.004217333333333333,
+          "median": 0.004192,
+          "p95": 0.004416,
+          "minimum": 0.003904,
+          "maximum": 0.004736
+        }
+      },
+      "gpu_frame_envelope_coverage_mean": 0.9440337779233775,
+      "frame_period_mean_ms": 1.4371060050041702
+    },
+    {
+      "radius": 32,
+      "samples": 3600,
+      "cpu": {
+        "frame_wall_ms": {
+          "mean": 1.8921422777777779,
+          "median": 1.8341,
+          "p95": 2.1407,
+          "minimum": 1.2456,
+          "maximum": 8.2888
+        },
+        "cpu_work_ms": {
+          "mean": 1.8855137777777777,
+          "median": 1.8332,
+          "p95": 2.1392,
+          "minimum": 1.1086,
+          "maximum": 8.2876
+        },
+        "pre_ms": {
+          "mean": 0.0009472222222222222,
+          "median": 0.0008,
+          "p95": 0.0018,
+          "minimum": 0.0005,
+          "maximum": 0.0297
+        },
+        "begin_ms": {
+          "mean": 0.015097777777777778,
+          "median": 0.0086,
+          "p95": 0.0169,
+          "minimum": 0.0072,
+          "maximum": 0.459
+        },
+        "world_ms": {
+          "mean": 1.7773294166666667,
+          "median": 1.7308,
+          "p95": 2.0087,
+          "minimum": 1.0569,
+          "maximum": 7.0199
+        },
+        "ui_ms": {
+          "mean": 0.05817805555555555,
+          "median": 0.0539,
+          "p95": 0.0734,
+          "minimum": 0.0277,
+          "maximum": 1.3371
+        },
+        "end_ms": {
+          "mean": 0.03966802777777778,
+          "median": 0.0368,
+          "p95": 0.045,
+          "minimum": 0.0176,
+          "maximum": 1.4489
+        },
+        "post_ms": {
+          "mean": 0.0009217777777777778,
+          "median": 0.0009,
+          "p95": 0.001,
+          "minimum": 0.0003,
+          "maximum": 0.0714
+        },
+        "fence_wait_ms": {
+          "mean": 0.0066285,
+          "median": 0.0008,
+          "p95": 0.001,
+          "minimum": 0.0005,
+          "maximum": 0.3837
+        },
+        "submit_ms": {
+          "mean": 0.03449002777777778,
+          "median": 0.0318,
+          "p95": 0.0392,
+          "minimum": 0.0147,
+          "maximum": 1.4321
+        }
+      },
+      "main_thread_cpu_mean_ms": 1.8532986111111112,
+      "fence_pending_fraction": 0.02527777777777778,
+      "gpu": {
+        "total": {
+          "mean": 1.48341488,
+          "median": 1.476128,
+          "p95": 1.48336,
+          "minimum": 1.469088,
+          "maximum": 1.859808
+        },
+        "uploads": {
+          "mean": 0.0026523911111111112,
+          "median": 0.002624,
+          "p95": 0.002848,
+          "minimum": 0.002432,
+          "maximum": 0.006912
+        },
+        "scene_setup": {
+          "mean": 0.011386648888888889,
+          "median": 0.011424,
+          "p95": 0.012704,
+          "minimum": 0.009376,
+          "maximum": 0.024096
+        },
+        "shadow_solid": {
+          "mean": 0.3584090222222222,
+          "median": 0.356256,
+          "p95": 0.3576,
+          "minimum": 0.353504,
+          "maximum": 0.725056
+        },
+        "shadow_depth_copy": {
+          "mean": 0.04770500444444444,
+          "median": 0.047328,
+          "p95": 0.047616,
+          "minimum": 0.046912,
+          "maximum": 0.414144
+        },
+        "shadow_water": {
+          "mean": 0.005806106666666667,
+          "median": 0.005792,
+          "p95": 0.005856,
+          "minimum": 0.005696,
+          "maximum": 0.006048
+        },
+        "opaque_terrain_player": {
+          "mean": 0.4738602488888889,
+          "median": 0.471712,
+          "p95": 0.472896,
+          "minimum": 0.469632,
+          "maximum": 0.844768
+        },
+        "opaque_depth_copy": {
+          "mean": 0.02497949333333333,
+          "median": 0.0248,
+          "p95": 0.025184,
+          "minimum": 0.024288,
+          "maximum": 0.177856
+        },
+        "scene_factor": {
+          "mean": 0.00754336,
+          "median": 0.007456,
+          "p95": 0.007712,
+          "minimum": 0.0072,
+          "maximum": 0.021024
+        },
+        "atmosphere": {
+          "mean": 0.0873155111111111,
+          "median": 0.086688,
+          "p95": 0.087136,
+          "minimum": 0.085376,
+          "maximum": 0.455008
+        },
+        "water_surface": {
+          "mean": 3.208888888888889e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "water_depth": {
+          "mean": 3.128888888888889e-06,
+          "median": 0.0,
+          "p95": 3.2e-05,
+          "minimum": 0.0,
+          "maximum": 3.2e-05
+        },
+        "cloud_raymarch": {
+          "mean": 0.055653093333333334,
+          "median": 0.055456,
+          "p95": 0.056192,
+          "minimum": 0.054304,
+          "maximum": 0.400608
+        },
+        "volume_composite": {
+          "mean": 0.1306748,
+          "median": 0.130048,
+          "p95": 0.130688,
+          "minimum": 0.128576,
+          "maximum": 0.511072
+        },
+        "bloom": {
+          "mean": 0.11187144,
+          "median": 0.111136,
+          "p95": 0.112448,
+          "minimum": 0.10992,
+          "maximum": 0.460448
+        },
+        "tone_map": {
+          "mean": 0.04480951111111111,
+          "median": 0.044512,
+          "p95": 0.044768,
+          "minimum": 0.04416,
+          "maximum": 0.40896
+        },
+        "taa": {
+          "mean": 0.1044724,
+          "median": 0.104288,
+          "p95": 0.104896,
+          "minimum": 0.101664,
+          "maximum": 0.47312
+        },
+        "present_composite": {
+          "mean": 0.012110675555555556,
+          "median": 0.012064,
+          "p95": 0.012384,
+          "minimum": 0.011456,
+          "maximum": 0.03184
+        },
+        "ui": {
+          "mean": 0.004158835555555555,
+          "median": 0.00416,
+          "p95": 0.004352,
+          "minimum": 0.003776,
+          "maximum": 0.004704
+        }
+      },
+      "gpu_frame_envelope_coverage_mean": 0.7841712127676836,
+      "frame_period_mean_ms": 1.8927423408395885
+    }
+  ],
+  "validation": {
+    "name": "validation-after",
+    "metadata": {
+      "arguments": [
+        "--headless",
+        "--render-distance",
+        12,
+        "--profile-gpu",
+        "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/validation-after-gpu.csv",
+        "--profile-samples",
+        64,
+        "--profile-view",
+        193.6,
+        -90,
+        -22,
+        12,
+        "--profile-origin",
+        0,
+        0,
+        "--seconds",
+        300,
+        "--profile-frame",
+        "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/validation-after-frame.csv",
+        "--validation",
+        "--profile-draws",
+        "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/validation-after-draw.csv",
+        "--capture",
+        "C:\\Users\\admin\\Desktop\\steve\\DOLBUTO\\build\\release\\frame-cost-profile/validation-after.png"
+      ],
+      "settings_sha256": "0EFFB1C571BD422E64E2984B77FAF78158A3CE68CC50ED86BC3A57DB8ED47A2A",
+      "exit_code": 0,
+      "binary_sha256": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54",
+      "name": "validation-after",
+      "elapsed_seconds": 15.1968426
+    },
+    "samples": 64,
+    "warnings": 10,
+    "cpu": {
+      "frame_wall_ms": {
+        "mean": 14.596121875,
+        "median": 13.0309,
+        "p95": 14.964,
+        "minimum": 12.5378,
+        "maximum": 106.6037
+      },
+      "cpu_work_ms": {
+        "mean": 14.532598437499999,
+        "median": 13.0283,
+        "p95": 14.9612,
+        "minimum": 12.5352,
+        "maximum": 102.7434
+      },
+      "pre_ms": {
+        "mean": 0.0014890625,
+        "median": 0.0011,
+        "p95": 0.003,
+        "minimum": 0.0009,
+        "maximum": 0.0035
+      },
+      "begin_ms": {
+        "mean": 0.1954625,
+        "median": 0.1877,
+        "p95": 0.246,
+        "minimum": 0.1753,
+        "maximum": 0.3018
+      },
+      "world_ms": {
+        "mean": 12.482040625,
+        "median": 12.3906,
+        "p95": 13.6061,
+        "minimum": 11.9066,
+        "maximum": 14.5098
+      },
+      "ui_ms": {
+        "mean": 0.3659375,
+        "median": 0.3521,
+        "p95": 0.4462,
+        "minimum": 0.3393,
+        "maximum": 0.5261
+      },
+      "end_ms": {
+        "mean": 1.5498890625,
+        "median": 0.0915,
+        "p95": 0.1161,
+        "minimum": 0.083,
+        "maximum": 93.121
+      },
+      "post_ms": {
+        "mean": 0.001303125,
+        "median": 0.001,
+        "p95": 0.0015,
+        "minimum": 0.0009,
+        "maximum": 0.0153
+      },
+      "fence_wait_ms": {
+        "mean": 0.0032453125,
+        "median": 0.0028,
+        "p95": 0.0067,
+        "minimum": 0.0025,
+        "maximum": 0.0145
+      },
+      "submit_ms": {
+        "mean": 0.0801375,
+        "median": 0.0768,
+        "p95": 0.0942,
+        "minimum": 0.0678,
+        "maximum": 0.177
+      }
+    },
+    "frame_period_ms": {
+      "mean": 13.13607619047619,
+      "median": 13.0183,
+      "p95": 14.3015,
+      "minimum": 12.5382,
+      "maximum": 15.4584
+    },
+    "main_thread_cpu_mean_ms": 14.404296875,
+    "fence_pending_fraction": 0.0,
+    "gpu": {
+      "total": {
+        "mean": 1.6484855,
+        "median": 1.642464,
+        "p95": 1.658368,
+        "minimum": 1.608512,
+        "maximum": 2.086496
+      },
+      "uploads": {
+        "mean": 0.00344,
+        "median": 0.003616,
+        "p95": 0.003744,
+        "minimum": 0.002528,
+        "maximum": 0.004704
+      },
+      "scene_setup": {
+        "mean": 0.0189995,
+        "median": 0.01968,
+        "p95": 0.025952,
+        "minimum": 0.009888,
+        "maximum": 0.027136
+      },
+      "shadow_solid": {
+        "mean": 0.7646525,
+        "median": 0.76176,
+        "p95": 0.768544,
+        "minimum": 0.737888,
+        "maximum": 1.18384
+      },
+      "shadow_depth_copy": {
+        "mean": 0.058053,
+        "median": 0.057696,
+        "p95": 0.058816,
+        "minimum": 0.057152,
+        "maximum": 0.07264
+      },
+      "shadow_water": {
+        "mean": 0.005842,
+        "median": 0.005824,
+        "p95": 0.00592,
+        "minimum": 0.00576,
+        "maximum": 0.006112
+      },
+      "opaque_terrain_player": {
+        "mean": 0.2506995,
+        "median": 0.247968,
+        "p95": 0.249632,
+        "minimum": 0.246272,
+        "maximum": 0.42208
+      },
+      "opaque_depth_copy": {
+        "mean": 0.025345,
+        "median": 0.025344,
+        "p95": 0.02576,
+        "minimum": 0.02496,
+        "maximum": 0.025952
+      },
+      "scene_factor": {
+        "mean": 0.008525,
+        "median": 0.007968,
+        "p95": 0.010912,
+        "minimum": 0.007776,
+        "maximum": 0.011552
+      },
+      "atmosphere": {
+        "mean": 0.088212,
+        "median": 0.088224,
+        "p95": 0.088704,
+        "minimum": 0.087616,
+        "maximum": 0.089152
+      },
+      "water_surface": {
+        "mean": 2e-06,
+        "median": 0.0,
+        "p95": 3.2e-05,
+        "minimum": 0.0,
+        "maximum": 3.2e-05
+      },
+      "water_depth": {
+        "mean": 2e-06,
+        "median": 0.0,
+        "p95": 3.2e-05,
+        "minimum": 0.0,
+        "maximum": 3.2e-05
+      },
+      "cloud_raymarch": {
+        "mean": 0.0556585,
+        "median": 0.055584,
+        "p95": 0.056448,
+        "minimum": 0.054752,
+        "maximum": 0.059488
+      },
+      "volume_composite": {
+        "mean": 0.163636,
+        "median": 0.163648,
+        "p95": 0.16512,
+        "minimum": 0.16256,
+        "maximum": 0.165728
+      },
+      "bloom": {
+        "mean": 0.112225,
+        "median": 0.112064,
+        "p95": 0.113792,
+        "minimum": 0.111264,
+        "maximum": 0.12016
+      },
+      "tone_map": {
+        "mean": 0.0451115,
+        "median": 0.045024,
+        "p95": 0.045408,
+        "minimum": 0.044512,
+        "maximum": 0.05008
+      },
+      "taa": {
+        "mean": 0.0308785,
+        "median": 0.030752,
+        "p95": 0.032,
+        "minimum": 0.029472,
+        "maximum": 0.044288
+      },
+      "present_composite": {
+        "mean": 0.011768,
+        "median": 0.011616,
+        "p95": 0.012416,
+        "minimum": 0.011392,
+        "maximum": 0.014848
+      },
+      "ui": {
+        "mean": 0.0054355,
+        "median": 0.005376,
+        "p95": 0.005856,
+        "minimum": 0.005056,
+        "maximum": 0.006368
+      }
+    },
+    "gpu_frame_envelope_coverage": 0.12682161016163532,
+    "gpu_frame_gap_ms": {
+      "mean": 11.530131809523809,
+      "median": 11.330944,
+      "p95": 13.394464,
+      "minimum": 10.896608,
+      "maximum": 13.821376
+    },
+    "gpu_overlap_ms": 0.0,
+    "counts": {
+      "columns": [
+        441
+      ],
+      "lod_tiles": [
+        402
+      ],
+      "render_distance": [
+        12
+      ]
+    },
+    "image_difference_max": 0,
+    "capture_frame_excluded_from_performance": true
+  },
+  "environment": {
+    "cpu": "Intel Core i7-14700F (20 cores, 28 logical processors)",
+    "gpu": "NVIDIA GeForce RTX 5060",
+    "resolution": [
+      1280,
+      900
+    ],
+    "mode": "headless, two offscreen frame slots, no VSync/FPS limit/presentation",
+    "lod_distance": 64,
+    "shadow_quality": 2,
+    "shadow_distance": 192,
+    "taa": true,
+    "bloom_strength": 12,
+    "camera": [
+      8,
+      193.6,
+      8,
+      -90,
+      -22
+    ],
+    "time_tick": 14400,
+    "seed": 1337,
+    "warmup_ready_frames": 240,
+    "validation_during_performance": false,
+    "draw_profile_during_performance": false,
+    "capture_during_performance": false
+  },
+  "verification": {
+    "exe_sha256": {
+      "build\\release\\bin\\DOLBUTO.exe": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54",
+      "build\\release\\frame-cost-profile\\after\\DOLBUTO.exe": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54",
+      "out\\DOLBUTO\\DOLBUTO.exe": "D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54"
+    },
+    "before_exe_sha256": "BFA5A72B5745D7CD86D4B520BE7AF0F9B02716BC15EB9312B69AC4D88C757706",
+    "package_settings_sha256": "67E209936EE549CD91945CF19FF059751F71C5DE5BFD3FBB188A75BB7168419B",
+    "settings_preserved": true,
+    "all_24_shaders_unchanged": true,
+    "shader_sha256": {
+      "atmosphere.frag.spv": "24077E7345E984EDB8AAA0F167E4785BB3491F38CC7D76AD8194C4FBF742BF48",
+      "bloom.frag.spv": "6DAB4A5CA64CE17864647D0A2021CA902F9F9DEF06DD012D5EB671F8283D964C",
+      "fullscreen.vert.spv": "397BB22AC3E5172F8B4CE83DE563B806AF78CEAF819ACDECC1DAF766C5B734AC",
+      "lod.frag.spv": "704F336C9D4A72F1853D9AA4CA37D6BF6ED60D595FEF5E5DBB5329CE9F4C401F",
+      "lod.vert.spv": "D5D242CAC4BEE021532BDA4201338EF6637E5C2F4FF20F7357B63A7B1EF19F20",
+      "lod_depth.frag.spv": "C86F83880E7BB8A0CD05A4157C24FA3A4294E16050DAB54D0E88DC4CDB5AC1AF",
+      "lod_shadow.frag.spv": "FB057A28B214CE89AE3CF9D66107D887E53FDBDB831053675CAD8F4CECA4552D",
+      "lod_water.frag.spv": "E415EDE49E2ED80747D9438ED6A6D0892985D355ED47BA3FB7A9CB67FF68180F",
+      "lod_water.vert.spv": "E6BD0EF40C9C2FC87F653713B4DA53D7EB5FE89683BD4AFF4C60C42272C3614C",
+      "lod_water_ssr.frag.spv": "6EE39AAB3E667019E809D2908B09BD4FB1652905F68E8A9CFF3B55F6D215B845",
+      "player.frag.spv": "30C8BE353F59090B716158C04FF658017EC65B961FC60AC4D12AB5E4FAF72736",
+      "player.vert.spv": "B142E18AFEC301086CB6AAB005569EC8B990060AF73941E784558812160F90D6",
+      "present.frag.spv": "3048092631A238100E20F9B2BD7521CE4B1764C45ECD5D5BC52F166B0D3E1322",
+      "scene_factor.frag.spv": "642B9FFA65CA722E7FEBCF6D57266FE5F311D97367E93710B489C19361FDC11E",
+      "shadow.frag.spv": "C557B6F69572103FC2CBC3F88FC6B22AF6C5F312B56724C9958EB5928D32C620",
+      "taa.frag.spv": "74619381E6D79731ABFF813EA2A1C6E29196AC5BCDA60AC3BE4FFF05842A8F63",
+      "tone.frag.spv": "B11152509DB6B68A17FA08E8E6EAA3DF905A8CBED8BCF006CA6A55643E0E18C8",
+      "ui.frag.spv": "C7E6FA71F196449C86377ABB8FA17B32F37774E4FBA06391DD4EF9CED1650F79",
+      "ui.vert.spv": "989310F567223D1A81573F7BE8518E70E88FDD397F4ED6C11EE78A8009519CD3",
+      "volume.frag.spv": "CB061684F6557F050CF573F06221F018CAD83AB7FE80769355C2A110CDE589C9",
+      "water.frag.spv": "9B9DF89B7107E7FFE7913AD17BB085FCF1A35ACBA68743442D1CB091EEF2D7E9",
+      "water_ssr.frag.spv": "753771C02DE442BBA4FFCFCF52FFF9BB3AD67197F8AD81B3D4B6BE7634C3A009",
+      "world.frag.spv": "82011003A324218A2FDBD343A88E274DBDADE7FA4E8D4534B98622CA40FD8FA1",
+      "world.vert.spv": "133F23B371871BD19191EDF279A5EFC78AB320E3E66DE9B4D345248AA08D267E"
+    },
+    "validation_before_warnings": 10,
+    "validation_before_errors": 0,
+    "validation_after_errors": 0,
+    "validation_images_pixel_identical": true,
+    "release_build_and_package": "passed",
+    "cpu_gpu_frame_ids_match": true,
+    "cpu_stage_sum_matches_wall": true,
+    "work_plus_waits_matches_wall": true,
+    "steady_lod_pending_and_queued": 0,
+    "performance_runs": 9,
+    "performance_steady_frames": 10800
+  },
+  "interpretation": {
+    "12": "GPU limited in this scene",
+    "24": "GPU dominant with intermittent CPU gaps / mixed boundary",
+    "32": "CPU main-thread limited in this scene",
+    "limits": [
+      "CPU work excludes explicit API waits but includes submit and possible scheduling delays.",
+      "OS main-thread CPU time is coarse and meaningful only as an aggregate; worker threads are excluded.",
+      "GPU frame envelope coverage is not hardware utilization; GPU timestamp ranges can overlap.",
+      "CPU and GPU execute concurrently; their durations must not be added.",
+      "Static, fully loaded headless scene: no presentation or streaming/input latency conclusion.",
+      "Measurement overhead included; no performance improvement claim."
+    ]
+  }
+}

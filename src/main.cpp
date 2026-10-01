@@ -38,6 +38,52 @@
 // clang-format on
 
 namespace {
+// CPU wall time and OS-accounted main-thread execution are different metrics.
+uint64_t main_thread_cpu_ticks() {
+    FILETIME created{}, exited{}, kernel{}, user{};
+    if (!GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user))
+        throw std::runtime_error("Cannot read main-thread CPU time.");
+    const auto ticks = [](FILETIME value) {
+        return (uint64_t(value.dwHighDateTime) << 32) | value.dwLowDateTime;
+    };
+    return ticks(kernel) + ticks(user); // 100 ns units; use aggregates, not per-frame quantiles.
+}
+struct FrameSample {
+    uint64_t serial{};
+    bool steady{}, capture{};
+    VkExtent2D extent{};
+    int radius{};
+    size_t columns{}, lod_tiles{}, lod_pending{}, lod_queued{};
+    double period_ms{}, wall_ms{}, pre_ms{}, begin_ms{}, world_ms{}, ui_ms{}, end_ms{}, post_ms{};
+    double limiter_ms{}, thread_cpu_ms{};
+    sandbox::Renderer::CpuFrameTiming api;
+};
+void save_frame_profile(const std::filesystem::path& path, const std::vector<FrameSample>& samples) {
+    if (!path.parent_path().empty())
+        std::filesystem::create_directories(path.parent_path());
+    std::ofstream out(path);
+    out << "frame,steady,capture,width,height,render_distance,columns,lod_tiles,lod_pending,lod_queued,"
+           "frame_period_ms,frame_wall_ms,cpu_work_ms,pre_ms,begin_ms,world_ms,ui_ms,end_ms,post_ms,"
+           "fence_wait_ms,fence_pending,waited_serial,acquire_ms,submit_ms,present_ms,idle_wait_ms,limiter_"
+           "ms,thread_cpu_ms\n"
+        << std::fixed << std::setprecision(6);
+    for (const auto& x : samples) {
+        const auto& a = x.api;
+        const double work =
+            x.wall_ms - a.fence_wait_ms - a.acquire_ms - a.idle_wait_ms - a.present_ms - x.limiter_ms;
+        out << x.serial << ',' << x.steady << ',' << x.capture << ',' << x.extent.width << ','
+            << x.extent.height << ',' << x.radius << ',' << x.columns << ',' << x.lod_tiles << ','
+            << x.lod_pending << ',' << x.lod_queued << ',' << x.period_ms << ',' << x.wall_ms << ',' << work
+            << ',' << x.pre_ms << ',' << x.begin_ms << ',' << x.world_ms << ',' << x.ui_ms << ',' << x.end_ms
+            << ',' << x.post_ms << ',' << a.fence_wait_ms << ',' << a.fence_pending << ',' << a.waited_serial
+            << ',' << a.acquire_ms << ',' << a.submit_ms << ',' << a.present_ms << ',' << a.idle_wait_ms
+            << ',' << x.limiter_ms << ',' << x.thread_cpu_ms << '\n';
+    }
+    out.flush();
+    if (!out)
+        throw std::runtime_error("Cannot save CPU frame timings.");
+    std::cout << "FRAME PROFILE: " << samples.size() << " frames, " << path << '\n';
+}
 struct DrawSample {
     unsigned frame{};
     bool steady{};
@@ -740,7 +786,8 @@ int main(int argc, char** argv) {
         bool distance_override = false;
         unsigned frame_limit = 0;
         double seconds_limit = 0;
-        std::filesystem::path capture, rdc_path, world_profile, gpu_profile, shadow_capture, draw_profile;
+        std::filesystem::path capture, rdc_path, world_profile, gpu_profile, shadow_capture, draw_profile,
+            frame_profile;
         std::optional<std::array<double, 4>> profile_view;
         unsigned profile_samples = 600;
         bool profile_near_detail = false;
@@ -753,6 +800,8 @@ int main(int argc, char** argv) {
                 gpu_profile = std::filesystem::absolute(argv[++i]);
             else if (arg == "--profile-draws" && i + 1 < argc)
                 draw_profile = std::filesystem::absolute(argv[++i]);
+            else if (arg == "--profile-frame" && i + 1 < argc)
+                frame_profile = std::filesystem::absolute(argv[++i]);
             else if (arg == "--profile-near-detail")
                 profile_near_detail = true;
             else if (arg == "--capture-shadow-maps" && i + 1 < argc)
@@ -799,7 +848,7 @@ int main(int argc, char** argv) {
                                          "[--profile-origin columnX columnZ] [--profile-gpu file.csv] "
                                          "[--profile-view height yaw pitch hour] [--profile-samples N] "
                                          "[--capture-shadow-maps directory] [--profile-draws file.csv] "
-                                         "[--profile-near-detail]");
+                                         "[--profile-near-detail] [--profile-frame file.csv]");
         }
         if (render_distance < 1 || render_distance > 64)
             throw std::runtime_error("Render distance must be 1..64 columns.");
@@ -809,6 +858,13 @@ int main(int argc, char** argv) {
             throw std::runtime_error("--capture-shadow-maps requires --profile-gpu.");
         if (profile_near_detail && draw_profile.empty())
             throw std::runtime_error("--profile-near-detail requires --profile-draws.");
+        if (!frame_profile.empty()) {
+            if (gpu_profile.empty())
+                throw std::runtime_error("--profile-frame requires --profile-gpu.");
+            for (const auto& output : {gpu_profile, world_profile, capture, draw_profile})
+                if (!output.empty() && frame_profile.lexically_normal() == output.lexically_normal())
+                    throw std::runtime_error("CPU frame profile needs a separate output path.");
+        }
         if (!draw_profile.empty()) {
             if (gpu_profile.empty() || lod_debug_initial)
                 throw std::runtime_error(
@@ -898,6 +954,8 @@ int main(int argc, char** argv) {
             std::cout << "Headless: world rendering at 1280x900, no window, VSync or FPS limit.\n";
         }
         sandbox::Renderer renderer;
+        if (!frame_profile.empty())
+            renderer.enable_frame_profile();
         if (!gpu_profile.empty())
             renderer.enable_gpu_profile();
         renderer.set_vsync(saved_settings.vsync);
@@ -984,6 +1042,9 @@ int main(int argc, char** argv) {
             unsigned rendered = 0;
             unsigned profile_ready_frames = 0, profile_measured_frames = 0;
             std::vector<DrawSample> draw_samples;
+            std::vector<FrameSample> frame_samples;
+            if (!frame_profile.empty())
+                frame_samples.reserve(profile_samples + 8192);
             bool capture_done = false;
             bool screenshot_requested = false;
             auto notice_until = start;
@@ -1012,6 +1073,21 @@ int main(int argc, char** argv) {
                     break;
                 const double frame_ms = std::chrono::duration<double, std::milli>(now - previous).count();
                 previous = now;
+                const bool measure_frame = !frame_profile.empty();
+                FrameSample frame_sample;
+                auto frame_boundary = now;
+                const uint64_t thread_start = measure_frame ? main_thread_cpu_ticks() : 0;
+                if (measure_frame) {
+                    renderer.reset_cpu_frame_timing();
+                    frame_sample.period_ms = frame_ms;
+                }
+                const auto frame_segment = [&](double& value) {
+                    if (!measure_frame)
+                        return;
+                    const auto end = std::chrono::steady_clock::now();
+                    value = std::chrono::duration<double, std::milli>(end - frame_boundary).count();
+                    frame_boundary = end;
+                };
                 bool gameplay_input_blocked =
                     actions.paused || actions.generation_open || game_console.is_open() || !in_world;
                 SDL_Event event;
@@ -1252,6 +1328,7 @@ int main(int argc, char** argv) {
                 if (rdc_frame)
                     renderdoc.api->StartFrameCapture(
                         RENDERDOC_DEVICEPOINTER_FROM_VKINSTANCE(renderer.instance), nullptr);
+                frame_segment(frame_sample.pre_ms);
                 if (!renderer.begin_frame()) {
                     if (rdc_frame)
                         renderdoc.api->DiscardFrameCapture(
@@ -1259,6 +1336,7 @@ int main(int argc, char** argv) {
                     SDL_Delay(10);
                     continue;
                 }
+                frame_segment(frame_sample.begin_ms);
                 if (renderer.image_count() != previous_image_count) {
                     renderer.wait_idle();
                     generation_editor.release_preview_binding();
@@ -1275,11 +1353,13 @@ int main(int argc, char** argv) {
                     world->update_target();
                     world->render();
                     if (!gpu_profile.empty()) {
-                        const bool ready = world->visible_columns() > 0 && world->pending_columns() == 0 &&
-                                           world->pending_lighting() == 0 && world->uploaded_bytes == 0 &&
-                                           (draw_profile.empty() || world->draw_profile_ready());
+                        const bool ready =
+                            world->visible_columns() > 0 && world->pending_columns() == 0 &&
+                            world->pending_lighting() == 0 && world->uploaded_bytes == 0 &&
+                            ((draw_profile.empty() && frame_profile.empty()) || world->draw_profile_ready());
                         profile_ready_frames = ready ? profile_ready_frames + 1 : 0;
                         const bool steady = profile_ready_frames > 240;
+                        frame_sample.steady = steady;
                         if (steady)
                             ++profile_measured_frames;
                         renderer.gpu_profile_frame(steady, static_cast<uint32_t>(world->visible_columns()),
@@ -1297,6 +1377,7 @@ int main(int argc, char** argv) {
                             ->SetClass("selected", slot == world->selected_slot() + 1);
                 } else
                     renderer.begin_rendering();
+                frame_segment(frame_sample.world_ms);
                 ImGui_ImplVulkan_NewFrame();
                 if (headless) {
                     auto& io = ImGui::GetIO();
@@ -1364,7 +1445,9 @@ int main(int argc, char** argv) {
                         notify_screenshot("스크린샷 저장 실패 · 저장 폴더를 확인해 주세요.");
                     }
                 }
+                frame_segment(frame_sample.ui_ms);
                 const bool saved = renderer.end_frame(frame_capture);
+                frame_segment(frame_sample.end_ms);
                 if (profile_done && !shadow_capture.empty())
                     world->capture_shadow_maps(shadow_capture);
                 if (capture_now && !saved)
@@ -1389,16 +1472,44 @@ int main(int argc, char** argv) {
                     const auto deadline =
                         now + std::chrono::nanoseconds(1'000'000'000 / settings.values.fps_limit);
                     const auto remaining = deadline - std::chrono::steady_clock::now();
-                    if (remaining > std::chrono::steady_clock::duration::zero())
+                    if (remaining > std::chrono::steady_clock::duration::zero()) {
+                        const auto sleep_start = measure_frame ? std::chrono::steady_clock::now()
+                                                               : std::chrono::steady_clock::time_point{};
                         SDL_DelayPrecise(static_cast<Uint64>(
                             std::chrono::duration_cast<std::chrono::nanoseconds>(remaining).count()));
+                        if (measure_frame)
+                            frame_sample.limiter_ms = std::chrono::duration<double, std::milli>(
+                                                          std::chrono::steady_clock::now() - sleep_start)
+                                                          .count();
+                    }
                 }
                 FrameMark;
+                if (measure_frame) {
+                    frame_sample.thread_cpu_ms = double(main_thread_cpu_ticks() - thread_start) / 10000.0;
+                    frame_segment(frame_sample.post_ms);
+                    frame_sample.wall_ms =
+                        std::chrono::duration<double, std::milli>(frame_boundary - now).count();
+                    frame_sample.serial = renderer.submitted_serial();
+                    frame_sample.extent = renderer.extent;
+                    frame_sample.capture =
+                        !frame_capture.empty() || (profile_done && !shadow_capture.empty());
+                    frame_sample.api = renderer.cpu_frame_timing();
+                    if (world) {
+                        frame_sample.radius = world->radius();
+                        frame_sample.columns = world->visible_columns();
+                        frame_sample.lod_tiles = world->lod_tiles();
+                        frame_sample.lod_pending = world->lod_stats().pending;
+                        frame_sample.lod_queued = world->lod_upload_queue();
+                    }
+                    frame_samples.push_back(frame_sample);
+                }
             }
             settings.flush_cloud();
             renderer.wait_idle();
             if (!gpu_profile.empty()) {
                 renderer.save_gpu_profile(gpu_profile);
+                if (!frame_profile.empty())
+                    save_frame_profile(frame_profile, frame_samples);
                 if (!draw_profile.empty())
                     save_draw_profile(draw_profile, draw_samples);
                 if (profile_measured_frames < profile_samples)
