@@ -1,5 +1,24 @@
 # 검증 기록
 
+## 일반 지형 nonempty 목록 전후 비교 (2026-10-01)
+
+- Resident에 nonempty 비트마스크를 보관하고 생성/geometry 교체 시 갱신, 주 화면 일반 지형 순회에 적용. Release 빌드 성공(build/near-mask-build.log). 최종 SHA256 996791CA04DEA29E998CC945C4170E08BEDE5B8765E63D0EB104107D698F3261.
+- 세부 계측 OFF/validation OFF, 거리12/24/32 전후 각3회/640steady, 총18회/11,520표본. 일반 CPU 평균(ms) 전→후 0.041088→0.034836(15.2%), 0.172165→0.125227(27.3%), 0.511970→0.250875(51.0%). 각3쌍 모두 일반 CPU 평균 감소. 월드 준비+일반+LOD 합 감소3.6/18.7/44.0%. GPU 성능 개선/FPS 비례 향상은 주장하지 않는다.
+- 전 실행exit0/Vulkan errors0/UI0/texture0. 각640steady CPU/GPU frame과 카운터 관계 일치, LOD 준비 완료. 일반 draw/triangles 전후 동일. GPU 거리32 after 3번째 평균1.605484ms로 증가하여 원래3회 평균은2.8% 높음, 이 실행을 제외하지 않았다.
+- GPU 변동 때문에 거리32에서after→before 한 쌍 추가, 모두exit0/640표본 및frame·출력량 일치. GPU before1.528792/after1.504309ms로 증가가 같은 방향으로 반복되지 않았고 CPU 절감은6.2%로 작았다. 추가값 포함 거리32 4회씩 평균은0.473981→0.272559ms(42.5% 감소), CPU 합34.8% 감소, GPU 평균1.7% 증가. 최종 사용자 수치는 이 전체 평균을 사용하며 기존3회값도 보존했다. 전체 성능20회/12,800steady.
+- 별도 validation ON/세부 계측 ON 거리12/64steady 전후 exit0, errors0/기존 warnings10/UI0/texture0. 캐시 일치 검증 성공, 실제 순회14112→882/그린 청크209 동일. raw 그림자4종+extent 일치. 거리32 PNG 시각 확인, 전체9쌍 평균 절대 채널 차이 최대0.337954/255로 픽셀 완전 동일은 아니다.
+- [상세 기록](near-nonempty-2026-10-01.md), 통계 docs/benchmarks/near-nonempty-2026-10-01-summary.json. 현재 고정 평지/초기 스트리밍 검증이며 실제 이동·블록/유체 편집·재생성 입력 검증 없음. 자동 테스트/CTest/CU/합성 입력 없음.
+- 최종 clang-format/git diff --check 및 패키징 완료(build/near-mask-package.log), build/bin·after.exe·out 실행 파일 해시 일치, 설정 보존. 소스/배포 실행 파일에 반영하고 commit/push는 하지 않았다.
+
+## 일반 지형 CPU 세부 조사 (2026-10-01)
+
+- `--profile-near-detail` 추가, Release 빌드 성공(build/near-detail-build.log). 누락된 --profile-draws에 대해 초기화 전 exit1. 일반 경로는 constexpr로 세부 청크 타이머/카운터 제외.
+- 거리12/24/32×control/detail×3회, 각640steady/전체11,520표본. 전 실행exit0/Vulkan/UI/texture 오류0. CPU/GPU frame, 준비 조건, 카운터 산술 및32 phase당20회 표집 확인.
+- 일반 CPU 평균 control/detail(ms): 12 0.042464/0.053283, 24 0.204369/0.257712, 32 0.510251/0.613478. 세부 시계 오버헤드로 표집 확장 합이 실제 총시간을 초과하므로 정밀 비용 비율/개선율로 해석하지 않는다. 최적화 전후가 아닌 진단 ON/OFF 조사다.
+- 빈 메시 슬롯93.75%, 가상 컬럼 선별 가능50.8/62.8/65.8%. 실제 렌더 제외를 추가하지 않으며 가상 제외와 기존 시야 판정 충돌0. 일반 draw209/1017/1819 및 삼각형 카운터 전후 동일.
+- 별도 validation ON 거리12/64steady control/detail 모두exit0/Vulkan errors0/기존 warnings10/UI0/texture0. raw 그림자4종 및 extent.txt는 서로 같고 이전 LOD 빌드와도 일치. 거리32 PNG 시각 확인. 설정 SHA256 보존.
+- clang-format/git diff --check 및 패키징 완료. 바이너리 SHA256 08A07F3FB7B57D7F036509184E071A318CFE246D2994691E87C118F1D5284919, 로그 build/near-detail-package.log. [상세 결과와 한계](near-draw-detail-2026-10-01.md), 통계 docs/benchmarks/near-draw-detail-2026-10-01-summary.json. 자동 테스트/CTest/CU/합성 입력 없음.
+
 ## LOD 그리기 목록 재사용 전후 비교 (2026-10-01)
 
 - active scene/coverage 변경 시 그릴 LOD 목록과 map 노드 참조를 재구축하도록 변경. Release before/after 동일 계측으로 거리12/24/32 각각3회씩 총18회/10,800steady 프레임 비교. 전 실행exit0, CPU/GPU frame 및 카운터 일치, Vulkan/UI/texture 오류0.

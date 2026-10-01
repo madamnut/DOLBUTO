@@ -1,0 +1,1607 @@
+{
+  "runs": [
+    {
+      "name": "r12-before-1",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.03969515625,
+        "p95": 0.0627,
+        "minimum": 0.0265,
+        "maximum": 0.1795
+      },
+      "lod_cpu_ms": {
+        "mean": 0.0497328125,
+        "p95": 0.0766,
+        "minimum": 0.0324,
+        "maximum": 0.2546
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.02987109375,
+        "p95": 0.0418,
+        "minimum": 0.0193,
+        "maximum": 0.1125
+      },
+      "cpu_sum_ms": {
+        "mean": 0.1192990625,
+        "p95": 0.17930000000000001,
+        "minimum": 0.0819,
+        "maximum": 0.3507
+      },
+      "near_draws": {
+        "mean": 209.0,
+        "p95": 209.0,
+        "minimum": 209.0,
+        "maximum": 209.0
+      },
+      "lod_draws": {
+        "mean": 407.0,
+        "p95": 407.0,
+        "minimum": 407.0,
+        "maximum": 407.0
+      },
+      "lod_tiles": {
+        "mean": 402.0,
+        "p95": 402.0,
+        "minimum": 402.0,
+        "maximum": 402.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.6557938,
+        "p95": 1.840512,
+        "minimum": 1.633184,
+        "maximum": 2.010816
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.24440325000000002,
+        "p95": 0.243776,
+        "minimum": 0.23968,
+        "maximum": 0.607264
+      },
+      "triangles": {
+        "mean": 570112.0,
+        "p95": 570112.0,
+        "minimum": 570112.0,
+        "maximum": 570112.0
+      },
+      "elapsed_seconds": 10.808315
+    },
+    {
+      "name": "r12-before-2",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.039673125,
+        "p95": 0.0548,
+        "minimum": 0.0271,
+        "maximum": 0.4293
+      },
+      "lod_cpu_ms": {
+        "mean": 0.04706625,
+        "p95": 0.0699,
+        "minimum": 0.0329,
+        "maximum": 0.1765
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.02801625,
+        "p95": 0.0362,
+        "minimum": 0.0201,
+        "maximum": 0.1993
+      },
+      "cpu_sum_ms": {
+        "mean": 0.114755625,
+        "p95": 0.1542,
+        "minimum": 0.0827,
+        "maximum": 0.5021
+      },
+      "near_draws": {
+        "mean": 209.0,
+        "p95": 209.0,
+        "minimum": 209.0,
+        "maximum": 209.0
+      },
+      "lod_draws": {
+        "mean": 404.0,
+        "p95": 404.0,
+        "minimum": 404.0,
+        "maximum": 404.0
+      },
+      "lod_tiles": {
+        "mean": 402.0,
+        "p95": 402.0,
+        "minimum": 402.0,
+        "maximum": 402.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.6567123,
+        "p95": 1.835264,
+        "minimum": 1.633664,
+        "maximum": 2.013312
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.24343135,
+        "p95": 0.24432,
+        "minimum": 0.239488,
+        "maximum": 0.441088
+      },
+      "triangles": {
+        "mean": 570112.0,
+        "p95": 570112.0,
+        "minimum": 570112.0,
+        "maximum": 570112.0
+      },
+      "elapsed_seconds": 10.5675866
+    },
+    {
+      "name": "r12-before-3",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.04389703125,
+        "p95": 0.0644,
+        "minimum": 0.0283,
+        "maximum": 0.6191
+      },
+      "lod_cpu_ms": {
+        "mean": 0.0524009375,
+        "p95": 0.0807,
+        "minimum": 0.0331,
+        "maximum": 0.2842
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.029635937499999997,
+        "p95": 0.0412,
+        "minimum": 0.0193,
+        "maximum": 0.0798
+      },
+      "cpu_sum_ms": {
+        "mean": 0.12593390625,
+        "p95": 0.185,
+        "minimum": 0.08410000000000001,
+        "maximum": 0.728
+      },
+      "near_draws": {
+        "mean": 209.0,
+        "p95": 209.0,
+        "minimum": 209.0,
+        "maximum": 209.0
+      },
+      "lod_draws": {
+        "mean": 406.0,
+        "p95": 406.0,
+        "minimum": 406.0,
+        "maximum": 406.0
+      },
+      "lod_tiles": {
+        "mean": 402.0,
+        "p95": 402.0,
+        "minimum": 402.0,
+        "maximum": 402.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.65658295,
+        "p95": 1.82176,
+        "minimum": 1.634688,
+        "maximum": 2.218304
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.24505780000000002,
+        "p95": 0.24432,
+        "minimum": 0.240256,
+        "maximum": 0.614592
+      },
+      "triangles": {
+        "mean": 570112.0,
+        "p95": 570112.0,
+        "minimum": 570112.0,
+        "maximum": 570112.0
+      },
+      "elapsed_seconds": 10.6097164
+    },
+    {
+      "name": "r12-after-1",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.0373221875,
+        "p95": 0.0582,
+        "minimum": 0.0223,
+        "maximum": 0.2828
+      },
+      "lod_cpu_ms": {
+        "mean": 0.05364953125000001,
+        "p95": 0.0864,
+        "minimum": 0.0326,
+        "maximum": 0.1957
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.0299065625,
+        "p95": 0.0428,
+        "minimum": 0.02,
+        "maximum": 0.1152
+      },
+      "cpu_sum_ms": {
+        "mean": 0.12087828125,
+        "p95": 0.1904,
+        "minimum": 0.0774,
+        "maximum": 0.4144
+      },
+      "near_draws": {
+        "mean": 209.0,
+        "p95": 209.0,
+        "minimum": 209.0,
+        "maximum": 209.0
+      },
+      "lod_draws": {
+        "mean": 403.0,
+        "p95": 403.0,
+        "minimum": 403.0,
+        "maximum": 403.0
+      },
+      "lod_tiles": {
+        "mean": 402.0,
+        "p95": 402.0,
+        "minimum": 402.0,
+        "maximum": 402.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.6560846999999999,
+        "p95": 1.841216,
+        "minimum": 1.632384,
+        "maximum": 2.009312
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.24501414999999999,
+        "p95": 0.244,
+        "minimum": 0.239712,
+        "maximum": 0.519808
+      },
+      "triangles": {
+        "mean": 570112.0,
+        "p95": 570112.0,
+        "minimum": 570112.0,
+        "maximum": 570112.0
+      },
+      "elapsed_seconds": 10.5180976
+    },
+    {
+      "name": "r12-after-2",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.03525171875,
+        "p95": 0.0547,
+        "minimum": 0.022,
+        "maximum": 0.2234
+      },
+      "lod_cpu_ms": {
+        "mean": 0.052190468749999996,
+        "p95": 0.0822,
+        "minimum": 0.0325,
+        "maximum": 0.2559
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.029870625,
+        "p95": 0.0425,
+        "minimum": 0.0203,
+        "maximum": 0.2031
+      },
+      "cpu_sum_ms": {
+        "mean": 0.1173128125,
+        "p95": 0.1736,
+        "minimum": 0.0765,
+        "maximum": 0.35469999999999996
+      },
+      "near_draws": {
+        "mean": 209.0,
+        "p95": 209.0,
+        "minimum": 209.0,
+        "maximum": 209.0
+      },
+      "lod_draws": {
+        "mean": 402.0,
+        "p95": 402.0,
+        "minimum": 402.0,
+        "maximum": 402.0
+      },
+      "lod_tiles": {
+        "mean": 402.0,
+        "p95": 402.0,
+        "minimum": 402.0,
+        "maximum": 402.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.6563551,
+        "p95": 1.836832,
+        "minimum": 1.6336,
+        "maximum": 2.020672
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.2448528,
+        "p95": 0.244128,
+        "minimum": 0.240096,
+        "maximum": 0.615072
+      },
+      "triangles": {
+        "mean": 570112.0,
+        "p95": 570112.0,
+        "minimum": 570112.0,
+        "maximum": 570112.0
+      },
+      "elapsed_seconds": 10.4955467
+    },
+    {
+      "name": "r12-after-3",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.03193296875,
+        "p95": 0.0468,
+        "minimum": 0.0222,
+        "maximum": 0.1928
+      },
+      "lod_cpu_ms": {
+        "mean": 0.04779921875,
+        "p95": 0.0729,
+        "minimum": 0.0325,
+        "maximum": 0.2357
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.02895890625,
+        "p95": 0.0392,
+        "minimum": 0.02,
+        "maximum": 0.1684
+      },
+      "cpu_sum_ms": {
+        "mean": 0.10869109375,
+        "p95": 0.1576,
+        "minimum": 0.07669999999999999,
+        "maximum": 0.3067
+      },
+      "near_draws": {
+        "mean": 209.0,
+        "p95": 209.0,
+        "minimum": 209.0,
+        "maximum": 209.0
+      },
+      "lod_draws": {
+        "mean": 404.0,
+        "p95": 404.0,
+        "minimum": 404.0,
+        "maximum": 404.0
+      },
+      "lod_tiles": {
+        "mean": 402.0,
+        "p95": 402.0,
+        "minimum": 402.0,
+        "maximum": 402.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.6632703500000001,
+        "p95": 1.877792,
+        "minimum": 1.635264,
+        "maximum": 2.015104
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.2465815,
+        "p95": 0.244448,
+        "minimum": 0.239904,
+        "maximum": 0.603392
+      },
+      "triangles": {
+        "mean": 570112.0,
+        "p95": 570112.0,
+        "minimum": 570112.0,
+        "maximum": 570112.0
+      },
+      "elapsed_seconds": 10.4908397
+    },
+    {
+      "name": "r24-before-1",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.17988125,
+        "p95": 0.2671,
+        "minimum": 0.1465,
+        "maximum": 2.2867
+      },
+      "lod_cpu_ms": {
+        "mean": 0.05373390625,
+        "p95": 0.0917,
+        "minimum": 0.0418,
+        "maximum": 0.1868
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.05288,
+        "p95": 0.0718,
+        "minimum": 0.0315,
+        "maximum": 0.233
+      },
+      "cpu_sum_ms": {
+        "mean": 0.28649515625,
+        "p95": 0.4257,
+        "minimum": 0.2278,
+        "maximum": 2.4474
+      },
+      "near_draws": {
+        "mean": 1017.0,
+        "p95": 1017.0,
+        "minimum": 1017.0,
+        "maximum": 1017.0
+      },
+      "lod_draws": {
+        "mean": 450.0,
+        "p95": 450.0,
+        "minimum": 450.0,
+        "maximum": 450.0
+      },
+      "lod_tiles": {
+        "mean": 447.0,
+        "p95": 447.0,
+        "minimum": 447.0,
+        "maximum": 447.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.3641602499999999,
+        "p95": 1.510272,
+        "minimum": 1.3448,
+        "maximum": 1.721696
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.3573995,
+        "p95": 0.355584,
+        "minimum": 0.351712,
+        "maximum": 0.691424
+      },
+      "triangles": {
+        "mean": 1035648.0,
+        "p95": 1035648.0,
+        "minimum": 1035648.0,
+        "maximum": 1035648.0
+      },
+      "elapsed_seconds": 19.2779676
+    },
+    {
+      "name": "r24-before-2",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.16844546875,
+        "p95": 0.2681,
+        "minimum": 0.1453,
+        "maximum": 0.4774
+      },
+      "lod_cpu_ms": {
+        "mean": 0.051974062499999994,
+        "p95": 0.0909,
+        "minimum": 0.0414,
+        "maximum": 0.2851
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.05182734375,
+        "p95": 0.0592,
+        "minimum": 0.0325,
+        "maximum": 0.2416
+      },
+      "cpu_sum_ms": {
+        "mean": 0.272246875,
+        "p95": 0.424,
+        "minimum": 0.2253,
+        "maximum": 0.6415
+      },
+      "near_draws": {
+        "mean": 1017.0,
+        "p95": 1017.0,
+        "minimum": 1017.0,
+        "maximum": 1017.0
+      },
+      "lod_draws": {
+        "mean": 448.0,
+        "p95": 448.0,
+        "minimum": 448.0,
+        "maximum": 448.0
+      },
+      "lod_tiles": {
+        "mean": 447.0,
+        "p95": 447.0,
+        "minimum": 447.0,
+        "maximum": 447.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.3650562000000002,
+        "p95": 1.49072,
+        "minimum": 1.345984,
+        "maximum": 1.746688
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.3574197,
+        "p95": 0.355872,
+        "minimum": 0.352256,
+        "maximum": 0.717056
+      },
+      "triangles": {
+        "mean": 1035648.0,
+        "p95": 1035648.0,
+        "minimum": 1035648.0,
+        "maximum": 1035648.0
+      },
+      "elapsed_seconds": 19.4610832
+    },
+    {
+      "name": "r24-before-3",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.16816718749999998,
+        "p95": 0.2121,
+        "minimum": 0.1505,
+        "maximum": 0.7323
+      },
+      "lod_cpu_ms": {
+        "mean": 0.0516528125,
+        "p95": 0.0606,
+        "minimum": 0.0442,
+        "maximum": 0.2128
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.05399703125000001,
+        "p95": 0.0646,
+        "minimum": 0.0324,
+        "maximum": 0.2181
+      },
+      "cpu_sum_ms": {
+        "mean": 0.27381703125,
+        "p95": 0.3506,
+        "minimum": 0.2391,
+        "maximum": 0.8365999999999999
+      },
+      "near_draws": {
+        "mean": 1017.0,
+        "p95": 1017.0,
+        "minimum": 1017.0,
+        "maximum": 1017.0
+      },
+      "lod_draws": {
+        "mean": 449.0,
+        "p95": 449.0,
+        "minimum": 449.0,
+        "maximum": 449.0
+      },
+      "lod_tiles": {
+        "mean": 447.0,
+        "p95": 447.0,
+        "minimum": 447.0,
+        "maximum": 447.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.387004,
+        "p95": 1.555008,
+        "minimum": 1.346848,
+        "maximum": 1.848416
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.3645638,
+        "p95": 0.367296,
+        "minimum": 0.351872,
+        "maximum": 0.716704
+      },
+      "triangles": {
+        "mean": 1035648.0,
+        "p95": 1035648.0,
+        "minimum": 1035648.0,
+        "maximum": 1035648.0
+      },
+      "elapsed_seconds": 17.498553
+    },
+    {
+      "name": "r24-after-1",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.12439390624999999,
+        "p95": 0.1923,
+        "minimum": 0.1081,
+        "maximum": 0.4414
+      },
+      "lod_cpu_ms": {
+        "mean": 0.048500156249999996,
+        "p95": 0.0806,
+        "minimum": 0.0405,
+        "maximum": 0.1983
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.049514375,
+        "p95": 0.0632,
+        "minimum": 0.0311,
+        "maximum": 0.1725
+      },
+      "cpu_sum_ms": {
+        "mean": 0.2224084375,
+        "p95": 0.3273,
+        "minimum": 0.1832,
+        "maximum": 0.5846
+      },
+      "near_draws": {
+        "mean": 1017.0,
+        "p95": 1017.0,
+        "minimum": 1017.0,
+        "maximum": 1017.0
+      },
+      "lod_draws": {
+        "mean": 448.0,
+        "p95": 448.0,
+        "minimum": 448.0,
+        "maximum": 448.0
+      },
+      "lod_tiles": {
+        "mean": 447.0,
+        "p95": 447.0,
+        "minimum": 447.0,
+        "maximum": 447.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.36328075,
+        "p95": 1.381856,
+        "minimum": 1.344192,
+        "maximum": 1.730688
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.3565659,
+        "p95": 0.355776,
+        "minimum": 0.351552,
+        "maximum": 0.717984
+      },
+      "triangles": {
+        "mean": 1035648.0,
+        "p95": 1035648.0,
+        "minimum": 1035648.0,
+        "maximum": 1035648.0
+      },
+      "elapsed_seconds": 19.4572872
+    },
+    {
+      "name": "r24-after-2",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.13141375,
+        "p95": 0.1984,
+        "minimum": 0.1078,
+        "maximum": 2.5764
+      },
+      "lod_cpu_ms": {
+        "mean": 0.05092171875,
+        "p95": 0.0825,
+        "minimum": 0.0404,
+        "maximum": 0.1852
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.054238593749999994,
+        "p95": 0.0709,
+        "minimum": 0.037,
+        "maximum": 0.8732
+      },
+      "cpu_sum_ms": {
+        "mean": 0.2365740625,
+        "p95": 0.3497,
+        "minimum": 0.1911,
+        "maximum": 2.7746
+      },
+      "near_draws": {
+        "mean": 1017.0,
+        "p95": 1017.0,
+        "minimum": 1017.0,
+        "maximum": 1017.0
+      },
+      "lod_draws": {
+        "mean": 448.0,
+        "p95": 448.0,
+        "minimum": 448.0,
+        "maximum": 448.0
+      },
+      "lod_tiles": {
+        "mean": 447.0,
+        "p95": 447.0,
+        "minimum": 447.0,
+        "maximum": 447.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.36491375,
+        "p95": 1.493888,
+        "minimum": 1.344832,
+        "maximum": 1.742528
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.35769645,
+        "p95": 0.355744,
+        "minimum": 0.349696,
+        "maximum": 0.726208
+      },
+      "triangles": {
+        "mean": 1035648.0,
+        "p95": 1035648.0,
+        "minimum": 1035648.0,
+        "maximum": 1035648.0
+      },
+      "elapsed_seconds": 19.742804
+    },
+    {
+      "name": "r24-after-3",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.119873125,
+        "p95": 0.1468,
+        "minimum": 0.1084,
+        "maximum": 0.334
+      },
+      "lod_cpu_ms": {
+        "mean": 0.047029375,
+        "p95": 0.0588,
+        "minimum": 0.0404,
+        "maximum": 0.1666
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.05076531250000001,
+        "p95": 0.0589,
+        "minimum": 0.0353,
+        "maximum": 0.1704
+      },
+      "cpu_sum_ms": {
+        "mean": 0.2176678125,
+        "p95": 0.266,
+        "minimum": 0.1904,
+        "maximum": 0.45230000000000004
+      },
+      "near_draws": {
+        "mean": 1017.0,
+        "p95": 1017.0,
+        "minimum": 1017.0,
+        "maximum": 1017.0
+      },
+      "lod_draws": {
+        "mean": 448.0,
+        "p95": 448.0,
+        "minimum": 448.0,
+        "maximum": 448.0
+      },
+      "lod_tiles": {
+        "mean": 447.0,
+        "p95": 447.0,
+        "minimum": 447.0,
+        "maximum": 447.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.3888444500000001,
+        "p95": 1.571456,
+        "minimum": 1.34928,
+        "maximum": 1.781408
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.36331444999999996,
+        "p95": 0.368832,
+        "minimum": 0.351488,
+        "maximum": 0.660736
+      },
+      "triangles": {
+        "mean": 1035648.0,
+        "p95": 1035648.0,
+        "minimum": 1035648.0,
+        "maximum": 1035648.0
+      },
+      "elapsed_seconds": 12.2595891
+    },
+    {
+      "name": "r32-before-1",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.47715671875,
+        "p95": 0.6037,
+        "minimum": 0.2922,
+        "maximum": 0.864
+      },
+      "lod_cpu_ms": {
+        "mean": 0.09210046875,
+        "p95": 0.1124,
+        "minimum": 0.049,
+        "maximum": 0.382
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.1042340625,
+        "p95": 0.1212,
+        "minimum": 0.0775,
+        "maximum": 0.2808
+      },
+      "cpu_sum_ms": {
+        "mean": 0.67349125,
+        "p95": 0.8278000000000001,
+        "minimum": 0.4258,
+        "maximum": 1.1121
+      },
+      "near_draws": {
+        "mean": 1819.0,
+        "p95": 1819.0,
+        "minimum": 1819.0,
+        "maximum": 1819.0
+      },
+      "lod_draws": {
+        "mean": 491.0,
+        "p95": 491.0,
+        "minimum": 491.0,
+        "maximum": 491.0
+      },
+      "lod_tiles": {
+        "mean": 489.0,
+        "p95": 489.0,
+        "minimum": 489.0,
+        "maximum": 489.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.4926147,
+        "p95": 1.503264,
+        "minimum": 1.47536,
+        "maximum": 1.85648
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.4740558,
+        "p95": 0.472,
+        "minimum": 0.468256,
+        "maximum": 0.832224
+      },
+      "triangles": {
+        "mean": 1494656.0,
+        "p95": 1494656.0,
+        "minimum": 1494656.0,
+        "maximum": 1494656.0
+      },
+      "elapsed_seconds": 26.4782493
+    },
+    {
+      "name": "r32-before-2",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.51443296875,
+        "p95": 0.6347,
+        "minimum": 0.3052,
+        "maximum": 1.3414
+      },
+      "lod_cpu_ms": {
+        "mean": 0.10019031249999999,
+        "p95": 0.1223,
+        "minimum": 0.0515,
+        "maximum": 0.3031
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.10981125,
+        "p95": 0.1223,
+        "minimum": 0.0758,
+        "maximum": 0.3306
+      },
+      "cpu_sum_ms": {
+        "mean": 0.72443453125,
+        "p95": 0.8912,
+        "minimum": 0.44270000000000004,
+        "maximum": 1.5317999999999998
+      },
+      "near_draws": {
+        "mean": 1819.0,
+        "p95": 1819.0,
+        "minimum": 1819.0,
+        "maximum": 1819.0
+      },
+      "lod_draws": {
+        "mean": 491.0,
+        "p95": 491.0,
+        "minimum": 491.0,
+        "maximum": 491.0
+      },
+      "lod_tiles": {
+        "mean": 489.0,
+        "p95": 489.0,
+        "minimum": 489.0,
+        "maximum": 489.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.4870231,
+        "p95": 1.485344,
+        "minimum": 1.475872,
+        "maximum": 1.849184
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.47062855,
+        "p95": 0.471968,
+        "minimum": 0.468416,
+        "maximum": 0.476896
+      },
+      "triangles": {
+        "mean": 1494656.0,
+        "p95": 1494656.0,
+        "minimum": 1494656.0,
+        "maximum": 1494656.0
+      },
+      "elapsed_seconds": 27.236389
+    },
+    {
+      "name": "r32-before-3",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.5443207812499999,
+        "p95": 0.7279,
+        "minimum": 0.3084,
+        "maximum": 1.6891
+      },
+      "lod_cpu_ms": {
+        "mean": 0.102774375,
+        "p95": 0.1328,
+        "minimum": 0.053,
+        "maximum": 0.5218
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.11216187500000001,
+        "p95": 0.1423,
+        "minimum": 0.0736,
+        "maximum": 0.3077
+      },
+      "cpu_sum_ms": {
+        "mean": 0.75925703125,
+        "p95": 0.9742000000000001,
+        "minimum": 0.4435,
+        "maximum": 2.0268
+      },
+      "near_draws": {
+        "mean": 1819.0,
+        "p95": 1819.0,
+        "minimum": 1819.0,
+        "maximum": 1819.0
+      },
+      "lod_draws": {
+        "mean": 490.0,
+        "p95": 490.0,
+        "minimum": 490.0,
+        "maximum": 490.0
+      },
+      "lod_tiles": {
+        "mean": 489.0,
+        "p95": 489.0,
+        "minimum": 489.0,
+        "maximum": 489.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.4879725499999998,
+        "p95": 1.501632,
+        "minimum": 1.475744,
+        "maximum": 2.01872
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.4729045,
+        "p95": 0.472,
+        "minimum": 0.468,
+        "maximum": 0.80448
+      },
+      "triangles": {
+        "mean": 1494656.0,
+        "p95": 1494656.0,
+        "minimum": 1494656.0,
+        "maximum": 1494656.0
+      },
+      "elapsed_seconds": 26.6721961
+    },
+    {
+      "name": "r32-after-1",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.24781625,
+        "p95": 0.377,
+        "minimum": 0.2044,
+        "maximum": 0.6512
+      },
+      "lod_cpu_ms": {
+        "mean": 0.063395625,
+        "p95": 0.0957,
+        "minimum": 0.048,
+        "maximum": 0.2377
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.0855359375,
+        "p95": 0.1026,
+        "minimum": 0.0551,
+        "maximum": 0.263
+      },
+      "cpu_sum_ms": {
+        "mean": 0.3967478125,
+        "p95": 0.5791,
+        "minimum": 0.31520000000000004,
+        "maximum": 0.8426
+      },
+      "near_draws": {
+        "mean": 1819.0,
+        "p95": 1819.0,
+        "minimum": 1819.0,
+        "maximum": 1819.0
+      },
+      "lod_draws": {
+        "mean": 491.0,
+        "p95": 491.0,
+        "minimum": 491.0,
+        "maximum": 491.0
+      },
+      "lod_tiles": {
+        "mean": 489.0,
+        "p95": 489.0,
+        "minimum": 489.0,
+        "maximum": 489.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.4931725,
+        "p95": 1.514656,
+        "minimum": 1.475168,
+        "maximum": 1.87568
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.47484595,
+        "p95": 0.472288,
+        "minimum": 0.468352,
+        "maximum": 0.845408
+      },
+      "triangles": {
+        "mean": 1494656.0,
+        "p95": 1494656.0,
+        "minimum": 1494656.0,
+        "maximum": 1494656.0
+      },
+      "elapsed_seconds": 28.199832
+    },
+    {
+      "name": "r32-after-2",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.25244765625,
+        "p95": 0.3872,
+        "minimum": 0.2006,
+        "maximum": 0.8825
+      },
+      "lod_cpu_ms": {
+        "mean": 0.06451296875,
+        "p95": 0.1022,
+        "minimum": 0.0475,
+        "maximum": 0.2238
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.08373140625,
+        "p95": 0.1012,
+        "minimum": 0.0545,
+        "maximum": 0.2266
+      },
+      "cpu_sum_ms": {
+        "mean": 0.40069203125,
+        "p95": 0.5884,
+        "minimum": 0.3211,
+        "maximum": 1.1041999999999998
+      },
+      "near_draws": {
+        "mean": 1819.0,
+        "p95": 1819.0,
+        "minimum": 1819.0,
+        "maximum": 1819.0
+      },
+      "lod_draws": {
+        "mean": 492.0,
+        "p95": 492.0,
+        "minimum": 492.0,
+        "maximum": 492.0
+      },
+      "lod_tiles": {
+        "mean": 489.0,
+        "p95": 489.0,
+        "minimum": 489.0,
+        "maximum": 489.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.4941995000000001,
+        "p95": 1.509376,
+        "minimum": 1.474688,
+        "maximum": 1.865888
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.47441845000000005,
+        "p95": 0.472576,
+        "minimum": 0.467776,
+        "maximum": 0.833216
+      },
+      "triangles": {
+        "mean": 1494656.0,
+        "p95": 1494656.0,
+        "minimum": 1494656.0,
+        "maximum": 1494656.0
+      },
+      "elapsed_seconds": 28.4630708
+    },
+    {
+      "name": "r32-after-3",
+      "samples": 640,
+      "near_cpu_ms": {
+        "mean": 0.2523625,
+        "p95": 0.3705,
+        "minimum": 0.2051,
+        "maximum": 1.0412
+      },
+      "lod_cpu_ms": {
+        "mean": 0.0657428125,
+        "p95": 0.0963,
+        "minimum": 0.0498,
+        "maximum": 0.2687
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.09341015625,
+        "p95": 0.1271,
+        "minimum": 0.056,
+        "maximum": 0.3277
+      },
+      "cpu_sum_ms": {
+        "mean": 0.41151546874999995,
+        "p95": 0.5873,
+        "minimum": 0.3205,
+        "maximum": 1.2465
+      },
+      "near_draws": {
+        "mean": 1819.0,
+        "p95": 1819.0,
+        "minimum": 1819.0,
+        "maximum": 1819.0
+      },
+      "lod_draws": {
+        "mean": 490.0,
+        "p95": 490.0,
+        "minimum": 490.0,
+        "maximum": 490.0
+      },
+      "lod_tiles": {
+        "mean": 489.0,
+        "p95": 489.0,
+        "minimum": 489.0,
+        "maximum": 489.0
+      },
+      "gpu_total_ms": {
+        "mean": 1.605484,
+        "p95": 1.883456,
+        "minimum": 1.475296,
+        "maximum": 2.082528
+      },
+      "gpu_terrain_ms": {
+        "mean": 0.51255125,
+        "p95": 0.789632,
+        "minimum": 0.468608,
+        "maximum": 1.069696
+      },
+      "triangles": {
+        "mean": 1494656.0,
+        "p95": 1494656.0,
+        "minimum": 1494656.0,
+        "maximum": 1494656.0
+      },
+      "elapsed_seconds": 28.2457207
+    }
+  ],
+  "groups": [
+    {
+      "radius": 12,
+      "variant": "before",
+      "samples": 1920,
+      "near_cpu_ms": {
+        "mean": 0.0410884375,
+        "p95": 0.0619,
+        "minimum": 0.0265,
+        "maximum": 0.6191
+      },
+      "lod_cpu_ms": {
+        "mean": 0.04973333333333333,
+        "p95": 0.0761,
+        "minimum": 0.0324,
+        "maximum": 0.2842
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.029174427083333333,
+        "p95": 0.0406,
+        "minimum": 0.0193,
+        "maximum": 0.1993
+      },
+      "cpu_sum_ms": {
+        "mean": 0.11999619791666666,
+        "p95": 0.1753,
+        "minimum": 0.0819,
+        "maximum": 0.728
+      },
+      "near_draws": {
+        "mean": 209.0,
+        "p95": 209.0,
+        "minimum": 209.0,
+        "maximum": 209.0
+      },
+      "lod_draws": {
+        "mean": 405.6666666666667,
+        "p95": 407.0,
+        "minimum": 404.0,
+        "maximum": 407.0
+      },
+      "lod_tiles": {
+        "mean": 402.0,
+        "p95": 402.0,
+        "minimum": 402.0,
+        "maximum": 402.0
+      },
+      "gpu_total_mean_ms": 1.6563630166666667
+    },
+    {
+      "radius": 12,
+      "variant": "after",
+      "samples": 1920,
+      "near_cpu_ms": {
+        "mean": 0.034835625,
+        "p95": 0.0551,
+        "minimum": 0.022,
+        "maximum": 0.2828
+      },
+      "lod_cpu_ms": {
+        "mean": 0.051213072916666665,
+        "p95": 0.0821,
+        "minimum": 0.0325,
+        "maximum": 0.2559
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.029578697916666667,
+        "p95": 0.0418,
+        "minimum": 0.02,
+        "maximum": 0.2031
+      },
+      "cpu_sum_ms": {
+        "mean": 0.11562739583333334,
+        "p95": 0.1778,
+        "minimum": 0.0765,
+        "maximum": 0.4144
+      },
+      "near_draws": {
+        "mean": 209.0,
+        "p95": 209.0,
+        "minimum": 209.0,
+        "maximum": 209.0
+      },
+      "lod_draws": {
+        "mean": 403.0,
+        "p95": 404.0,
+        "minimum": 402.0,
+        "maximum": 404.0
+      },
+      "lod_tiles": {
+        "mean": 402.0,
+        "p95": 402.0,
+        "minimum": 402.0,
+        "maximum": 402.0
+      },
+      "gpu_total_mean_ms": 1.65857005
+    },
+    {
+      "radius": 24,
+      "variant": "before",
+      "samples": 1920,
+      "near_cpu_ms": {
+        "mean": 0.17216463541666668,
+        "p95": 0.2607,
+        "minimum": 0.1453,
+        "maximum": 2.2867
+      },
+      "lod_cpu_ms": {
+        "mean": 0.05245359375,
+        "p95": 0.0893,
+        "minimum": 0.0414,
+        "maximum": 0.2851
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.05290145833333334,
+        "p95": 0.0659,
+        "minimum": 0.0315,
+        "maximum": 0.2416
+      },
+      "cpu_sum_ms": {
+        "mean": 0.2775196875,
+        "p95": 0.4063,
+        "minimum": 0.2253,
+        "maximum": 2.4474
+      },
+      "near_draws": {
+        "mean": 1017.0,
+        "p95": 1017.0,
+        "minimum": 1017.0,
+        "maximum": 1017.0
+      },
+      "lod_draws": {
+        "mean": 449.0,
+        "p95": 450.0,
+        "minimum": 448.0,
+        "maximum": 450.0
+      },
+      "lod_tiles": {
+        "mean": 447.0,
+        "p95": 447.0,
+        "minimum": 447.0,
+        "maximum": 447.0
+      },
+      "gpu_total_mean_ms": 1.3720734833333335
+    },
+    {
+      "radius": 24,
+      "variant": "after",
+      "samples": 1920,
+      "near_cpu_ms": {
+        "mean": 0.12522692708333333,
+        "p95": 0.1924,
+        "minimum": 0.1078,
+        "maximum": 2.5764
+      },
+      "lod_cpu_ms": {
+        "mean": 0.04881708333333334,
+        "p95": 0.0806,
+        "minimum": 0.0404,
+        "maximum": 0.1983
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.05150609375,
+        "p95": 0.0638,
+        "minimum": 0.0311,
+        "maximum": 0.8732
+      },
+      "cpu_sum_ms": {
+        "mean": 0.22555010416666665,
+        "p95": 0.3301,
+        "minimum": 0.1832,
+        "maximum": 2.7746
+      },
+      "near_draws": {
+        "mean": 1017.0,
+        "p95": 1017.0,
+        "minimum": 1017.0,
+        "maximum": 1017.0
+      },
+      "lod_draws": {
+        "mean": 448.0,
+        "p95": 448.0,
+        "minimum": 448.0,
+        "maximum": 448.0
+      },
+      "lod_tiles": {
+        "mean": 447.0,
+        "p95": 447.0,
+        "minimum": 447.0,
+        "maximum": 447.0
+      },
+      "gpu_total_mean_ms": 1.3723463166666665
+    },
+    {
+      "radius": 32,
+      "variant": "before",
+      "samples": 1920,
+      "near_cpu_ms": {
+        "mean": 0.51197015625,
+        "p95": 0.6655,
+        "minimum": 0.2922,
+        "maximum": 1.6891
+      },
+      "lod_cpu_ms": {
+        "mean": 0.09835505208333334,
+        "p95": 0.1236,
+        "minimum": 0.049,
+        "maximum": 0.5218
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.10873572916666667,
+        "p95": 0.1304,
+        "minimum": 0.0736,
+        "maximum": 0.3306
+      },
+      "cpu_sum_ms": {
+        "mean": 0.7190609375,
+        "p95": 0.9178000000000001,
+        "minimum": 0.4258,
+        "maximum": 2.0268
+      },
+      "near_draws": {
+        "mean": 1819.0,
+        "p95": 1819.0,
+        "minimum": 1819.0,
+        "maximum": 1819.0
+      },
+      "lod_draws": {
+        "mean": 490.6666666666667,
+        "p95": 491.0,
+        "minimum": 490.0,
+        "maximum": 491.0
+      },
+      "lod_tiles": {
+        "mean": 489.0,
+        "p95": 489.0,
+        "minimum": 489.0,
+        "maximum": 489.0
+      },
+      "gpu_total_mean_ms": 1.48920345
+    },
+    {
+      "radius": 32,
+      "variant": "after",
+      "samples": 1920,
+      "near_cpu_ms": {
+        "mean": 0.25087546875,
+        "p95": 0.3781,
+        "minimum": 0.2006,
+        "maximum": 1.0412
+      },
+      "lod_cpu_ms": {
+        "mean": 0.06455046874999999,
+        "p95": 0.0979,
+        "minimum": 0.0475,
+        "maximum": 0.2687
+      },
+      "world_prepare_cpu_ms": {
+        "mean": 0.08755916666666666,
+        "p95": 0.1139,
+        "minimum": 0.0545,
+        "maximum": 0.3277
+      },
+      "cpu_sum_ms": {
+        "mean": 0.40298510416666666,
+        "p95": 0.5854,
+        "minimum": 0.31520000000000004,
+        "maximum": 1.2465
+      },
+      "near_draws": {
+        "mean": 1819.0,
+        "p95": 1819.0,
+        "minimum": 1819.0,
+        "maximum": 1819.0
+      },
+      "lod_draws": {
+        "mean": 491.0,
+        "p95": 492.0,
+        "minimum": 490.0,
+        "maximum": 492.0
+      },
+      "lod_tiles": {
+        "mean": 489.0,
+        "p95": 489.0,
+        "minimum": 489.0,
+        "maximum": 489.0
+      },
+      "gpu_total_mean_ms": 1.530952
+    }
+  ],
+  "image_differences": [
+    {
+      "radius": 12,
+      "repeat": 1,
+      "mean_channel_difference": 0.19374681712962963,
+      "max_channel_difference": 17,
+      "changed_pixel_fraction": 0.2793480902777778
+    },
+    {
+      "radius": 12,
+      "repeat": 2,
+      "mean_channel_difference": 0.2150329861111111,
+      "max_channel_difference": 15,
+      "changed_pixel_fraction": 0.3068090277777778
+    },
+    {
+      "radius": 12,
+      "repeat": 3,
+      "mean_channel_difference": 0.21896672453703703,
+      "max_channel_difference": 31,
+      "changed_pixel_fraction": 0.33910416666666665
+    },
+    {
+      "radius": 24,
+      "repeat": 1,
+      "mean_channel_difference": 0.33465219907407406,
+      "max_channel_difference": 32,
+      "changed_pixel_fraction": 0.3942265625
+    },
+    {
+      "radius": 24,
+      "repeat": 2,
+      "mean_channel_difference": 0.010000578703703704,
+      "max_channel_difference": 3,
+      "changed_pixel_fraction": 0.027705729166666665
+    },
+    {
+      "radius": 24,
+      "repeat": 3,
+      "mean_channel_difference": 0.3379537037037037,
+      "max_channel_difference": 30,
+      "changed_pixel_fraction": 0.41564236111111114
+    },
+    {
+      "radius": 32,
+      "repeat": 1,
+      "mean_channel_difference": 0.22778530092592592,
+      "max_channel_difference": 25,
+      "changed_pixel_fraction": 0.35303993055555555
+    },
+    {
+      "radius": 32,
+      "repeat": 2,
+      "mean_channel_difference": 0.3351021412037037,
+      "max_channel_difference": 38,
+      "changed_pixel_fraction": 0.39718489583333333
+    },
+    {
+      "radius": 32,
+      "repeat": 3,
+      "mean_channel_difference": 0.22816869212962962,
+      "max_channel_difference": 45,
+      "changed_pixel_fraction": 0.33226822916666665
+    }
+  ],
+  "shadow_maps": [
+    {
+      "file": "all-depth.f32",
+      "equal": true,
+      "before_sha256": "fed294b852578074aa375cd9f53c7f3908873ac9060bd3e975114d4b62ef3813",
+      "after_sha256": "fed294b852578074aa375cd9f53c7f3908873ac9060bd3e975114d4b62ef3813"
+    },
+    {
+      "file": "colour.rgba8",
+      "equal": true,
+      "before_sha256": "080acf35a507ac9849cfcba47dc2ad83e01b75663a516279c8b9d243b719643e",
+      "after_sha256": "080acf35a507ac9849cfcba47dc2ad83e01b75663a516279c8b9d243b719643e"
+    },
+    {
+      "file": "extent.txt",
+      "equal": true,
+      "before_sha256": "239678174767308f8fb4a1eec34139ccf108632359ea493df08eafb38562d8fe",
+      "after_sha256": "239678174767308f8fb4a1eec34139ccf108632359ea493df08eafb38562d8fe"
+    },
+    {
+      "file": "shaft.rgba8",
+      "equal": true,
+      "before_sha256": "903512f0f55fd082600572b0d4b2881486401bf46e9615941426949f28ffbcb8",
+      "after_sha256": "903512f0f55fd082600572b0d4b2881486401bf46e9615941426949f28ffbcb8"
+    },
+    {
+      "file": "solid-depth.f32",
+      "equal": true,
+      "before_sha256": "fed294b852578074aa375cd9f53c7f3908873ac9060bd3e975114d4b62ef3813",
+      "after_sha256": "fed294b852578074aa375cd9f53c7f3908873ac9060bd3e975114d4b62ef3813"
+    }
+  ],
+  "gpu_variation_recheck": [
+    {
+      "name": "r32-after-check",
+      "samples": 640,
+      "near_cpu_mean_ms": 0.33761046875,
+      "gpu_total_mean_ms": 1.5043094,
+      "triangles": [
+        1494656
+      ],
+      "near_draws": [
+        1819
+      ]
+    },
+    {
+      "name": "r32-before-check",
+      "samples": 640,
+      "near_cpu_mean_ms": 0.36001500000000003,
+      "gpu_total_mean_ms": 1.5287916,
+      "triangles": [
+        1494656
+      ],
+      "near_draws": [
+        1819
+      ]
+    }
+  ],
+  "r32_including_recheck": [
+    {
+      "variant": "before",
+      "runs": 4,
+      "samples": 2560,
+      "near_cpu_mean_ms": 0.4739813671875,
+      "near_cpu_p95_ms": 0.6427,
+      "cpu_sum_mean_ms": 0.66740609375,
+      "gpu_total_mean_ms": 1.4991004875
+    },
+    {
+      "variant": "after",
+      "runs": 4,
+      "samples": 2560,
+      "near_cpu_mean_ms": 0.27255921875,
+      "near_cpu_p95_ms": 0.4241,
+      "cpu_sum_mean_ms": 0.434935703125,
+      "gpu_total_mean_ms": 1.52429135
+    }
+  ]
+}

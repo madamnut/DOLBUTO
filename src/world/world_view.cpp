@@ -2,6 +2,7 @@
 #include "world/profiling.hpp"
 #include "world/spawn.hpp"
 #include <algorithm>
+#include <bit>
 #include <chrono>
 #include <cstddef>
 #include <cstring>
@@ -15,6 +16,7 @@
 
 namespace sandbox {
 namespace {
+static_assert(chunks_per_column <= 32);
 struct Push {
     glm::mat4 view_projection;
     glm::vec4 offset;
@@ -873,6 +875,11 @@ void WorldView::accept_meshes(std::chrono::steady_clock::time_point start) {
             }
             retire(mesh);
             mesh = std::move(replacement);
+            if (resident != columns_.end()) {
+                const auto bit = uint32_t{1} << ready.key.y;
+                auto& mask = resident->second.nonempty_meshes;
+                mask = mesh.count ? mask | bit : mask & ~bit;
+            }
             if (incoming)
                 uploaded_chunks_.set(ready.key.y);
         }
@@ -1023,6 +1030,9 @@ void WorldView::prepare() {
                     throw std::runtime_error("Attempted to upload an already resident column.");
                 entry->second.data = std::move(incoming_->data);
                 entry->second.meshes = uploading_;
+                for (int cy = 0; cy < chunks_per_column; ++cy)
+                    if (uploading_[cy].count)
+                        entry->second.nonempty_meshes |= uint32_t{1} << cy;
                 for (const auto& mesh : uploading_)
                     mesh_bytes_ += uint64_t(mesh.count) * 8;
                 uploading_ = {};
@@ -1480,48 +1490,122 @@ void WorldView::render() {
     };
     std::vector<WaterDraw> water_draws, ice_draws;
     drawn_chunks = triangles = 0;
-    for (const auto& [key, column] : columns_) {
-        if (!column.published)
-            continue;
-        const glm::dvec3 base(world_delta(static_cast<double>(key.x) * 16, camera.position.x),
-                              -camera.position.y,
-                              world_delta(static_cast<double>(key.z) * 16, camera.position.z));
-        for (int cy = 0; cy < chunks_per_column; ++cy) {
-            const auto& mesh = column.meshes[cy];
-            if (!mesh.count)
-                continue;
-            const auto offset = glm::vec3(base + glm::dvec3(0, cy * 16, 0));
-            if (!visible(planes, offset))
-                continue;
-            glm::vec4 selected(0);
-            if (target_ && wrap_column(chunk_coordinate(target_->block.x)) == key.x &&
-                wrap_column(chunk_coordinate(target_->block.z)) == key.z && target_->block.y / 16 == cy)
-                selected = glm::vec4(local_coordinate(target_->block.x), target_->block.y % 16,
-                                     local_coordinate(target_->block.z), 1);
-            if (lod_debug_ || mesh.solid_count) {
-                const Push push{matrix, glm::vec4(offset, sun), selected};
-                vkCmdPushConstants(cmd, layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 1, 1, &mesh.descriptor,
-                                        0, nullptr);
-                vkCmdDraw(cmd, 6, lod_debug_ ? mesh.count : mesh.solid_count, 0, 0);
-                if (profile_draws_) {
-                    ++near_draw_stats_.pushes;
-                    ++near_draw_stats_.descriptor_binds;
-                    ++near_draw_stats_.draws;
-                }
-            }
-            if (!lod_debug_ && mesh.ice_count) {
-                const auto centre = offset + glm::vec3(8);
-                ice_draws.push_back({&mesh, offset, glm::dot(centre, centre)});
-            }
-            if (!lod_debug_ && mesh.count > mesh.solid_count + mesh.ice_count) {
-                const auto centre = offset + glm::vec3(8);
-                water_draws.push_back({&mesh, offset, glm::dot(centre, centre)});
-            }
-            ++drawn_chunks;
-            triangles += mesh.count * 2;
+    // Compile the ordinary loop without per-chunk diagnostic branches or counters.
+    const auto record_near = [&]<bool detail>() {
+        using Clock = std::chrono::steady_clock;
+        Clock::duration scan_time{}, cull_time{}, record_time{};
+        if constexpr (detail) {
+            near_draw_detail_ = {};
+            near_draw_detail_.stride = 32;
+            near_draw_detail_.phase = near_detail_frame_++ % near_draw_detail_.stride;
         }
-    }
+        for (const auto& [key, column] : columns_) {
+            if (!column.published)
+                continue;
+            bool sample = false, column_rejected = false;
+            if constexpr (detail) {
+                sample = near_draw_detail_.columns++ % near_draw_detail_.stride == near_draw_detail_.phase;
+                near_draw_detail_.chunk_slots += std::popcount(column.nonempty_meshes);
+                // Explicit diagnostic only: verify cached membership against current geometry.
+                uint32_t expected = 0;
+                for (int cy = 0; cy < chunks_per_column; ++cy)
+                    if (column.meshes[cy].count)
+                        expected |= uint32_t{1} << cy;
+                if (expected != column.nonempty_meshes)
+                    throw std::logic_error("Resident nonempty chunk mask is stale.");
+            }
+            Clock::time_point segment;
+            if constexpr (detail)
+                if (sample) {
+                    ++near_draw_detail_.sampled_columns;
+                }
+            const glm::dvec3 base(world_delta(static_cast<double>(key.x) * 16, camera.position.x),
+                                  -camera.position.y,
+                                  world_delta(static_cast<double>(key.z) * 16, camera.position.z));
+            if constexpr (detail) {
+                // Count a possible broad-phase rejection; never use it to skip rendering here.
+                column_rejected = !visible(planes, glm::vec3(base), glm::vec3(16, world_height, 16));
+                near_draw_detail_.rejected_columns += column_rejected;
+                // Keep the hypothetical broad-phase check outside sampled phase timings.
+                if (sample)
+                    segment = Clock::now();
+            }
+            for (auto remaining = column.nonempty_meshes; remaining; remaining &= remaining - 1) {
+                const auto cy = std::countr_zero(remaining);
+                const auto& mesh = column.meshes[cy];
+                if constexpr (detail) {
+                    ++near_draw_detail_.nonempty;
+                    near_draw_detail_.rejected_column_nonempty += column_rejected;
+                    if (sample) {
+                        ++near_draw_detail_.sampled_nonempty;
+                        const auto now = Clock::now();
+                        scan_time += now - segment;
+                        segment = now;
+                    }
+                }
+                const auto offset = glm::vec3(base + glm::dvec3(0, cy * 16, 0));
+                const bool in_view = visible(planes, offset);
+                if constexpr (detail) {
+                    if (sample) {
+                        const auto now = Clock::now();
+                        cull_time += now - segment;
+                        segment = now;
+                    }
+                    near_draw_detail_.culled += !in_view;
+                    near_draw_detail_.visible += in_view;
+                    near_draw_detail_.rejection_conflicts += in_view && column_rejected;
+                }
+                if (!in_view)
+                    continue;
+                glm::vec4 selected(0);
+                if (target_ && wrap_column(chunk_coordinate(target_->block.x)) == key.x &&
+                    wrap_column(chunk_coordinate(target_->block.z)) == key.z && target_->block.y / 16 == cy)
+                    selected = glm::vec4(local_coordinate(target_->block.x), target_->block.y % 16,
+                                         local_coordinate(target_->block.z), 1);
+                if (lod_debug_ || mesh.solid_count) {
+                    const Push push{matrix, glm::vec4(offset, sun), selected};
+                    vkCmdPushConstants(cmd, layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push), &push);
+                    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout_, 1, 1,
+                                            &mesh.descriptor, 0, nullptr);
+                    vkCmdDraw(cmd, 6, lod_debug_ ? mesh.count : mesh.solid_count, 0, 0);
+                    if (profile_draws_) {
+                        ++near_draw_stats_.pushes;
+                        ++near_draw_stats_.descriptor_binds;
+                        ++near_draw_stats_.draws;
+                    }
+                }
+                if (!lod_debug_ && mesh.ice_count) {
+                    const auto centre = offset + glm::vec3(8);
+                    ice_draws.push_back({&mesh, offset, glm::dot(centre, centre)});
+                }
+                if (!lod_debug_ && mesh.count > mesh.solid_count + mesh.ice_count) {
+                    const auto centre = offset + glm::vec3(8);
+                    water_draws.push_back({&mesh, offset, glm::dot(centre, centre)});
+                }
+                ++drawn_chunks;
+                triangles += mesh.count * 2;
+                if constexpr (detail)
+                    if (sample) {
+                        ++near_draw_detail_.sampled_visible;
+                        const auto now = Clock::now();
+                        record_time += now - segment;
+                        segment = now;
+                    }
+            }
+            if constexpr (detail)
+                if (sample)
+                    scan_time += Clock::now() - segment;
+        }
+        if constexpr (detail) {
+            near_draw_detail_.scan_ms = std::chrono::duration<double, std::milli>(scan_time).count();
+            near_draw_detail_.cull_ms = std::chrono::duration<double, std::milli>(cull_time).count();
+            near_draw_detail_.record_ms = std::chrono::duration<double, std::milli>(record_time).count();
+        }
+    };
+    if (profile_near_detail_)
+        record_near.template operator()<true>();
+    else
+        record_near.template operator()<false>();
     if (profile_draws_)
         near_draw_stats_.cpu_ms =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - near_start).count();

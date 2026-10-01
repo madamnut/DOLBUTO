@@ -1,5 +1,20 @@
 # 개발 환경 컨텍스트
 
+## 일반 지형 nonempty 청크 목록 (2026-10-01)
+
+Resident::nonempty_meshes는 mesh.count>0인 세로 청크 인덱스의32비트 마스크다. incoming의 업로드 완료 후 Resident 생성 시 초기화하고 accept_meshes의 resident geometry 교체 직후 해당 비트를 set/clear한다. relight는 geometry/count를 그대로 보존하므로 갱신하지 않는다. uploaded_chunks_는 준비 완료 여부이며 empty도 포함하므로 이 마스크와 혼용하지 않는다. 퇴거/재생성은 Resident와 마스크를 함께 제거한다. 주 화면 루프는 countr_zero/최하위비트 제거로 기존 cy 오름차순을 유지한다. 시야·선택 블록·고체/물/얼음 분기 및 기존 참조 수명은 그대로다. 그림자 루프는 이번 변경 범위에서 제외했다.
+
+상세 계측을 켜면 매 컬럼의 전체 mesh.count로 기대 마스크를 만들고 일치 여부를 확인한다(성능 계측 OFF 경로에는 없음). near_chunk_slots는 이제 실제 방문한 nonempty 슬롯 수이며 이전 조사에서32×컬럼이던 정의가 실제 방문량으로 이어진다. 표집 scan은 마스크 순회 비용이 된다. 세부 계측 시간에는 이 추가 검증 비용이 포함되므로 전후 성능 비교에는 세부 옵션을 끈다.
+
+## 일반 지형 세부 계측 (2026-10-01)
+
+`--profile-near-detail`은 `--profile-draws`에 의존하며 near 전용 추가 CSV 필드를 활성화한다. 미사용 시 stride0/나머지0이며 기존 총 CPU 시간 및 GPU CSV는 유지한다. constexpr로 별도 생성한 상세 루프에서 published 컬럼 인덱스 modulo32와 프레임 phase를 맞춰 순환 표집한다. 고정 장면에서640steady는 각 컬럼20회 표집이다. 일반 실행 루프에는 세부 청크 카운터/타이머가 없다.
+
+- sample_scan은 표집 컬럼의 내부32슬롯 순회/빈 메시 검사와 루프·일부 카운터 비용이다. 외부 map 순회, 컬럼 base 좌표 계산, hypothetical 컬럼 AABB 판정, 초기 바인딩은 제외된다.
+- sample_cull은 비어 있지 않은 청크의 상대 좌표 및 기존 frustum 판정, sample_record는 통과 청크의 선택 블록/명령 기록/물·얼음 목록과 drawn/triangle 카운터다. 타이머·세부 카운터 비용이 일부 포함되며 보정하지 않는다. 실제 물·얼음 별도 패스는 포함하지 않는다.
+- sample 값은 표집된 컬럼들의 원시 시간 합이다. 고정640표본의 평균×32는 추정치일 뿐, 기본 루프 시간을 정확히 분해한 값이나 최적화 절감 예상량이 아니다. 옵션 OFF 총 CPU 측정과 함께 해석한다.
+- 전체 slots/nonempty/culled/visible 및 rejected_columns/rejected_column_nonempty를 기록한다. 후자는 높이512의 컬럼 AABB로 가상 선별하며 실제로 skip하지 않는다. rejection_conflicts는 해당 컬럼에서 기존 청크 시야 판정을 통과한 청크 수로, 고정 fixture에서0인지 확인한다. 이 계측 자체는 새 컬링 도입이 아니다.
+
 ## LOD 그리기 목록 캐시 (2026-10-01)
 
 - LodRenderer::prepare에서 새 coverage 마스크와 중심을 기존 값과 비교한다. active scene 교체 또는 coverage 변화가 있을 때만 rebuild_draw_meshes를 호출한다. 불변 프레임에서는 그리기 패스마다 map 조회와 level0 근거리 중복 판정을 반복하지 않는다.

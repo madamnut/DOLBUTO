@@ -46,6 +46,7 @@ struct DrawSample {
     size_t columns{}, lod_tiles{}, lod_pending{}, lod_queued{};
     sandbox::DrawStats near_stats, lod_stats;
     double world_prepare_cpu_ms{};
+    sandbox::NearDrawDetail near_detail;
 };
 void save_draw_profile(const std::filesystem::path& path, const std::vector<DrawSample>& samples) {
     if (!path.parent_path().empty())
@@ -53,7 +54,11 @@ void save_draw_profile(const std::filesystem::path& path, const std::vector<Draw
     std::ofstream out(path);
     out << "frame,steady,width,height,render_distance,columns,lod_tiles,lod_pending,lod_queued,"
            "near_cpu_ms,near_draws,near_descriptor_binds,near_vertex_binds,near_pushes,"
-           "lod_cpu_ms,lod_draws,lod_descriptor_binds,lod_vertex_binds,lod_pushes,world_prepare_cpu_ms\n"
+           "lod_cpu_ms,lod_draws,lod_descriptor_binds,lod_vertex_binds,lod_pushes,world_prepare_cpu_ms,"
+           "near_detail_stride,near_detail_phase,near_columns,near_chunk_slots,near_nonempty,near_culled,"
+           "near_visible,near_sampled_columns,near_sampled_nonempty,near_sampled_visible,"
+           "near_rejected_columns,near_rejected_column_nonempty,near_rejection_conflicts,"
+           "near_sample_scan_ms,near_sample_cull_ms,near_sample_record_ms\n"
         << std::fixed << std::setprecision(6);
     for (const auto& s : samples) {
         out << s.frame << ',' << s.steady << ',' << s.extent.width << ',' << s.extent.height << ','
@@ -62,7 +67,12 @@ void save_draw_profile(const std::filesystem::path& path, const std::vector<Draw
         for (const auto& d : {s.near_stats, s.lod_stats})
             out << ',' << d.cpu_ms << ',' << d.draws << ',' << d.descriptor_binds << ',' << d.vertex_binds
                 << ',' << d.pushes;
-        out << ',' << s.world_prepare_cpu_ms << '\n';
+        const auto& d = s.near_detail;
+        out << ',' << s.world_prepare_cpu_ms << ',' << d.stride << ',' << d.phase << ',' << d.columns << ','
+            << d.chunk_slots << ',' << d.nonempty << ',' << d.culled << ',' << d.visible << ','
+            << d.sampled_columns << ',' << d.sampled_nonempty << ',' << d.sampled_visible << ','
+            << d.rejected_columns << ',' << d.rejected_column_nonempty << ',' << d.rejection_conflicts << ','
+            << d.scan_ms << ',' << d.cull_ms << ',' << d.record_ms << '\n';
     }
     out.flush();
     if (!out)
@@ -730,6 +740,7 @@ int main(int argc, char** argv) {
         std::filesystem::path capture, rdc_path, world_profile, gpu_profile, shadow_capture, draw_profile;
         std::optional<std::array<double, 4>> profile_view;
         unsigned profile_samples = 600;
+        bool profile_near_detail = false;
         sandbox::ColumnKey profile_origin{};
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
@@ -739,6 +750,8 @@ int main(int argc, char** argv) {
                 gpu_profile = std::filesystem::absolute(argv[++i]);
             else if (arg == "--profile-draws" && i + 1 < argc)
                 draw_profile = std::filesystem::absolute(argv[++i]);
+            else if (arg == "--profile-near-detail")
+                profile_near_detail = true;
             else if (arg == "--capture-shadow-maps" && i + 1 < argc)
                 shadow_capture = std::filesystem::absolute(argv[++i]);
             else if (arg == "--profile-samples" && i + 1 < argc)
@@ -782,7 +795,8 @@ int main(int argc, char** argv) {
                                          "[--seed N] [--render-distance 1..64] [--profile-world file.csv] "
                                          "[--profile-origin columnX columnZ] [--profile-gpu file.csv] "
                                          "[--profile-view height yaw pitch hour] [--profile-samples N] "
-                                         "[--capture-shadow-maps directory] [--profile-draws file.csv]");
+                                         "[--capture-shadow-maps directory] [--profile-draws file.csv] "
+                                         "[--profile-near-detail]");
         }
         if (render_distance < 1 || render_distance > 64)
             throw std::runtime_error("Render distance must be 1..64 columns.");
@@ -790,6 +804,8 @@ int main(int argc, char** argv) {
             throw std::runtime_error("Seconds must be finite and non-negative.");
         if (!shadow_capture.empty() && gpu_profile.empty())
             throw std::runtime_error("--capture-shadow-maps requires --profile-gpu.");
+        if (profile_near_detail && draw_profile.empty())
+            throw std::runtime_error("--profile-near-detail requires --profile-draws.");
         if (!draw_profile.empty()) {
             if (gpu_profile.empty() || lod_debug_initial)
                 throw std::runtime_error(
@@ -1136,7 +1152,7 @@ int main(int argc, char** argv) {
                                       << " yaw=" << world->camera.yaw << " pitch=" << world->camera.pitch
                                       << " tick=" << world->day_tick() << '\n';
                         if (!draw_profile.empty())
-                            world->enable_draw_profile();
+                            world->enable_draw_profile(profile_near_detail);
                         settings.world = world.get();
                         world->camera.field_of_view = float(settings.values.field_of_view);
                         world->set_view_bobbing(settings.values.view_bobbing);
@@ -1270,7 +1286,7 @@ int main(int argc, char** argv) {
                                                     world->visible_columns(), world->lod_tiles(),
                                                     world->lod_stats().pending, world->lod_upload_queue(),
                                                     world->near_draw_stats(), world->lod_draw_stats(),
-                                                    world->upload_cpu_ms});
+                                                    world->upload_cpu_ms, world->near_draw_detail()});
                     }
                     for (int slot = 1; slot <= static_cast<int>(sandbox::hotbar_blocks.size()); ++slot)
                         hud->GetElementById("block-" + std::to_string(slot))

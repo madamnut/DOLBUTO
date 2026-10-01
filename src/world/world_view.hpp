@@ -48,8 +48,12 @@ class WorldView {
     void cycle_camera();
     void prepare(); // Record uploads outside rendering, after Renderer::begin_frame.
     void render();  // Begin world rendering, then switch to the depth-free UI pass.
-    void enable_draw_profile() { profile_draws_ = lod_renderer_->profile_draws = true; }
+    void enable_draw_profile(bool near_detail = false) {
+        profile_draws_ = lod_renderer_->profile_draws = true;
+        profile_near_detail_ = near_detail;
+    }
     const DrawStats& near_draw_stats() const { return near_draw_stats_; }
+    const NearDrawDetail& near_draw_detail() const { return near_draw_detail_; }
     const DrawStats& lod_draw_stats() const { return lod_renderer_->draw_stats; }
     bool draw_profile_ready() const {
         if (!graphics_settings_.lod)
@@ -105,7 +109,10 @@ class WorldView {
 
   private:
     bool profile_draws_{};
+    bool profile_near_detail_{};
+    uint32_t near_detail_frame_{};
     DrawStats near_draw_stats_;
+    NearDrawDetail near_draw_detail_;
     struct FacePool {
         VkDescriptorPool handle{};
         uint32_t available{1024};
@@ -123,6 +130,8 @@ class WorldView {
     struct Resident {
         Column data;
         std::array<GpuChunk, chunks_per_column> meshes;
+        // Updated with resident geometry; lighting-only replacements preserve mesh counts.
+        uint32_t nonempty_meshes{};
         bool published{};
     };
     Renderer& renderer_;
