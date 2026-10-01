@@ -1,5 +1,27 @@
 # 개발 환경 컨텍스트
 
+## 일반 지형 명령 묶기·계측 (2026-10-01)
+
+`--profile-draws` CSV 끝에 near_list_ms, near_sort_ms, near_record_ms, near_batch_prepare_ms, near_indirect_calls, near_indirect_draws를 추가했다. list는 주 화면 근거리 순회·시야 판정·목록 작성, sort는 고체·물·얼음 목록 정렬, record는 근거리 구간 바인딩·명령 기록, batch_prepare는 GPU용 청크/명령 배열 채우기·flush 비용이다. 기존 near_sample_record_ms는 표집 진단이며 새 near_record_ms와 다르다. near_draws는 논리적인 청크 draw 수를 유지하고 near_indirect_calls는 실제 vkCmdDrawIndirect 호출 수다. 호출 감소를 삼각형·GPU draw 수 감소로 해석하지 않는다.
+
+`--profile-direct-terrain`은 --profile-gpu와 함께 명시적으로 기존 직접 그리기를 강제해 같은 장면을 비교한다. 설정 파일을 바꾸지 않는다. 하드웨어 기능을 비활성화하는 옵션은 아니며 장치 기능 부족의 자동 대체 경로는 소스 검토와 구별한다. 정식 성능 비교에서는 --profile-frame/--profile-gpu만 켜고 draw 세부 계측·검증·캡처는 끈다. 상세 [비교 기록](terrain-batch-2026-10-01.md).
+
+## 전체 프레임 계측 (2026-10-01)
+
+`--profile-frame cpu.csv --profile-gpu gpu.csv`는 CPU 전체 프레임·명시적 대기·OS 메인 스레드 실행 시간을 GPU 제출 serial과 연결한다. --profile-draws는 필요 없다. CPU CSV에는 로딩/예열도 포함되므로 steady=1/capture=0을 사용한다. 근거리·조명·업로드·LOD 준비 후240프레임을 예열한다. CPU 작업은 전체 wall에서 fence/acquire/present/idle/FPS limiter를 뺀 경과 시간이며 submit을 포함한다. OS 실행 시간은 별도 thread_cpu_ms로 기록하고 집계 해상도 때문에 평균만 해석한다. worker CPU를 포함한 전체 프로세스 사용률은 아니다.
+
+GPU CSV에는 이 옵션을 켠 경우에만 start_tick/end_tick/timestamp_period_ns/timestamp_bits가 추가된다. CPU/GPU 시계는 직접 비교하지 않으며,2슬롯 fence 대기는 waited_serial(현재 serial−2)의 완료를 기다린 값이다. 겹치는 GPU 프레임 구간을 단순 합산한 비율을 하드웨어 사용률로 부르지 않는다. 출력은 서로 다른 경로를 지정한다. 측정 정의·재실행 예·한계는 [전체 프레임 계측 기록](frame-cost-2026-10-01.md)을 따른다.
+
+## XZ 그리기 순서 진단 (2026-10-01)
+
+`--profile-near-detail` 실행은 근거리와 LOD가 섞인 패스의 제출 거리를 검사하고 역전 시 오류로 종료한다. 종료 로그 `DRAW ORDER: N camera-XZ distance checks passed`는 로딩·예열·steady를 포함한 누적 검사 횟수다. 일반 성능 비교는 이 옵션을 끄며 자동 테스트/합성 입력은 추가하지 않는다. 현재 평지에서는 물·얼음 draw가 없어 해당 경로의 실행 검증과 구별해야 한다.
+
+`near_cpu_ms`는 가시성 순회·목록 준비/정렬 및 병합 중 실제 근거리 명령 기록을 합한다. `lod_cpu_ms`는 타일 거리 계산/정렬과 LOD 기록 시간을 합하고 병합 callback의 근거리 시간을 제외한다. 기존 `near_record_ms`는 표집 컬럼의 목록 준비와 실제 명령 기록 시간을 포함하며 정밀한 CPU 분해값이 아니다. [조건과 한계](distance-order-2026-10-01.md).
+
+## 후처리 descriptor 계측 (2026-10-01)
+
+`--profile-draws`는 CSV 끝에 `scene_descriptor_cpu_ms`, `scene_descriptor_calls`, `scene_descriptor_writes`를 기록한다. CPU 시간은 SceneEffects의 매 프레임 이미지 연결 준비3구간 합이며 키 비교·쓰기 인자 준비·Vulkan 갱신을 포함한다. 전체 후처리/프레임 시간이나 GPU 시간이 아니다. 이미지 생성 뒤 stats를 초기화하므로 초기 생성의 쓰기는 제외하고 각 슬롯 최초 사용의 연결 갱신은 포함한다. 타이머/카운터 비용을 포함한 진단값이며 명시적 계측 옵션 없이는 clock/호출 카운터를 실행하지 않는다. 수명과 비교 조건은 [descriptor 재사용 기록](descriptor-cache-2026-10-01.md)을 참조한다.
+
 ## 일반 지형 nonempty 청크 목록 (2026-10-01)
 
 Resident::nonempty_meshes는 mesh.count>0인 세로 청크 인덱스의32비트 마스크다. incoming의 업로드 완료 후 Resident 생성 시 초기화하고 accept_meshes의 resident geometry 교체 직후 해당 비트를 set/clear한다. relight는 geometry/count를 그대로 보존하므로 갱신하지 않는다. uploaded_chunks_는 준비 완료 여부이며 empty도 포함하므로 이 마스크와 혼용하지 않는다. 퇴거/재생성은 Resident와 마스크를 함께 제거한다. 주 화면 루프는 countr_zero/최하위비트 제거로 기존 cy 오름차순을 유지한다. 시야·선택 블록·고체/물/얼음 분기 및 기존 참조 수명은 그대로다. 그림자 루프는 이번 변경 범위에서 제외했다.

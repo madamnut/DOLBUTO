@@ -1,5 +1,81 @@
 # 검증 기록
 
+## 누적 변경 배포 정리 (2026-10-01)
+
+사용자 승인으로 기준31f3af5 이후 누적 변경을 블룸 최적화, descriptor 재사용/XZ 거리순 렌더링, CPU/GPU 전체 프레임 계측, 일반 지형 명령 묶기, 실험·검증 기록의5개 커밋으로 정리한다. 아래 각 작업의 commit/push 없음은 그 작업 종료 당시의 기록이다. 새 소스 변경 없이 검증 완료본을 커밋하며 마지막 Release 빌드·패키지 EXE와 측정 EXE 해시는344B1931F77705689B0B3CA3AF603A11ACEE242C212104E9F9A70D57DE1B8DD2다. Git에는 소스/문서/집계 JSON을 보관하고 빌드 도구·캐시·실행 파일·원시 CSV/캡처는 로컬에 유지한다.
+
+## 일반 고체 지형 명령 묶기 (2026-10-01)
+
+- 사용자 거리32 CPU 병목 개선 승인에 따라 일반 지형의 기존 면/밝기 버퍼를 BDA로 참조하고 XZ 거리순 연속 구간을 다중 간접 그리기로 제출한다. 그림자·물·얼음·LOD 자체 draw와 AO·밝기 수식을 유지한다. 새로운 world_batch.vert.spv만 추가하고 기존24개 SPIR-V 동일 확인.
+- 초기1200steady 전후3쌍은2쌍 개선/1쌍 악화 및 전체 p95 악화.6000steady 추가4쌍은 모두 CPU·프레임 간격 개선. 총14회55,200steady 합산 CPU 작업2.149530→1.913673ms(−10.97%), 프레임 간격2.157309→1.928431ms(−10.61%), GPU1.484673→1.494277ms(+0.65%). GPU 소폭 비용을 동반한 거리32 CPU 개선으로 채택하며 GPU 제한 장면 개선을 주장하지 않는다. 완료된 outlier/실행은 제외하지 않았다.
+- 별도 세부2회2400steady: 일반 명령 기록0.221018→0.016556ms, 새 목록 준비0.032050ms. 실제 CPU draw 호출1819→1, 논리 draw1819·삼각형 동일. 목록 순회와 정렬은 매 프레임 유지.
+- 지상32/순환 경계12/상공12/LOD OFF12 전후8회와 강제 직접 경로32 1회 validation: 각64steady, TAA OFF/블룸40, 오류0/기존 유형 경고10. PNG 픽셀·원시 그림자4종+extent 동일, XZ 순서 검사 통과. 별도 시작한 seam32 기준 실행은 검증 범위 조정으로0.94초에 중단·제외하고 seam12 전후로 재실행했다. 원본 기록 보존.
+- 전체 정상 실행25회 종료0. CPU/GPU frame ID·출력량 일치/LOD pending·queued0. spirv-val 및 레이아웃/주소 수명 검토 완료. 실제 입력 이동·편집·리사이즈·유체/미지원 GPU 하드웨어는 미검증. 자동 테스트/CTest/CU/합성 입력 없음.
+- Release 빌드·패키징 완료, build/bin·fixture·out EXE SHA256 344B1931F77705689B0B3CA3AF603A11ACEE242C212104E9F9A70D57DE1B8DD2 일치. 사용자 settings 보존. commit/push 없음. [상세 기록](terrain-batch-2026-10-01.md), [집계 JSON](benchmarks/terrain-batch-2026-10-01-summary.json).
+
+## CPU 전체 프레임·GPU 병목 측정 (2026-10-01)
+
+- --profile-frame 추가 및 Release 빌드·패키징 완료. 거리12/24/32 각각3회·1200steady, 총10,800steady. 성능 실행은 validation·캡처·draw 세부 계측 OFF. CPU/GPU frame ID 일치,6구간 합=wall 및 작업+명시 대기=wall, LOD pending/queued0 확인.
+- CPU 작업 평균0.497802/1.082746/1.885514ms, GPU1.642106/1.355901/1.483415ms, fence 대기1.155091/0.353808/0.006629ms. 정지·완전 로딩 헤드리스 장면에서12는 GPU 제한,24는 GPU 우세·CPU 지연 혼재,32는 CPU 메인 스레드 제한. OS 메인 스레드 실행 평균0.520833/1.059028/1.853299ms도 같은 경향이다. 실제 창의 표시/입력 지연이나 이동 중 스트리밍은 판정하지 않았다.
+- 전후64steady 별도 validation 실행: 종료0/Vulkan 오류0/기존 shader interface 경고10, TAA OFF/블룸40 PNG 픽셀 동일. 캡처 프레임은 성능 집계에서 제외. 성능9회도 모두 종료0/오류0. 자동 테스트/CTest/CU/합성 입력 없음.
+- build/bin·계측 fixture·out EXE SHA256 D7F799EFF29E149FC274CFF0D31BB94EC76BF6B3081B7A565D9196D6B4723C54 일치.24개 SPIR-V 및 사용자 settings 보존. 렌더링 최적화·commit/push 없음. [상세](frame-cost-2026-10-01.md), [집계 JSON](benchmarks/frame-cost-2026-10-01-summary.json).
+
+## 청크 카메라 XZ 거리순 렌더링 (2026-10-01)
+
+- 사용자 지정으로 근거리/LOD·그림자·물·얼음의 패스별 제출 순서를 실제 카메라 XZ 기준으로 정렬/병합한다. Y는 제외한다. near+LOD 순서 역전 검사를 명시적 --profile-near-detail에 추가했다.
+- 전후18회/11,520steady의 전체 GPU 평균(ms)은 거리12:1.910437→1.960354(+2.6%),24:1.458985→1.410866(−3.3%),32:1.557203→1.516790(−2.6%). 전체p95는2.296928→2.282240/1.811392→1.670816/1.905088→1.708128.9쌍 중6쌍 평균 감소이며 거리12의 큰 outlier/반복 편차와 CPU 비용 증가가 있어 일괄 성능 향상으로 보지 않는다. 사용자 지정 렌더링 규칙은 적용 상태로 유지한다.
+- 기본 검증8회: exit0/Vulkan 오류0/기존 warnings10. 지상·경계·근거리 디버그 픽셀 동일, 상공218픽셀(0.0189236%) 차이/채널 최대17/255. 지상 raw 그림자4종+extent 동일. 지상/경계/상공 누적6143145회 XZ 순서 검사 통과.
+- 추가 전후4회: LOD OFF 반대 방향은 픽셀 동일/오류0, LOD ON 디버그4,096steady는666타일·LOD 완료/오류0·25픽셀 차이(최대240/255). 초기60,000샘플 디버그 시도는 과도한 실행 시간으로 중단/제외 기록하고 재실행했다.
+- 빌드·패키징 및 사용자 설정 보존 확인. 현재 평지의 물/얼음 경로는 소스 검토이며 실제 유체/수중/입력 이동/리사이즈는 미검증. 자동 테스트/CU/합성 입력 없음. 상세 [기록](distance-order-2026-10-01.md), [JSON](benchmarks/distance-order-2026-10-01-summary.json).
+
+## 면당 정점 재사용 후보 비교·복원 (2026-10-01)
+
+- 일반 지형/그림자에4개 정점 번호를 공유하는 indexed draw 후보를 구현했다. 초기 성능9회 완료 중 완성4쌍은 전체 GPU가 모두 증가해 그림자 경로를 되돌렸다. 단독1회도 기록에 남기고 진행 중 r24-before-2는 중단/제외했다.
+- 일반 지형 전용 후보18회/11,520steady에서는 전체 GPU 평균(ms) 거리12:1.646618→1.640579,24:1.355904→1.351321,32:1.488540→1.479828. 감소0.4/0.3/0.6%이나9쌍 중3쌍 증가, 거리24 전체p95 1.499616→1.506048 증가로 전체 GPU 우선 기준에 따라 미채택했다. 전18회 exit0/오류0/CPU·GPU frame 및 지형 출력량 일치.
+- 두 후보 각각 최종 검증8회(기본·경계·상공·근거리 디버그)는 TAA OFF/validation ON에서 픽셀 동일, 오류0/기존 warnings10. 기본 raw 그림자4종+extent도 동일. 최초 디버그 CLI 조합 오류와 부분 LOD 진단은 별도 보존/제외하고 최종 디버그는 GPU만 계측/원거리 LOD OFF로 분리했다. 실제 유체 편집/리사이즈/입력 이동은 수행하지 않았다.
+- 작업 전 소스 복원 및 수정시간 갱신 후 world.vert SPIR-V와 world_view.cpp 실제 재컴파일·패키징 완료. 복원64steady validation 오류0/기존 warnings10, PNG 및 raw 그림자 기준과 동일. build/bin·out·restored EXE SHA256 A0F8D792B37D0E6B31A282025EDC2420DCA0F9A839C029EA4564876ABDA07569 일치.24개 SPIR-V와 변경 대상 소스 모두 작업 전 사본과 같고 설정 보존. 기존 블룸/descriptor 최적화 유지.
+- [상세 기록](indexed-face-2026-10-01.md), 초기 통계 docs/benchmarks/indexed-face-pilot-2026-10-01-summary.json, 후속 통계 docs/benchmarks/near-indexed-face-2026-10-01-summary.json. 자동 테스트/CTest/CU/합성 입력 없음. commit/push 없음.
+
+## 구름 기여0 후보 사용자 취소·복원 (2026-10-01)
+
+사용자가 전체 GPU 지연시간 우선과 직전 후보 취소를 요청해 atmosphere.frag만 원래 식으로 복원했다. 수정시간 갱신 후 실제 셰이더 재생성·Release 빌드·패키징 완료. 복원64steady validation 오류0/기존 warnings10/출력 frame 일치, before PNG 픽셀 동일.24개 SPIR-V 모두 기준 일치, 사용자 설정 보존. build/bin·out·restored EXE SHA256 C8D7DD370D0610DE2D3BB857EAB1F4D24E4D526A0763E9F3522EF41A905E754F 일치. 기존 블룸16샘플/descriptor 재사용 유지. 아래 후보 채택 기록은 이 복원 기록으로 대체한다. [상세](cloud-empty-2026-10-01.md).
+
+## 구름 기여0 색 변환 생략 비교 (2026-10-01)
+
+- 정확히 volume RGBA0인 경우만 기존 비음수 clamp로 대체하고 그 외 합성식과 빛줄기 계산을 유지했다. Release 빌드 후 지형·하늘·구름층 아래 경계 각3쌍18회/11,520steady 비교, 모두exit0/오류0/출력량과 CPU·GPU frame 일치.
+- volume_composite 평균(ms): 지형0.130057→0.128377(1.3% 감소,3쌍 모두), 하늘0.244805→0.244619, 경계0.213327→0.213096. 하늘/경계 평균차이 약0.1%는 확실한 개선으로 보지 않는다. 전체 GPU 평균 변화는−0.2/+0.1/+0.3%, 하늘·경계 전체p95도 증가해 FPS/끊김 개선은 주장하지 않는다. 작은 지형 합성 개선으로 채택했다.
+- TAA OFF/블룸40/validation ON, 세 장면+구름OFF 전후8회는 오류0/기존 warnings10/UI0/texture0. RGB 채널 차이 최대1/255, 평균 지형0.004076/하늘0.001020/경계0.00000145/OFF0.004402. 태양·구름 경계 PNG 확인. 실제 이동/수중/리사이즈 입력은 미실행. TAA ON 성능 PNG 평균 차이 최대0.426473/255는 캡처 위상이 달라 별도 취급한다.
+- Release 빌드·패키징 완료. after·build/bin·out EXE SHA256 A6B21AFE82ACE12463D78BC4073179A42F54C46F05040937302D456B2187ED04 일치. atmosphere SPIR-V 55D8F4A76A7310983EC26AE1CB995E68CDB2D344C9F1984B1661809CEBEC826C 일치, 다른23개 셰이더와 사용자 settings 보존. [상세 기록](cloud-empty-2026-10-01.md), 통계 docs/benchmarks/cloud-empty-2026-10-01-summary.json. 자동 테스트/CTest/CU/합성 입력 없음. commit/push 없음.
+
+## 후처리 descriptor 연결 재사용 (2026-10-01)
+
+- SceneEffects 프레임 슬롯별 연결 키 비교로 같은 이미지 descriptor 재등록을 생략했다. 연결 변경/이미지 재생성 때 갱신하며 셰이더·화질·uniform·장벽은 유지한다. 양쪽 동일 계측을 넣은 Release 빌드로 비교했다.
+- 거리12/24/32 전후 각3회, 총18회/11,520steady. 연결 준비 CPU 평균(ms)0.001319→0.000158,0.001680→0.000194,0.001191→0.000137.9쌍 모두 평균/p95 감소해 채택. steady 갱신8회/31개→0회/0개. 전체 GPU 평균은 각각0.55/0.06/0.02% 증가해 GPU/FPS 개선은 주장하지 않는다. 단일 큰 CPU 표본도 제외하지 않았고 전체 후처리 CPU 시간과 연결 준비 시간을 구분한다.
+- 전18회 exit0/오류0/CPU·GPU frame 및 지형 출력량 일치. TAA OFF 기본·순환 경계·하늘·일부 효과 OFF 전후8회는 픽셀 동일, validation 오류0/기존 warnings10/UI0/texture0. 첫 두 프레임에서 각 슬롯8회 등록/이후0회 확인. 표준 raw 그림자 동일. TAA ON 성능 PNG 평균 차이 최대0.243049/255. 실제 리사이즈·수중 이동·옵션 전환은 미실행, 관련 수명 경로 소스 검토.
+- Release 빌드·패키징 완료. after·build/bin·out EXE SHA256 D7AA96421842643C3BFDC8AA5752C5C4304A5C17C21C73AE0DE798203B41DB95 일치.24개 SPIR-V 기준과 동일, 기존 블룸16샘플/패키지 settings 보존. [상세 기록](descriptor-cache-2026-10-01.md), 통계 docs/benchmarks/descriptor-cache-2026-10-01-summary.json. 자동 테스트/CTest/CU/합성 입력 없음. commit/push 없음.
+
+## 일반 지형 push constants 분리 비교 — 미채택 (2026-10-01)
+
+- 카메라64바이트를 프레임당 한 번, 청크별32바이트만 전달하는 후보를 Release 빌드했다. 거리12/24/32 전후 각3회, 총18회/11,520steady에서 일반 CPU 평균(ms)0.033420→0.032179(3.7% 감소),0.136101→0.126360(7.2% 감소),0.251381→0.263002(4.6% 증가).9쌍 중4쌍만 감소해 미채택했다. 변경하지 않은 LOD 시간도 흔들려 원인을 단정하거나 FPS 향상을 주장하지 않는다.
+- 전18회 exit0/오류0/각640steady CPU·GPU frame 일치, 지형 출력량 동일. 별도4시점 전후8회 validation 오류0/기존 warnings10, 그림자 raw4종+extent 동일. 성능 PNG 평균 절대 채널 차이 최대0.398612/255(TAA ON). 기본 시점 PNG의 지형·선택 테두리 확인, 실제 이동/편집/F4/리사이즈 입력은 구동하지 않았다.
+- world_view.cpp만 비교 전 소스로 복원하고 수정시간 갱신 후 실제 재컴파일·패키징했다. 복원64steady validation 오류0/기존 warnings10, near_pushes=near_draws=209, LOD tiles402/triangles570112. 그림자 raw 동일, 복원 PNG 평균 차이0.036188/255. build/bin·out·restored EXE SHA256 181E0DC4EFF48D5B15FE992A103E4F0AC18F3A61F0DB2C1E9EF6EE0C81EC43EB 일치. 셰이더와 패키지 settings 보존, 기존 블룸16샘플 유지.
+- [상세 기록](near-push-2026-10-01.md), 통계 docs/benchmarks/near-push-2026-10-01-summary.json. 후보는 build/release/near-push-compare에 보존. 자동 테스트/CTest/CU/합성 입력 없음. commit/push 없음.
+
+## 블룸 단일 패스16샘플 비교·반영 (2026-10-01)
+
+- bloom.frag에서 기존7×7 이항 커널49호출을 축별4개 가중 선형 샘플의 외적16호출로 변경. 기존 패스·버퍼·mip·HDR/하늘·강도 유지. Release 빌드·패키징 완료.
+- 거리12/1280×900/블룸12/TAA ON, 낮 지형·하늘·밤 전후 각3회/총18회/11,520steady. 블룸 평균(ms)0.126990→0.113443(10.7%), 0.126147→0.114054(9.6%), 0.126613→0.114016(9.9%) 감소.9쌍 모두 감소, 블룸p95도 감소. 전체 GPU 평균 감소1.3/0.2/0.3%지만 일부쌍 전체평균과 하늘·밤 전체p95는 증가했다. FPS/끊김 개선 주장은 하지 않는다.
+- 전18회 exit0/오류0/각640steady CPU·GPU frame 일치, LOD 준비 완료, 출력량 일치. 별도 강도40/TAA OFF/validation ON3장면 전후6회+블룸OFF2회도 각64steady/errors0/기존 warnings10. RGB 채널 차이 ON 최대1/255·OFF 픽셀 동일, 하늘 캡처 시각 확인. 일반 TAA ON 성능 PNG9쌍 평균 차이 최대0.398179/255로 완전 동일은 아니다.
+- 계측 after·build/bin·out EXE SHA256 39D917235778249FC824C5AE2D34E390914638A330C3F666F4481567774C36B4 일치, bloom SPIR-V 6DAB4A5CA64CE17864647D0A2021CA902F9F9DEF06DD012D5EB671F8283D964C 일치. 다른 SPIR-V와 C++는 변경 없음, 패키지 settings 보존. [상세 기록](bloom-bilinear-2026-10-01.md), 통계 docs/benchmarks/bloom-bilinear-2026-10-01-summary.json. 자동 테스트/CTest/CU/합성 입력 없음. commit/push 없음.
+
+## 블룸 분리 필터 후보 비교 — 미채택 (2026-10-01)
+
+- 기존7×7 가중치49샘플을 가로7+세로7로 분리하고7개 중간 HDR 이미지/추가 패스 후보를 빌드했다. 하늘 포함 입력·강도·해상도·톤 매핑 유지. 후보 exe와 SPIR-V를 기준 런타임과 분리했다.
+- 거리12/1280×900/블룸12/TAA ON에서 낮 지형·하늘·밤 전후 각3회, 총18회/11,520steady. 블룸 GPU 평균(ms)0.127427→0.153649(+20.6%), 0.129129→0.154087(+19.3%), 0.127155→0.155831(+22.6%).9쌍 모두 느려져 미채택. 전체 GPU 평균 변화+1.7/−0.2/+1.5%, 일관된 개선 없음. 전18회 exit0/오류0, CPU/GPU frame·출력량 일치.
+- 별도 블룸40(허용 최대)/TAA OFF validation3장면 전후6회 및 블룸OFF 전후2회: 모두exit0/errors0/기존 warnings10. 채널 차이는 ON 최대1/255, OFF 픽셀 동일. 최초 강도100 진단은 설정 오류로 기본값이 적용된 것을 발견해 invalid-strength-*로 보관하고 비교에서 제외했다. 유효8회는40으로 재실행했다.
+- 소스/셰이더를 HEAD31f3af5로 복원하고 실제 재컴파일·패키징 완료. 복원64steady validation 오류0, 기준 PNG 픽셀 동일, near draw209/LOD tiles402/triangles570112. build/bin·out·restored EXE 해시 DE1E83E4950BAC32053D58E7B98AEF1A6CD8A64E9B7E5A4981E7B52ADB05D6E7 일치, bloom SPIR-V는 기준과 동일, 패키지 설정 보존. src/shaders diff 없음.
+- [상세 기록](bloom-separable-2026-10-01.md), 통계 docs/benchmarks/bloom-separable-2026-10-01-summary.json. 기존 CPU 최적화 유지, 실험 기록만 남긴다. 실제 창 리사이즈/옵션 토글 입력 검증은 없으며 자동 테스트/CTest/CU/합성 입력 없음. commit/push 없음.
+
 ## 공개 컬럼 목록·LOD coverage 재사용 (2026-10-01)
 
 - 공개/퇴거/재생성 때만 published 목록을 재구축하며, 목록·중심 컬럼 변경 또는 clear 뒤에만 coverage mask를 계산한다. 디버그 팔레트와 각 frame-slot GPU 복사/flush는 유지한다. 새 로딩 공개는 정지 중에도 반영한다. 소스 무효화 경로 및 clang-format/git diff --check 확인.
