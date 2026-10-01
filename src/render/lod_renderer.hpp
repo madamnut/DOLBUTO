@@ -10,8 +10,9 @@ class LodRenderer {
   public:
     LodRenderer(Renderer& renderer, SceneEffects& effects, const std::array<glm::vec4, 11>& palette);
     ~LodRenderer();
+    // published_changed covers membership changes; centre/debug changes are handled independently.
     void prepare(std::shared_ptr<const LodScene> scene, ColumnKey centre,
-                 std::span<const ColumnKey> published, bool lod_debug);
+                 std::span<const ColumnKey> published, bool published_changed, bool lod_debug);
     void draw(const glm::mat4& matrix, glm::dvec3 camera, int radius, bool lod_debug, int shadow_layer = -1,
               int shadow_distance = 192);
     // Uses the current WaterEffects pass; colour/depth snapshots are shared with near water.
@@ -31,6 +32,12 @@ class LodRenderer {
     }
 
   private:
+    struct Coverage {
+        std::array<int32_t, 4> centre{};
+        std::array<glm::vec4, 11> palette;
+        std::array<uint32_t, 129 * 129> mask{};
+    };
+    static_assert(offsetof(Coverage, palette) == 16 && offsetof(Coverage, mask) == 192);
     struct Key {
         LodKey tile;
         uint64_t revision;
@@ -51,8 +58,9 @@ class LodRenderer {
     Renderer& renderer_;
     SceneEffects& effects_;
     std::array<glm::vec4, 11> palette_;
-    ColumnKey coverage_centre_;
-    std::array<uint32_t, 129 * 129> published_{};
+    ColumnKey coverage_centre_{};
+    Coverage coverage_data_{};
+    bool coverage_valid_{};
     std::array<Buffer, Renderer::frames_in_flight> coverage_{};
     std::array<VkDescriptorSet, Renderer::frames_in_flight> sets_{};
     VkDescriptorSetLayout coverage_layout_{};

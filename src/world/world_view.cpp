@@ -380,6 +380,8 @@ void WorldView::regenerate(const GenerationConfig& config) {
         retire(column.meshes);
     retire(uploading_);
     columns_.clear();
+    published_columns_.clear();
+    published_columns_dirty_ = true;
     visible_columns_ = 0;
     incoming_.reset();
     uploaded_chunks_.reset();
@@ -931,8 +933,10 @@ void WorldView::prepare() {
             retire(it->second.meshes);
             lights_.erase(key);
             light_dirty_.erase(key);
-            if (it->second.published)
+            if (it->second.published) {
                 --visible_columns_;
+                published_columns_dirty_ = true;
+            }
             columns_.erase(it);
         }
         if (incoming_ && !within_radius(incoming_->data.key, centre, radius_)) {
@@ -1046,11 +1050,16 @@ void WorldView::prepare() {
         stream_->pending() || pending_lighting() || !dirty_chunks_.empty() || !packing_.empty() || incoming_;
     lod_cache_->request(centre, std::max(radius_, graphics_settings_.lod_distance), radius_,
                         graphics_settings_.lod, near_busy);
-    std::vector<ColumnKey> published;
-    for (const auto& [key, column] : columns_)
-        if (column.published)
-            published.push_back(key);
-    lod_renderer_->prepare(lod_cache_->scene(), centre, published, lod_debug_);
+    if (published_columns_dirty_) {
+        published_columns_.clear();
+        published_columns_.reserve(visible_columns_);
+        for (const auto& [key, column] : columns_)
+            if (column.published)
+                published_columns_.push_back(key);
+    }
+    lod_renderer_->prepare(lod_cache_->scene(), centre, published_columns_, published_columns_dirty_,
+                           lod_debug_);
+    published_columns_dirty_ = false;
     if (!graphics_settings_.lod)
         lod_renderer_->tiles = lod_renderer_->triangles = 0;
     upload_cpu_ms =
@@ -1088,6 +1097,7 @@ void WorldView::publish_columns() {
             });
         }
         it->second.published = true;
+        published_columns_dirty_ = true;
         ++visible_columns_;
         auto current = it->second.data;
         edits_.apply(current);

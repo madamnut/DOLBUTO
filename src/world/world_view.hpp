@@ -170,6 +170,9 @@ class WorldView {
     std::optional<ColumnKey> centre_;
     std::unordered_map<ColumnKey, Resident, ColumnHash> columns_;
     size_t visible_columns_{};
+    // Only publish, eviction and regeneration change membership; geometry/lighting edits do not.
+    std::vector<ColumnKey> published_columns_;
+    bool published_columns_dirty_{true};
     std::unique_ptr<BuiltColumn> incoming_;
     std::array<GpuChunk, chunks_per_column> uploading_{};
     std::bitset<chunks_per_column> uploaded_chunks_;

@@ -7,18 +7,11 @@
 
 namespace sandbox {
 namespace {
-constexpr size_t mask_width = 129, mask_count = mask_width * mask_width;
-struct Coverage {
-    std::array<int32_t, 4> centre{};
-    std::array<glm::vec4, 11> palette;
-    std::array<uint32_t, mask_count> mask{};
-};
 struct Push {
     glm::mat4 matrix;
     glm::vec4 offset;
     glm::vec4 meta;
 };
-static_assert(offsetof(Coverage, palette) == 16 && offsetof(Coverage, mask) == 192);
 } // namespace
 LodRenderer::LodRenderer(Renderer& renderer, SceneEffects& effects, const std::array<glm::vec4, 11>& palette)
     : renderer_(renderer), effects_(effects), palette_(palette) {
@@ -184,6 +177,7 @@ VkPipeline LodRenderer::pipeline(bool debug, bool shadow, bool water, bool depth
     return result;
 }
 void LodRenderer::clear() {
+    coverage_valid_ = false;
     draw_meshes_.clear();
     active_.reset();
     pending_.reset();
@@ -224,7 +218,7 @@ void LodRenderer::rebuild_draw_meshes() {
         if (key.level == 0) {
             const int x = column_delta(key.x, coverage_centre_.x) + 64,
                       z = column_delta(key.z, coverage_centre_.z) + 64;
-            if (x >= 0 && x < 129 && z >= 0 && z < 129 && published_[x + z * 129])
+            if (x >= 0 && x < 129 && z >= 0 && z < 129 && coverage_data_.mask[x + z * 129])
                 continue;
         }
         const auto it = meshes_.find({key, source->revision});
@@ -233,21 +227,25 @@ void LodRenderer::rebuild_draw_meshes() {
     }
 }
 void LodRenderer::prepare(std::shared_ptr<const LodScene> scene, ColumnKey centre,
-                          std::span<const ColumnKey> published, bool lod_debug) {
-    Coverage data;
-    data.centre = {centre.x, centre.z, 0, 0};
-    data.palette = lod_debug ? lod_debug_palette : palette_;
-    for (auto key : published) {
-        const int x = column_delta(key.x, centre.x) + 64, z = column_delta(key.z, centre.z) + 64;
-        if (x >= 0 && x < 129 && z >= 0 && z < 129)
-            data.mask[x + z * 129] = 1;
+                          std::span<const ColumnKey> published, bool published_changed, bool lod_debug) {
+    const bool coverage_changed = !coverage_valid_ || published_changed || centre != coverage_centre_;
+    if (coverage_changed) {
+        coverage_data_.centre = {centre.x, centre.z, 0, 0};
+        coverage_data_.mask.fill(0);
+        for (auto key : published) {
+            const int x = column_delta(key.x, centre.x) + 64, z = column_delta(key.z, centre.z) + 64;
+            if (x >= 0 && x < 129 && z >= 0 && z < 129)
+                coverage_data_.mask[x + z * 129] = 1;
+        }
+        coverage_centre_ = centre;
+        coverage_valid_ = true;
     }
-    const bool coverage_changed = centre != coverage_centre_ || data.mask != published_;
-    coverage_centre_ = centre;
-    published_ = data.mask;
+    coverage_data_.palette = lod_debug ? lod_debug_palette : palette_;
+    // Each frame slot still receives current coverage after its fence, including debug changes.
     auto& coverage = coverage_[renderer_.frame_slot()];
-    std::memcpy(coverage.mapped, &data, sizeof(data));
-    vk_check(vmaFlushAllocation(renderer_.allocator, coverage.allocation, 0, sizeof(data)), "LOD mask flush");
+    std::memcpy(coverage.mapped, &coverage_data_, sizeof(coverage_data_));
+    vk_check(vmaFlushAllocation(renderer_.allocator, coverage.allocation, 0, sizeof(coverage_data_)),
+             "LOD mask flush");
     if (!pending_ && scene && scene->revision != accepted_) {
         pending_ = std::move(scene);
         cursor_ = 0;

@@ -1,5 +1,21 @@
 # 검증 기록
 
+## 공개 컬럼 목록·LOD coverage 재사용 (2026-10-01)
+
+- 공개/퇴거/재생성 때만 published 목록을 재구축하며, 목록·중심 컬럼 변경 또는 clear 뒤에만 coverage mask를 계산한다. 디버그 팔레트와 각 frame-slot GPU 복사/flush는 유지한다. 새 로딩 공개는 정지 중에도 반영한다. 소스 무효화 경로 및 clang-format/git diff --check 확인.
+- Release 빌드 후 헤드리스 성능18회/11,520steady, 거리12/24/32 전후 각3회. 준비 평균(ms)0.031834→0.013376(58.0%), 0.057821→0.012469(78.4%), 0.098253→0.013143(86.6%) 감소. 준비+일반+LOD CPU 합계 감소12.5/23.5/22.6%. 세 거리 각3쌍 모두 감소, 준비·합계 p95도 감소. GPU 평균은 약±1.5% 이내로 FPS 비례 향상 주장은 하지 않는다.
+- 전18회 exit0/오류0/각640steady CPU·GPU frame 일치, LOD 준비 완료. 일반 draw/triangles/LOD tiles 전후 동일. LOD draw 수는 기존 업로드 part 분할로 소폭 변동. 별도4시점 전후8회 validation도 모두 exit0/errors0/기존 warnings10, 각64steady 출력 카운터 일치. 표준 그림자 raw4종+extent 바이트 동일. PNG9쌍 평균 절대 채널 차이 최대0.339056/255.
+- [상세 기록](prepare-cache-2026-10-01.md), 통계 docs/benchmarks/prepare-cache-2026-10-01-summary.json. 초기 스트리밍/고정 시점 실행 검증이며 실제 이동·거리 변경·재생성·F4 입력 검증 없음. 해당 갱신 경로는 소스 검토. 자동 테스트/CTest/CU/합성 입력 없음.
+- 최종 재빌드·패키징 완료. build/bin·out·final.exe SHA256 8EC722DE395971DC264D8A399D19CFD23B55C87B7407A8746E1D125137350740 일치. 최종64steady validation exit0/errors0/기존 warnings10, CPU/GPU frame·출력량·기준 raw 그림자 일치. 패키지/계측 설정 해시 보존. 소스·실행 파일에 반영, commit/push 없음.
+
+## 컬럼 단위 시야 제외 후보 비교 — 미채택 (2026-10-01)
+
+- 전체 높이 컬럼 AABB(+1/16블록 여유) 선행 검사 후보 빌드 성공. validation ON/세부 계측 ON에서 기본·순환 경계·상공·위쪽4시점 전후8회 모두exit0/Vulkan errors0/기존 warnings10/UI0/texture0. 각64steady CPU/GPU frame 및 그린 청크/triangles/LOD tiles 일치. 제외 컬럼의 자식이 기존 검사에서 보이는 경우0, raw 그림자4종+extent 일치.
+- 성능은 세부 진단/validation OFF, 거리12/24/32 전후 각3회, 총18회/11,520steady. 모든 실행exit0/오류0. 일반 CPU 평균(ms) 전→후 0.033215→0.033567(+1.1%), 0.140951→0.136383(−3.2%), 0.259455→0.276524(+6.6%). 거리32 세 쌍 모두 증가, 모든 거리 일반 CPU p95 증가. 검사 수 감소가 일관된 시간 개선으로 이어지지 않아 미채택했다.
+- 출력 검증은 통과했지만 GPU 변동이 크고 성능 향상은 입증하지 못했다. [상세 조건·원본·결과](column-cull-2026-10-01.md), 통계 docs/benchmarks/column-cull-2026-10-01-summary.json. 후보 소스/patch/실행 파일은 build/release/column-cull-compare에 보존했다.
+- world_view.cpp를 HEAD251aa6b와 동일하게 복원. 첫 Copy-Item 복원은 수정시간 보존 때문에 Ninja가 후보 object를 재사용한 것을 실행의436슬롯으로 발견했다. 소스 수정시간을 갱신하고 world_view.cpp 재컴파일 로그를 확인한 뒤 재패키징했다. 최종 로그 build/column-cull-restored-build-final.log 및 build/column-cull-restored-package-final.log.
+- 최종 복원 바이너리로 validation/세부 계측 ON 거리12/64steady: exit0/errors0/기존 warnings10/UI0/texture0, 슬롯882/draw209 및 raw 그림자4종+extent가 before와 일치. build/bin·out·restored.exe SHA256 03BA2612F4B88DD25AD50CE1E56A03B7DA05FAD19A2973B1BFC473EDCDDD5EA3. 소스는 HEAD와 같고 기존 LOD/nonempty 개선은 유지한다. 설정 해시 보존, 자동 테스트/CTest/CU/합성 입력 없음.
+
 ## 일반 지형 nonempty 목록 전후 비교 (2026-10-01)
 
 - Resident에 nonempty 비트마스크를 보관하고 생성/geometry 교체 시 갱신, 주 화면 일반 지형 순회에 적용. Release 빌드 성공(build/near-mask-build.log). 최종 SHA256 996791CA04DEA29E998CC945C4170E08BEDE5B8765E63D0EB104107D698F3261.
