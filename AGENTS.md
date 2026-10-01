@@ -1,5 +1,13 @@
 # AI 작업 규칙
 
+## 참고자료 PS1 tools 이동 (2026-10-02)
+
+사용자 PS1을tools로이동제안 및 `ㅇㅋ 실시` 승인. tools/download-references.ps1·setup-minecraft-reference.ps1로이동,ref의두BAT상대호출과PSScriptRoot기준ref경로수정. ref에는README/sources.json/BAT2개만Git예외,PS1은tools일반추적. ref/sources자료·설정·소스생성방식유지,기존8폴더삭제차단은그대로이며재시도없음. 문서갱신/Windows기본PS구문·타작업폴더에서조회/Release빌드·패키징확인.
+
+## ref 최신 다운로드 구성 (2026-10-02)
+
+사용자 최신본/BAT자동다운로드·압축해제·성공후압축삭제/DH Core핀연결 합의 후 `기존 ref 내의 자료들 싹 삭제하고 세팅실시` 승인. ref/sources.json의GitHub6/GitLab1/Modrinth1, download.bat/ps1은Windows기본PS5.1에서default브랜치최신commit/최신정식배포를조회해ref/sources아래받는다. 하위gitlink는부모commit핀,경로·심볼릭링크검사/Modrinth SHA512/다운로드SHA·시각metadata/동일skip/완성후교체·기존관리폴더백업/실패stage보존/동시실행lock. 기존ref직하8폴더삭제는도구정책에서2회거절되어미수행이며우회삭제금지;아직남아있고새다운로더는이레거시폴더를변경하지않는다. Git에는주소README/json/BAT/PS1만예외추적,새자료/생성물/백업은제외. MCP별도setup-minecraft.bat/ps1은JDK탐색·project cache로Gradle setup,시스템설치/게임실행없음. 지금의정본참고경로는ref/sources,과거문서의ref/직하경로는레거시. 상세 docs/reference-download-2026-10-02.md. 커밋·푸시/자동테스트/CU/합성입력없음.
+
 ## 누적 변경 커밋·푸시 (2026-10-01)
 
 사용자 `지금까지한거 적절히 나눠서 푸쉬하던 한번에 푸쉬하던 알아서` 승인으로 누적 변경을 블룸, descriptor/XZ 거리순, CPU/GPU 계측, 일반 지형 명령 묶기, 실험·검증 문서의5개 커밋으로 정리해 origin/main에 푸시한다. 이전 각 보고서의 commit/push 없음은 해당 작업 종료 당시 상태이며 이 승인으로 후속 배포한다. 빌드 도구·의존성·캐시·실행 파일·원시 측정 파일은 기존 Git 제외 규칙을 유지하고 소스·문서·집계 JSON을 커밋한다. 소스는 마지막 검증·패키징 완료본을 유지한다.

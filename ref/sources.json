@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "references": [
+    {"name":"ComplementaryUnbound","kind":"github","repository":"ComplementaryDevelopment/ComplementaryReimagined"},
+    {"name":"DistantHorizons","kind":"gitlab","repository":"distant-horizons-team/distant-horizons"},
+    {"name":"FreeTerraForged","kind":"github","repository":"ETcodehome/FreeTerraForged"},
+    {"name":"Lithosphere","kind":"modrinth","project":"iv9jp2k9","page":"https://modrinth.com/datapack/lithosphere"},
+    {"name":"MCP-Reborn","kind":"github","repository":"Hexeption/MCP-Reborn"},
+    {"name":"SimplexTerrain","kind":"github","repository":"jaskarth/simplexterrain"},
+    {"name":"TerraForged","kind":"github","repository":"TerraForged/TerraForged"},
+    {"name":"Terralith","kind":"github","repository":"Stardust-Labs-MC/Terralith"}
+  ]
+}

@@ -22,5 +22,9 @@ screenshots/
 /worldgen.editor.json
 /worldgen.editor.json.tmp
 
-# Local reference materials and research tooling; never publish or package.
-/ref/
+# Reference download recipes only; downloaded/generated sources stay local.
+/ref/*
+!/ref/README.md
+!/ref/sources.json
+!/ref/download.bat
+!/ref/setup-minecraft.bat
