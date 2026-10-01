@@ -28,9 +28,13 @@ void main() {
         colour=vec4(result*0.25,1); return;
     }
     // Full HDR bloom, without a brightness threshold.
-    const float weight[7]=float[7](1,6,15,20,15,6,1);
+    // Linear sampling combines adjacent taps of [1,6,15,20,15,6,1].
+    // Split the centre weight equally to keep four symmetric samples per axis:
+    // (1,6), (15,10), (10,15), (6,1). Source and output have the same extent.
+    const float offset[4]=float[4](-15.0/7.0,-3.0/5.0,3.0/5.0,15.0/7.0);
+    const float weight[4]=float[4](7,25,25,7);
     vec3 sum=vec3(0);
-    for(int y=-3;y<=3;++y) for(int x=-3;x<=3;++x)
-        sum+=texture(source,uv+vec2(x,y)/size).rgb*weight[x+3]*weight[y+3];
+    for(int y=0;y<4;++y) for(int x=0;x<4;++x)
+        sum+=texture(source,uv+vec2(offset[x],offset[y])/size).rgb*weight[x]*weight[y];
     colour=vec4(sum/4096.0,1);
 }
