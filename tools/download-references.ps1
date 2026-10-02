@@ -52,17 +52,40 @@ function RepoInfo([string]$kind, [string]$repo, [string]$revision = '') {
     }
     throw "Unsupported repository provider: $kind"
 }
-function ExpandSafe([string]$archive, [string]$destination) {
+function ExpandSafe([string]$archive, [string]$destination, [switch]$RepositoryRoot) {
     NoLinks $destination
+    # Windows' native extractor supports long paths without changing machine policy
+    # or relying on Windows PowerShell 5.1's .NET ExtractToDirectory implementation.
+    $tar = Join-Path $env:SystemRoot 'System32/tar.exe'
+    if (-not (Test-Path -LiteralPath $tar)) { throw 'Windows built-in tar.exe is required to extract reference archives.' }
     $zip = [IO.Compression.ZipFile]::OpenRead($archive)
     try {
         if ($zip.Entries.Count -eq 0) { throw 'Empty archive.' }
+        $root = $null
         foreach ($entry in $zip.Entries) {
-            $null = ChildPath $destination $entry.FullName
+            $relative = $entry.FullName.Replace('\','/')
+            $null = ChildPath $destination $relative
             if ((($entry.ExternalAttributes -shr 16) -band 0xF000) -eq 0xA000) { throw "Archive contains a symbolic link: $($entry.FullName)" }
+            if ($RepositoryRoot) {
+                $slash = $relative.IndexOf('/')
+                if ($slash -le 0) { throw 'Unexpected repository archive layout.' }
+                $prefix = $relative.Substring(0,$slash)
+                if ($null -eq $root) { $root = $prefix }
+                if ($prefix -cne $root) { throw 'Unexpected repository archive layout.' }
+                $relative = $relative.Substring($slash+1)
+                if (-not $relative) { continue }
+                # Validate again after stripping the wrapper; root/../x must not escape.
+                $null = ChildPath $destination $relative
+            }
         }
     } finally { $zip.Dispose() }
-    [IO.Compression.ZipFile]::ExtractToDirectory($archive, $destination)
+    if (Test-Path -LiteralPath $destination) { throw "Extraction target already exists: $destination" }
+    New-Item -ItemType Directory -Path $destination | Out-Null
+    NoLinks $destination
+    $arguments = @('-xf', $archive, '-C', $destination, '--no-same-owner', '--no-same-permissions')
+    if ($RepositoryRoot) { $arguments += '--strip-components=1' }
+    & $tar @arguments
+    if ($LASTEXITCODE -ne 0) { throw "Archive extraction failed (tar exit $LASTEXITCODE): $archive" }
 }
 function Modules([string]$root) {
     $file = Join-Path $root '.gitmodules'
@@ -84,13 +107,9 @@ function FetchRepo($info, [string]$destination, [string]$work, [int]$depth = 0) 
     if ($depth -gt 8) { throw 'Submodule nesting exceeds 8 levels.' }
     $id = [guid]::NewGuid().ToString('N')
     $archive = ChildPath $work ($id+'.zip')
-    $unpacked = ChildPath $work ($id+'-unpack')
     Write-Host ('  Fetch '+$info.repository+' @ '+$info.revision.Substring(0,12))
     Download $info.url $archive
     $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
-    ExpandSafe $archive $unpacked
-    $entries = @(Get-ChildItem -LiteralPath $unpacked -Force)
-    if ($entries.Count -ne 1 -or -not $entries[0].PSIsContainer) { throw 'Unexpected repository archive layout.' }
     if (Test-Path -LiteralPath $destination) {
         NoLinks $destination
         if (@(Get-ChildItem -LiteralPath $destination -Force).Count) { throw "Submodule target is not empty: $destination" }
@@ -99,8 +118,7 @@ function FetchRepo($info, [string]$destination, [string]$work, [int]$depth = 0) 
     $parent = Split-Path $destination -Parent
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
     NoLinks $parent
-    Move-Item -LiteralPath $entries[0].FullName -Destination $destination
-    Remove-Item -LiteralPath $unpacked -ErrorAction Stop
+    ExpandSafe $archive $destination -RepositoryRoot
     # Only remove the downloaded archive after successful extraction and placement.
     Remove-Item -LiteralPath $archive -ErrorAction Stop
     $children = @()
@@ -179,7 +197,7 @@ try {
                 $old = Get-Content -LiteralPath $stamp -Raw -Encoding UTF8 | ConvertFrom-Json
                 if ($old.source.revision -eq $revision) { Write-Host '  Already current; skipped.'; continue }
             }
-            $work = ChildPath $storage ('_work/'+$reference.name+'-'+[guid]::NewGuid().ToString('N'))
+            $work = ChildPath $storage ('_work/'+[guid]::NewGuid().ToString('N'))
             NoLinks $work
             New-Item -ItemType Directory -Force -Path $work | Out-Null
             NoLinks $work

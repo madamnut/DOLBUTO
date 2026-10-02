@@ -1,5 +1,25 @@
 # AI 작업 규칙
 
+## 참고자료 도구·Minecraft 문서 일괄 푸시 승인 (2026-10-02)
+
+사용자 `푸쉬해싹` 요청으로 미커밋 참고자료 다운로드 경로 수정, 선택적 로컬 JDK 준비, Minecraft 전체·Overworld 초기 지형·표면 문서와 부록 생성 도구를 함께 커밋·푸시한다. 아래 개별 기록의 커밋·푸시 없음은 해당 작업 완료 당시 상태이며 이번 승인으로 후속 배포한다. 직전 Release 빌드·패키징 및 문서 원본 대조 완료본을 사용하며 도구 바이너리·다운로드한 참고자료·캐시·빌드 산출물은 기존 Git 제외 규칙을 유지한다.
+
+## Overworld 초기 지형·표면 문서 분리 (2026-10-02)
+
+사용자는 기존 전체 설명서를 유지하고 Overworld의 돌·물 초기 지형과 표면 처리를 별도 문서로 나누도록 `실시`로 승인했다. docs/minecraft-overworld-base-terrain.md는 NOISE까지의 좌표·난수·밀도·동굴·보간·Aquifer·블록 채우기를 설명하며 바닐라 용암/대형 광맥과 돌·물만 남기는 단순화를 구분한다. 9개 중첩 스플라인의 제어점1290개를 모두 전개하고 관련 density function31개/설정3개/noise38개를 수록했다. docs/minecraft-overworld-surface.md는 SURFACE의 열 순회·조건·우선순위·바이옴 분기·특수 확장과 전체 surface_rule JSON(typed node468개)/관련 noise16개를 담는다. 일반·대형 바이옴·증폭의 표면 규칙은 원본에서 동일함을 확인했다. tools/document-minecraft-overworld.py는 로컬26.2 JAR로 두 문서의 부록만 재생성한다. 기존 전체 설명서는 연결 문단만 추가했다. 모든 제어점의 축·계층·수치와 표면 JSON 전체를 원본과 독립 대조했고 링크·앵커·코드 펜스 검사를 통과했다. Release 빌드·패키징 성공. 게임 소스 변경, 자동 테스트·CU·합성 입력, 커밋·푸시 없음.
+
+## Minecraft 월드 생성 상세 문서 (2026-10-02)
+
+사용자는 ref 기반의 아주 자세한 MD, 모든 중첩 스플라인 수치 전개와 전체 구조도를 요청하고 `ㄱㄱ`로 작성 승인했다. docs/minecraft-world-generation.md는 로컬 Minecraft Java26.2 소스·동일 client.jar의 worldgen JSON 기준이며, 22절 본문/생성·밀도 Mermaid 구조도/9개 스플라인 전체 트리/35개 density function/7개 noise settings/63개 noise 파라미터를 담는다. 중복을 포함한 spline 노드354·제어점1290·상수잎945를 전개했고 원본 JSON과 축·계층·모든 수치 일치를 별도 내용 검사로 확인했다. tools/document-minecraft-worldgen.py는 로컬 JAR에서 부록 마커 구간만 재생성하며 다른 버전은 거절한다. 바닐라 구현과 설계 의견, 모든 지형 스플라인의 완전 전개와 개별 구조물·장식 프리셋의 비전수 범위를 구분한다. 현재 checkout 지형은 flat_surface_y192이며 과거 spline 이력을 현재 구현으로 가정하지 않는다. Release 빌드·패키징 성공. 게임 생성 코드/기존 ref/설정 변경, 자동 테스트·CU·합성 입력, 커밋·푸시 없음.
+
+## 명시적인 수정 승인과 로컬 JDK 준비 (2026-10-02)
+
+사용자는 오류 로그만 보고 수정한 행동을 지적하며 `실시`, `ㅅㅅ`, `ㄱㄱ`가 있을 때만 합의 범위에서 수정하도록 재확인했다. 로그 전달·질문은 조사와 설명만 허용하며 수정/설치/되돌리기 승인으로 해석하지 않는다. 이후 사용자가 누락 JDK를 안내하고 선택 동의 후 프로젝트 .tools에 다운로드하는 제안에 `ㄱㄱ`로 승인했다. setup-minecraft-reference.ps1은 기존 호환 JDK/명시 경로를 유지하고 누락분만 Temurin ZIP으로 받아 SHA256·경로·버전을 검증한다. 기본 [y/N], 명시 동의 -DownloadJdks, JDK 다운로드 금지 -NoDownload; 시스템 설치나 영구 환경변수 변경은 없다. Git에는 스크립트/문서만 포함하며 JDK/생성 소스는 제외. 이 승인은 커밋·푸시를 포함하지 않는다. 상세와 검증은 docs/reference-download-2026-10-02.md의 로컬 JDK 후속 절.
+
+## 참고자료 긴 압축 경로 수정 (2026-10-02)
+
+사용자가 전달한 다운로드 실패 로그의 6개 저장소는 Windows PowerShell 5.1 ExtractToDirectory의 긴 임시 경로에서 실패했다. tools/download-references.ps1은 ZIP 경로·심볼릭링크 검사를 유지하며 Windows System32/tar.exe로 추출하고, 저장소 최상위 폴더를 제거해 payload에 직접 푼다. stage는 GUID만 사용한다. Windows 기본 PS5.1 실제 실행으로 실패 6개와 DH의 부모 commit 고정 Core 다운로드 성공, Lithosphere 강제 갱신·백업·SHA512 확인 성공, 최종 8개 모두 최신 skip/exit0 확인. 자료는 ref/sources에 있으며 이전 실패 stage와 레거시 자료는 보존한다. 이번에는 Minecraft 소스 생성·게임 빌드·커밋·푸시를 실행하지 않았다. 상세 docs/reference-download-2026-10-02.md의 긴 경로 후속 절.
+
 ## 참고자료 PS1 tools 이동 (2026-10-02)
 
 사용자 PS1을tools로이동제안 및 `ㅇㅋ 실시` 승인. tools/download-references.ps1·setup-minecraft-reference.ps1로이동,ref의두BAT상대호출과PSScriptRoot기준ref경로수정. ref에는README/sources.json/BAT2개만Git예외,PS1은tools일반추적. ref/sources자료·설정·소스생성방식유지,기존8폴더삭제차단은그대로이며재시도없음. 문서갱신/Windows기본PS구문·타작업폴더에서조회/Release빌드·패키징확인.
